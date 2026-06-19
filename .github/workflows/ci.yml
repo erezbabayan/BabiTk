@@ -20,6 +20,9 @@ jobs:
             web/package-lock.json
             mobile/package-lock.json
 
+      - name: Install root deps (Convex integration tests)
+        run: npm ci
+
       - name: Backend install & verify
         working-directory: backend
         env:
