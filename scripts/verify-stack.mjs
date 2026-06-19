@@ -85,23 +85,29 @@ try {
 }
 
 try {
-  run(".\\node_modules\\.bin\\tsc --noEmit", join(root, "mobile"));
+  run("npm run typecheck", join(root, "mobile"));
   pass("Mobile typecheck");
 } catch (e) {
   fail("Mobile typecheck", String(e.stderr ?? e.message).slice(0, 300));
 }
 
-// 6. Backend health (optional)
-try {
-  const res = await fetch("http://localhost:3001/health");
-  if (res.ok) {
-    const body = await res.json();
-    pass("Backend /health", JSON.stringify(body));
-  } else {
-    fail("Backend /health", `HTTP ${res.status}`);
+const isCi = process.env.CI === "true";
+
+// 6. Backend health (optional — skipped in CI without a running server)
+if (isCi) {
+  pass("Backend /health", "skipped in CI");
+} else {
+  try {
+    const res = await fetch("http://localhost:3001/health");
+    if (res.ok) {
+      const body = await res.json();
+      pass("Backend /health", JSON.stringify(body));
+    } else {
+      fail("Backend /health", `HTTP ${res.status}`);
+    }
+  } catch {
+    fail("Backend /health", "Server not running on :3001 (start with: cd backend && npm run dev)");
   }
-} catch {
-  fail("Backend /health", "Server not running on :3001 (start with: cd backend && npm run dev)");
 }
 
 // 8. Feature modules (6 stages)
@@ -131,8 +137,8 @@ if (schema.includes("vector(1536)") && schema.includes("search_notes")) {
 } else {
   fail("Stage 6: pgvector + search_notes");
 }
-// Supabase link (deployment only — skip with VERIFY_SKIP_SUPABASE_LINK=1)
-const skipLink = process.env.VERIFY_SKIP_SUPABASE_LINK === "1";
+// Supabase link (deployment only — skip in CI or with VERIFY_SKIP_SUPABASE_LINK=1)
+const skipLink = isCi || process.env.VERIFY_SKIP_SUPABASE_LINK === "1";
 const linked = existsSync(join(root, "supabase/.temp/project-ref"));
 if (skipLink) {
   linked ? pass("Supabase project linked") : pass("Supabase project linked", "skipped (local dev)");
