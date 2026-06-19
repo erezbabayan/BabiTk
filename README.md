@@ -1,48 +1,61 @@
 # MindTasker
 
-Zero-friction task & note ingestion (WhatsApp, voice, notebook OCR) with AI classification.
+מערכת לקליטה חכמה של משימות והערות — מוואטסאפ (טקסט, קול), מסרים, וסריקת מחברת — עם סיווג AI, לוח עמודות, ותזכורות.
 
-## Quick start (local)
+## יכולות עיקריות
+
+- **קליטה** — וואטסאפ, הקלטה קולית, OCR למחברת, הקלדה מהירה
+- **AI** — פירוק טקסט בעברית, דחיפות, תאריכים יחסיים («מחר ב-10»), תגיות
+- **לוח** — Inbox, משימות, הערות, ארכיון, חיפוש סמנטי
+- **אינטגרציות** — Supabase, Stripe Premium, Google Calendar, Convex (WhatsApp pipeline)
+- **פריסה** — Docker Compose, CI/CD ב-GitHub Actions, deploy אוטומטי לשרת
+
+## התחלה מהירה (מקומי)
 
 ```powershell
+.\scripts\install-git-hooks.ps1   # פעם אחת — תזכורת לפני commit
 .\scripts\run-dev.ps1
 # Web: http://localhost:5173
 # API: http://localhost:3001/health
 ```
 
-Demo mode is enabled when `web/.env` has `VITE_DEMO_MODE=true` (default for local dev without Supabase).
+מצב Demo פעיל כש-`web/.env` מכיל `VITE_DEMO_MODE=true` (ברירת מחדל לפיתוח בלי Supabase).
 
-## Supabase setup
+## Supabase
 
 ```powershell
 $env:SUPABASE_ACCESS_TOKEN = "sbp_..."
 $env:SUPABASE_DB_PASSWORD = "..."
-$env:SUPABASE_CREATE = "1"   # or set SUPABASE_PROJECT_REF for existing project
+$env:SUPABASE_CREATE = "1"   # או SUPABASE_PROJECT_REF לפרויקט קיים
 .\scripts\setup-supabase.ps1
 node scripts\check-env.mjs
 node scripts\verify-stack.mjs
 ```
 
-## Production
+## פרודקשן
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) and [deploy/nginx-ssl.conf.example](./deploy/nginx-ssl.conf.example).
+ראה [DEPLOYMENT.md](./DEPLOYMENT.md) ו-[deploy/nginx-ssl.conf.example](./deploy/nginx-ssl.conf.example).
 
 ```bash
 cp .env.production.example .env.production
 docker compose up -d --build
 ```
 
-## Scripts
+אחרי הגדרת secrets ב-GitHub (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_PRIVATE_KEY`, `DEPLOY_PATH`) — כל push מוצלח ל-`main` מפריס אוטומטית לשרת.
 
-| Script | Purpose |
-|--------|---------|
-| `scripts/run-dev.ps1` | Start backend + web |
-| `scripts/setup-supabase.ps1` | Link/create Supabase + migrations + .env |
-| `scripts/verify-stack.mjs` | Smoke check all 6 stages |
-| `scripts/check-env.mjs` | Validate .env files |
-| `scripts/check-integrations.mjs` | Stripe/WhatsApp/Google checklist |
+## סקריפטים
 
-## Mobile
+| סקריפט | תפקיד |
+|--------|--------|
+| `scripts/run-dev.ps1` | הפעלת backend + web |
+| `scripts/setup-supabase.ps1` | חיבור/יצירת Supabase + migrations + .env |
+| `scripts/connect-github.ps1` | חיבור ראשוני ל-GitHub |
+| `scripts/install-git-hooks.ps1` | התקנת Git hooks (תזכורת + חסימת .env) |
+| `scripts/verify-stack.mjs` | בדיקת עשן לכל 6 השלבים |
+| `scripts/check-env.mjs` | אימות קבצי .env |
+| `scripts/check-integrations.mjs` | צ'קליסט Stripe / WhatsApp / Google |
+
+## מובייל
 
 ```powershell
 cd mobile
@@ -52,3 +65,17 @@ npm install
 npm run android
 npx eas build --profile production
 ```
+
+## מבנה הפרויקט
+
+```
+backend/   — API (Fastify), WhatsApp, AI, Stripe, גיבויים
+web/       — ממשק React (Vite)
+mobile/    — אפליקציית Expo / React Native
+convex/    — pipeline לוואטסאפ ו-OCR
+supabase/  — migrations, RLS, pgvector
+```
+
+## רישיון
+
+פרויקט פרטי — כל הזכויות שמורות.
