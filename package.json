@@ -2,7 +2,7 @@
   "name": "mindtasker",
   "version": "0.1.0",
   "private": true,
-  "description": "קליטה חכמה של משימות והערות מוואטסאפ, קול ו-OCR — עם AI בעברית",
+  "description": "מנהל משימות והערות חכם — קליטה מוואטסאפ, קול ומחברת, עם בינה מלאכותית בעברית",
   "scripts": {
     "convex:dev": "convex dev",
     "convex:once": "convex dev --once",
