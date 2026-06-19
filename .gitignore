@@ -1,0 +1,15 @@
+backups/
+backend/data/
+*.zip
+.env
+.env.*
+!.env.example
+!.env.*.example
+.env.production
+.supabase-local.env
+node_modules/
+.expo/
+dist/
+build/
+.DS_Store
+Thumbs.db

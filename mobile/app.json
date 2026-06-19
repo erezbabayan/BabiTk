@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "MindTasker",
+    "slug": "mindtasker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.mindtasker.app",
+      "usesCleartextTraffic": true,
+      "statusBar": {
+        "backgroundColor": "#ffffff",
+        "barStyle": "dark-content"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "mindtasker"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "scheme": "mindtasker",
+    "plugins": [
+      "expo-font",
+      "expo-asset"
+    ]
+  }
+}

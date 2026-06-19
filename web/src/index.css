@@ -1,0 +1,26 @@
+@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@500;700;800&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-board: "Heebo", "Segoe UI", sans-serif;
+}
+
+html {
+  font-size: 12px;
+}
+
+@layer components {
+  button {
+    @apply rounded-md px-2 py-0.5 text-xs font-medium leading-tight;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  textarea,
+  select {
+    @apply rounded-md border border-slate-300 px-1.5 py-0.5 text-xs leading-tight;
+  }
+}
+
+body {
+  @apply m-0 min-h-screen bg-slate-100 text-slate-900 font-sans text-sm;
+}

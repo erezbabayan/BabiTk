@@ -1,0 +1,20 @@
+{
+  "name": "mindtasker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "convex:dev": "convex dev",
+    "convex:once": "convex dev --once",
+    "convex:seed": "node scripts/seed-convex.mjs",
+    "convex:test": "npm test --prefix backend -- --test-name-pattern Convex",
+    "dev:web": "convex dev --start \"npm run dev --prefix web\""
+  },
+  "dependencies": {
+    "convex": "^1.41.0",
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "typescript": "^5.8.3"
+  }
+}
