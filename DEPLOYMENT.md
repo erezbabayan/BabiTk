@@ -6,6 +6,40 @@
 - Supabase project with all migrations applied (`supabase db push`)
 - Domain + TLS terminator (Cloudflare, Caddy, or nginx on host) in front of port 8080
 
+## Auto-deploy (GitHub Actions)
+
+After a successful CI run on `main`, the **Deploy** workflow SSHs into your server and runs `scripts/deploy-remote.sh` (`git pull` + `docker compose up -d --build`).
+
+### One-time server setup
+
+```bash
+git clone https://github.com/erezbabayan/MindTasker.git /opt/mindtasker
+cd /opt/mindtasker
+cp .env.production.example .env.production
+# edit .env.production
+docker compose up -d --build
+```
+
+### GitHub repository secrets
+
+| Secret | Example |
+|--------|---------|
+| `DEPLOY_HOST` | `203.0.113.10` or `app.yourdomain.com` |
+| `DEPLOY_USER` | `deploy` |
+| `DEPLOY_SSH_PRIVATE_KEY` | PEM private key (read-only deploy user recommended) |
+| `DEPLOY_PATH` | `/opt/mindtasker` |
+| `DEPLOY_PORT` | `22` (optional) |
+
+Until these secrets are set, deploy is **skipped** (CI still runs).
+
+### Local Git hooks
+
+```powershell
+.\scripts\install-git-hooks.ps1
+```
+
+Pre-commit reminds you to `git push` and blocks committing `.env` secret files.
+
 ## Quick start
 
 ```bash
