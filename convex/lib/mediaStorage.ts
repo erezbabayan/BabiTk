@@ -7,7 +7,11 @@ export async function storeMediaBuffer(
   buffer: Buffer,
   mimeType: string,
 ): Promise<Id<"_storage">> {
-  const bytes = new Uint8Array(buffer);
-  const blob = new Blob([bytes], { type: mimeType || "application/octet-stream" });
+  const BlobCtor = Blob as unknown as {
+    new (parts: BlobPart[], options?: { type?: string }): Blob;
+  };
+  const blob = new BlobCtor([new Uint8Array(buffer)], {
+    type: mimeType || "application/octet-stream",
+  });
   return await ctx.storage.store(blob);
 }

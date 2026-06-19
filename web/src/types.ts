@@ -35,6 +35,7 @@ export interface MindtaskerItem {
   status: ItemStatus;
   due_date: string | null;
   completed_at: string | null;
+  calendar_event_id?: string | null;
   tags: string[];
   metadata?: Record<string, unknown> | null;
   sort_order: number;
