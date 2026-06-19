@@ -220,7 +220,7 @@ export function parseGenericWebhook(body: unknown): WhatsAppWebhookPayload {
       from?: string;
       type?: string;
       text?: { body?: string };
-      audio?: { url?: string; mime_type?: string };
+      audio?: { url?: string; link?: string; mime_type?: string };
       voice?: { url?: string; link?: string; mime_type?: string };
       image?: { url?: string; link?: string; mime_type?: string };
     };

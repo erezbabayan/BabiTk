@@ -6,6 +6,7 @@
     "convex:dev": "convex dev",
     "convex:once": "convex dev --once",
     "convex:seed": "node scripts/seed-convex.mjs",
+    "convex:link-phone": "node scripts/link-user-phone.mjs",
     "convex:test": "npm test --prefix backend -- --test-name-pattern Convex",
     "dev:web": "convex dev --start \"npm run dev --prefix web\""
   },

@@ -3,31 +3,50 @@ import { sendWhatsAppText } from "./whatsapp.service.js";
 import { normalizePhone } from "./items.service.js";
 import { resetUsagePeriodIfNeeded } from "./usage.service.js";
 
-const ARCHIVE_HOURS = 48;
 const TRASH_RETENTION_DAYS = 30;
 
 export { TRASH_RETENTION_DAYS };
 
 /**
- * Moves inbox items idle for 48+ hours to temporary archive (status: snoozed_archive).
+ * Moves idle inbox items to archive per user's notebook archive setting.
  */
 export async function archiveStaleInboxItems(): Promise<number> {
   const supabase = getSupabaseAdmin();
-  const cutoff = new Date(Date.now() - ARCHIVE_HOURS * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
-    .from("mindtasker_items")
-    .update({ status: "snoozed_archive" })
-    .eq("status", "inbox")
-    .is("deleted_at", null)
-    .lt("last_interacted_at", cutoff)
-    .select("id");
+  const { data: users, error: usersError } = await supabase
+    .from("users")
+    .select("id, inbox_archive_hours");
 
-  if (error) {
-    throw new Error(`Inbox archive failed: ${error.message}`);
+  if (usersError) {
+    throw new Error(`Inbox archive failed to load users: ${usersError.message}`);
   }
 
-  return data?.length ?? 0;
+  let total = 0;
+
+  for (const user of users ?? []) {
+    const hours =
+      typeof user.inbox_archive_hours === "number" && user.inbox_archive_hours > 0
+        ? user.inbox_archive_hours
+        : 48;
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from("mindtasker_items")
+      .update({ status: "snoozed_archive" })
+      .eq("user_id", user.id)
+      .eq("status", "inbox")
+      .is("deleted_at", null)
+      .lt("last_interacted_at", cutoff)
+      .select("id");
+
+    if (error) {
+      throw new Error(`Inbox archive failed for user ${user.id}: ${error.message}`);
+    }
+
+    total += data?.length ?? 0;
+  }
+
+  return total;
 }
 
 /**

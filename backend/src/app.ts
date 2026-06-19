@@ -8,6 +8,7 @@ import { ingestRoutes } from "./routes/ingest.routes.js";
 import { integrationsRoutes } from "./routes/integrations.routes.js";
 import { usageRoutes } from "./routes/usage.routes.js";
 import { itemsRoutes } from "./routes/items.routes.js";
+import { boardSettingsRoutes } from "./routes/board-settings.routes.js";
 import { billingRoutes } from "./routes/billing.routes.js";
 import { cronRoutes } from "./routes/cron.routes.js";
 import { profileRoutes } from "./routes/profile.routes.js";
@@ -32,7 +33,7 @@ export async function buildApp() {
     max: 300,
     timeWindow: "1 minute",
     allowList: (request) => {
-      const url = request.url.split("?")[0];
+      const url = request.url?.split("?")[0] ?? "";
       return url === "/health" || url.endsWith("/api/sync/items");
     },
   });
@@ -43,6 +44,7 @@ export async function buildApp() {
   await app.register(ingestRoutes, { prefix: "/api/ingest" });
   await app.register(itemsRoutes, { prefix: "/api/items" });
   await app.register(profileRoutes, { prefix: "/api/profile" });
+  await app.register(boardSettingsRoutes, { prefix: "/api/board-settings" });
   await app.register(tagsRoutes, { prefix: "/api/tags" });
   await app.register(integrationsRoutes, { prefix: "/api/integrations" });
   await app.register(usageRoutes, { prefix: "/api/usage" });

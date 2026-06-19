@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "test": "node --import tsx --test src/tests/**/*.test.ts",
     "backup": "tsx scripts/run-backup.ts",
     "send-links": "tsx scripts/send-app-links.ts"

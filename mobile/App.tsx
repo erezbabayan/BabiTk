@@ -544,6 +544,7 @@ function MainApp({ onSignOut }: { onSignOut: () => void }) {
 
       <SettingsScreen
         visible={settingsVisible}
+        userId={session?.user.id}
         userTags={userTags}
         summary={summary}
         onSaveTags={saveUserTags}

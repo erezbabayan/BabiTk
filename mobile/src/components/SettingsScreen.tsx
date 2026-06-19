@@ -22,6 +22,7 @@ import { ChannelSettingsModal } from "./ChannelSettingsModal";
 
 import { TagSettingsScreen } from "./TagSettingsScreen";
 import { TrashScreen } from "./TrashScreen";
+import { BoardSettingsScreen } from "./BoardSettingsScreen";
 import { TestDataScreen } from "./TestDataScreen";
 
 import type { UserTag } from "../lib/tags";
@@ -32,6 +33,8 @@ import { isDemoMode } from "../lib/supabase";
 interface SettingsScreenProps {
 
   visible: boolean;
+
+  userId?: string;
 
   userTags: UserTag[];
 
@@ -52,6 +55,8 @@ interface SettingsScreenProps {
 export function SettingsScreen({
 
   visible,
+
+  userId,
 
   userTags,
 
@@ -87,6 +92,7 @@ export function SettingsScreen({
 
   const [premiumVisible, setPremiumVisible] = useState(false);
   const [trashVisible, setTrashVisible] = useState(false);
+  const [boardsVisible, setBoardsVisible] = useState(false);
   const [testDataVisible, setTestDataVisible] = useState(false);
 
 
@@ -240,6 +246,14 @@ export function SettingsScreen({
             <Pressable style={styles.row} onPress={() => setTagsVisible(true)}>
 
               <Text style={styles.rowText}>🏷 ניהול תגיות</Text>
+
+            </Pressable>
+
+
+
+            <Pressable style={styles.row} onPress={() => setBoardsVisible(true)}>
+
+              <Text style={styles.rowText}>📋 הגדרות בורדים</Text>
 
             </Pressable>
 
@@ -408,6 +422,7 @@ export function SettingsScreen({
 
       <PhoneLinkScreen
         visible={phoneVisible}
+        userId={userId}
         summary={summary}
         onClose={() => setPhoneVisible(false)}
       />
@@ -440,6 +455,8 @@ export function SettingsScreen({
       />
 
       <TrashScreen visible={trashVisible} onClose={() => setTrashVisible(false)} />
+
+      <BoardSettingsScreen visible={boardsVisible} onClose={() => setBoardsVisible(false)} />
 
       <TestDataScreen
         visible={testDataVisible}

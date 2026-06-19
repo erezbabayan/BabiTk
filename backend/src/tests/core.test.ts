@@ -10,6 +10,7 @@ import {
 import { normalizePhone } from "../services/items.service.js";
 import { parseInputLocally } from "../services/local-parse.service.js";
 import { isOpenAiUsable } from "../services/parse-input.service.js";
+import type { StoredItemAnalysis } from "../types/item-analysis.js";
 import { sanitizeInboundText } from "../utils/whatsapp.js";
 
 const TZ = "Asia/Jerusalem";
@@ -177,7 +178,7 @@ describe("sanitizeInboundText", () => {
 
 describe("item analysis enrichment", () => {
   it("injects source label and formatted response", () => {
-    const [item] = enrichParsedItemsWithAnalysis(
+    const enriched = enrichParsedItemsWithAnalysis(
       [
         {
           title: "להתקשר למוסך",
@@ -200,17 +201,19 @@ describe("item analysis enrichment", () => {
         referenceDate: REF,
       },
     );
+    assert.equal(enriched.length, 1);
+    const analysis = enriched[0]!.analysis as StoredItemAnalysis;
 
-    assert.equal(item.analysis.source, "וואטסאפ (טקסט)");
-    assert.match(item.analysis.formatted, /מטרה:/);
-    assert.match(item.analysis.formatted, /רמת_דחיפות: גבוהה/);
-    assert.ok(item.analysis.notify_at);
-    assert.equal(item.analysis.time_mention, "חסר");
-    assert.equal(item.analysis.data_points, "התקשרות למוסך");
+    assert.equal(analysis.source, "וואטסאפ (טקסט)");
+    assert.match(analysis.formatted, /מטרה:/);
+    assert.match(analysis.formatted, /רמת_דחיפות: גבוהה/);
+    assert.ok(analysis.notify_at);
+    assert.equal(analysis.time_mention, "חסר");
+    assert.equal(analysis.data_points, "התקשרות למוסך");
   });
 
   it("drops relative time when due date is resolved", () => {
-    const [item] = enrichParsedItemsWithAnalysis(
+    const enriched = enrichParsedItemsWithAnalysis(
       [
         {
           title: "להכין אוכל לשבת",
@@ -233,10 +236,12 @@ describe("item analysis enrichment", () => {
         referenceDate: REF,
       },
     );
+    assert.equal(enriched.length, 1);
+    const analysis = enriched[0]!.analysis as StoredItemAnalysis;
 
-    assert.equal(item.analysis.time_mention, "חסר");
-    assert.equal(item.analysis.data_points, "להכין אוכל לשבת");
-    assert.ok(item.analysis.target_at);
+    assert.equal(analysis.time_mention, "חסר");
+    assert.equal(analysis.data_points, "להכין אוכל לשבת");
+    assert.ok(analysis.target_at);
   });
 
   it("computes notify_at 30 minutes before high urgency tasks", () => {

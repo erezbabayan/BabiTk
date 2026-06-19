@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BoardSettingsPanel } from "./BoardSettingsPanel";
 import { GoogleCalendarLink } from "./GoogleCalendarLink";
 import { NotebookScanSettings } from "./NotebookScanSettings";
 import { PhoneLinkSettings } from "./PhoneLinkSettings";
@@ -21,7 +22,8 @@ type SettingsSection =
   | "calendar"
   | "premium"
   | "tags"
-  | "trash";
+  | "trash"
+  | "boards";
 
 interface SettingsPanelProps {
   userId: string;
@@ -39,6 +41,7 @@ const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "calendar", label: "📅 Google Calendar" },
   { id: "premium", label: "⭐ Premium" },
   { id: "tags", label: "🏷 ניהול תגיות" },
+  { id: "boards", label: "📋 הגדרות בורדים" },
   { id: "trash", label: "🗑 סל מחזור" },
 ];
 
@@ -65,7 +68,11 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 id="settings-title" className="text-sm font-bold">
-            {section === "menu" ? "הגדרות" : MENU_ITEMS.find((item) => item.id === section)?.label}
+            {section === "menu"
+              ? "הגדרות"
+              : section === "boards"
+                ? "הגדרות בורדים"
+                : MENU_ITEMS.find((item) => item.id === section)?.label}
           </h2>
           <div className="flex gap-2">
             {section !== "menu" ? (
@@ -119,6 +126,7 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
           <PremiumSettings summary={summary} onOpenPaywall={handleOpenPaywall} />
         ) : null}
         {section === "tags" ? <TagSettings tags={tags} onSave={save} /> : null}
+        {section === "boards" ? <BoardSettingsPanel /> : null}
         {section === "trash" ? <TrashSettings /> : null}
       </div>
     </div>
