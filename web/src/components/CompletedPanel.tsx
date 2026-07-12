@@ -3,6 +3,8 @@ import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
 import type { MindtaskerItem } from "../types";
 import { restoreSwipeActions } from "../lib/item-swipe-actions";
+import { boardItemsLayoutClass } from "../lib/board-item-layout";
+import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface CompletedPanelProps {
   items: MindtaskerItem[];
@@ -17,6 +19,8 @@ export function CompletedPanel({
   onDelete,
   onEdit,
 }: CompletedPanelProps) {
+  const { view } = useBoardItemViewOptional();
+
   if (items.length === 0) {
     return (
       <p className="text-sm text-blue-500/80">
@@ -26,7 +30,7 @@ export function CompletedPanel({
   }
 
   return (
-    <div className="space-y-1">
+    <div className={boardItemsLayoutClass(view)}>
       {items.map((item) => {
         const swipe = restoreSwipeActions(
           () => onRestore(item),
@@ -36,6 +40,7 @@ export function CompletedPanel({
           <SwipeableItemCard key={item.id} leftAction={swipe.left} rightAction={swipe.right}>
             <ItemCard
               item={item}
+              boardAccent="today"
               compact
               onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
             />

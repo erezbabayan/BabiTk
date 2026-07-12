@@ -1,8 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@500;700;800&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-board: "Heebo", "Segoe UI", sans-serif;
+  --font-board: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
+  --font-logo: "Segoe Script", "Comic Sans MS", cursive;
+  --font-hand: "Solitreo", "Segoe Script", cursive;
+  --font-board-title: "Secular One", "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
 }
 
 html {
@@ -21,6 +23,438 @@ html {
   }
 }
 
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
-  @apply m-0 min-h-screen bg-slate-100 text-slate-900 font-sans text-sm;
+  @apply m-0 text-slate-900 font-sans text-sm;
+  background-color: #f5f2e9;
+  background-image:
+    linear-gradient(180deg, rgb(255 254 251 / 0.6) 0%, transparent 32%),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 23px,
+      rgb(120 113 108 / 0.05) 23px,
+      rgb(120 113 108 / 0.05) 24px
+    );
+}
+
+.font-hand {
+  font-family: var(--font-hand);
+}
+
+.font-board {
+  font-family: "Rubik", "Arial Hebrew", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-weight: 700;
+  font-synthesis: none;
+  font-feature-settings: normal;
+}
+
+.font-board-tab {
+  font-family: "Rubik", "Arial Hebrew", "Segoe UI", "Helvetica Neue", sans-serif;
+  font-weight: 600;
+  font-synthesis: none;
+}
+
+.board-title-hand {
+  font-family: var(--font-board-title);
+  font-weight: 400;
+  font-synthesis: none;
+  letter-spacing: 0;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@keyframes logo-bar-think {
+  0%,
+  100% {
+    transform: scaleY(0.72);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scaleY(1.06);
+    opacity: 1;
+  }
+}
+
+.logo-bar-pulse {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: logo-bar-think 0.88s ease-in-out infinite;
+}
+
+.logo-bar-pulse--1 {
+  animation-delay: 0ms;
+}
+
+.logo-bar-pulse--2 {
+  animation-delay: 140ms;
+}
+
+.logo-bar-pulse--3 {
+  animation-delay: 280ms;
+}
+
+.logo-wordmark {
+  font-family: var(--font-logo);
+  font-weight: 700;
+}
+
+/* App header — cream paper, matches dashboard background */
+.app-header {
+  border-bottom: 1px solid rgb(214 211 209 / 0.55);
+  background-color: rgb(253 250 243 / 0.94);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.55) 0%, transparent 100%);
+  box-shadow: 0 1px 3px rgb(120 113 108 / 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.app-header-nav-link {
+  @apply border-0 bg-transparent px-2 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:text-sm;
+}
+
+.board-view-toggle {
+  @apply inline-flex items-center gap-1.5 border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:text-sm;
+}
+
+.board-view-toggle__label {
+  @apply hidden whitespace-nowrap sm:inline;
+}
+
+.board-view-toggle__track {
+  position: relative;
+  display: inline-flex;
+  width: 2.75rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  border-radius: 999px;
+  background: #e7e5e4;
+  transition: background-color 0.2s ease;
+}
+
+.board-view-toggle__track--squares {
+  background: #d6d3d1;
+}
+
+.board-view-toggle__thumb {
+  position: absolute;
+  top: 0.1875rem;
+  left: 0.1875rem;
+  z-index: 2;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(28 25 23 / 0.18);
+  transition: transform 0.2s ease;
+}
+
+.board-view-toggle__track--squares .board-view-toggle__thumb {
+  transform: translateX(1.25rem);
+}
+
+.board-view-toggle__icon {
+  position: absolute;
+  top: 0.2rem;
+  z-index: 1;
+  font-size: 0.65rem;
+  line-height: 1.1rem;
+  color: #57534e;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+
+.board-view-toggle__icon--list {
+  left: 0.4rem;
+}
+
+.board-view-toggle__icon--grid {
+  right: 0.4rem;
+}
+
+.board-view-toggle__track--squares .board-view-toggle__icon--list,
+.board-view-toggle__track:not(.board-view-toggle__track--squares) .board-view-toggle__icon--grid {
+  opacity: 0.35;
+}
+
+.quick-capture-header-box {
+  border: 2px dashed rgb(251 146 60 / 0.55);
+  border-radius: 0.85rem;
+  background-color: #fffefb;
+  box-shadow:
+    0 1px 3px rgb(120 113 108 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.quick-capture-header-box:focus-within {
+  border-color: rgb(249 115 22 / 0.75);
+  box-shadow:
+    0 0 0 3px rgb(249 115 22 / 0.12),
+    0 2px 8px rgb(120 113 108 / 0.1);
+}
+
+.quick-capture-submit {
+  background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
+  box-shadow: 0 1px 3px rgb(234 88 12 / 0.35);
+}
+
+.quick-capture-submit:not(:disabled):hover {
+  background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+}
+
+.quick-capture-kicker {
+  font-family: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.quick-capture-input {
+  font-family: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
+  font-weight: 500;
+}
+
+.quick-capture-input::placeholder {
+  color: rgb(120 113 108 / 0.72);
+}
+
+/* Thin-line icon buttons on item cards */
+.notebook-icon-btn {
+  @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 bg-transparent transition;
+}
+
+.notebook-icon-btn:hover {
+  @apply bg-slate-50;
+}
+
+.notebook-icon-btn--active {
+  @apply bg-slate-100;
+}
+
+.notebook-icon-btn--reminder {
+  @apply bg-red-50;
+}
+
+.notebook-icon-btn--accent {
+  @apply bg-blue-50;
+}
+
+.notebook-icon-btn--muted {
+  @apply opacity-60;
+}
+
+.notebook-task-check {
+  @apply inline-flex items-center justify-center rounded-md border-0 bg-transparent p-0 transition hover:bg-blue-50/60;
+}
+
+/* Notebook dashboard columns */
+.board-notebook {
+  @apply relative flex h-full min-h-0 flex-col;
+}
+
+.board-title-brush-underline {
+  display: block;
+  width: 100%;
+  min-width: 3.5rem;
+  height: 0.9rem;
+  margin-top: -0.1rem;
+  line-height: 0;
+  overflow: visible;
+}
+
+.board-title-brush-underline-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.board-notebook-panel {
+  @apply relative z-[2] flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-300/60 bg-[#fffefb] p-2.5 shadow-sm ring-1 ring-slate-200/30 sm:p-3;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45) 0%, transparent 18%);
+  border-top-width: 1px;
+  padding-top: 0.7rem;
+}
+
+.board-notebook--slate .board-notebook-panel {
+  @apply border-slate-300/70;
+  border-top-color: rgb(203 213 225 / 0.85);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.board-notebook--blue .board-notebook-panel {
+  @apply border-blue-300/70 ring-blue-200/30;
+  border-top-color: rgb(147 197 253 / 0.85);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.board-notebook--orange .board-notebook-panel {
+  @apply border-orange-300/70 ring-orange-200/30;
+  border-top-color: rgb(253 186 116 / 0.85);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+}
+
+.board-notebook-footer {
+  @apply pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center border-t border-slate-200/50 bg-gradient-to-t from-[#fffefb] via-[#fffefb]/95 to-transparent px-3 py-2;
+}
+
+.board-notebook-footer-btn {
+  @apply pointer-events-auto inline-flex items-center gap-1 border-0 bg-transparent text-sm font-semibold no-underline transition hover:opacity-80;
+}
+
+.board-notebook-item {
+  @apply rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
+}
+
+.board-notebook-item--squares {
+  @apply flex flex-col;
+}
+
+.board-notebook-toolbar {
+  @apply mt-1 lg:mt-1;
+}
+
+/* Column search — scrapbook dashed frame */
+.column-search-frame {
+  border: 1.5px dashed rgb(168 162 158 / 0.62);
+  border-radius: 0.65rem;
+  background-color: #fffefb;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.85);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.column-search-frame--slate {
+  border-color: rgb(148 163 184 / 0.55);
+}
+
+.column-search-frame--blue {
+  border-color: rgb(96 165 250 / 0.5);
+}
+
+.column-search-frame--orange {
+  border-color: rgb(251 146 60 / 0.5);
+}
+
+.column-search-frame:focus-within {
+  border-color: rgb(120 113 108 / 0.72);
+  box-shadow:
+    0 0 0 2px rgb(120 113 108 / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.9);
+}
+
+.column-search-frame--blue:focus-within {
+  border-color: rgb(59 130 246 / 0.55);
+  box-shadow: 0 0 0 2px rgb(59 130 246 / 0.1);
+}
+
+.column-search-frame--orange:focus-within {
+  border-color: rgb(249 115 22 / 0.58);
+  box-shadow: 0 0 0 2px rgb(249 115 22 / 0.1);
+}
+
+.column-search-deco {
+  @apply pointer-events-none absolute top-1/2 right-1 z-[1] flex h-[1.15rem] w-[1.15rem] -translate-y-1/2 items-center justify-center rounded-sm border border-dashed border-stone-300/75 bg-[#fffefb]/90;
+}
+
+/* Notebook tag pills — pastel fill, clear sans label (BabiTk-style) */
+.tag-chip-pill {
+  font-family: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
+  font-weight: 600;
+  font-synthesis: none;
+  @apply inline-flex max-w-full shrink-0 items-center rounded-full border leading-tight;
+}
+
+.tag-chip-pill-btn {
+  @apply cursor-pointer transition hover:opacity-90;
+}
+
+.tag-chip-pill--xs {
+  @apply px-2 py-0.5 text-[11px];
+}
+
+.tag-chip-pill--sm {
+  @apply px-2.5 py-1 text-xs;
+}
+
+.tag-chip-pill--active {
+  /* fill + text set inline from tag color */
+}
+
+.tag-chip-pill--item {
+  font-weight: 500;
+  border-width: 1px;
+  border-style: solid;
+  @apply rounded-md px-1.5 py-px text-[10px] leading-tight;
+}
+
+.tag-chip-pill--muted {
+  @apply bg-transparent opacity-75;
+}
+
+/* Tag wheel picker — notebook modal */
+.tag-wheel-overlay {
+  background-color: rgb(120 113 108 / 0.22);
+  backdrop-filter: blur(3px);
+}
+
+.tag-wheel-panel {
+  border: 1px solid rgb(214 211 209 / 0.75);
+  border-radius: 1rem;
+  background-color: #fffefb;
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.5) 0%, transparent 22%);
+  box-shadow:
+    0 8px 28px rgb(120 113 108 / 0.14),
+    0 1px 3px rgb(120 113 108 / 0.08);
+  overflow: hidden;
+}
+
+.tag-wheel-body {
+  overflow: hidden;
+}
+
+.tag-wheel-dial {
+  border: 2px solid rgb(214 211 209 / 0.85);
+  background-color: #fdfaf3;
+  box-shadow: inset 0 1px 4px rgb(120 113 108 / 0.06);
+}
+
+.tag-wheel-footer {
+  border-top: 1px solid rgb(231 229 228 / 0.9);
+  background: linear-gradient(180deg, transparent, rgb(253 250 243 / 0.9));
+  border-radius: 0 0 0.85rem 0.85rem;
+}
+
+.tag-wheel-close {
+  @apply rounded-lg border border-stone-200 bg-white px-7 py-2 text-sm font-semibold text-stone-700 transition;
+}
+
+.tag-wheel-close:hover {
+  @apply border-stone-300 bg-stone-50 text-stone-900;
 }

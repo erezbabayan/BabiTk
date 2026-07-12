@@ -1,14 +1,33 @@
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import type { MindtaskerItem } from "../types";
-import { colorForTag, type UserTag } from "../lib/tags";
 import { ItemEditModal, type ItemEditInput } from "./ItemEditModal";
 import { SourceIndicator } from "./SourceIndicator";
 import { SourceInlinePanel } from "./SourceInlinePanel";
 import { resolveItemSource } from "../lib/item-source";
-import { getItemAnalysis } from "../lib/item-analysis";
-import { ItemAnalysisCompact } from "./ItemAnalysisCompact";
-
-import { ITEM_DRAG_HANDLE_ATTR } from "./SwipeableItemCard";
+import {
+  buildItemDisplayFields,
+  buildItemScheduleLine,
+  isItemContentCollapsed,
+  isTaskListStruck,
+  itemCardMinHeight,
+} from "../lib/item-display";
+import { ITEM_ACTION_ATTR, ITEM_DRAG_HANDLE_ATTR } from "./SwipeableItemCard";
+import { ItemTagDots } from "./ItemTagDots";
+import { NotebookIcon, type NotebookIconName, type NotebookIconTone } from "./NotebookIcons";
+import { type UserTag } from "../lib/tags";
+import {
+  boardAccentColor,
+  boardAccentSide,
+  resolveBoardAccent,
+  type BoardAccentTone,
+} from "../lib/board-accent";
+import {
+  ITEM_BODY_CLASS,
+  ITEM_HEADLINE_CLASS,
+} from "../lib/item-typography";
+import { isPriorityItem } from "../lib/item-priority";
+import { PriorityStar } from "./PriorityStar";
+import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 export const ITEM_DRAG_MIME = "application/x-mindtasker-item";
 
@@ -18,51 +37,82 @@ interface ItemCardProps {
   onToggleType?: () => void;
   onComplete?: () => void;
   onSnooze?: () => void;
+  onTagPress?: () => void;
+  tagPickerOpen?: boolean;
+  onTogglePriority?: () => void;
+  /** Live tag chips while the wheel picker is open for this item. */
+  tagsOverride?: string[];
   compact?: boolean;
   draggable?: boolean;
   isDragging?: boolean;
   onDragStart?: (e: DragEvent) => void;
   onDragEnd?: () => void;
   userTags?: UserTag[];
+  boardAccent?: BoardAccentTone;
+  /** Strikethrough title/body in task lists when done/archived/deleted on the board. */
+  taskListDone?: boolean;
+  /** Undo archive / delete in task lists (shows ↩ instead of ✓). */
+  onTaskListUndo?: () => void;
 }
 
-function cardContent(item: MindtaskerItem): string | null {
-  const title = item.title.trim();
-  const content = item.content.trim();
-  if (!content || content === title) return null;
-  return content;
-}
-
-function formatDueShort(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("he-IL", {
-    day: "numeric",
-    month: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function IconAction({
+function NotebookActionButton({
   icon,
   label,
   onClick,
-  className = "border border-slate-300 hover:bg-white/70",
+  active = false,
+  accent = false,
+  reminder = false,
 }: {
-  icon: string;
+  icon: NotebookIconName;
   label: string;
   onClick: () => void;
-  className?: string;
+  active?: boolean;
+  accent?: boolean;
+  reminder?: boolean;
 }) {
+  let tone: NotebookIconTone = "neutral";
+  if (reminder) tone = "danger";
+  else if (accent) tone = "blue";
+  else if (active) tone = "slate";
+
   return (
     <button
       type="button"
-      onClick={onClick}
+      {...{ [ITEM_ACTION_ATTR]: "" }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       title={label}
       aria-label={label}
-      className={`shrink-0 !rounded-sm !px-1 !py-0.5 !text-[12px] !font-normal leading-none ${className}`}
+      aria-pressed={active || reminder}
+      style={{ touchAction: "manipulation" }}
+      className={`notebook-icon-btn ${active ? "notebook-icon-btn--active" : ""} ${
+        reminder ? "notebook-icon-btn--reminder" : ""
+      } ${accent ? "notebook-icon-btn--accent" : ""}`}
     >
-      {icon}
+      <NotebookIcon name={icon} size={15} tone={tone} />
+    </button>
+  );
+}
+
+function TaskCheckbox({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      {...{ [ITEM_ACTION_ATTR]: "" }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="notebook-task-check mt-0.5 shrink-0"
+      title="סמן כבוצע"
+      aria-label="סמן כבוצע"
+    >
+      <NotebookIcon name="circle" size={18} tone="muted" />
     </button>
   );
 }
@@ -73,64 +123,128 @@ export function ItemCard({
   onToggleType,
   onComplete,
   onSnooze,
+  onTagPress,
+  tagPickerOpen = false,
+  onTogglePriority,
+  tagsOverride,
   compact = true,
   draggable = false,
   isDragging = false,
   onDragStart,
   onDragEnd,
   userTags = [],
+  boardAccent: boardAccentProp,
+  taskListDone = false,
+  onTaskListUndo,
 }: ItemCardProps) {
   const [showSource, setShowSource] = useState(false);
   const [editing, setEditing] = useState(false);
-  const isNote = !item.is_actionable;
-  const sourceInfo = resolveItemSource(item);
-  const analysis = getItemAnalysis(item.metadata);
-  const extraContent = compact && !showSource ? null : cardContent(item);
-  const visibleTags = compact && item.tags.length > 2 ? item.tags.slice(0, 2) : item.tags;
-  const hiddenTagCount =
-    compact && item.tags.length > visibleTags.length ? item.tags.length - visibleTags.length : 0;
+  const [itemExpanded, setItemExpanded] = useState(false);
+  const { view } = useBoardItemViewOptional();
+  const isSquares = view === "squares";
 
-  const hasActions = Boolean(onEdit || onToggleType || onComplete || onSnooze);
+  const display = buildItemDisplayFields(item);
+  const sourceInfo = resolveItemSource(item);
+  const scheduleLine = buildItemScheduleLine(display);
+  const contentCollapsed = isItemContentCollapsed(display.isItemExpandable, itemExpanded);
+  const headlineText = display.body ? display.headline : display.fullHeadline;
+  const hasActions = Boolean(onEdit || onToggleType || onComplete || onSnooze || onTagPress);
+  const visibleTags = tagsOverride ?? display.tags;
+  const hasTags = visibleTags.length > 0;
+  const boardAccent = resolveBoardAccent(item, boardAccentProp);
+  const accentSide = boardAccentSide(boardAccent);
+  const accentColor = boardAccentColor(boardAccent);
+  const doneStrike = taskListDone || isTaskListStruck(item);
+  const strikeClass = doneStrike ? "line-through text-slate-400" : "";
+  const priority = isPriorityItem(item);
 
   function toggleSource() {
     if (!sourceInfo.canOpen) return;
     setShowSource((open) => !open);
   }
 
+  useEffect(() => {
+    setItemExpanded(false);
+  }, [item.id]);
+
+  function handleDoubleClick(event: MouseEvent) {
+    if (!onEdit || showSource) return;
+    const target = event.target as HTMLElement;
+    if (target.closest("button, a, input, textarea, select, label, [data-item-drag-handle]")) {
+      return;
+    }
+    setEditing(true);
+  }
+
+  const cardMinHeight = itemCardMinHeight(display, itemExpanded);
+
   return (
     <>
       <article
         data-item-drag-root=""
-        draggable={draggable && !showSource}
-        onDragStart={(e) => {
-          onDragStart?.(e);
-        }}
-        onDragEnd={onDragEnd}
-        className={`rounded-md border px-1.5 py-1 transition ${
-          isNote ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-sky-50"
-        } ${isDragging ? "opacity-40" : ""} ${draggable && !showSource ? "cursor-grab active:cursor-grabbing" : ""}`}
+        onDoubleClick={handleDoubleClick}
+        style={
+          isSquares
+            ? { minHeight: "7.5rem", height: "100%" }
+            : cardMinHeight !== undefined
+              ? { minHeight: cardMinHeight }
+              : undefined
+        }
+        className={`board-notebook-item relative overflow-hidden transition ${
+          isSquares ? "board-notebook-item--squares h-full" : ""
+        } ${isDragging ? "opacity-40" : ""} ${onEdit ? "cursor-default" : ""}`}
       >
-        <div className="flex items-start gap-1">
-          {draggable ? (
-            <span
-              {...{ [ITEM_DRAG_HANDLE_ATTR]: "" }}
-              className="mt-0.5 shrink-0 select-none text-[10px] text-slate-400"
-              aria-hidden
-            >
-              ⠿
-            </span>
-          ) : null}
+        <div
+          className={`absolute inset-y-0 w-[3px] ${
+            accentSide === "right" ? "right-0 rounded-r-xl" : "left-0 rounded-l-xl"
+          }`}
+          style={{ backgroundColor: accentColor }}
+          aria-hidden
+        />
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
-              {isNote ? (
-                <span className="shrink-0 text-[10px]" aria-hidden>
-                  📌
+        <div
+          className={`px-2 py-1.5 ${
+            accentSide === "right" ? "pr-3" : "pl-3"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            {onComplete ? <TaskCheckbox onClick={onComplete} /> : null}
+            <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-1.5">
+            <h3
+              className={`min-w-0 flex-1 ${ITEM_HEADLINE_CLASS} ${
+                contentCollapsed || isSquares ? "line-clamp-2" : ""
+              } ${strikeClass}`}
+            >
+              {headlineText}
+            </h3>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {onTogglePriority ? (
+                <button
+                  type="button"
+                  {...{ [ITEM_ACTION_ATTR]: "" }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePriority();
+                  }}
+                  className="notebook-icon-btn mt-0.5 flex h-6 w-6 items-center justify-center"
+                  title={priority ? "הסר עדיפות" : "סמן כעדיפות"}
+                  aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
+                  aria-pressed={priority}
+                >
+                  <PriorityStar active={priority} size={15} />
+                </button>
+              ) : priority ? (
+                <span
+                  className="mt-0.5 flex h-6 w-6 items-center justify-center"
+                  title="עדיפות"
+                  aria-label="עדיפות"
+                >
+                  <PriorityStar active size={15} />
                 </span>
               ) : null}
-              <h3 className="min-w-0 flex-1 truncate text-xs font-semibold leading-tight text-slate-900">
-                {item.title}
-              </h3>
               <SourceIndicator
                 item={item}
                 compact
@@ -138,83 +252,125 @@ export function ItemCard({
                 isOpen={showSource}
                 onOpen={toggleSource}
               />
+              {draggable ? (
+                <span
+                  {...{ [ITEM_DRAG_HANDLE_ATTR]: "" }}
+                  draggable={!showSource}
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    onDragStart?.(e);
+                  }}
+                  onDragEnd={onDragEnd}
+                  className="notebook-icon-btn notebook-icon-btn--muted mt-0.5 flex h-5 w-4 cursor-grab select-none items-center justify-center active:cursor-grabbing"
+                  title="גרור"
+                  aria-label="גרור"
+                >
+                  <NotebookIcon name="grip" size={14} tone="muted" />
+                </span>
+              ) : null}
             </div>
+          </div>
 
-            {showSource ? (
+          {showSource ? (
+            <div className="mt-0.5">
               <SourceInlinePanel item={item} onClose={() => setShowSource(false)} />
-            ) : (
-              <>
-                {extraContent ? (
-                  <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-slate-500">
-                    {extraContent}
-                  </p>
-                ) : null}
-
-                <div className="mt-0.5 flex flex-wrap items-center gap-0.5">
-                  <span
-                    className={`rounded px-1 py-px text-[9px] leading-none ${
-                      isNote ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"
+            </div>
+          ) : (
+            <>
+              {display.body && !isSquares ? (
+                <div className="mt-0.5 text-right">
+                  <p
+                    className={`whitespace-pre-wrap ${ITEM_BODY_CLASS} ${strikeClass} ${
+                      contentCollapsed ? "line-clamp-2" : ""
                     }`}
                   >
-                    {isNote ? "הערה" : "משימה"}
-                  </span>
-                  {!isNote && item.due_date ? (
-                    <span className="rounded bg-blue-50 px-1 py-px text-[9px] leading-none text-blue-700">
-                      📅 {formatDueShort(item.due_date)}
-                    </span>
-                  ) : null}
-                  {visibleTags.map((tag) => {
-                    const color = colorForTag(tag, userTags, isNote ? "#f59e0b" : "#64748b");
-                    return (
-                      <span
-                        key={tag}
-                        className="rounded-full px-1 py-px text-[9px] leading-none"
-                        style={{ backgroundColor: `${color}22`, color }}
-                      >
-                        #{tag}
-                      </span>
-                    );
-                  })}
-                  {hiddenTagCount > 0 ? (
-                    <span className="text-[9px] text-slate-400">+{hiddenTagCount}</span>
-                  ) : null}
+                    {display.body}
+                  </p>
                 </div>
+              ) : null}
 
-                {analysis ? <ItemAnalysisCompact analysis={analysis} /> : null}
-              </>
-            )}
+              {display.isItemExpandable && !isSquares ? (
+                <button
+                  type="button"
+                  {...{ [ITEM_ACTION_ATTR]: "" }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemExpanded((value) => !value);
+                  }}
+                  className="mt-0.5 shrink-0 text-[10px] font-medium text-slate-400 hover:text-slate-600"
+                  aria-expanded={itemExpanded}
+                >
+                  {itemExpanded ? "הסתר" : "הרחב"}
+                </button>
+              ) : null}
+
+              {hasTags && !showSource ? (
+                <div className="mt-1">
+                  <ItemTagDots tags={visibleTags} userTags={userTags} />
+                </div>
+              ) : null}
+
+              {!showSource && (hasActions || scheduleLine) ? (
+                <div className="mt-1 border-t border-slate-100/80 pt-1">
+                  <div className="flex min-h-4 w-full items-center gap-1.5">
+                    {scheduleLine ? (
+                      <span className="shrink-0 text-[10px] leading-none text-slate-400">
+                        {scheduleLine}
+                      </span>
+                    ) : null}
+                    <div className="min-w-0 flex-1" aria-hidden />
+                    {hasActions ? (
+                      <div className="flex shrink-0 flex-wrap items-center gap-0.5">
+                        {onTagPress ? (
+                          <NotebookActionButton
+                            icon="tag"
+                            label="תיוג"
+                            onClick={onTagPress}
+                            active={tagPickerOpen}
+                          />
+                        ) : null}
+                        {onEdit ? (
+                          <NotebookActionButton icon="edit" label="עריכה" onClick={() => setEditing(true)} />
+                        ) : null}
+                        {onToggleType ? (
+                          <NotebookActionButton
+                            icon="swap"
+                            label={display.isNote ? "הפוך למשימה" : "הפוך להערה"}
+                            onClick={onToggleType}
+                          />
+                        ) : null}
+                        {onSnooze ? (
+                          <NotebookActionButton
+                            icon="bell"
+                            label="תזכורת"
+                            onClick={onSnooze}
+                            reminder={display.reminderActive}
+                          />
+                        ) : null}
+                        {onTaskListUndo ? (
+                          <NotebookActionButton icon="undo" label="שחזר" onClick={onTaskListUndo} active />
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+            </div>
           </div>
         </div>
-
-        {!showSource && hasActions ? (
-          <div className="mt-0.5 flex flex-wrap items-center gap-px border-t border-slate-100 pt-0.5">
-            {onEdit ? (
-              <IconAction icon="✏️" label="ערוך" onClick={() => setEditing(true)} />
-            ) : null}
-            {onToggleType ? (
-              <IconAction
-                icon="🔁"
-                label={isNote ? "הפוך למשימה" : "הפוך להערה"}
-                onClick={onToggleType}
-              />
-            ) : null}
-            {onSnooze ? (
-              <IconAction icon="⏰" label="נודניק" onClick={onSnooze} />
-            ) : null}
-            {onComplete ? (
-              <IconAction
-                icon="✅"
-                label="בוצע"
-                onClick={onComplete}
-                className="border-emerald-300 bg-emerald-50 hover:bg-emerald-100"
-              />
-            ) : null}
-          </div>
-        ) : null}
       </article>
 
       {editing && onEdit ? (
-        <ItemEditModal item={item} onClose={() => setEditing(false)} onSave={onEdit} />
+        <ItemEditModal
+          key={item.id}
+          item={item}
+          onClose={() => setEditing(false)}
+          onSave={onEdit}
+        />
       ) : null}
     </>
   );

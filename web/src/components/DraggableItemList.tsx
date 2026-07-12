@@ -1,5 +1,7 @@
 import type { DragEvent, ReactNode } from "react";
 import type { DashboardColumn } from "../lib/item-columns";
+import { boardItemsLayoutClass } from "../lib/board-item-layout";
+import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 const ACTIVE_RING: Record<DashboardColumn, string> = {
   inbox: "ring-2 ring-slate-400 ring-offset-1",
@@ -34,7 +36,7 @@ interface DraggableItemListProps {
 }
 
 function DropIndicator({ column }: { column: DashboardColumn }) {
-  return <div className={`my-1 h-0.5 rounded ${DROP_LINE[column]}`} />;
+  return <div className={`my-0.5 h-0.5 rounded ${DROP_LINE[column]}`} />;
 }
 
 export function DraggableItemList({
@@ -51,6 +53,8 @@ export function DraggableItemList({
   onDrop,
   renderItem,
 }: DraggableItemListProps) {
+  const { view } = useBoardItemViewOptional();
+  const itemsLayoutClass = boardItemsLayoutClass(view);
   const active = draggingId !== null && dropSlot?.column === column;
 
   function handleDragOver(e: DragEvent, beforeId: string | null) {
@@ -69,31 +73,42 @@ export function DraggableItemList({
   }
 
   if (disabled) {
-    return <div className={className}>{items.map((item) => renderItem(item.id))}</div>;
+    return (
+      <div className={`${itemsLayoutClass} ${className}`}>
+        {items.map((item) => (
+          <div key={item.id} className={view === "squares" ? "min-w-0" : undefined}>
+            {renderItem(item.id)}
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
     <div
-      className={`flex min-h-0 flex-1 flex-col transition ${active ? ACTIVE_RING[column] : ""} ${className}`}
+      className={`flex flex-col transition ${active ? ACTIVE_RING[column] : ""} ${className}`}
       onDragOver={(e) => handleDragOver(e, null)}
       onDrop={(e) => handleDrop(e, dropSlot?.column === column ? dropSlot.beforeId : null)}
     >
       {items.length === 0 ? (
         <div
-          className="flex-1"
+          className="min-h-16"
           onDragOver={(e) => handleDragOver(e, null)}
           onDrop={(e) => handleDrop(e, null)}
         >
           {emptyMessage}
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className={itemsLayoutClass}>
           {items.map((item) => (
-            <div key={item.id}>
-              {dropSlot?.column === column && dropSlot.beforeId === item.id ? (
+            <div key={item.id} className={view === "squares" ? "min-w-0" : undefined}>
+              {view === "list" &&
+              dropSlot?.column === column &&
+              dropSlot.beforeId === item.id ? (
                 <DropIndicator column={column} />
               ) : null}
               <div
+                className={view === "squares" ? "h-full min-h-0" : undefined}
                 onDragOver={(e) => handleDragOver(e, item.id)}
                 onDrop={(e) => handleDrop(e, item.id)}
               >
@@ -101,13 +116,16 @@ export function DraggableItemList({
               </div>
             </div>
           ))}
-          {dropSlot?.column === column && dropSlot.beforeId === null && items.length > 0 ? (
+          {view === "list" &&
+          dropSlot?.column === column &&
+          dropSlot.beforeId === null &&
+          items.length > 0 ? (
             <DropIndicator column={column} />
           ) : null}
         </div>
       )}
       <div
-        className="min-h-8 flex-1"
+        className="min-h-16"
         onDragOver={(e) => handleDragOver(e, null)}
         onDrop={(e) => handleDrop(e, null)}
       />

@@ -2,7 +2,11 @@ import { ItemCard } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
 import type { MindtaskerItem } from "../types";
-import { restoreSwipeActions } from "../lib/item-swipe-actions";
+import type { UserTag } from "../lib/tags";
+import { restoreSwipeActions, boardToneForItem } from "../lib/item-swipe-actions";
+import { resolveBoardAccent } from "../lib/board-accent";
+import { boardItemsLayoutClass } from "../lib/board-item-layout";
+import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface ArchivePanelProps {
   items: MindtaskerItem[];
@@ -10,6 +14,11 @@ interface ArchivePanelProps {
   onRestore: (item: MindtaskerItem) => void;
   onDelete: (item: MindtaskerItem) => void;
   onEdit?: (item: MindtaskerItem, patch: ItemEditInput) => void;
+  onTagPress?: (item: MindtaskerItem) => void;
+  onTogglePriority?: (item: MindtaskerItem) => void;
+  tagPickerOpenId?: string | null;
+  tagsOverrideForItem?: (item: MindtaskerItem) => string[] | undefined;
+  userTags?: UserTag[];
 }
 
 const EMPTY_MESSAGES: Record<ArchivePanelProps["variant"], string> = {
@@ -18,24 +27,46 @@ const EMPTY_MESSAGES: Record<ArchivePanelProps["variant"], string> = {
   notes: "אין הערות בארכיון. החלק ימינה למחיקה, שמאלה לשחזור.",
 };
 
-export function ArchivePanel({ items, variant, onRestore, onDelete, onEdit }: ArchivePanelProps) {
+export function ArchivePanel({
+  items,
+  variant,
+  onRestore,
+  onDelete,
+  onEdit,
+  onTagPress,
+  onTogglePriority,
+  tagPickerOpenId,
+  tagsOverrideForItem,
+  userTags = [],
+}: ArchivePanelProps) {
+  const { view } = useBoardItemViewOptional();
+
   if (items.length === 0) {
     return <p className="text-sm text-slate-500">{EMPTY_MESSAGES[variant]}</p>;
   }
 
   return (
-    <div className="space-y-1">
+    <div className={boardItemsLayoutClass(view)}>
       {items.map((item) => {
         const swipe = restoreSwipeActions(
           () => onRestore(item),
           () => onDelete(item),
+          variant === "notes" ? "notes" : boardToneForItem(item),
         );
         return (
           <SwipeableItemCard key={item.id} leftAction={swipe.left} rightAction={swipe.right}>
             <ItemCard
               item={item}
+              boardAccent={variant === "notes" ? "notes" : resolveBoardAccent(item, "inbox")}
               compact
+              userTags={userTags}
               onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
+              onTagPress={onTagPress ? () => onTagPress(item) : undefined}
+              onTogglePriority={
+                onTogglePriority ? () => onTogglePriority(item) : undefined
+              }
+              tagPickerOpen={tagPickerOpenId === item.id}
+              tagsOverride={tagsOverrideForItem?.(item)}
             />
           </SwipeableItemCard>
         );
