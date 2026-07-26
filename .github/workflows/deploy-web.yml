@@ -33,7 +33,7 @@ jobs:
           VITE_CONVEX_URL: "https://scintillating-fly-225.convex.cloud"
         run: |
           npm ci
-          npm run build
+          npx vite build
           cp dist/index.html dist/404.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

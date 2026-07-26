@@ -1,6 +1,6 @@
 [build]
   base = "web"
-  command = "npm ci && npm run build"
+  command = "npm ci && npx vite build"
   publish = "dist"
 
 [build.environment]
