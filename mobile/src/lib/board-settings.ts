@@ -1,4 +1,4 @@
-import type { BoardTab } from "./item-actions";
+import type { BoardTab } from "./board-labels";
 
 export const INBOX_ARCHIVE_HOURS_OPTIONS = [
   { hours: 48, label: "2 ימים" },

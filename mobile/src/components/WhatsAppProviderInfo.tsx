@@ -20,8 +20,9 @@ export function WhatsAppProviderInfo({ status }: WhatsAppProviderInfoProps) {
       </Text>
       <Text style={[styles.body, status.configured ? styles.okText : styles.warnText]}>
         {status.configured
-          ? "השרת מוכן לקבל הודעות מוואטסאפ."
-          : "השרת עדיין לא מוגדר — קוד אימות עלול להיכשל."}
+          ? "השרת מוכן לשלוח ולקבל הודעות בוואטסאפ."
+          : status.setupHint ||
+            "שליחת וואטסאפ עדיין לא מוגדרת — הרץ setup-whatsapp-green או הזן מפתחות API."}
       </Text>
       {status.provider !== "meta" ? (
         <Text style={[styles.mono, status.configured ? styles.okText : styles.warnText]}>

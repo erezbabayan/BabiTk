@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { DEFAULT_USER_TAGS } from "../constants/default-tags.js";
 import { enforceIngestionRules, resolveIngestItemStatus } from "./entity-rules.service.js";
 import { enrichParsedItemsWithAnalysis } from "./item-analysis.service.js";
 import { parseInputForIngest } from "./parse-input.service.js";
+import { transcribeAudio } from "./openai.service.js";
 import {
   addSyncItem,
   SYNC_USER_ID,
@@ -26,17 +28,21 @@ export async function ingestTextToSyncStore(
   const locale = params.locale ?? "he-IL";
   const referenceDate = new Date();
 
+  const allowedTags = DEFAULT_USER_TAGS.map((tag) => tag.name);
+
   const parsed = await parseInputForIngest({
     text: params.text,
     timezone,
     locale,
     referenceDate,
+    allowedTags,
   });
 
   const ruled = enforceIngestionRules(parsed, {
     timezone,
     referenceDate,
     sourceText: params.text,
+    allowedTags,
   });
 
   const enriched = enrichParsedItemsWithAnalysis(ruled.items, {
@@ -69,6 +75,25 @@ export async function ingestTextToSyncStore(
   }
 
   return { items: created };
+}
+
+export async function ingestVoiceToSyncStore(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string,
+): Promise<{ text: string; durationSeconds: number; items: SyncItem[] }> {
+  const { text, durationSeconds } = await transcribeAudio(buffer, fileName, mimeType);
+  const result = await ingestTextToSyncStore({
+    text,
+    sourceType: "whatsapp_voice",
+    metadata: {
+      duration_seconds: durationSeconds,
+      audio_mime_type: mimeType,
+      channel: "mobile",
+    },
+  });
+
+  return { text, durationSeconds, items: result.items };
 }
 
 function parsedItemToSyncItem(

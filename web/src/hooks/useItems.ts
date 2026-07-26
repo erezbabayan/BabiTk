@@ -1,20 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { toggleItemTypeApi, approveItemApi, completeItemApi, snoozeItemApi, restoreArchiveItemApi } from "../lib/api";
+import { toggleItemTypeApi, approveItemApi, completeItemApi, restoreArchiveItemApi } from "../lib/api";
 import {
   buildArchivePatch,
   buildSoftDeletePatch,
   resolveRestoreFromArchivePatch,
+  resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
+import {
+  buildClearReminderPatch,
+  buildInferredReminderPatch,
+  buildManualReminderPatch,
+  buildTaskReminderUpdate,
+  getReminderFlags,
+  type ReminderRecurrence,
+} from "../lib/resolve-item-reminder";
 
 import type { ItemEditInput } from "../components/ItemEditModal";
 
 import {
   applyColumnPatch,
   buildColumnMovePatch,
+  buildToggleStayMetadata,
   getItemColumn,
   itemsInColumn,
   sortColumnItems,
+  withPinnedBoardColumn,
   type DashboardColumn,
 } from "../lib/item-columns";
 
@@ -35,9 +46,10 @@ import { requireSupabase } from "../lib/supabase";
 import { useConvexBackend } from "../lib/data-backend";
 
 import { useConvexUserId } from "./useConvexUserId";
-import { useItemsConvex } from "./useItemsConvex";
+import { useItemsConvex, type BoardSecondaryLoad } from "./useItemsConvex";
 
 import type { MindtaskerItem } from "../types";
+import { buildPriorityTogglePatch } from "../lib/item-priority";
 
 
 
@@ -65,12 +77,27 @@ const ITEM_SELECT = `
 
 const DEMO_POLL_MS = 8000;
 
-export function useItems(userId: string | undefined, email?: string) {
+export function useItems(
+  userId: string | undefined,
+  email?: string,
+  secondary?: BoardSecondaryLoad,
+) {
   const convexBackend = useConvexBackend();
-  const convexUserId = useConvexUserId(userId, email);
-  const convex = useItemsConvex(convexUserId, convexBackend);
+  const { convexUserId, resolving: convexUserResolving } = useConvexUserId(userId, email);
+  const convex = useItemsConvex(convexUserId, convexBackend, secondary);
   const supabase = useItemsSupabase(userId, !convexBackend);
-  return convexBackend ? convex : supabase;
+
+  if (!convexBackend) {
+    return { ...supabase, convexUserId };
+  }
+
+  return {
+    ...convex,
+    convexUserId,
+    loading:
+      convex.loading ||
+      (Boolean(userId) && convexUserResolving && !convexUserId),
+  };
 }
 
 function useItemsSupabase(userId: string | undefined, enabled: boolean) {
@@ -116,9 +143,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     if (isDemoMode) {
       const snapshot = await getDemoItemsSnapshot(syncVersionRef.current);
       syncVersionRef.current = snapshot.version;
-      setItems((prev) =>
-        snapshot.changed || prev.length === 0 ? snapshot.items : prev,
-      );
+      setItems(snapshot.items);
       setLoading(false);
       return;
     }
@@ -265,13 +290,15 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       if (!enabled) return;
 
       if (isDemoMode) {
-
-        await updateDemoItem(id, patch as Partial<MindtaskerItem>);
-
+        const typedPatch = patch as Partial<MindtaskerItem>;
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id ? ({ ...item, ...typedPatch } as MindtaskerItem) : item,
+          ),
+        );
+        await updateDemoItem(id, typedPatch);
         await refresh();
-
         return;
-
       }
 
 
@@ -361,18 +388,30 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
           last_interacted_at: new Date().toISOString(),
 
+          metadata: buildToggleStayMetadata(item),
+
         };
 
         if (becomesTask) {
-
-          patch.due_date = item.due_date ?? null;
-
+          const reminder = buildInferredReminderPatch({
+            ...item,
+            is_actionable: true,
+          });
+          patch.due_date = reminder.due_date;
+          patch.metadata = {
+            ...buildToggleStayMetadata(item),
+            ...(reminder.metadata ?? {}),
+          };
+          delete (patch.metadata as Record<string, unknown>).board_column;
         } else {
-
-          patch.due_date = null;
-
+          const flags = getReminderFlags(item.metadata);
+          if (!flags.manual) {
+            patch.due_date = null;
+          }
           patch.completed_at = null;
-
+          if (item.status === "completed") {
+            patch.status = "pending";
+          }
         }
 
         await updateDemoItem(item.id, patch);
@@ -385,7 +424,12 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-      await toggleItemTypeApi(item.id, becomesTask ? item.due_date : null);
+      await toggleItemTypeApi(
+        item.id,
+        becomesTask
+          ? buildInferredReminderPatch({ ...item, is_actionable: true }).due_date
+          : null,
+      );
 
       await refresh();
 
@@ -405,13 +449,31 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (isDemoMode) {
 
-        await updateDemoItem(item.id, {
+        const patch: Partial<MindtaskerItem> = {
 
           status: "pending",
 
           last_interacted_at: new Date().toISOString(),
 
-        });
+          metadata: withPinnedBoardColumn(item.metadata, null),
+
+        };
+
+        if (item.is_actionable) {
+
+          const reminder = buildInferredReminderPatch(item);
+
+          patch.due_date = reminder.due_date;
+
+          patch.metadata = {
+            ...withPinnedBoardColumn(item.metadata, null),
+            ...(reminder.metadata ?? {}),
+          };
+          delete (patch.metadata as Record<string, unknown>).board_column;
+
+        }
+
+        await updateDemoItem(item.id, patch);
 
         await refresh();
 
@@ -471,15 +533,21 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   const snoozeTask = useCallback(
 
-    async (item: MindtaskerItem, dueDate: string) => {
+    async (
+      item: MindtaskerItem,
+      dueDate: string,
+      recurrence?: ReminderRecurrence | null,
+    ) => {
 
       if (!enabled) return;
+
+      const reminder = buildManualReminderPatch(item, dueDate, recurrence);
 
       if (isDemoMode) {
 
         await updateItem(item.id, {
 
-          due_date: dueDate,
+          ...reminder,
 
           last_interacted_at: new Date().toISOString(),
 
@@ -491,13 +559,41 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-      await snoozeItemApi(item.id, dueDate);
+      await updateItem(item.id, {
 
-      await refresh();
+        ...reminder,
+
+        last_interacted_at: new Date().toISOString(),
+
+      });
 
     },
 
-    [enabled, updateItem, refresh],
+    [enabled, updateItem],
+
+  );
+
+
+
+  const clearReminder = useCallback(
+
+    async (item: MindtaskerItem) => {
+
+      if (!enabled) return;
+
+      const reminder = buildClearReminderPatch(item);
+
+      await updateItem(item.id, {
+
+        ...reminder,
+
+        last_interacted_at: new Date().toISOString(),
+
+      });
+
+    },
+
+    [enabled, updateItem],
 
   );
 
@@ -559,6 +655,13 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
+  const restoreDeletedItem = useCallback(
+    async (item: MindtaskerItem) => {
+      await updateItem(item.id, resolveRestoreFromTrashPatch(item));
+    },
+    [updateItem],
+  );
+
   const restoreCompletedTask = useCallback(
 
     async (item: MindtaskerItem) => {
@@ -609,15 +712,52 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-      if (item.is_actionable) {
+      const reminder = buildTaskReminderUpdate(item, {
+        title,
+        content: input.content.trim(),
+        due_date: input.due_date,
+        recurrence: input.recurrence,
+      });
 
-        patch.due_date = input.due_date ?? null;
+      patch.due_date = reminder.dueDate;
 
-      }
+      patch.metadata = reminder.metadata;
 
 
 
       await updateItem(item.id, patch);
+
+    },
+
+    [updateItem],
+
+  );
+
+
+
+  const updateTags = useCallback(
+
+    async (item: MindtaskerItem, tags: string[]) => {
+
+      await updateItem(item.id, {
+
+        tags,
+
+        last_interacted_at: new Date().toISOString(),
+
+      });
+
+    },
+
+    [updateItem],
+
+  );
+
+  const togglePriority = useCallback(
+
+    async (item: MindtaskerItem, priority: boolean) => {
+
+      await updateItem(item.id, buildPriorityTogglePatch(item, priority));
 
     },
 
@@ -635,7 +775,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!source || source === target) return;
 
-      await updateItem(item.id, buildColumnMovePatch(target));
+      await updateItem(item.id, buildColumnMovePatch(target, item.metadata));
 
     },
 
@@ -727,7 +867,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (sourceColumn !== targetColumn) {
 
-        updates.set(itemId, buildColumnMovePatch(targetColumn));
+        updates.set(itemId, buildColumnMovePatch(targetColumn, item.metadata));
 
       }
 
@@ -763,19 +903,11 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-  const inbox = sortColumnItems(items.filter((item) => item.status === "inbox"));
+  const inbox = sortColumnItems(itemsInColumn(items, "inbox"));
 
-  const todayTasks = sortColumnItems(
+  const todayTasks = sortColumnItems(itemsInColumn(items, "today"));
 
-    items.filter((item) => item.is_actionable && item.status === "pending"),
-
-  );
-
-  const notes = sortColumnItems(
-
-    items.filter((item) => !item.is_actionable && item.status === "pending"),
-
-  );
+  const notes = sortColumnItems(itemsInColumn(items, "notes"));
 
 
 
@@ -805,6 +937,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       loading: false,
 
+      convexUserId: undefined,
+
       inbox: [],
 
       todayTasks: [],
@@ -825,15 +959,23 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       snoozeTask: async () => {},
 
+      clearReminder: async () => {},
+
       restoreArchiveItem: async () => {},
 
       archiveItem: async () => {},
 
       deleteItem: async () => {},
 
+      restoreDeletedItem: async () => {},
+
       restoreCompletedTask: async () => {},
 
       editItem: async () => {},
+
+      updateTags: async () => {},
+
+      togglePriority: async () => {},
 
       moveToColumn: async () => {},
 
@@ -850,6 +992,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
   return {
 
     loading,
+
+    convexUserId: undefined,
 
     inbox,
 
@@ -871,15 +1015,23 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     snoozeTask,
 
+    clearReminder,
+
     restoreArchiveItem,
 
     archiveItem,
 
     deleteItem,
 
+    restoreDeletedItem,
+
     restoreCompletedTask,
 
     editItem,
+
+    updateTags,
+
+    togglePriority,
 
     moveToColumn,
 
@@ -898,6 +1050,8 @@ export function snoozePresets() {
   const now = new Date();
 
   return {
+
+    in1Minute: new Date(now.getTime() + 60_000).toISOString(),
 
     in3Hours: new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString(),
 

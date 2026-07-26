@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { enforceEntityRules } from "../services/entity-rules.service.js";
 import { resolveDueDateFromText } from "../services/hebrew-date-resolver.service.js";
+import { extractTimeOfDay } from "../utils/hebrew-time-words.js";
 import {
   buildFormattedAnalysis,
   computeNotifyAt,
@@ -44,6 +45,62 @@ describe("resolveDueDateFromText", () => {
     assert.match(due, /2025-06-18T19:00:00\+03:00/);
   });
 
+  it("parses bare evening as today 19:00", () => {
+    const due = resolveDueDateFromText("לקנות חלב בערב", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.ok(due);
+    assert.match(due!, /2025-06-18T19:00:00\+03:00/);
+  });
+
+  it("parses עוד שבוע as +7 days", () => {
+    const due = resolveDueDateFromText("משימה לעוד שבוע", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.ok(due);
+    assert.match(due!, /2025-06-25T09:00:00\+03:00/);
+  });
+
+  it("parses עוד שבוע בערב as +7 days at 19:00", () => {
+    const due = resolveDueDateFromText("משימה עוד שבוע בערב", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.ok(due);
+    assert.match(due!, /2025-06-25T19:00:00\+03:00/);
+  });
+
+  it("parses ממחרתיים", () => {
+    const due = resolveDueDateFromText("להתקשר ממחרתיים", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.ok(due);
+    assert.match(due!, /2025-06-20T09:00:00\+03:00/);
+  });
+
+  it("parses עשר בלילה as 22:00 (not bare night 21:00)", () => {
+    const time = extractTimeOfDay("עשר בלילה");
+    assert.equal(time?.hour, 22);
+    const due = resolveDueDateFromText("תזכיר לי עשר בלילה", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-18T22:00:00\+03:00/);
+  });
+
+  it("parses שלוש בערב without leading ב as 15:00", () => {
+    const time = extractTimeOfDay("שלוש בערב");
+    assert.equal(time?.hour, 15);
+    const due = resolveDueDateFromText("פגישה שלוש בערב", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-18T15:00:00\+03:00/);
+  });
+
   it("returns null when no temporal hint exists", () => {
     assert.equal(
       resolveDueDateFromText("לקנות חלב", { timezone: TZ, referenceDate: REF }),
@@ -75,6 +132,73 @@ describe("enforceEntityRules", () => {
     assert.ok(item.due_date);
     assert.match(item.due_date!, /2025-06-19T10:00:00\+03:00/);
     assert.equal(item.title, "להתקשר למוסך");
+  });
+
+  it("fills עוד שבוע as +7 days, not tomorrow", () => {
+    const item = enforceEntityRules(
+      {
+        title: "משימה לעוד שבוע",
+        content: "",
+        is_actionable: true,
+        due_date: null,
+        tags: [],
+        analysis: {
+          goal: "תזכורת",
+          data_points: "מועד: עוד שבוע",
+          task: "משימה",
+          urgency: "חסר",
+          time_mention: "עוד שבוע",
+        },
+      },
+      { timezone: TZ, referenceDate: REF, sourceText: "משימה לעוד שבוע" },
+    );
+    assert.match(item.due_date!, /2025-06-25T09:00:00\+03:00/);
+  });
+
+  it("fills bare בערב as today evening, not tomorrow morning", () => {
+    const item = enforceEntityRules(
+      {
+        title: "לקנות חלב בערב",
+        content: "",
+        is_actionable: true,
+        due_date: null,
+        tags: [],
+        analysis: {
+          goal: "תזכורת",
+          data_points: "לקנות חלב; מועד: בערב",
+          task: "לקנות חלב",
+          urgency: "חסר",
+          time_mention: "בערב",
+        },
+      },
+      { timezone: TZ, referenceDate: REF, sourceText: "לקנות חלב בערב" },
+    );
+    assert.match(item.due_date!, /2025-06-18T19:00:00\+03:00/);
+  });
+
+  it("overrides AI morning default when text says עשר בלילה", () => {
+    const item = enforceEntityRules(
+      {
+        title: "להתקשר",
+        content: "",
+        is_actionable: true,
+        due_date: "2025-06-19T09:00:00+03:00",
+        tags: [],
+        analysis: {
+          goal: "תזכורת",
+          data_points: "להתקשר; מועד: עשר בלילה",
+          task: "להתקשר",
+          urgency: "חסר",
+          time_mention: "עשר בלילה",
+        },
+      },
+      {
+        timezone: TZ,
+        referenceDate: REF,
+        sourceText: "תזכיר לי עשר בלילה להתקשר",
+      },
+    );
+    assert.match(item.due_date!, /2025-06-18T22:00:00\+03:00/);
   });
 
   it("clears due_date for notes", () => {
@@ -204,7 +328,7 @@ describe("item analysis enrichment", () => {
     assert.equal(enriched.length, 1);
     const analysis = enriched[0]!.analysis as StoredItemAnalysis;
 
-    assert.equal(analysis.source, "וואטסאפ (טקסט)");
+    assert.equal(analysis.source, "וואטסאפ");
     assert.match(analysis.formatted, /מטרה:/);
     assert.match(analysis.formatted, /רמת_דחיפות: גבוהה/);
     assert.ok(analysis.notify_at);

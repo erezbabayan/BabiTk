@@ -11,8 +11,9 @@ import {
 import { Audio } from "expo-av";
 import { HighlightedNotebook } from "./HighlightedNotebook";
 import type { MindtaskerItem } from "../lib/supabase";
-import { supabase } from "../lib/supabase";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { resolveItemSource } from "../lib/item-source";
+import { displayForSourceType } from "../lib/source-display";
 
 interface SourceModalProps {
   item: MindtaskerItem | null;
@@ -42,17 +43,21 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
       setLoading(false);
 
       if (embedded.storage_url) {
-        const { data: signed } = await supabase.storage
-          .from("source-materials")
-          .createSignedUrl(embedded.storage_url, 3600);
-        setMediaUrl(signed?.signedUrl ?? null);
+        if (isSupabaseConfigured && supabase) {
+          const { data: signed } = await supabase.storage
+            .from("source-materials")
+            .createSignedUrl(embedded.storage_url, 3600);
+          setMediaUrl(signed?.signedUrl ?? null);
+        } else if (/^https?:\/\//i.test(embedded.storage_url)) {
+          setMediaUrl(embedded.storage_url);
+        }
       }
       return;
     }
 
     const fallback = item.content?.trim() || item.title?.trim();
-    if (!item.source_material_id) {
-      setSourceType("whatsapp_text");
+    if (!item.source_material_id || !isSupabaseConfigured || !supabase) {
+      setSourceType("typed_text");
       setRawText(fallback || null);
       setOcrLines([]);
       setMediaUrl(null);
@@ -79,7 +84,7 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
         setMediaUrl(signed?.signedUrl ?? null);
       }
     } else if (fallback) {
-      setSourceType("whatsapp_text");
+      setSourceType("typed_text");
       setRawText(fallback);
     }
     setLoading(false);
@@ -110,6 +115,8 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
   if (!item) return null;
 
   const resolved = resolveItemSource(item);
+  const isVoice = sourceType === "whatsapp_voice";
+  const isImage = sourceType === "notebook_ocr" || sourceType === "image";
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -126,24 +133,26 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
 
         <ScrollView contentContainerStyle={styles.body}>
           <Text style={styles.itemTitle}>{item.title}</Text>
-          <Text style={styles.sourceLabel}>{resolved.label}</Text>
+          <Text style={styles.sourceLabel}>
+            {displayForSourceType(sourceType).icon} {resolved.label}
+          </Text>
 
           {loading ? (
             <ActivityIndicator size="large" color="#2563eb" />
           ) : (
             <>
-              {sourceType === "whatsapp_voice" && mediaUrl ? (
+              {isVoice && mediaUrl ? (
                 <Pressable style={styles.audioBtn} onPress={() => void playAudio()}>
                   <Text style={styles.audioBtnText}>▶ האזן להקלטה המקורית</Text>
                 </Pressable>
-              ) : sourceType === "whatsapp_voice" ? (
+              ) : isVoice ? (
                 <Text style={styles.hint}>אין קובץ אודיו — מוצג התמלול בלבד.</Text>
               ) : null}
 
-              {sourceType === "notebook_ocr" && mediaUrl && ocrLines.length > 0 ? (
+              {isImage && mediaUrl && ocrLines.length > 0 ? (
                 <HighlightedNotebook uri={mediaUrl} lines={ocrLines} />
-              ) : sourceType === "notebook_ocr" && mediaUrl ? (
-                <Text style={styles.hint}>תמונת מחברת זמינה</Text>
+              ) : isImage && mediaUrl ? (
+                <Text style={styles.hint}>תמונת מקור זמינה</Text>
               ) : null}
 
               {rawText ? (

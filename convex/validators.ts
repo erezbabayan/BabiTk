@@ -21,6 +21,9 @@ export const sourceType = v.union(
   v.literal("whatsapp_voice"),
   v.literal("whatsapp_text"),
   v.literal("notebook_ocr"),
+  v.literal("typed_text"),
+  v.literal("image"),
+  v.literal("document"),
 );
 
 export type TaskStatus =
@@ -33,4 +36,10 @@ export type NotebookStatus = "inbox" | "pending" | "archived";
 
 export type UserTier = "free" | "premium";
 
-export type SourceType = "whatsapp_voice" | "whatsapp_text" | "notebook_ocr";
+export type SourceType =
+  | "whatsapp_voice"
+  | "whatsapp_text"
+  | "notebook_ocr"
+  | "typed_text"
+  | "image"
+  | "document";

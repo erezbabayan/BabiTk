@@ -1,0 +1,292 @@
+2026-07-18T14:45:05.2084179+00:00 ContainerStream: 2026-07-18T14:45:05: PM2 log: [PM2] This PM2 is not UP TO DATE
+2026-07-18T14:45:05.2089419+00:00 ContainerStream: 2026-07-18T14:45:05: PM2 log: [PM2] Upgrade to version 7.0.3
+2026-07-18T14:45:05.2581979+00:00 ContainerStream: 14:45:05 PM2                        | [PM2] This PM2 is not UP TO DATE
+2026-07-18T14:45:05.2591313+00:00 ContainerStream: 14:45:05 PM2                        | [PM2] Upgrade to version 7.0.3
+2026-07-18T22:41:28.7931965+00:00 ContainerStatus: State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-18T22:41:31.3662651+00:00 ContainerStatus: State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-18T22:41:31.3669768+00:00 ContainerStatus: Container start method called.
+2026-07-18T22:41:31.3726841+00:00 ContainerStatus: State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-18T22:41:31.3740016+00:00 ContainerStatus: Establishing network.
+2026-07-18T22:41:31.3744074+00:00 ContainerStatus: Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-18T22:41:31.5454240+00:00 ContainerStatus: Container is starting.
+2026-07-18T22:41:31.5459472+00:00 ContainerStatus: State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-18T22:41:31.5460727+00:00 ContainerStatus: Establishing user namespace if not established already.
+2026-07-18T22:41:31.5466706+00:00 ContainerStatus: Establishing network if not established already.
+2026-07-18T22:41:31.5469651+00:00 ContainerStatus: Mounting volumes.
+2026-07-18T22:41:31.5545632+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:41:31.5780671+00:00 ContainerStatus: Nested mountpoint volatile/logs
+2026-07-18T22:41:31.5863784+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:41:31.6056378+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:41:31.6070082+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:41:31.6174278+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:41:31.7573228+00:00 ContainerStatus: State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-18T22:41:31.7642679+00:00 ContainerStatus: Creating container.
+2026-07-18T22:41:31.7643427+00:00 ContainerStatus: Creating pipes for streaming container io.
+2026-07-18T22:41:31.7643923+00:00 ContainerStatus: Creating stdout named pipe at /podr/container/pipe/2086b7520452_babitk-app/stdout_96781623a73b4f38ba5361ec6e286524.
+2026-07-18T22:41:31.7657315+00:00 ContainerStatus: Successfully created stdout named pipe at: /podr/container/pipe/2086b7520452_babitk-app/stdout_96781623a73b4f38ba5361ec6e286524.
+2026-07-18T22:41:31.7658287+00:00 ContainerStatus: Opening named pipe /podr/container/pipe/2086b7520452_babitk-app/stdout_96781623a73b4f38ba5361ec6e286524 for reading in non-blocking mode.
+2026-07-18T22:41:31.7658939+00:00 ContainerStatus: Successfully opened named pipe: /podr/container/pipe/2086b7520452_babitk-app/stdout_96781623a73b4f38ba5361ec6e286524.
+2026-07-18T22:41:31.7744880+00:00 ContainerStatus: Successfully removed non-blocking flag from /podr/container/pipe/2086b7520452_babitk-app/stdout_96781623a73b4f38ba5361ec6e286524.
+2026-07-18T22:41:31.7759532+00:00 ContainerStatus: Creating stderr named pipe at /podr/container/pipe/2086b7520452_babitk-app/stderr_f5966c2c0e944c599c6d1091a67c63a6.
+2026-07-18T22:41:31.7760414+00:00 ContainerStatus: Successfully created stderr named pipe at: /podr/container/pipe/2086b7520452_babitk-app/stderr_f5966c2c0e944c599c6d1091a67c63a6.
+2026-07-18T22:41:31.7760953+00:00 ContainerStatus: Opening named pipe /podr/container/pipe/2086b7520452_babitk-app/stderr_f5966c2c0e944c599c6d1091a67c63a6 for reading in non-blocking mode.
+2026-07-18T22:41:31.7761901+00:00 ContainerStatus: Successfully opened named pipe: /podr/container/pipe/2086b7520452_babitk-app/stderr_f5966c2c0e944c599c6d1091a67c63a6.
+2026-07-18T22:41:31.7762407+00:00 ContainerStatus: Successfully removed non-blocking flag from /podr/container/pipe/2086b7520452_babitk-app/stderr_f5966c2c0e944c599c6d1091a67c63a6.
+2026-07-18T22:41:31.7763135+00:00 ContainerStatus: Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.6:13209 and fully qualified image name: 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-18T22:41:32.6164913+00:00 ContainerStatus: Starting container: 2086b7520452_babitk-app.
+2026-07-18T22:41:32.7067644+00:00 ContainerStatus: Starting watchers and probes.
+2026-07-18T22:41:32.7091368+00:00 ContainerStatus: Starting metrics collection.
+2026-07-18T22:41:32.7265994+00:00 ContainerStatus: Container is running.
+2026-07-18T22:41:32.7268265+00:00 ContainerStatus: State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-18T22:41:32.8883307+00:00 ContainerStatus: Container start method finished after 1521 ms.
+2026-07-18T22:41:32.8895788+00:00 ContainerStatus: State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-18T22:41:32.9868857+00:00 ContainerStatus: State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-18T22:41:33.4796679+00:00 ContainerStream:    _____                               
+2026-07-18T22:41:33.4887943+00:00 ContainerStream:   /  _  \ __________ _________   ____  
+2026-07-18T22:41:33.4888091+00:00 ContainerStream:  /  /_\  \\___   /  |  \_  __ \_/ __ \ 
+2026-07-18T22:41:33.4888113+00:00 ContainerStream: /    |    \/    /|  |  /|  | \/\  ___/ 
+2026-07-18T22:41:33.4888130+00:00 ContainerStream: \____|__  /_____ \____/ |__|    \___  >
+2026-07-18T22:41:33.4888150+00:00 ContainerStream:         \/      \/                  \/ 
+2026-07-18T22:41:33.4888195+00:00 ContainerStream: A P P   S E R V I C E   O N   L I N U X
+2026-07-18T22:41:33.4888211+00:00 ContainerStream: 
+2026-07-18T22:41:33.4888232+00:00 ContainerStream: Documentation    : http://aka.ms/webapp-linux
+2026-07-18T22:41:33.4888252+00:00 ContainerStream: NodeJS quickstart: https://aka.ms/node-qs
+2026-07-18T22:41:33.4888273+00:00 ContainerStream: NodeJS Version   : v22.22.2
+2026-07-18T22:41:33.4888290+00:00 ContainerStream: Instance Name    : lw1sdlwk0000OJ
+2026-07-18T22:41:33.4979124+00:00 ContainerStream: Instance Id      : e853b0d521c13ae8cb31bbb09a3a1872c5b2865061d0d453c8b371a72b35cb7a
+2026-07-18T22:41:33.4979234+00:00 ContainerStream: 
+2026-07-18T22:41:33.4979254+00:00 ContainerStream: Note: Any data outside '/home' is not persisted
+2026-07-18T22:41:37.8001210+00:00 ContainerStream: Starting OpenBSD Secure Shell server: sshd.
+2026-07-18T22:41:37.8203955+00:00 ContainerStream: WEBSITES_INCLUDE_CLOUD_CERTS is not set to true.
+2026-07-18T22:41:37.8719206+00:00 ContainerStream: Updating certificates in /etc/ssl/certs...
+2026-07-18T22:41:52.0050024+00:00 ContainerStream: rehash: warning: skipping duplicate certificate in azl_SSL.com_TLS_ECC_Root_CA_2022.pem
+2026-07-18T22:41:52.0130572+00:00 ContainerStream: rehash: warning: skipping duplicate certificate in azl_SSL.com_TLS_RSA_Root_CA_2022.pem
+2026-07-18T22:41:52.2338230+00:00 ContainerStream: rehash: warning: skipping ca-certificates.crt,it does not contain exactly one certificate or CRL
+2026-07-18T22:41:52.2857037+00:00 ContainerStream: 4 added, 0 removed; done.
+2026-07-18T22:41:52.2932768+00:00 ContainerStream: Running hooks in /etc/ca-certificates/update.d...
+2026-07-18T22:41:52.2950674+00:00 ContainerStream: done.
+2026-07-18T22:41:52.3132910+00:00 ContainerStream: CA certificates copied and updated successfully.
+2026-07-18T22:41:52.5048059+00:00 ContainerStream: Starting periodic command scheduler: cron.
+2026-07-18T22:41:52.7631406+00:00 ContainerStream: Could not find build manifest file at '/home/site/wwwroot/oryx-manifest.toml'
+2026-07-18T22:41:52.7633721+00:00 ContainerStream: Could not find operation ID in manifest. Generating an operation id...
+2026-07-18T22:41:52.7634439+00:00 ContainerStream: Build Operation ID: 01cce4b5-fe8f-435e-a79a-4558df46f2b6
+2026-07-18T22:41:53.2916856+00:00 ContainerStream: Environment Variables for Application Insight's IPA Codeless Configuration exists..
+2026-07-18T22:41:53.3217767+00:00 ContainerStream: Writing output script to '/opt/startup/startup.sh'
+2026-07-18T22:41:53.4115677+00:00 ContainerStream: Running #!/bin/sh
+2026-07-18T22:41:53.4116247+00:00 ContainerStream: 
+2026-07-18T22:41:53.4116349+00:00 ContainerStream: # Enter the source directory to make sure the script runs where the user expects
+2026-07-18T22:41:53.4116377+00:00 ContainerStream: cd "/home/site/wwwroot"
+2026-07-18T22:41:53.4116393+00:00 ContainerStream: 
+2026-07-18T22:41:53.4116411+00:00 ContainerStream: export NODE_PATH=/usr/local/lib/node_modules:$NODE_PATH
+2026-07-18T22:41:53.4116429+00:00 ContainerStream: if [ -z "$PORT" ]; then
+2026-07-18T22:41:53.4116445+00:00 ContainerStream: 		export PORT=8080
+2026-07-18T22:41:53.4116460+00:00 ContainerStream: fi
+2026-07-18T22:41:53.4116494+00:00 ContainerStream: 
+2026-07-18T22:41:53.4118421+00:00 ContainerStream: PATH="$PATH:/home/site/wwwroot" pm2 serve /home/site/wwwroot --no-daemon --spa
+2026-07-18T22:41:56.1432568+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433170+00:00 ContainerStream:                         -------------
+2026-07-18T22:41:56.1433211+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433231+00:00 ContainerStream: __/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+2026-07-18T22:41:56.1433250+00:00 ContainerStream:  _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+2026-07-18T22:41:56.1433333+00:00 ContainerStream:   _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+2026-07-18T22:41:56.1433352+00:00 ContainerStream:    _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___________/\\\/___
+2026-07-18T22:41:56.1433373+00:00 ContainerStream:     _\/\\\/////////____\/\\\__\///\\\/___\/\\\________/\\\//_____
+2026-07-18T22:41:56.1433393+00:00 ContainerStream:      _\/\\\_____________\/\\\____\///_____\/\\\_____/\\\//________
+2026-07-18T22:41:56.1433412+00:00 ContainerStream:       _\/\\\_____________\/\\\_____________\/\\\___/\\\/___________
+2026-07-18T22:41:56.1433430+00:00 ContainerStream:        _\/\\\_____________\/\\\_____________\/\\\__/\\\\\\\\\\\\\\\_
+2026-07-18T22:41:56.1433470+00:00 ContainerStream:         _\///______________\///______________\///__\///////////////__
+2026-07-18T22:41:56.1433487+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433501+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433518+00:00 ContainerStream:                           Runtime Edition
+2026-07-18T22:41:56.1433535+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433552+00:00 ContainerStream:         PM2 is a Production Process Manager for Node.js applications
+2026-07-18T22:41:56.1433603+00:00 ContainerStream:                      with a built-in Load Balancer.
+2026-07-18T22:41:56.1433620+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433638+00:00 ContainerStream:                 Start and Daemonize any application:
+2026-07-18T22:41:56.1433655+00:00 ContainerStream:                 $ pm2 start app.js
+2026-07-18T22:41:56.1433670+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433687+00:00 ContainerStream:                 Load Balance 4 instances of api.js:
+2026-07-18T22:41:56.1433704+00:00 ContainerStream:                 $ pm2 start api.js -i 4
+2026-07-18T22:41:56.1433736+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433753+00:00 ContainerStream:                 Monitor in production:
+2026-07-18T22:41:56.1433770+00:00 ContainerStream:                 $ pm2 monitor
+2026-07-18T22:41:56.1433786+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433803+00:00 ContainerStream:                 Make pm2 auto-boot at server restart:
+2026-07-18T22:41:56.1433820+00:00 ContainerStream:                 $ pm2 startup
+2026-07-18T22:41:56.1433835+00:00 ContainerStream: 
+2026-07-18T22:41:56.1433851+00:00 ContainerStream:                 To go further checkout:
+2026-07-18T22:41:56.1440911+00:00 ContainerStream:                 http://pm2.io/
+2026-07-18T22:41:56.1441004+00:00 ContainerStream: 
+2026-07-18T22:41:56.1441025+00:00 ContainerStream: 
+2026-07-18T22:41:56.1441042+00:00 ContainerStream:                         -------------
+2026-07-18T22:41:56.1441059+00:00 ContainerStream: 
+2026-07-18T22:41:56.1732968+00:00 ContainerStream: pm2 launched in no-daemon mode (you can add DEBUG="*" env variable to get more messages)
+2026-07-18T22:41:56.7368310+00:00 ContainerStream: 2026-07-18T22:41:56: PM2 log: Launching in no daemon mode
+2026-07-18T22:41:56.8547298+00:00 ContainerStream: 2026-07-18T22:41:56: PM2 log: [PM2] This PM2 is not UP TO DATE
+2026-07-18T22:41:56.8653476+00:00 ContainerStream: 2026-07-18T22:41:56: PM2 log: [PM2] Upgrade to version 7.0.3
+2026-07-18T22:41:56.9734315+00:00 ContainerStream: 2026-07-18T22:41:56: PM2 log: [PM2] Starting /usr/local/lib/node_modules/pm2/lib/API/Serve.js in fork_mode (1 instance)
+2026-07-18T22:41:56.9833453+00:00 ContainerStream: 2026-07-18T22:41:56: PM2 log: App [static-page-server-8080:0] starting in -fork mode-
+2026-07-18T22:41:57.0726975+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: App [static-page-server-8080:0] online
+2026-07-18T22:41:57.0747481+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: [PM2] Done.
+2026-07-18T22:41:57.0750800+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: [PM2] Serving /home/site/wwwroot on port 8080
+2026-07-18T22:41:57.1841438+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: ┌────┬────────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+2026-07-18T22:41:57.1842026+00:00 ContainerStream: │ id │ name                       │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+2026-07-18T22:41:57.1842076+00:00 ContainerStream: ├────┼────────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+2026-07-18T22:41:57.1842109+00:00 ContainerStream: │ 0  │ static-page-server-8080    │ default     │ 6.0.5   │ fork    │ 1872     │ 0s     │ 0    │ online    │ 0%       │ 27.4mb   │ root     │ disabled │
+2026-07-18T22:41:57.1842147+00:00 ContainerStream: └────┴────────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+2026-07-18T22:41:57.1849580+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: [--no-daemon] Continue to stream logs
+2026-07-18T22:41:57.1855631+00:00 ContainerStream: 2026-07-18T22:41:57: PM2 log: [--no-daemon] Exit on target PM2 exit pid=1853
+2026-07-18T22:41:57.6648567+00:00 ContainerStream: 22:41:57 0|static-page-server-8080  | Exposing /home/site/wwwroot directory on 0.0.0.0:8080
+2026-07-18T22:41:58.0674671+00:00 ContainerStatus: Site startup probe succeeded after 25.0455113 seconds.
+2026-07-18T22:41:58.2290976+00:00 ContainerStatus: State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 25.0455113 seconds., DetailsLevel: INFO
+2026-07-18T22:41:58.5679786+00:00 ContainerStatus: Site is running with deployment version: ba16e432-991b-4953-9ff0-a107d3f07fc4
+2026-07-18T22:41:58.5685930+00:00 ContainerStatus: Site started.
+2026-07-18T22:41:58.5693965+00:00 ContainerStatus: State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/18/2026 22:41:58 (UTC), DetailsLevel: INFO
+2026-07-18T22:41:58.5896201+00:00 ContainerStatus: Site is running with patch version NODE-22.22.2
+========== New Cold Start Attempt (2026-07-18T22:42:18.6990797+00:00) ==========
+2026-07-18T22:42:18.6990797+00:00 ContainerStatus: State: Stopping, Action: StoppingSite, LastError: VNETFailure, LastErrorTimestamp: 07/17/2026 14:11:46, LastErrorDetails: There was an issue setting up VNet., Details: Site started at 07/17/2026 14:45:07 (UTC), DetailsLevel: INFO
+2026-07-18T22:42:18.7072089+00:00 ContainerStatus: State: Stopping, Action: StoppingSiteContainers, LastError: VNETFailure, LastErrorTimestamp: 07/17/2026 14:11:46, LastErrorDetails: There was an issue setting up VNet., Details: Site started at 07/17/2026 14:45:07 (UTC), DetailsLevel: INFO
+2026-07-18T22:42:18.7079316+00:00 ContainerStatus: Container is terminating. Grace period: 5 seconds.
+2026-07-18T22:42:18.7555938+00:00 ContainerStatus: Stop and delete container. Retry count = 0
+2026-07-18T22:42:18.7562546+00:00 ContainerStatus: Stopping container: 73f30cbe3ea6_babitk-app.
+2026-07-18T22:42:24.4351058+00:00 ContainerStatus: Deleting container: 73f30cbe3ea6_babitk-app. Retry count = 0
+2026-07-18T22:42:24.7289505+00:00 ContainerStatus: Container spec TerminationMessagePolicy  path 
+2026-07-18T22:42:24.7344871+00:00 ContainerStatus: Container is terminated. Total time elapsed: 6017 ms.
+2026-07-18T22:42:24.7358037+00:00 ContainerStatus: Site: babitk-app stopped.
+2026-07-18T22:42:25.9902465+00:00 ContainerStatus: State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-18T22:42:28.4286314+00:00 ContainerStatus: State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-18T22:42:28.4386486+00:00 ContainerStatus: Container start method called.
+2026-07-18T22:42:28.4387197+00:00 ContainerStatus: State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-18T22:42:28.4388009+00:00 ContainerStatus: Establishing network.
+2026-07-18T22:42:28.4388661+00:00 ContainerStatus: Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-18T22:42:29.2988339+00:00 ContainerStatus: Container is starting.
+2026-07-18T22:42:29.2989407+00:00 ContainerStatus: State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-18T22:42:29.2990327+00:00 ContainerStatus: Establishing user namespace if not established already.
+2026-07-18T22:42:29.2990886+00:00 ContainerStatus: Establishing network if not established already.
+2026-07-18T22:42:29.2991522+00:00 ContainerStatus: Mounting volumes.
+2026-07-18T22:42:29.2992332+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:42:29.4274429+00:00 ContainerStatus: Nested mountpoint volatile/logs
+2026-07-18T22:42:29.4564040+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:42:29.4568503+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:42:29.4573970+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:42:29.5668364+00:00 ContainerStatus: Nested mountpoint 
+2026-07-18T22:42:30.2371811+00:00 ContainerStatus: State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-18T22:42:30.2374328+00:00 ContainerStatus: Creating container.
+2026-07-18T22:42:30.2378813+00:00 ContainerStatus: Creating pipes for streaming container io.
+2026-07-18T22:42:30.2383190+00:00 ContainerStatus: Creating stdout named pipe at /podr/container/pipe/dce015272386_babitk-app/stdout_aac83e3630904a43bff8a3c74b7445d7.
+2026-07-18T22:42:30.2563085+00:00 ContainerStatus: Successfully created stdout named pipe at: /podr/container/pipe/dce015272386_babitk-app/stdout_aac83e3630904a43bff8a3c74b7445d7.
+2026-07-18T22:42:30.2564368+00:00 ContainerStatus: Opening named pipe /podr/container/pipe/dce015272386_babitk-app/stdout_aac83e3630904a43bff8a3c74b7445d7 for reading in non-blocking mode.
+2026-07-18T22:42:30.2565153+00:00 ContainerStatus: Successfully opened named pipe: /podr/container/pipe/dce015272386_babitk-app/stdout_aac83e3630904a43bff8a3c74b7445d7.
+2026-07-18T22:42:30.2565685+00:00 ContainerStatus: Successfully removed non-blocking flag from /podr/container/pipe/dce015272386_babitk-app/stdout_aac83e3630904a43bff8a3c74b7445d7.
+2026-07-18T22:42:30.2569879+00:00 ContainerStatus: Creating stderr named pipe at /podr/container/pipe/dce015272386_babitk-app/stderr_ba9f5822fea2482799ad4461e1804f84.
+2026-07-18T22:42:30.2576938+00:00 ContainerStatus: Successfully created stderr named pipe at: /podr/container/pipe/dce015272386_babitk-app/stderr_ba9f5822fea2482799ad4461e1804f84.
+2026-07-18T22:42:30.2578034+00:00 ContainerStatus: Opening named pipe /podr/container/pipe/dce015272386_babitk-app/stderr_ba9f5822fea2482799ad4461e1804f84 for reading in non-blocking mode.
+2026-07-18T22:42:30.2579192+00:00 ContainerStatus: Successfully opened named pipe: /podr/container/pipe/dce015272386_babitk-app/stderr_ba9f5822fea2482799ad4461e1804f84.
+2026-07-18T22:42:30.2580070+00:00 ContainerStatus: Successfully removed non-blocking flag from /podr/container/pipe/dce015272386_babitk-app/stderr_ba9f5822fea2482799ad4461e1804f84.
+2026-07-18T22:42:30.2580997+00:00 ContainerStatus: Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.6:13209 and fully qualified image name: 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-18T22:42:31.3957134+00:00 ContainerStatus: Starting container: dce015272386_babitk-app.
+2026-07-18T22:42:31.5182563+00:00 ContainerStatus: Starting watchers and probes.
+2026-07-18T22:42:31.5184389+00:00 ContainerStatus: Starting metrics collection.
+2026-07-18T22:42:31.5262183+00:00 ContainerStatus: Container is running.
+2026-07-18T22:42:31.5264250+00:00 ContainerStatus: State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-18T22:42:31.6184742+00:00 ContainerStatus: Container start method finished after 3179 ms.
+2026-07-18T22:42:31.6565420+00:00 ContainerStatus: State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-18T22:42:31.6569977+00:00 ContainerStatus: State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-18T22:42:31.7062631+00:00 ContainerStream:    _____                               
+2026-07-18T22:42:31.7063843+00:00 ContainerStream:   /  _  \ __________ _________   ____  
+2026-07-18T22:42:31.7063877+00:00 ContainerStream:  /  /_\  \\___   /  |  \_  __ \_/ __ \ 
+2026-07-18T22:42:31.7063895+00:00 ContainerStream: /    |    \/    /|  |  /|  | \/\  ___/ 
+2026-07-18T22:42:31.7063941+00:00 ContainerStream: \____|__  /_____ \____/ |__|    \___  >
+2026-07-18T22:42:31.7063965+00:00 ContainerStream:         \/      \/                  \/ 
+2026-07-18T22:42:31.7063983+00:00 ContainerStream: A P P   S E R V I C E   O N   L I N U X
+2026-07-18T22:42:31.7063999+00:00 ContainerStream: 
+2026-07-18T22:42:31.7064020+00:00 ContainerStream: Documentation    : http://aka.ms/webapp-linux
+2026-07-18T22:42:31.7064042+00:00 ContainerStream: NodeJS quickstart: https://aka.ms/node-qs
+2026-07-18T22:42:31.7064059+00:00 ContainerStream: NodeJS Version   : v22.22.2
+2026-07-18T22:42:31.7064092+00:00 ContainerStream: Instance Name    : lw1sdlwk0000OJ
+2026-07-18T22:42:31.7064115+00:00 ContainerStream: Instance Id      : e853b0d521c13ae8cb31bbb09a3a1872c5b2865061d0d453c8b371a72b35cb7a
+2026-07-18T22:42:31.7064131+00:00 ContainerStream: 
+2026-07-18T22:42:31.7064148+00:00 ContainerStream: Note: Any data outside '/home' is not persisted
+2026-07-18T22:42:36.5055818+00:00 ContainerStream: Starting OpenBSD Secure Shell server: sshd.
+2026-07-18T22:42:36.5466742+00:00 ContainerStream: WEBSITES_INCLUDE_CLOUD_CERTS is not set to true.
+2026-07-18T22:42:36.6179705+00:00 ContainerStream: Updating certificates in /etc/ssl/certs...
+2026-07-18T22:42:58.3979968+00:00 ContainerStream: rehash: warning: skipping duplicate certificate in azl_SSL.com_TLS_ECC_Root_CA_2022.pem
+2026-07-18T22:42:58.4078052+00:00 ContainerStream: rehash: warning: skipping duplicate certificate in azl_SSL.com_TLS_RSA_Root_CA_2022.pem
+2026-07-18T22:42:58.6982326+00:00 ContainerStream: rehash: warning: skipping ca-certificates.crt,it does not contain exactly one certificate or CRL
+2026-07-18T22:42:58.7783045+00:00 ContainerStream: 4 added, 0 removed; done.
+2026-07-18T22:42:58.7789865+00:00 ContainerStream: Running hooks in /etc/ca-certificates/update.d...
+2026-07-18T22:42:58.7982997+00:00 ContainerStream: done.
+2026-07-18T22:42:58.8198745+00:00 ContainerStream: CA certificates copied and updated successfully.
+2026-07-18T22:42:59.0295067+00:00 ContainerStream: Starting periodic command scheduler: cron.
+2026-07-18T22:42:59.4882606+00:00 ContainerStream: Could not find build manifest file at '/home/site/wwwroot/oryx-manifest.toml'
+2026-07-18T22:42:59.5251587+00:00 ContainerStream: Could not find operation ID in manifest. Generating an operation id...
+2026-07-18T22:42:59.5461909+00:00 ContainerStream: Build Operation ID: f436e91a-2f8d-4aca-99d6-26206dc22c88
+2026-07-18T22:43:00.0455906+00:00 ContainerStream: Environment Variables for Application Insight's IPA Codeless Configuration exists..
+2026-07-18T22:43:00.0846883+00:00 ContainerStream: Writing output script to '/opt/startup/startup.sh'
+2026-07-18T22:43:00.1547500+00:00 ContainerStream: Running #!/bin/sh
+2026-07-18T22:43:00.1547939+00:00 ContainerStream: 
+2026-07-18T22:43:00.1548027+00:00 ContainerStream: # Enter the source directory to make sure the script runs where the user expects
+2026-07-18T22:43:00.1548059+00:00 ContainerStream: cd "/home/site/wwwroot"
+2026-07-18T22:43:00.1548075+00:00 ContainerStream: 
+2026-07-18T22:43:00.1548097+00:00 ContainerStream: export NODE_PATH=/usr/local/lib/node_modules:$NODE_PATH
+2026-07-18T22:43:00.1548114+00:00 ContainerStream: if [ -z "$PORT" ]; then
+2026-07-18T22:43:00.1548130+00:00 ContainerStream: 		export PORT=8080
+2026-07-18T22:43:00.1548145+00:00 ContainerStream: fi
+2026-07-18T22:43:00.1548175+00:00 ContainerStream: 
+2026-07-18T22:43:00.1551418+00:00 ContainerStream: PATH="$PATH:/home/site/wwwroot" pm2 serve /home/site/wwwroot --no-daemon --spa
+2026-07-18T22:43:04.4361023+00:00 ContainerStream: 
+2026-07-18T22:43:04.4361636+00:00 ContainerStream:                         -------------
+2026-07-18T22:43:04.4361683+00:00 ContainerStream: 
+2026-07-18T22:43:04.4361703+00:00 ContainerStream: __/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+2026-07-18T22:43:04.4361722+00:00 ContainerStream:  _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+2026-07-18T22:43:04.4361788+00:00 ContainerStream:   _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+2026-07-18T22:43:04.4361808+00:00 ContainerStream:    _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___________/\\\/___
+2026-07-18T22:43:04.4361828+00:00 ContainerStream:     _\/\\\/////////____\/\\\__\///\\\/___\/\\\________/\\\//_____
+2026-07-18T22:43:04.4361846+00:00 ContainerStream:      _\/\\\_____________\/\\\____\///_____\/\\\_____/\\\//________
+2026-07-18T22:43:04.4361864+00:00 ContainerStream:       _\/\\\_____________\/\\\_____________\/\\\___/\\\/___________
+2026-07-18T22:43:04.4361883+00:00 ContainerStream:        _\/\\\_____________\/\\\_____________\/\\\__/\\\\\\\\\\\\\\\_
+2026-07-18T22:43:04.4361921+00:00 ContainerStream:         _\///______________\///______________\///__\///////////////__
+2026-07-18T22:43:04.4361937+00:00 ContainerStream: 
+2026-07-18T22:43:04.4361951+00:00 ContainerStream: 
+2026-07-18T22:43:04.4361968+00:00 ContainerStream:                           Runtime Edition
+2026-07-18T22:43:04.4361984+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362000+00:00 ContainerStream:         PM2 is a Production Process Manager for Node.js applications
+2026-07-18T22:43:04.4362050+00:00 ContainerStream:                      with a built-in Load Balancer.
+2026-07-18T22:43:04.4362068+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362084+00:00 ContainerStream:                 Start and Daemonize any application:
+2026-07-18T22:43:04.4362101+00:00 ContainerStream:                 $ pm2 start app.js
+2026-07-18T22:43:04.4362116+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362132+00:00 ContainerStream:                 Load Balance 4 instances of api.js:
+2026-07-18T22:43:04.4362149+00:00 ContainerStream:                 $ pm2 start api.js -i 4
+2026-07-18T22:43:04.4362206+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362226+00:00 ContainerStream:                 Monitor in production:
+2026-07-18T22:43:04.4362244+00:00 ContainerStream:                 $ pm2 monitor
+2026-07-18T22:43:04.4362260+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362277+00:00 ContainerStream:                 Make pm2 auto-boot at server restart:
+2026-07-18T22:43:04.4362294+00:00 ContainerStream:                 $ pm2 startup
+2026-07-18T22:43:04.4362309+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362324+00:00 ContainerStream:                 To go further checkout:
+2026-07-18T22:43:04.4362384+00:00 ContainerStream:                 http://pm2.io/
+2026-07-18T22:43:04.4362409+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362424+00:00 ContainerStream: 
+2026-07-18T22:43:04.4362440+00:00 ContainerStream:                         -------------
+2026-07-18T22:43:04.4362454+00:00 ContainerStream: 
+2026-07-18T22:43:04.4586627+00:00 ContainerStream: pm2 launched in no-daemon mode (you can add DEBUG="*" env variable to get more messages)
+2026-07-18T22:43:05.2568500+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: Launching in no daemon mode
+2026-07-18T22:43:05.3972577+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [PM2] This PM2 is not UP TO DATE
+2026-07-18T22:43:05.3984582+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [PM2] Upgrade to version 7.0.3
+2026-07-18T22:43:05.4685112+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [PM2] Starting /usr/local/lib/node_modules/pm2/lib/API/Serve.js in fork_mode (1 instance)
+2026-07-18T22:43:05.4782073+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: App [static-page-server-8080:0] starting in -fork mode-
+2026-07-18T22:43:05.6164796+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: App [static-page-server-8080:0] online
+2026-07-18T22:43:05.6868366+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [PM2] Done.
+2026-07-18T22:43:05.7065730+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [PM2] Serving /home/site/wwwroot on port 8080
+2026-07-18T22:43:05.9991318+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: ┌────┬────────────────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+2026-07-18T22:43:05.9991930+00:00 ContainerStream: │ id │ name                       │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+2026-07-18T22:43:05.9991979+00:00 ContainerStream: ├────┼────────────────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+2026-07-18T22:43:05.9992010+00:00 ContainerStream: │ 0  │ static-page-server-8080    │ default     │ 6.0.5   │ fork    │ 1870     │ 0s     │ 0    │ online    │ 0%       │ 43.1mb   │ root     │ disabled │
+2026-07-18T22:43:05.9992049+00:00 ContainerStream: └────┴────────────────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+2026-07-18T22:43:06.0002331+00:00 ContainerStream: 2026-07-18T22:43:05: PM2 log: [--no-daemon] Continue to stream logs
+2026-07-18T22:43:06.0082776+00:00 ContainerStream: 2026-07-18T22:43:06: PM2 log: [--no-daemon] Exit on target PM2 exit pid=1852
+2026-07-18T22:43:06.5591289+00:00 ContainerStream: 22:43:06 0|static-page-server-8080  | Exposing /home/site/wwwroot directory on 0.0.0.0:8080
+2026-07-18T22:43:06.8217607+00:00 ContainerStatus: Site startup probe succeeded after 35.1642706 seconds.
+2026-07-18T22:43:06.9624248+00:00 ContainerStatus: State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 35.1642706 seconds., DetailsLevel: INFO

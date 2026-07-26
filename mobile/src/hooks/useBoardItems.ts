@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildColumnMovePatch, getItemColumn, itemsInColumn, sortColumnItems, type DashboardColumn } from "../lib/item-columns";
+import { buildColumnMovePatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, type DashboardColumn } from "../lib/item-columns";
 import {
   buildArchivePatch,
   buildSoftDeletePatch,
   resolveRestoreFromArchivePatch,
   resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
+import {
+  buildClearReminderPatch,
+  buildInferredReminderPatch,
+  buildManualReminderPatch,
+  buildTaskReminderUpdate,
+  getReminderFlags,
+  type ReminderRecurrence,
+} from "../lib/resolve-item-reminder";
+import { buildPriorityTogglePatch } from "../lib/item-priority";
 import {
   addDemoItem,
   getDemoItemsSnapshot,
@@ -25,9 +34,12 @@ import { CACHE_KEYS } from "../offline/types";
 import { flushOfflineQueue } from "../offline/sync";
 import { useNetworkStatus } from "./useNetworkStatus";
 import { ingestText } from "../lib/api";
-import { useConvexBackend } from "../lib/data-backend";
+import { useConvexBackend, useConvexItemsRead, useDemoHybridSync } from "../lib/data-backend";
+import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
+import type { Id } from "../../../convex/_generated/dataModel";
+import { resyncAllItemsToConvex } from "../lib/convex-mirror";
 import { useConvexUserId } from "./useConvexUserId";
-import { useBoardItemsConvex } from "./useBoardItemsConvex";
+import { useBoardItemsConvex, type BoardSecondaryLoad } from "./useBoardItemsConvex";
 
 const ITEM_SELECT = `
   id, title, content, is_actionable, status, due_date, tags, source_material_id, sort_order, created_at,
@@ -53,15 +65,91 @@ async function fetchAllFromServer(): Promise<MindtaskerItem[]> {
   return normalizeMindtaskerRows(data);
 }
 
-export function useBoardItems(userId?: string, email?: string) {
+export function useBoardItems(
+  userId?: string,
+  email?: string,
+  secondary?: BoardSecondaryLoad,
+) {
   const convexBackend = useConvexBackend();
-  const convexUserId = useConvexUserId(userId, email);
-  const convex = useBoardItemsConvex(convexUserId, convexBackend);
-  const legacy = useBoardItemsLegacy(!convexBackend);
-  return convexBackend ? convex : legacy;
+  const convexItemsRead = useConvexItemsRead();
+  const demoHybrid = useDemoHybridSync();
+  const useDirectConvexAuth = shouldUseConvexAuthLogin();
+  const bridged = useConvexUserId(useDirectConvexAuth ? undefined : userId, email);
+  const convexUserId: Id<"users"> | undefined =
+    useDirectConvexAuth && userId ? (userId as Id<"users">) : bridged.convexUserId;
+  const convexUserResolving = useDirectConvexAuth ? false : bridged.resolving;
+  const convex = useBoardItemsConvex(
+    convexUserId,
+    (convexBackend || demoHybrid) && Boolean(convexUserId),
+    secondary,
+  );
+  const legacy = useBoardItemsLegacy(isDemoMode || !convexBackend, userId);
+
+  if (demoHybrid) {
+    const useConvexData = Boolean(convexUserId) && !convex.loading;
+    const dataSource = useConvexData ? convex : legacy;
+    return {
+      loading:
+        legacy.loading ||
+        (Boolean(userId) && convexUserResolving && !convexUserId) ||
+        (Boolean(convexUserId) && convex.loading),
+      items: dataSource.items,
+      inbox: dataSource.inbox,
+      todayTasks: dataSource.todayTasks,
+      notes: dataSource.notes,
+      inboxArchive: dataSource.inboxArchive,
+      notesArchive: dataSource.notesArchive,
+      completedTasks: dataSource.completedTasks,
+      isOnline: legacy.isOnline,
+      isSyncing: legacy.isSyncing,
+      syncError: legacy.syncError,
+      pendingCount: legacy.pendingCount,
+      refresh: async () => {
+        await legacy.refresh();
+        await resyncAllItemsToConvex(true);
+      },
+      approveItem: useConvexData ? convex.approveItem : legacy.approveItem,
+      completeTask: useConvexData ? convex.completeTask : legacy.completeTask,
+      snoozeTask: useConvexData ? convex.snoozeTask : legacy.snoozeTask,
+      clearReminder: useConvexData ? convex.clearReminder : legacy.clearReminder,
+      archiveItem: useConvexData ? convex.archiveItem : legacy.archiveItem,
+      restoreArchiveItem: useConvexData
+        ? convex.restoreArchiveItem
+        : legacy.restoreArchiveItem,
+      restoreCompletedTask: useConvexData
+        ? convex.restoreCompletedTask
+        : legacy.restoreCompletedTask,
+      deleteItem: useConvexData ? convex.deleteItem : legacy.deleteItem,
+      restoreDeletedItem: useConvexData
+        ? convex.restoreDeletedItem
+        : legacy.restoreDeletedItem,
+      editItem: useConvexData ? convex.editItem : legacy.editItem,
+      toggleActionable: useConvexData
+        ? convex.toggleActionable
+        : legacy.toggleActionable,
+      moveToColumn: useConvexData ? convex.moveToColumn : legacy.moveToColumn,
+      placeItem: useConvexData ? convex.placeItem : legacy.placeItem,
+      updateTags: useConvexData ? convex.updateTags : legacy.updateTags,
+      togglePriority: useConvexData ? convex.togglePriority : legacy.togglePriority,
+      addCapturedItem: legacy.addCapturedItem,
+      convexUserId,
+    };
+  }
+
+  if (!convexBackend) {
+    return { ...legacy, convexUserId };
+  }
+
+  return {
+    ...convex,
+    convexUserId,
+    loading:
+      convex.loading ||
+      (Boolean(userId) && convexUserResolving && !convexUserId),
+  };
 }
 
-function useBoardItemsLegacy(enabled: boolean) {
+function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   const [items, setItems] = useState<MindtaskerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
@@ -140,7 +228,7 @@ function useBoardItemsLegacy(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     if (isDemoMode) {
-      const timer = setInterval(() => void refresh(), 8000);
+      const timer = setInterval(() => void refresh(), 3000);
       return () => clearInterval(timer);
     }
     if (isOnline) void syncQueue();
@@ -194,15 +282,15 @@ function useBoardItemsLegacy(enabled: boolean) {
   );
 
   const inbox = useMemo(
-    () => sortColumnItems(items.filter((i) => i.status === "inbox")),
+    () => sortColumnItems(itemsInColumn(items, "inbox")),
     [items],
   );
   const todayTasks = useMemo(
-    () => sortColumnItems(items.filter((i) => i.is_actionable && i.status === "pending")),
+    () => sortColumnItems(itemsInColumn(items, "today")),
     [items],
   );
   const notes = useMemo(
-    () => sortColumnItems(items.filter((i) => !i.is_actionable && i.status === "pending")),
+    () => sortColumnItems(itemsInColumn(items, "notes")),
     [items],
   );
   const inboxArchive = useMemo(
@@ -236,6 +324,7 @@ function useBoardItemsLegacy(enabled: boolean) {
       approveItem: async () => {},
       completeTask: async () => {},
       snoozeTask: async () => {},
+      clearReminder: async () => {},
       archiveItem: async () => {},
       restoreArchiveItem: async () => {},
       restoreCompletedTask: async () => {},
@@ -246,6 +335,7 @@ function useBoardItemsLegacy(enabled: boolean) {
       moveToColumn: async () => {},
       placeItem: async () => {},
       updateTags: async () => {},
+      togglePriority: async () => {},
       addCapturedItem: async () => {},
     };
   }
@@ -264,16 +354,42 @@ function useBoardItemsLegacy(enabled: boolean) {
     syncError,
     pendingCount,
     refresh,
-    approveItem: (item: MindtaskerItem) =>
-      patchItem(item, { status: "pending", last_interacted_at: new Date().toISOString() }),
+    approveItem: (item: MindtaskerItem) => {
+      const patch: Partial<MindtaskerItem> = {
+        status: "pending",
+        last_interacted_at: new Date().toISOString(),
+      };
+      if (item.is_actionable) {
+        const reminder = buildInferredReminderPatch(item);
+        patch.due_date = reminder.due_date;
+        patch.metadata = reminder.metadata;
+      }
+      return patchItem(item, patch);
+    },
     completeTask: (item: MindtaskerItem) =>
       patchItem(item, {
         status: "completed",
         completed_at: new Date().toISOString(),
         last_interacted_at: new Date().toISOString(),
       }),
-    snoozeTask: (item: MindtaskerItem, dueDate: string) =>
-      patchItem(item, { due_date: dueDate, last_interacted_at: new Date().toISOString() }),
+    snoozeTask: (
+      item: MindtaskerItem,
+      dueDate: string,
+      recurrence?: ReminderRecurrence | null,
+    ) => {
+      const reminder = buildManualReminderPatch(item, dueDate, recurrence);
+      return patchItem(item, {
+        ...reminder,
+        last_interacted_at: new Date().toISOString(),
+      });
+    },
+    clearReminder: (item: MindtaskerItem) => {
+      const reminder = buildClearReminderPatch(item);
+      return patchItem(item, {
+        ...reminder,
+        last_interacted_at: new Date().toISOString(),
+      });
+    },
     archiveItem: (item: MindtaskerItem) => patchItem(item, buildArchivePatch(item)),
     restoreArchiveItem: (item: MindtaskerItem) =>
       patchItem(item, resolveRestoreFromArchivePatch(item)),
@@ -317,29 +433,54 @@ function useBoardItemsLegacy(enabled: boolean) {
       if (isOnline) await syncQueue();
       await refresh();
     },
-    editItem: (item: MindtaskerItem, input: ItemEditInput) =>
-      patchItem(item, {
+    editItem: (item: MindtaskerItem, input: ItemEditInput) => {
+      const patch: Partial<MindtaskerItem> = {
         title: input.title,
         content: input.content,
         tags: input.tags,
-        due_date: item.is_actionable ? input.due_date : null,
         last_interacted_at: new Date().toISOString(),
-      }),
+      };
+      const reminder = buildTaskReminderUpdate(item, {
+        title: input.title,
+        content: input.content,
+        due_date: input.due_date,
+      });
+      patch.due_date = reminder.dueDate;
+      patch.metadata = reminder.metadata;
+      return patchItem(item, patch);
+    },
     toggleActionable: (item: MindtaskerItem) => {
       const becomesTask = !item.is_actionable;
       const patch: Partial<MindtaskerItem> = {
         is_actionable: becomesTask,
         last_interacted_at: new Date().toISOString(),
+        metadata: buildToggleStayMetadata(item),
       };
       if (becomesTask) {
-        patch.due_date = item.due_date ?? null;
+        const reminder = buildInferredReminderPatch({
+          ...item,
+          is_actionable: true,
+        });
+        patch.due_date = reminder.due_date;
+        patch.metadata = {
+          ...buildToggleStayMetadata(item),
+          ...(reminder.metadata ?? {}),
+        };
+        delete (patch.metadata as Record<string, unknown>).board_column;
       } else {
-        patch.due_date = null;
+        const flags = getReminderFlags(item.metadata);
+        if (!flags.manual) {
+          patch.due_date = null;
+        }
+        patch.completed_at = null;
+        if (item.status === "completed") {
+          patch.status = "pending";
+        }
       }
       return patchItem(item, patch);
     },
     moveToColumn: (item: MindtaskerItem, target: DashboardColumn) =>
-      patchItem(item, buildColumnMovePatch(target)),
+      patchItem(item, buildColumnMovePatch(target, item.metadata)),
     placeItem: async (itemId: string, targetColumn: DashboardColumn, beforeItemId: string | null) => {
       const item = items.find((entry) => entry.id === itemId);
       if (!item) return;
@@ -390,6 +531,8 @@ function useBoardItemsLegacy(enabled: boolean) {
     },
     updateTags: (item: MindtaskerItem, tags: string[]) =>
       patchItem(item, { tags, last_interacted_at: new Date().toISOString() }),
+    togglePriority: (item: MindtaskerItem, priority: boolean) =>
+      patchItem(item, buildPriorityTogglePatch(item, priority)),
     addCapturedItem: async (item: MindtaskerItem) => {
       if (isDemoMode) {
         const showSync = isSyncEnabled();
@@ -409,7 +552,7 @@ function useBoardItemsLegacy(enabled: boolean) {
         return;
       }
 
-      await ingestText(item.content || item.title);
+      await ingestText(item.content || item.title, userId);
       await refresh();
     },
   };

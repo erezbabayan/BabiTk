@@ -1,7 +1,17 @@
-import { supabase, isDemoMode } from "./supabase";
+import { supabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { addDemoItem, isDemoPremium, setDemoPremium } from "./demo-store";
+import { api } from "../../../convex/_generated/api";
+import { isConvexConfigured, requireConvex } from "./convex";
+import { resolveConvexUserId } from "./convex-user-cache";
+import { asDirectConvexUserId } from "./legacy-user-id";
+import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  readLocalAudioAsBase64,
+  uploadLocalAudioToConvexUrl,
+  uploadLocalImageToConvexUrl,
+} from "./voice-upload";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
 
 let paywallHandler: ((code: "audio_quota" | "ai_parse_quota") => void) | null = null;
 
@@ -25,7 +35,87 @@ export function isPaywallError(error: unknown): error is PaywallError {
   return error instanceof PaywallError;
 }
 
+/** User-facing message for capture / Convex action failures. */
+export function formatCaptureError(error: unknown, fallback = "הפעולה נכשלה"): string {
+  if (isPaywallError(error)) return error.message;
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const lower = raw.toLowerCase();
+
+  // Prefer explicit Hebrew / step messages from our upload helpers.
+  if (
+    (raw.includes("העלאת ההקלטה") || raw.includes("העלאה נכשלה")) &&
+    /[\u0590-\u05FF]/.test(raw) &&
+    raw.length < 220
+  ) {
+    return raw;
+  }
+
+  if (
+    lower.includes("arguments size is too large") ||
+    lower.includes("5 mib") ||
+    lower.includes("argument too large")
+  ) {
+    return "ההקלטה ארוכה מדי לשליחה. נסו הקלטה קצרה יותר (עד כדקה).";
+  }
+  if (lower.includes("openai_api_key") || lower.includes("not configured")) {
+    return "תמלול קולי עדיין לא מוגדר בשרת. נסו שוב בעוד רגע או פנו לתמיכה.";
+  }
+  if (
+    lower.includes("quota") ||
+    lower.includes("מכס") ||
+    lower.includes("insufficient_quota") ||
+    lower.includes("קרדיט")
+  ) {
+    return raw.includes("OpenAI") || raw.includes("RunPod") || /[\u0590-\u05FF]/.test(raw)
+      ? raw.length < 220
+        ? raw
+        : "נגמרה מכסת התמלול. בדקו חיוב OpenAI או הגדירו RunPod."
+      : "הגעתם למכסת התמלול החודשית.";
+  }
+  if (lower.includes("לא זוהה דיבור") || lower.includes("empty transcription")) {
+    return "לא זוהה דיבור ברור בהקלטה. נסו שוב.";
+  }
+  if (lower.includes("unauthorized") || lower.includes("not authenticated")) {
+    return "יש להתחבר מחדש כדי להעלות הקלטה.";
+  }
+  if (
+    lower.includes("connection error") ||
+    lower.includes("שגיאת חיבור לשרת התמלול") ||
+    lower.includes("openai whisper http")
+  ) {
+    return "שגיאת חיבור לשרת התמלול. נסו שוב בעוד רגע.";
+  }
+  if (
+    lower.includes("network request failed") ||
+    lower.includes("failed to fetch") ||
+    lower.includes("network error") ||
+    lower.includes("econnrefused")
+  ) {
+    return "אין חיבור לשרת. בדקו Wi‑Fi ונסו שוב.";
+  }
+  // Strip Convex action wrapper noise: [CONVEX A(...)] ... Uncaught Error: ...
+  const uncaught = raw.match(/Uncaught Error:\s*(.+?)(?:\n|$)/i);
+  if (uncaught?.[1]) {
+    return formatCaptureError(new Error(uncaught[1].trim()), fallback);
+  }
+  const heLine = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => /[\u0590-\u05FF]/.test(line));
+  if (heLine) return heLine;
+  if (raw && !raw.includes("[CONVEX") && raw.length < 160) return raw;
+  return fallback;
+}
+
 async function getAccessToken(): Promise<string | null> {
+  if (isDemoMode) {
+    return "demo";
+  }
+
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
@@ -66,6 +156,10 @@ export async function getUsageSummary(): Promise<UsageSummary> {
   const token = await getAccessToken();
   if (!token) throw new Error("Not authenticated");
 
+  if (!API_BASE) {
+    throw new Error("Usage summary requires Convex (no REST API configured)");
+  }
+
   const res = await fetch(`${API_BASE}/api/usage/summary`, {
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -81,6 +175,9 @@ export async function getUsageSummary(): Promise<UsageSummary> {
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getAccessToken();
   if (!token) throw new Error("Not authenticated");
+  if (!API_BASE) {
+    throw new Error("פעולה זו דורשת שרת REST — במצב Convex היא אינה זמינה");
+  }
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -262,7 +359,13 @@ function clientTimezone(): string {
   }
 }
 
-export async function ingestText(text: string): Promise<void> {
+function convexIngestEnabled(): boolean {
+  if (isDemoMode) return false;
+  if (process.env.EXPO_PUBLIC_USE_CONVEX === "false") return false;
+  return isConvexConfigured;
+}
+
+export async function ingestText(text: string, legacyUserId?: string): Promise<void> {
   if (isDemoMode) {
     const { ingestTextSync } = await import("./sync-client");
     let timezone = "Asia/Jerusalem";
@@ -272,6 +375,23 @@ export async function ingestText(text: string): Promise<void> {
       // keep default
     }
     await ingestTextSync({ text, sourceType: "whatsapp_text", timezone });
+    return;
+  }
+
+  if (convexIngestEnabled()) {
+    if (!legacyUserId) {
+      throw new Error("Not authenticated");
+    }
+    const convex = requireConvex();
+    const convexUserId = await resolveConvexUserId(legacyUserId, () =>
+      convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
+    );
+    await convex.action(api.captureActions.ingestQuickText, {
+      userId: convexUserId,
+      text,
+      timezone: clientTimezone(),
+      locale: "he-IL",
+    });
     return;
   }
 
@@ -287,7 +407,14 @@ export async function ingestText(text: string): Promise<void> {
 }
 
 async function uploadMultipart(path: string, uri: string, mimeType: string, name: string) {
-  if (isDemoMode) return;
+  if (isDemoMode) {
+    const { ingestVoiceSync } = await import("./sync-client");
+    if (path.endsWith("/voice-ingest")) {
+      await ingestVoiceSync(uri, mimeType, name);
+      return;
+    }
+    return;
+  }
 
   const token = await getAccessToken();
   if (!token) throw new Error("Not authenticated");
@@ -318,11 +445,111 @@ async function uploadMultipart(path: string, uri: string, mimeType: string, name
   }
 }
 
-export async function uploadNotebookOcr(uri: string, mimeType: string): Promise<void> {
+export async function uploadNotebookOcr(
+  uri: string,
+  mimeType: string,
+  legacyUserId?: string,
+): Promise<void> {
+  if (isDemoMode) {
+    await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
+    return;
+  }
+
+  if (convexIngestEnabled()) {
+    if (!legacyUserId) {
+      throw new Error("Not authenticated");
+    }
+    const convex = requireConvex();
+    const directId = asDirectConvexUserId(legacyUserId);
+    const convexUserId =
+      directId ??
+      (await resolveConvexUserId(legacyUserId, () =>
+        convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
+      ));
+
+    const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
+    const uploaded = await uploadLocalImageToConvexUrl(uri, uploadUrl, mimeType);
+    await convex.action(api.captureActions.ingestNotebookImage, {
+      userId: convexUserId as Id<"users">,
+      storageId: uploaded.storageId as Id<"_storage">,
+      mimeType: uploaded.mimeType,
+      timezone: clientTimezone(),
+      locale: "he-IL",
+    });
+    return;
+  }
+
   await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
 }
 
-export async function uploadVoiceNote(uri: string): Promise<void> {
+export async function uploadVoiceNote(
+  uri: string,
+  legacyUserId?: string,
+  options?: { durationSeconds?: number },
+): Promise<void> {
+  if (isDemoMode) {
+    const { ingestVoiceSync } = await import("./sync-client");
+    await ingestVoiceSync(uri, "audio/m4a", "recording.m4a");
+    return;
+  }
+
+  if (convexIngestEnabled()) {
+    if (!legacyUserId) {
+      throw new Error("Not authenticated");
+    }
+    const convex = requireConvex();
+    const directId = asDirectConvexUserId(legacyUserId);
+    const convexUserId =
+      directId ??
+      (await resolveConvexUserId(legacyUserId, () =>
+        convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
+      ));
+
+    const timezone = clientTimezone();
+    const durationSeconds = options?.durationSeconds;
+
+    // Primary: native binary upload → storageId → Node transcription.
+    // Node actions are capped at ~5 MiB args; base64 of real recordings exceeds that.
+    try {
+      const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
+      const uploaded = await uploadLocalAudioToConvexUrl(uri, uploadUrl);
+      await convex.action(api.captureActions.ingestVoiceCapture, {
+        userId: convexUserId as Id<"users">,
+        storageId: uploaded.storageId as Id<"_storage">,
+        mimeType: uploaded.mimeType,
+        timezone,
+        locale: "he-IL",
+        durationSeconds,
+      });
+      return;
+    } catch (primaryError) {
+      const primaryMsg =
+        primaryError instanceof Error ? primaryError.message.toLowerCase() : "";
+      // Only fall back when the upload step itself failed — not ASR/quota/auth.
+      const uploadStepFailed =
+        primaryMsg.includes("העלאת ההקלטה לשרת") ||
+        primaryMsg.includes("upload") ||
+        primaryMsg.includes("network request failed") ||
+        primaryMsg.includes("failed to fetch") ||
+        primaryMsg.includes("תשובת העלאה");
+      if (!uploadStepFailed) {
+        throw primaryError;
+      }
+
+      // Tiny-clip fallback only (must stay under Node 5 MiB arg limit).
+      const audio = await readLocalAudioAsBase64(uri);
+      await convex.action(api.captureActions.ingestVoiceFromBase64, {
+        userId: convexUserId as Id<"users">,
+        audioBase64: audio.base64,
+        mimeType: audio.mimeType,
+        timezone,
+        locale: "he-IL",
+        durationSeconds,
+      });
+      return;
+    }
+  }
+
   await uploadMultipart("/api/ai/voice-ingest", uri, "audio/m4a", "recording.m4a");
 }
 

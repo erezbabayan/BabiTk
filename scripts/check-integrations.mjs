@@ -53,6 +53,12 @@ const checks = [
     hint: "Stripe Dashboard → Webhook: /api/billing/webhook",
   },
   {
+    name: "Google Sign-In",
+    ok: Boolean(envVal("GOOGLE_CLIENT_ID") && envVal("GOOGLE_CLIENT_SECRET"))
+      && !envVal("GOOGLE_CLIENT_ID").includes("your-client"),
+    hint: "Run scripts/configure-auth.ps1 (needs .supabase-local.env)",
+  },
+  {
     name: "Google Calendar",
     ok: Boolean(envVal("GOOGLE_CLIENT_ID") && envVal("GOOGLE_CLIENT_SECRET")),
     hint: "Google Cloud Console → OAuth redirect: /api/integrations/google/callback",

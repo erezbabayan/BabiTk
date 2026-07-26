@@ -110,6 +110,7 @@ export function useInboxItems() {
 export function snoozePresets() {
   const now = new Date();
   return [
+    { label: "בעוד דקה", iso: new Date(now.getTime() + 60_000).toISOString() },
     { label: "עוד 3 שעות", iso: new Date(now.getTime() + 3 * 3600000).toISOString() },
     {
       label: "מחר בבוקר",
@@ -132,4 +133,4 @@ export function snoozePresets() {
   ];
 }
 
-export const QUICK_TAGS = ["בית", "עבודה", "קודים", "רעיונות", "פיננסי", "משפחה"];
+export const QUICK_TAGS = ["בית", "עבודה", "לימודים", "קודים", "רעיונות", "פיננסי", "משפחה"];

@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from "react-native";
-import { TouchableOpacity } from "react-native-gesture-handler";
+import { Pressable, StyleSheet, View } from "react-native";
 import type { MindtaskerItem } from "../lib/supabase";
+import { isReminderActive } from "../lib/item-display";
+import { NotebookIcon, type NotebookIconName, type NotebookIconTone } from "./NotebookIcons";
 
 export type BoardTab = "inbox" | "today" | "notes";
 export type ListView = "active" | "archive" | "completed";
@@ -13,85 +14,108 @@ interface ItemActionBarProps {
   onToggleType: () => void;
   onComplete: () => void;
   onSnooze: () => void;
+  showCompleteAction?: boolean;
+  showUndoAction?: boolean;
+  onUndo?: () => void;
+  onTagPress?: () => void;
+  tagPickerOpen?: boolean;
+  dense?: boolean;
 }
 
-function IconButton({
+function GhostButton({
   icon,
   label,
   onPress,
-  variant = "default",
+  active = false,
+  accent = false,
+  reminder = false,
+  dense = false,
+  tone = "slate",
 }: {
-  icon: string;
+  icon: NotebookIconName;
   label: string;
   onPress: () => void;
-  variant?: "default" | "success";
+  active?: boolean;
+  accent?: boolean;
+  reminder?: boolean;
+  dense?: boolean;
+  tone?: NotebookIconTone;
 }) {
+  let iconTone: NotebookIconTone = tone;
+  if (accent) iconTone = "success";
+  else if (reminder) iconTone = "danger";
+  else if (active) iconTone = "slate";
+
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
       accessibilityLabel={label}
-      style={[styles.btn, variant === "success" && styles.btnSuccess]}
+      accessibilityState={{ selected: active || reminder }}
+      hitSlop={4}
+      style={[
+        styles.ghostBtn,
+        dense && styles.ghostBtnDense,
+        active && styles.ghostBtnActive,
+        accent && styles.ghostBtnAccent,
+        reminder && styles.ghostBtnReminder,
+      ]}
     >
-      <Text style={[styles.btnText, variant === "success" && styles.btnTextOnColor]}>{icon}</Text>
-    </TouchableOpacity>
+      <NotebookIcon name={icon} size={dense ? 12 : 14} tone={iconTone} />
+    </Pressable>
   );
 }
 
+/**
+ * Always show the full action set on every item (tag, edit, type, reminder, done/undo).
+ * Handlers decide what each button does; we no longer hide buttons by board/tab.
+ */
 export function ItemActionBar({
   item,
-  tab,
-  listView,
   onEdit,
   onToggleType,
   onComplete,
   onSnooze,
+  showCompleteAction = false,
+  showUndoAction = false,
+  onUndo = () => {},
+  onTagPress,
+  tagPickerOpen = false,
+  dense = false,
 }: ItemActionBarProps) {
   const isNote = !item.is_actionable;
-
-  if (listView === "archive" || listView === "completed") {
-    return (
-      <View style={styles.row}>
-        <IconButton icon="✏️" label="ערוך" onPress={onEdit} />
-      </View>
-    );
-  }
-
-  if (tab === "inbox") {
-    return (
-      <View style={styles.row}>
-        <IconButton icon="✏️" label="ערוך" onPress={onEdit} />
-        <IconButton
-          icon="🔁"
-          label={isNote ? "הפוך למשימה" : "הפוך להערה"}
-          onPress={onToggleType}
-        />
-      </View>
-    );
-  }
-
-  if (tab === "today") {
-    return (
-      <View style={styles.row}>
-        <IconButton icon="✏️" label="ערוך" onPress={onEdit} />
-        <IconButton
-          icon="🔁"
-          label={isNote ? "הפוך למשימה" : "הפוך להערה"}
-          onPress={onToggleType}
-        />
-        <IconButton icon="⏰" label="נודניק" onPress={onSnooze} />
-        <IconButton icon="✅" label="בוצע" onPress={onComplete} variant="success" />
-      </View>
-    );
-  }
+  const reminderOn = isReminderActive(item);
 
   return (
-    <View style={styles.row}>
-      <IconButton icon="✏️" label="ערוך" onPress={onEdit} />
-      <IconButton
-        icon="🔁"
+    <View style={[styles.row, dense && styles.rowDense]} collapsable={false}>
+      {onTagPress ? (
+        <GhostButton
+          icon="tag"
+          label="תיוג"
+          onPress={onTagPress}
+          active={tagPickerOpen}
+          dense={dense}
+          tone={tagPickerOpen ? "orange" : "slate"}
+        />
+      ) : null}
+      <GhostButton icon="edit" label="עריכה" onPress={onEdit} dense={dense} />
+      <GhostButton
+        icon="swap"
         label={isNote ? "הפוך למשימה" : "הפוך להערה"}
         onPress={onToggleType}
+        dense={dense}
       />
+      <GhostButton
+        icon="bell"
+        label="תזכורת"
+        onPress={onSnooze}
+        reminder={reminderOn}
+        dense={dense}
+      />
+      {showUndoAction ? (
+        <GhostButton icon="undo" label="שחזר" onPress={onUndo} active dense={dense} />
+      ) : showCompleteAction ? (
+        <GhostButton icon="circle" label="בוצע" onPress={onComplete} accent dense={dense} />
+      ) : null}
     </View>
   );
 }
@@ -100,26 +124,41 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
-    gap: 3,
-    marginTop: 4,
-    paddingTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: "#f1f5f9",
+    gap: 4,
+    flexShrink: 1,
+    width: "100%",
+    maxWidth: "100%",
+    justifyContent: "flex-end",
   },
-  btn: {
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
+  rowDense: {
+    gap: 2,
+  },
+  ghostBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e2e8f0",
     backgroundColor: "#fff",
-    minWidth: 24,
     alignItems: "center",
+    justifyContent: "center",
   },
-  btnSuccess: {
-    backgroundColor: "#059669",
-    borderColor: "#059669",
+  ghostBtnDense: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
   },
-  btnText: { fontSize: 12, lineHeight: 14 },
-  btnTextOnColor: { color: "#fff" },
+  ghostBtnActive: {
+    borderColor: "#94a3b8",
+    backgroundColor: "#f1f5f9",
+  },
+  ghostBtnAccent: {
+    borderColor: "#93c5fd",
+    backgroundColor: "#eff6ff",
+  },
+  ghostBtnReminder: {
+    borderColor: "#ef4444",
+    borderWidth: 1.5,
+    backgroundColor: "#fef2f2",
+  },
 });

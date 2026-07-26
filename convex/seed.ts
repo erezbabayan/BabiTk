@@ -3,7 +3,8 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation, mutation } from "./_generated/server";
-import { sourceType, taskStatus } from "./validators";
+import { notifyAtPatchValue } from "./lib/notifyAt";
+import { sourceType, taskStatus, type SourceType } from "./validators";
 
 const syncSourceMaterial = v.object({
   id: v.string(),
@@ -62,6 +63,9 @@ async function ensureUser(
   return await ctx.db.insert("users", {
     legacyId: legacyUserId,
     email: `${legacyUserId}@demo.mindtasker.local`,
+    firstName: "משתמש",
+    lastName: "הדגמה",
+    name: "משתמש הדגמה",
     phoneVerified: false,
     tier: "free",
     allocatedAudioSeconds: 1800,
@@ -89,7 +93,7 @@ async function upsertTask(
     updated_at?: string;
     deleted_at: string | null;
     source_materials?: {
-      source_type: "whatsapp_voice" | "whatsapp_text" | "notebook_ocr";
+      source_type: SourceType;
       storage_url: string | null;
       raw_text: string | null;
     } | null;
@@ -118,6 +122,15 @@ async function upsertTask(
     calendarEventId: null,
     tags: item.tags ?? [],
     metadata: item.metadata ?? {},
+    notifyAt: notifyAtPatchValue(
+      {
+        isTask: true,
+        dueDate: item.due_date,
+        metadata: item.metadata ?? {},
+      },
+      Boolean(item.deleted_at) ||
+        (item.status !== "inbox" && item.status !== "pending"),
+    ),
     sourceType: source?.source_type,
     sourceStorageUrl: source?.storage_url ?? null,
     sourceRawText: source?.raw_text ?? null,
@@ -152,7 +165,7 @@ async function upsertNotebook(
     updated_at?: string;
     deleted_at: string | null;
     source_materials?: {
-      source_type: "whatsapp_voice" | "whatsapp_text" | "notebook_ocr";
+      source_type: SourceType;
       storage_url: string | null;
       raw_text: string | null;
     } | null;
@@ -170,14 +183,24 @@ async function upsertNotebook(
     .withIndex("by_legacy_id", (q) => q.eq("legacyId", item.id))
     .unique();
 
+  const noteStatus = mapNoteStatus(item.status);
   const payload = {
     userId,
     legacyId: item.id,
     title: item.title,
     content: item.content ?? item.title,
-    status: mapNoteStatus(item.status),
+    status: noteStatus,
     tags: item.tags ?? [],
     metadata: item.metadata ?? {},
+    notifyAt: notifyAtPatchValue(
+      {
+        isTask: false,
+        dueDate: null,
+        metadata: item.metadata ?? {},
+      },
+      Boolean(item.deleted_at) ||
+        (noteStatus !== "inbox" && noteStatus !== "pending"),
+    ),
     sourceType: source?.source_type ?? ("whatsapp_text" as const),
     storageUrl: source?.storage_url ?? null,
     rawText: source?.raw_text ?? item.content ?? null,
@@ -197,31 +220,77 @@ async function upsertNotebook(
   return await ctx.db.insert("notebooks", payload);
 }
 
-export const importSync = mutation({
-  args: {
-    legacyUserId: v.string(),
-    items: v.array(syncItem),
-  },
-  handler: async (ctx, { legacyUserId, items }) => {
-    const userId = await ensureUser(ctx, legacyUserId);
+async function importSyncHandler(
+  ctx: MutationCtx,
+  legacyUserId: string,
+  items: Array<{
+    id: string;
+    user_id: string;
+    source_material_id: string | null;
+    source_materials?: {
+      id: string;
+      source_type: SourceType;
+      storage_url: string | null;
+      raw_text: string | null;
+      metadata?: unknown;
+    } | null;
+    title: string;
+    content: string;
+    is_actionable: boolean;
+    status: "inbox" | "pending" | "completed" | "snoozed_archive";
+    due_date: string | null;
+    completed_at: string | null;
+    tags: string[];
+    metadata?: unknown;
+    sort_order?: number;
+    last_interacted_at?: string;
+    created_at?: string;
+    updated_at?: string;
+    deleted_at: string | null;
+  }>,
+) {
+  const userId = await ensureUser(ctx, legacyUserId);
 
-    let tasks = 0;
-    let notebooks = 0;
+  let tasks = 0;
+  let notebooks = 0;
 
-    for (const item of items) {
-      if (item.deleted_at) continue;
-
-      if (item.is_actionable) {
-        await upsertTask(ctx, userId, item);
-        tasks += 1;
-      } else {
-        await upsertNotebook(ctx, userId, item);
-        notebooks += 1;
-      }
+  for (const item of items) {
+    // Apply soft-deletes too — skipping them left live Convex copies that
+    // WhatsApp backfill / refresh could keep showing after "delete".
+    if (item.is_actionable) {
+      await upsertTask(ctx, userId, item);
+      tasks += 1;
+    } else {
+      await upsertNotebook(ctx, userId, item);
+      notebooks += 1;
     }
+  }
 
-    return { tasks, notebooks, total: items.length };
-  },
+  return { tasks, notebooks, total: items.length };
+}
+
+const importSyncArgs = {
+  legacyUserId: v.string(),
+  items: v.array(syncItem),
+};
+
+const importSyncReturns = v.object({
+  tasks: v.number(),
+  notebooks: v.number(),
+  total: v.number(),
+});
+
+export const importSync = internalMutation({
+  args: importSyncArgs,
+  returns: importSyncReturns,
+  handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
+});
+
+/** Dev seeding from sync JSON (public for local scripts). */
+export const importSyncDev = mutation({
+  args: importSyncArgs,
+  returns: importSyncReturns,
+  handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
 });
 
 /** Wipe demo data for a legacy user (dev only). */

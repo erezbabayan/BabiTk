@@ -1,7 +1,9 @@
 import { v } from "convex/values";
 
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { notifyAtPatchValue } from "./lib/notifyAt";
+import { requireAuthUserId, requireScopedUserId } from "./lib/requireAuth";
 import { sourceType, taskStatus } from "./validators";
 
 function assertUserOwnsTask(
@@ -13,9 +15,14 @@ function assertUserOwnsTask(
   }
 }
 
+function isActiveTaskStatus(status: Doc<"tasks">["status"]): boolean {
+  return status === "inbox" || status === "pending";
+}
+
 export const listActive = query({
   args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => {
+  handler: async (ctx, { userId: requestedUserId }) => {
+    const userId = await requireScopedUserId(ctx, requestedUserId);
     const tasks = await ctx.db
       .query("tasks")
       .withIndex("by_user_deleted", (q) =>
@@ -46,17 +53,25 @@ export const create = mutation({
     sourceRawText: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
+    const userId = await requireAuthUserId(ctx);
     const now = Date.now();
+    const status = args.status ?? "inbox";
+    const dueDate = args.dueDate ?? null;
+    const metadata = args.metadata;
     return await ctx.db.insert("tasks", {
-      userId: args.userId,
+      userId,
       title: args.title,
       content: args.content,
-      status: args.status ?? "inbox",
-      dueDate: args.dueDate ?? null,
+      status,
+      dueDate,
       completedAt: null,
       calendarEventId: null,
       tags: args.tags ?? [],
-      metadata: args.metadata,
+      metadata,
+      notifyAt: notifyAtPatchValue(
+        { isTask: true, dueDate, metadata },
+        !isActiveTaskStatus(status),
+      ),
       sourceType: args.sourceType,
       sourceStorageUrl: args.sourceStorageUrl ?? null,
       sourceRawText: args.sourceRawText ?? null,
@@ -86,14 +101,25 @@ export const update = mutation({
       deletedAt: v.optional(v.union(v.number(), v.null())),
     }),
   },
-  handler: async (ctx, { userId, taskId, patch }) => {
+  handler: async (ctx, { userId: requestedUserId, taskId, patch }) => {
+    const userId = await requireScopedUserId(ctx, requestedUserId);
     const task = await ctx.db.get(taskId);
     if (!task) throw new Error("Task not found");
     assertUserOwnsTask(userId, task.userId);
 
     const now = Date.now();
+    const nextDue = patch.dueDate !== undefined ? patch.dueDate : task.dueDate;
+    const nextMeta = patch.metadata !== undefined ? patch.metadata : task.metadata;
+    const nextStatus = patch.status !== undefined ? patch.status : task.status;
+    const nextDeleted =
+      patch.deletedAt !== undefined ? patch.deletedAt : task.deletedAt;
+
     await ctx.db.patch(taskId, {
       ...patch,
+      notifyAt: notifyAtPatchValue(
+        { isTask: true, dueDate: nextDue, metadata: nextMeta },
+        typeof nextDeleted === "number" || !isActiveTaskStatus(nextStatus),
+      ),
       lastInteractedAt: now,
       updatedAt: now,
     });

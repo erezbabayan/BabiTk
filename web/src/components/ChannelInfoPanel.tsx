@@ -10,6 +10,8 @@ import {
 interface ChannelInfoPanelProps {
   channelId: keyof typeof CHANNELS;
   summary?: UsageSummary | null;
+  /** Hide long description / notes — keep quotas + children. */
+  compact?: boolean;
   children?: ReactNode;
 }
 
@@ -47,21 +49,28 @@ function LimitsList({ channel, summary }: { channel: ChannelInfo; summary?: Usag
   );
 }
 
-export function ChannelInfoPanel({ channelId, summary, children }: ChannelInfoPanelProps) {
+export function ChannelInfoPanel({
+  channelId,
+  summary,
+  compact = false,
+  children,
+}: ChannelInfoPanelProps) {
   const channel = CHANNELS[channelId];
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="text-sm text-slate-600">{channel.description}</p>
-        <p className="mt-1 text-xs text-slate-500">זמין ב: {channel.platforms}</p>
-      </div>
+      {!compact ? (
+        <div>
+          <p className="text-sm text-slate-600">{channel.description}</p>
+          <p className="mt-1 text-xs text-slate-500">זמין ב: {channel.platforms}</p>
+        </div>
+      ) : null}
 
       {children}
 
       <LimitsList channel={channel} summary={summary} />
 
-      {channel.notes?.length ? (
+      {!compact && channel.notes?.length ? (
         <ul className="list-inside list-disc space-y-1 text-xs text-slate-500">
           {channel.notes.map((note) => (
             <li key={note}>{note}</li>

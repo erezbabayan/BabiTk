@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
 
 export const ITEM_DRAG_HANDLE_ATTR = "data-item-drag-handle";
+export const ITEM_ACTION_ATTR = "data-item-action";
+
+import { NotebookIcon, type NotebookIconName } from "./NotebookIcons";
 
 export interface SwipeAction {
   label: string;
-  icon: string;
+  icon: NotebookIconName;
   onTrigger: () => void;
-  tone?: "primary" | "success" | "danger" | "neutral";
+  tone?: "primary" | "tasks" | "notes" | "danger" | "neutral";
 }
 
 interface SwipeableItemCardProps {
@@ -14,15 +17,24 @@ interface SwipeableItemCardProps {
   leftAction?: SwipeAction;
   rightAction?: SwipeAction;
   disabled?: boolean;
+  /** Narrower swipe reveal — matches dense list rows. */
+  compact?: boolean;
+  /** Even tighter reveal for 2-column squares cards. */
+  squares?: boolean;
 }
 
 const REVEAL = 80;
 const THRESHOLD = 52;
-const LOCK_PX = 6;
+const REVEAL_COMPACT = 56;
+const THRESHOLD_COMPACT = 34;
+const REVEAL_SQUARES = 48;
+const THRESHOLD_SQUARES = 28;
+const LOCK_PX = 8;
 
 const TONE_CLASS: Record<NonNullable<SwipeAction["tone"]>, string> = {
   primary: "bg-blue-500 text-white",
-  success: "bg-emerald-500 text-white",
+  tasks: "bg-[#3B82F6] text-white",
+  notes: "bg-[#F97316] text-white",
   danger: "bg-red-500 text-white",
   neutral: "bg-slate-500 text-white",
 };
@@ -32,14 +44,24 @@ export function SwipeableItemCard({
   leftAction,
   rightAction,
   disabled = false,
+  compact = false,
+  squares = false,
 }: SwipeableItemCardProps) {
   const [offset, setOffset] = useState(0);
   const [animating, setAnimating] = useState(false);
   const [swiping, setSwiping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, locked: null as boolean | null, x: 0, y: 0 });
-  const allowColumnDragRef = useRef(false);
   const offsetRef = useRef(0);
+  const reveal = squares ? REVEAL_SQUARES : compact ? REVEAL_COMPACT : REVEAL;
+  const threshold = squares ? THRESHOLD_SQUARES : compact ? THRESHOLD_COMPACT : THRESHOLD;
+  const actionWidthClass = squares ? "w-12 gap-0 px-0.5" : compact ? "w-14 gap-0 px-0.5" : "w-20 gap-0.5 px-1";
+  const actionLabelClass = squares
+    ? "text-[8px] leading-none"
+    : compact
+      ? "text-[9px]"
+      : "text-[11px] leading-tight";
+  const actionIconSize = squares ? 14 : compact ? 15 : 20;
 
   useEffect(() => {
     offsetRef.current = offset;
@@ -50,21 +72,14 @@ export function SwipeableItemCard({
     if (!root) return;
 
     function onDragStart(e: DragEvent) {
-      if (allowColumnDragRef.current) return;
+      const target = e.target as HTMLElement;
+      if (target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`)) return;
       e.preventDefault();
       e.stopPropagation();
     }
 
-    function onDragEnd() {
-      allowColumnDragRef.current = false;
-    }
-
     root.addEventListener("dragstart", onDragStart, true);
-    root.addEventListener("dragend", onDragEnd, true);
-    return () => {
-      root.removeEventListener("dragstart", onDragStart, true);
-      root.removeEventListener("dragend", onDragEnd, true);
-    };
+    return () => root.removeEventListener("dragstart", onDragStart, true);
   }, []);
 
   if (!leftAction && !rightAction) {
@@ -85,30 +100,23 @@ export function SwipeableItemCard({
     setSwiping(false);
   }
 
-  function shouldIgnoreTarget(target: HTMLElement) {
-    return Boolean(target.closest("button, input, textarea, label, select, a, audio"));
-  }
-
-  function enableColumnDrag() {
-    allowColumnDragRef.current = true;
-    const article = containerRef.current?.querySelector<HTMLElement>("[data-item-drag-root]");
-    if (article) {
-      article.draggable = true;
-    }
+  function shouldIgnoreTarget(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(
+      target.closest(
+        `button, input, textarea, label, select, a, audio, [role="button"], [${ITEM_DRAG_HANDLE_ATTR}], [${ITEM_ACTION_ATTR}]`,
+      ),
+    );
   }
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
     if (disabled || e.button !== 0) return;
-    const target = e.target as HTMLElement;
-    if (shouldIgnoreTarget(target)) return;
-
-    if (target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`)) {
-      enableColumnDrag();
+    if (shouldIgnoreTarget(e.target)) {
+      endGesture();
       return;
     }
 
     drag.current = { active: true, locked: null, x: e.clientX, y: e.clientY };
-    allowColumnDragRef.current = false;
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
@@ -121,14 +129,12 @@ export function SwipeableItemCard({
       if (Math.abs(dx) < LOCK_PX && Math.abs(dy) < LOCK_PX) return;
       const horizontal = Math.abs(dx) > Math.abs(dy);
       drag.current.locked = horizontal;
-      if (horizontal) {
-        setSwiping(true);
-        containerRef.current?.setPointerCapture(e.pointerId);
-      } else {
-        enableColumnDrag();
+      if (!horizontal) {
         drag.current.active = false;
         return;
       }
+      setSwiping(true);
+      e.currentTarget.setPointerCapture(e.pointerId);
     }
     if (!drag.current.locked) return;
 
@@ -137,74 +143,111 @@ export function SwipeableItemCard({
     let next = dx;
     if (!rightAction) next = Math.min(0, next);
     if (!leftAction) next = Math.max(0, next);
-    next = Math.max(-REVEAL, Math.min(REVEAL, next));
+    next = Math.max(-reveal, Math.min(reveal, next));
     setOffset(next);
   }
 
   function onPointerUp(e: PointerEvent<HTMLDivElement>) {
-    if (!drag.current.active) {
-      allowColumnDragRef.current = false;
+    if (shouldIgnoreTarget(e.target)) {
+      endGesture();
       return;
     }
 
+    if (!drag.current.active && drag.current.locked === null) return;
+
+    const wasSwiping = drag.current.locked === true;
     const current = offsetRef.current;
     endGesture();
-    if (containerRef.current?.hasPointerCapture(e.pointerId)) {
-      containerRef.current.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
 
-    if (current >= THRESHOLD && rightAction) {
+    if (!wasSwiping) return;
+
+    if (current >= threshold && rightAction) {
       rightAction.onTrigger();
-    } else if (current <= -THRESHOLD && leftAction) {
+    } else if (current <= -threshold && leftAction) {
       leftAction.onTrigger();
     }
     resetOffset();
-    allowColumnDragRef.current = false;
   }
 
   function onPointerCancel(e: PointerEvent<HTMLDivElement>) {
-    if (!drag.current.active) {
-      allowColumnDragRef.current = false;
-      return;
-    }
+    if (!drag.current.active && drag.current.locked === null) return;
     endGesture();
-    if (containerRef.current?.hasPointerCapture(e.pointerId)) {
-      containerRef.current.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
     }
     resetOffset();
-    allowColumnDragRef.current = false;
   }
 
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden rounded-md"
-      style={{ touchAction: swiping ? "none" : "pan-y" }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
+      className={`relative overflow-hidden ${
+        squares ? "h-full min-h-0 rounded-none shadow-none" : compact ? "rounded" : "rounded-xl"
+      }`}
+      style={
+        squares
+          ? {
+              flex: "1 1 auto",
+              width: "100%",
+              margin: 0,
+              borderRadius: 10,
+              boxShadow: "none",
+              backgroundColor: "#ffffff",
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+              overflow: "hidden",
+            }
+          : undefined
+      }
     >
-      {leftAction ? (
-        <div
-          className={`absolute inset-y-0 left-0 flex w-20 items-center justify-center px-1 text-center transition-opacity duration-100 ${TONE_CLASS[leftAction.tone ?? "primary"]} ${revealing && offset < 0 ? "opacity-100" : "opacity-0"}`}
-          aria-hidden={!revealing || offset >= 0}
-        >
-          <span className="text-[11px] font-semibold leading-tight">{leftAction.label}</span>
-        </div>
-      ) : null}
       {rightAction ? (
         <div
-          className={`absolute inset-y-0 right-0 flex w-20 items-center justify-center px-1 text-center transition-opacity duration-100 ${TONE_CLASS[rightAction.tone ?? "danger"]} ${revealing && offset > 0 ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-y-0 left-0 z-0 flex ${actionWidthClass} flex-col items-center justify-center text-center ${TONE_CLASS[rightAction.tone ?? "danger"]} ${
+            revealing && offset > 0 ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
           aria-hidden={!revealing || offset <= 0}
         >
-          <span className="text-[11px] font-semibold leading-tight">{rightAction.label}</span>
+          <span className="flex items-center justify-center leading-none" aria-hidden>
+            <NotebookIcon name={rightAction.icon} size={actionIconSize} tone="white" />
+          </span>
+          <span className={`font-semibold leading-none ${actionLabelClass}`}>
+            {rightAction.label}
+          </span>
+        </div>
+      ) : null}
+      {leftAction ? (
+        <div
+          className={`absolute inset-y-0 right-0 z-0 flex ${actionWidthClass} flex-col items-center justify-center text-center ${TONE_CLASS[leftAction.tone ?? "primary"]} ${
+            revealing && offset < 0 ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          aria-hidden={!revealing || offset >= 0}
+        >
+          <span className="flex items-center justify-center leading-none" aria-hidden>
+            <NotebookIcon name={leftAction.icon} size={actionIconSize} tone="white" />
+          </span>
+          <span className={`font-semibold leading-none ${actionLabelClass}`}>
+            {leftAction.label}
+          </span>
         </div>
       ) : null}
 
       <div
-        className={`relative z-10 select-none ${animating ? "transition-transform duration-200 ease-out" : ""}`}
-        style={{ transform: `translateX(${offset}px)` }}
+        className={`relative z-10 select-none [&_button]:relative [&_button]:z-20 ${
+          squares ? "flex min-h-0 w-full flex-1 flex-col" : ""
+        } ${animating ? "transition-transform duration-200 ease-out" : ""}`}
+        style={{
+          transform: `translateX(${offset}px)`,
+          touchAction: swiping ? "none" : "pan-y",
+          ...(squares ? { flex: "1 1 auto", minHeight: 0, overflow: "hidden" } : null),
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
       >
         {children}
       </div>

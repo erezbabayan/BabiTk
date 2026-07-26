@@ -8,6 +8,6 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true
   },
-  "include": ["**/*", "../convex/_generated/**/*"],
+  "include": ["**/*", "../convex/_generated/**/*", "../convex/lib/**/*"],
   "extends": "expo/tsconfig.base"
 }

@@ -1,14 +1,15 @@
 import { httpRouter } from "convex/server";
 
+import { auth } from "./auth";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import {
   parseGreenApiWebhook,
   verifyGreenApiWebhookAuth,
 } from "./lib/greenApiParser";
-import { UNLINKED_PHONE_MESSAGE } from "./lib/messages";
-
 const http = httpRouter();
+
+auth.addHttpRoutes(http);
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8" };
 
@@ -33,7 +34,7 @@ const INGESTIBLE_TYPES = new Set(["text", "audio", "image"]);
  *   2. Detect media type (text / audio / image)
  *   3. Extract sender_id from senderData.chatId
  *   4. Match phone → users (phoneVerified=true)
- *   5. Schedule ingest pipeline for linked users
+ *   5. Gate: only the user's capture WhatsApp group
  */
 http.route({
   path: "/webhook/green-api",
@@ -76,8 +77,31 @@ http.route({
       mediaType: string;
       userId: string;
     }> = [];
+    const skipped: Array<{
+      messageId: string;
+      reason: string;
+      chatId?: string;
+    }> = [];
 
     for (const message of parsed.messages) {
+      const bodyObj = body as {
+        instanceData?: { wid?: string };
+        senderData?: { sender?: string; chatId?: string };
+      };
+      const fallbackPhones = [
+        bodyObj.instanceData?.wid,
+        bodyObj.senderData?.sender,
+        // Prefer instance wid for phone match; skip @lid / group chatIds as phones.
+        message.senderPhone,
+      ].filter((p): p is string => {
+        const t = p?.trim() ?? "";
+        if (!t) return false;
+        if (t.toLowerCase().endsWith("@lid")) return false;
+        if (t.toLowerCase().endsWith("@g.us")) return false;
+        return true;
+      });
+
+      // Prefer instance-linked phone for Message Yourself (outgoing self-chat).
       const resolution = await ctx.runMutation(
         internal.whatsappWebhook.resolveGreenApiSender,
         {
@@ -85,15 +109,40 @@ http.route({
           senderId: message.senderId,
           senderPhone: message.senderPhone,
           messageType: message.type,
+          fallbackPhones: [
+            bodyObj.instanceData?.wid,
+            ...fallbackPhones,
+          ].filter((p): p is string => Boolean(p?.trim())),
         },
       );
       resolutions.push(resolution);
 
-      if (!resolution.resolved && message.senderPhone) {
-        await ctx.scheduler.runAfter(0, internal.whatsappSend.sendReply, {
-          toPhone: message.senderPhone,
-          message: UNLINKED_PHONE_MESSAGE,
+      // Never auto-reply to unlinked / unknown senders — that sent "מספר לא מקושר"
+      // from the owner's WhatsApp to random contacts. Silently ignore instead.
+      if (!resolution.resolved) {
+        skipped.push({
+          messageId: message.messageId,
+          reason: resolution.reason ?? "not_linked",
+          chatId: message.chatId,
         });
+        continue;
+      }
+
+      const captureGate = await ctx.runMutation(
+        internal.whatsappWebhook.gateCaptureMessage,
+        {
+          userId: resolution.userId!,
+          chatId: message.chatId,
+          chatName: message.chatName,
+        },
+      );
+      if (!captureGate.allowed) {
+        skipped.push({
+          messageId: message.messageId,
+          reason: captureGate.reason ?? "capture_gated",
+          chatId: message.chatId,
+        });
+        continue;
       }
 
       if (
@@ -104,7 +153,8 @@ http.route({
         await ctx.scheduler.runAfter(0, internal.inboundPipeline.processGreenApiMessage, {
           userId: resolution.userId,
           messageId: message.messageId,
-          senderPhone: message.senderPhone,
+          senderPhone: resolution.senderPhone || message.senderPhone,
+          chatId: message.chatId,
           messageType: message.type,
           text: message.text,
           audioUrl: message.audioUrl,
@@ -124,6 +174,7 @@ http.route({
       provider: "green-api",
       count: resolutions.length,
       scheduled,
+      skipped,
       resolutions,
     });
   }),

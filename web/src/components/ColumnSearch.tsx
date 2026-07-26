@@ -1,7 +1,13 @@
 import type { FormEvent } from "react";
+import { NotebookIcon, type NotebookIconTone } from "./NotebookIcons";
 
 /** Logo order: orange → blue → slate */
 export type ColumnSearchTone = "orange" | "blue" | "slate";
+
+function searchIconTone(tone: ColumnSearchTone): NotebookIconTone {
+  if (tone === "slate") return "neutral";
+  return tone;
+}
 
 const BUTTON_TONE: Record<ColumnSearchTone, string> = {
   orange: "bg-orange-500 text-white hover:bg-orange-600",
@@ -16,16 +22,10 @@ const BACK_BUTTON_TONE: Record<ColumnSearchTone, string> = {
 };
 
 const EMBEDDED_BTN =
-  "!absolute !left-0 !top-0 !bottom-0 !min-w-[2.25rem] !rounded-none !border-0 !border-r !border-black/15 !px-2 !py-0 !text-[10px] !leading-none";
+  "!absolute !left-0 !top-0 !bottom-0 !min-w-[1.75rem] !rounded-none !border-0 !border-r !border-stone-200/80 !px-1 !py-0 !text-[9px] !leading-none";
 
-const SEARCH_FRAME = "overflow-hidden rounded-md border border-black";
-
-interface ExtraSearchButton {
-  label: string;
-  onClick: () => void;
-  loading?: boolean;
-  disabled?: boolean;
-}
+const SEARCH_FRAME = (tone: ColumnSearchTone) =>
+  `column-search-frame column-search-frame--${tone} overflow-hidden`;
 
 interface ColumnSearchProps {
   value: string;
@@ -36,26 +36,7 @@ interface ColumnSearchProps {
   placeholder: string;
   tone: ColumnSearchTone;
   loading?: boolean;
-  extraButton?: ExtraSearchButton;
   inline?: boolean;
-}
-
-export function ColumnSearchAiButton({
-  label,
-  onClick,
-  loading = false,
-  disabled = false,
-}: ExtraSearchButton) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={loading || disabled}
-      className="shrink-0 border border-black bg-white !px-1.5 !py-1 !text-[10px] !leading-none hover:bg-slate-50 disabled:opacity-50"
-    >
-      {loading ? "..." : label}
-    </button>
-  );
 }
 
 export function ColumnSearch({
@@ -67,7 +48,6 @@ export function ColumnSearch({
   placeholder,
   tone,
   loading = false,
-  extraButton,
   inline = false,
 }: ColumnSearchProps) {
   const isActive = activeQuery.trim().length > 0;
@@ -85,13 +65,16 @@ export function ColumnSearch({
 
   if (inline) {
     return (
-      <form onSubmit={handleSubmit} className={`relative mb-0 w-full min-w-0 ${SEARCH_FRAME}`}>
+      <form onSubmit={handleSubmit} className={`relative mb-0 h-6 w-full min-w-0 ${SEARCH_FRAME(tone)}`}>
+        <span className="column-search-deco" aria-hidden>
+          <NotebookIcon name="leaf" size={9} tone={searchIconTone(tone)} />
+        </span>
         <input
           type="search"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full !rounded-none !border-0 !bg-white !py-1 !pr-2 !pl-9 !text-[10px] !leading-tight shadow-none"
+          className="w-full !rounded-none !border-0 !bg-transparent !py-0.5 !pr-7 !pl-7 !text-[9px] !leading-tight shadow-none"
           dir="rtl"
         />
         <button
@@ -106,27 +89,25 @@ export function ColumnSearch({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={`mb-2 flex items-stretch ${SEARCH_FRAME}`}>
+    <form onSubmit={handleSubmit} className={`relative mb-2 flex items-stretch ${SEARCH_FRAME(tone)}`}>
+      <span className="column-search-deco" aria-hidden>
+        <NotebookIcon name="leaf" size={10} tone={searchIconTone(tone)} />
+      </span>
       <input
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 !rounded-none !border-0 !bg-white py-0.5 !pr-2 !pl-2 shadow-none"
+        className="min-w-0 flex-1 !rounded-none !border-0 !bg-transparent py-0.5 !pr-7 !pl-2 shadow-none"
         dir="rtl"
       />
       <button
         type="submit"
         disabled={loading}
-        className={`shrink-0 !rounded-none border-l border-black/15 disabled:opacity-50 ${submitClass}`}
+        className={`shrink-0 !rounded-none border-l border-stone-200/80 disabled:opacity-50 ${submitClass}`}
       >
         {loading ? "..." : isActive ? "חזור" : "חפש"}
       </button>
-      {extraButton ? (
-        <ColumnSearchAiButton {...extraButton} />
-      ) : null}
     </form>
   );
 }
-
-export type { ExtraSearchButton };

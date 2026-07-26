@@ -33,4 +33,5 @@ export interface ParseInputOptions {
   locale?: string;
   referenceDate?: Date;
   allowedTags?: string[];
+  lessons?: import("../lib/ingest/ingestLearning.js").IngestLesson[];
 }

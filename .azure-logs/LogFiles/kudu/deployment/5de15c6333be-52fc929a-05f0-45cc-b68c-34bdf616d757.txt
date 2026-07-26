@@ -1,0 +1,293 @@
+2026-07-15T22:42:16  Fetching changes.
+2026-07-15T22:42:16    Starting  LocalZipHandler
+2026-07-15T22:42:17    Cleaning up temp folders from previous zip deployments and extracting pushed zip file /tmp/zipdeploy/1ad70408-f24f-457a-af2b-df56e4a76c82.zip (0.21 MB) to /tmp/zipdeploy/extracted
+2026-07-15T22:42:25  Updating submodules.
+2026-07-15T22:42:26  Preparing deployment for commit id '248b6209-b'.
+2026-07-15T22:42:27  PreDeployment: context.CleanOutputPath False
+2026-07-15T22:42:28  PreDeployment: context.OutputPath /home/site/wwwroot
+2026-07-15T22:42:29  Running build. Project type: OneDeploy
+2026-07-15T22:42:30  Copying the manifest
+2026-07-15T22:42:31  Running deployment command...
+2026-07-15T22:42:32    Command: /opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  
+2026-07-15T22:42:33    Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads
+2026-07-15T22:42:33    Delete options: clean=False, use manifest=False, directory to ignore=
+2026-07-15T22:42:34    Prev manifest = /opt/Kudu/Scripts/firstDeploymentManifest and next /home/site/deployments/248b6209-b751-4a37-b90c-dd783bfc9001/manifest
+2026-07-15T22:42:34    Cleaning up /tmp//filelist.txt and /tmp//splits
+2026-07-15T22:42:34    Creating a list of all files at /tmp//filelist.txt
+2026-07-15T22:42:35    No directory to exclude.
+2026-07-15T22:42:35    Created /tmp//filelist.txt. Total number of files to be synced = 4.
+2026-07-15T22:42:35    Created batches from the list of files. Processing 1 files in each thread
+2026-07-15T22:42:35    Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-07-15T22:42:35    Running rsync for filelist /tmp//splits/split.ab from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-07-15T22:42:36    Running rsync for filelist /tmp//splits/split.ad from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-07-15T22:42:36    Running rsync for filelist /tmp//splits/split.ac from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+2026-07-15T22:42:36    rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+2026-07-15T22:42:36    
+2026-07-15T22:42:36    rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+2026-07-15T22:42:36    Number of files: 1 (reg: 1)
+2026-07-15T22:42:36    Number of created files: 0
+rs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+2026-07-15T22:42:36    rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+2026-07-15T22:42:36    Number of deleted files: 0
+2026-07-15T22:42:36    rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+2026-07-15T22:42:37    Number of regular files transferred: 0
+2026-07-15T22:42:37    rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+2026-07-15T22:42:37    Total file size: 931 bytes
+2026-07-15T22:42:37    rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+2026-07-15T22:42:37    Literal data: 0 bytes
+s/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+2026-07-15T22:42:37    Matched data: 0 bytes
+2026-07-15T22:42:37    File list size: 0
+2026-07-15T22:42:37    File list generation time: 0.001 seconds
+2026-07-15T22:42:37    File list transfer time: 0.000 seconds
+2026-07-15T22:42:37    Total bytes sent: 111
+2026-07-15T22:42:37    Total bytes received: 19
+2026-07-15T22:42:37    
+2026-07-15T22:42:37    sent 111 bytes  received 19 bytes  86.67 bytes/sec
+2026-07-15T22:42:37    total size is 931  speedup is 7.16
+2026-07-15T22:42:37    Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0
+2026-07-15T22:42:37    
+2026-07-15T22:42:38    Number of files: 1 (reg: 1)
+2026-07-15T22:42:38    Number of created files: 0
+2026-07-15T22:42:38    Number of deleted files: 0
+2026-07-15T22:42:38    Number of regular files transferred: 0
+2026-07-15T22:42:38    Total file size: 79.13K bytes
+2026-07-15T22:42:38    Total transferred file size: 0 bytes
+2026-07-15T22:42:38    Literal data: 0 bytes
+2026-07-15T22:42:38    Matched data: 0 bytes
+2026-07-15T22:42:38    File list size: 0
+2026-07-15T22:42:38    File list generation time: 0.001 seconds
+2026-07-15T22:42:38    File list transfer time: 0.000 seconds
+2026-07-15T22:42:39    Total bytes sent: 123
+2026-07-15T22:42:39    Total bytes received: 12
+2026-07-15T22:42:39    
+2026-07-15T22:42:39    sent 123 bytes  received 12 bytes  90.00 bytes/sec
+2026-07-15T22:42:39    total size is 79.13K  speedup is 586.13
+2026-07-15T22:42:39    Attempt 1: Rsync for filelist /tmp//splits/split.ab completed with exit code 23
+2026-07-15T22:42:39    
+2026-07-15T22:42:39    Number of files: 1 (reg: 1)
+2026-07-15T22:42:40    Number of created files: 0
+2026-07-15T22:42:40    Number of deleted files: 0
+2026-07-15T22:42:40    Number of regular files transferred: 0
+2026-07-15T22:42:40    Total file size: 115 bytes
+2026-07-15T22:42:40    Total transferred file size: 0 bytes
+2026-07-15T22:42:40    Literal data: 0 bytes
+2026-07-15T22:42:41    Matched data: 0 bytes
+2026-07-15T22:42:41    File list size: 0
+2026-07-15T22:42:41    File list generation time: 0.001 seconds
+2026-07-15T22:42:41    File list transfer time: 0.000 seconds
+2026-07-15T22:42:41    Total bytes sent: 113
+2026-07-15T22:42:41    Total bytes received: 19
+2026-07-15T22:42:41    
+2026-07-15T22:42:41    sent 113 bytes  received 19 bytes  264.00 bytes/sec
+2026-07-15T22:42:41    total size is 115  speedup is 0.87
+2026-07-15T22:42:42    Attempt 1: Rsync for filelist /tmp//splits/split.ad completed with exit code 0
+2026-07-15T22:42:42    
+2026-07-15T22:42:42    Number of files: 1 (reg: 1)
+2026-07-15T22:42:42    Number of created files: 0
+2026-07-15T22:42:42    Number of deleted files: 0
+2026-07-15T22:42:42    Number of regular files transferred: 0
+2026-07-15T22:42:42    Total file size: 742.32K bytes
+2026-07-15T22:42:42    Total transferred file size: 0 bytes
+2026-07-15T22:42:42    Literal data: 0 bytes
+2026-07-15T22:42:42    Matched data: 0 bytes
+2026-07-15T22:42:42    File list size: 0
+2026-07-15T22:42:42    File list generation time: 0.001 seconds
+2026-07-15T22:42:42    File list transfer time: 0.000 seconds
+2026-07-15T22:42:42    Total bytes sent: 122
+2026-07-15T22:42:42    Total bytes received: 12
+2026-07-15T22:42:42    
+2026-07-15T22:42:43    sent 122 bytes  received 12 bytes  89.33 bytes/sec
+2026-07-15T22:42:43    total size is 742.32K  speedup is 5,539.72
+2026-07-15T22:42:43    
+2026-07-15T22:42:43    Number of files: 1 (reg: 1)
+2026-07-15T22:42:43    Number of created files: 0
+2026-07-15T22:42:43    Number of deleted files: 0
+2026-07-15T22:42:43    Number of regular files transferred: 0
+2026-07-15T22:42:43    Total file size: 79.13K bytes
+2026-07-15T22:42:43    Total transferred file size: 0 bytes
+2026-07-15T22:42:43    Literal data: 0 bytes
+2026-07-15T22:42:43    Matched data: 0 bytes
+2026-07-15T22:42:43    File list size: 0
+2026-07-15T22:42:43    File list generation time: 0.001 seconds
+2026-07-15T22:42:43    File list transfer time: 0.000 seconds
+2026-07-15T22:42:43    Total bytes sent: 123
+2026-07-15T22:42:43    Total bytes received: 12
+2026-07-15T22:42:44    
+2026-07-15T22:42:44    sent 123 bytes  received 12 bytes  270.00 bytes/sec
+2026-07-15T22:42:44    total size is 79.13K  speedup is 586.13
+2026-07-15T22:42:44    Attempt 2: Rsync for filelist /tmp//splits/split.ab completed with exit code 23
+2026-07-15T22:42:44    Attempt 1: Rsync for filelist /tmp//splits/split.ac completed with exit code 23
+2026-07-15T22:42:44    
+2026-07-15T22:42:44    Number of files: 1 (reg: 1)
+2026-07-15T22:42:44    Number of created files: 0
+2026-07-15T22:42:45    Number of deleted files: 0
+2026-07-15T22:42:45    Number of regular files transferred: 0
+2026-07-15T22:42:45    Total file size: 742.32K bytes
+2026-07-15T22:42:45    Total transferred file size: 0 bytes
+2026-07-15T22:42:45    Literal data: 0 bytes
+2026-07-15T22:42:45    Matched data: 0 bytes
+2026-07-15T22:42:46    File list size: 0
+2026-07-15T22:42:46    File list generation time: 0.029 seconds
+2026-07-15T22:42:46    File list transfer time: 0.000 seconds
+2026-07-15T22:42:46    Total bytes sent: 122
+2026-07-15T22:42:46    Total bytes received: 12
+2026-07-15T22:42:46    
+2026-07-15T22:42:46    sent 122 bytes  received 12 bytes  268.00 bytes/sec
+2026-07-15T22:42:46    total size is 742.32K  speedup is 5,539.72
+2026-07-15T22:42:46    Attempt 2: Rsync for filelist /tmp//splits/split.ac completed with exit code 23
+2026-07-15T22:42:46    An error has occurred during web site deployment.
+2026-07-15T22:42:47    Rsync failed in 4 seconds
+2026-07-15T22:42:47    rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+/opt/Kudu/Scripts/starter.sh /opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  
+2026-07-15T22:42:47  
+2026-07-15T22:42:47  WARNING!! Exception in parallel rsync: ExitCode: 123  Output: Run rsync from: /tmp/zipdeploy/extracted/ to: /home/site/wwwroot/ in 8 parallel threads
+Delete options: clean=False  use manifest=False  directory to ignore=
+Prev manifest = /opt/Kudu/Scripts/firstDeploymentManifest and next /home/site/deployments/248b6209-b751-4a37-b90c-dd783bfc9001/manifest
+Cleaning up /tmp//filelist.txt and /tmp//splits
+Creating a list of all files at /tmp//filelist.txt
+No directory to exclude.
+Created /tmp//filelist.txt. Total number of files to be synced = 4.
+Created batches from the list of files. Processing 1 files in each thread
+Running rsync for filelist /tmp//splits/split.aa from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+Running rsync for filelist /tmp//splits/split.ab from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+Running rsync for filelist /tmp//splits/split.ad from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+Running rsync for filelist /tmp//splits/split.ac from /tmp/zipdeploy/extracted/ to /home/site/wwwroot/
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 931 bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 111
+Total bytes received: 19
+
+sent 111 bytes  received 19 bytes  86.67 bytes/sec
+total size is 931  speedup is 7.16
+Attempt 1: Rsync for filelist /tmp//splits/split.aa completed with exit code 0
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 79.13K bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 123
+Total bytes received: 12
+
+sent 123 bytes  received 12 bytes  90.00 bytes/sec
+total size is 79.13K  speedup is 586.13
+Attempt 1: Rsync for filelist /tmp//splits/split.ab completed with exit code 23
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 115 bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 113
+Total bytes received: 19
+
+sent 113 bytes  received 19 bytes  264.00 bytes/sec
+total size is 115  speedup is 0.87
+Attempt 1: Rsync for filelist /tmp//splits/split.ad completed with exit code 0
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 742.32K bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 122
+Total bytes received: 12
+
+sent 122 bytes  received 12 bytes  89.33 bytes/sec
+total size is 742.32K  speedup is 5 539.72
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 79.13K bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.001 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 123
+Total bytes received: 12
+
+sent 123 bytes  received 12 bytes  270.00 bytes/sec
+total size is 79.13K  speedup is 586.13
+Attempt 2: Rsync for filelist /tmp//splits/split.ab completed with exit code 23
+Attempt 1: Rsync for filelist /tmp//splits/split.ac completed with exit code 23
+
+Number of files: 1 (reg: 1)
+Number of created files: 0
+Number of deleted files: 0
+Number of regular files transferred: 0
+Total file size: 742.32K bytes
+Total transferred file size: 0 bytes
+Literal data: 0 bytes
+Matched data: 0 bytes
+File list size: 0
+File list generation time: 0.029 seconds
+File list transfer time: 0.000 seconds
+Total bytes sent: 122
+Total bytes received: 12
+
+sent 122 bytes  received 12 bytes  268.00 bytes/sec
+total size is 742.32K  speedup is 5 539.72
+Attempt 2: Rsync for filelist /tmp//splits/split.ac completed with exit code 23
+An error has occurred during web site deployment.
+Rsync failed in 4 seconds  Error: rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]  Kudu.Core.Infrastructure.CommandLineException: rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-DzGR4FET.css": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+rsync: [generator] recv_generator: failed to stat "/home/site/wwwroot/assets\index-CNbct7p1.js": Invalid argument (22)
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1333) [sender=3.2.3]
+/opt/Kudu/Scripts/starter.sh /opt/Kudu/Scripts/parallel_rsync.sh /tmp/zipdeploy/extracted /home/site/wwwroot 8 /tmp/ False False  
+   at Kudu.Core.Infrastructure.Executable.ExecuteInternal(ITracer tracer  Func`2 onWriteOutput  Func`2 onWriteError  CancellationToken token  Encoding encoding  String arguments  Object[] args) in /tmp/KuduLite/Kudu.Core/Infrastructure/Executable.cs:line 239
+   at Kudu.Core.Infrastructure.Executable.ExecuteWithProgressWriter(ILogger logger  ITracer tracer  CancellationToken token  String arguments  Object[] args) in /tmp/KuduLite/Kudu.Core/Infrastructure/Executable.cs:line 118
+   at Kudu.Core.Deployment.Generator.ExternalCommandBuilder.RunCommand(DeploymentContext context  String command  Boolean ignoreManifest  CancellationToken token  String message  ILogger internalLogger) in /tmp/KuduLite/Kudu.Core/Deployment/Generator/ExternalCommandBuilder.cs:line 145
+   at Kudu.Core.Deployment.Generator.OneDeployBuilder.Build(DeploymentContext context  CancellationToken token) in /tmp/KuduLite/Kudu.Core/Deployment/Generator/OneDeployBuilder.cs:line 97
+2026-07-15T22:42:47  Incrementally deploying to /home/site/wwwroot
+2026-07-15T22:42:48  Deployment Failed. deployer = OneDeploy deploymentPath = OneDeploy

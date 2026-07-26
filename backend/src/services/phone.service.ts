@@ -1,9 +1,13 @@
 import { createHash, randomInt } from "node:crypto";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import {
+  getDemoUserProfile,
+  linkDemoUserPhone,
+  setDemoUserPhonePending,
+} from "./demo-user.service.js";
 import { normalizePhone } from "./items.service.js";
 import { sendWhatsAppText } from "./whatsapp/send.js";
-
 const CODE_TTL_MS = 10 * 60 * 1000;
 
 function hashCode(code: string): string {
@@ -23,8 +27,15 @@ export interface UserProfile {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  if (!env.isSupabaseConfigured) {
+    const profile = await getDemoUserProfile();
+    if (profile.id !== userId) {
+      throw new Error(`User profile not found: ${userId}`);
+    }
+    return profile;
+  }
+
+  const supabase = getSupabaseAdmin();  const { data, error } = await supabase
     .from("users")
     .select("id, email, phone, phone_verified, phone_pending")
     .eq("id", userId)
@@ -42,8 +53,32 @@ export async function requestPhoneVerification(
   rawPhone: string,
 ): Promise<{ message: string; devCode?: string }> {
   const phone = normalizePhone(rawPhone);
-  const supabase = getSupabaseAdmin();
 
+  if (!env.isSupabaseConfigured) {
+    if (userId !== (await getDemoUserProfile()).id) {
+      throw new Error("משתמש לא נמצא");
+    }
+
+    const code = generateCode();
+    await setDemoUserPhonePending(phone);
+
+    const message = `קוד האימות שלך ב-BabaiTk: ${code}\nהקוד תקף ל-10 דקות.`;
+
+    try {
+      await sendWhatsAppText(phone, message);
+      return { message: "נשלח קוד אימות בוואטסאפ" };
+    } catch {
+      if (env.isDevelopment) {
+        return {
+          message: "WhatsApp לא מוגדר — קוד פיתוח (רק בסביבת dev)",
+          devCode: code,
+        };
+      }
+      throw new Error("שליחת קוד בוואטסאפ נכשלה. ודא ש-WhatsApp API מוגדר.");
+    }
+  }
+
+  const supabase = getSupabaseAdmin();
   const { data: taken } = await supabase
     .from("users")
     .select("id")
@@ -72,7 +107,7 @@ export async function requestPhoneVerification(
     throw new Error(`Failed to save verification: ${error.message}`);
   }
 
-  const message = `קוד האימות שלך ב-MindTasker: ${code}\nהקוד תקף ל-10 דקות.`;
+  const message = `קוד האימות שלך ב-BabaiTk: ${code}\nהקוד תקף ל-10 דקות.`;
 
   try {
     await sendWhatsAppText(phone, message);
@@ -89,8 +124,20 @@ export async function requestPhoneVerification(
 }
 
 export async function verifyPhoneCode(userId: string, code: string): Promise<UserProfile> {
-  const supabase = getSupabaseAdmin();
-  const { data: user, error } = await supabase
+  if (!env.isSupabaseConfigured) {
+    const profile = await getDemoUserProfile();
+    if (!profile.phone_pending) {
+      throw new Error("אין בקשת אימות פעילה. בקש קוד חדש.");
+    }
+
+    if (env.isDevelopment && code.trim().length >= 4) {
+      return await linkDemoUserPhone(profile.phone_pending);
+    }
+
+    throw new Error("קוד שגוי");
+  }
+
+  const supabase = getSupabaseAdmin();  const { data: user, error } = await supabase
     .from("users")
     .select("phone_pending, phone_verify_hash, phone_verify_expires_at")
     .eq("id", userId)

@@ -1,12 +1,31 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
+import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
+import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
+import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
+import { PasswordInput } from "./PasswordInput";
 
 type AuthMode = "login" | "signup";
 
 interface AuthLoginScreenProps {
   mode: "auth";
-  onSubmit: (email: string, password: string, authMode: AuthMode) => Promise<void>;
+  onSubmit: (
+    email: string,
+    password: string,
+    authMode: AuthMode,
+    rememberMe?: boolean,
+    signupDetails?: SignupDetails,
+  ) => Promise<void>;
+  onGoogleSignIn?: () => Promise<void>;
+  onMicrosoftSignIn?: () => Promise<void>;
+  subtitle?: string;
+  showEmailForm?: boolean;
+  usernameLabel?: string;
+  allowSignup?: boolean;
+  /** Convex Auth signs in immediately after signup — skip "now log in" prompt. */
+  signupAutoSignIn?: boolean;
+  showRememberMe?: boolean;
 }
 
 interface DemoLoginScreenProps {
@@ -81,13 +100,38 @@ function LoginShell({
   );
 }
 
-function AuthForm({ onSubmit }: { onSubmit: AuthLoginScreenProps["onSubmit"] }) {
-  const [email, setEmail] = useState("");
+function AuthForm({
+  onSubmit,
+  onGoogleSignIn,
+  onMicrosoftSignIn,
+  subtitle,
+  showEmailForm = true,
+  usernameLabel = "אימייל / שם משתמש",
+  allowSignup = true,
+  signupAutoSignIn = false,
+  showRememberMe = false,
+}: {
+  onSubmit: AuthLoginScreenProps["onSubmit"];
+  onGoogleSignIn?: AuthLoginScreenProps["onGoogleSignIn"];
+  onMicrosoftSignIn?: AuthLoginScreenProps["onMicrosoftSignIn"];
+  subtitle?: AuthLoginScreenProps["subtitle"];
+  showEmailForm?: AuthLoginScreenProps["showEmailForm"];
+  usernameLabel?: AuthLoginScreenProps["usernameLabel"];
+  allowSignup?: AuthLoginScreenProps["allowSignup"];
+  signupAutoSignIn?: AuthLoginScreenProps["signupAutoSignIn"];
+  showRememberMe?: AuthLoginScreenProps["showRememberMe"];
+}) {
+  const [email, setEmail] = useState(() => readRememberedEmail());
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [rememberMe, setRememberMe] = useState(() => readRememberMe());
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -96,9 +140,19 @@ function AuthForm({ onSubmit }: { onSubmit: AuthLoginScreenProps["onSubmit"] }) 
     setLoading(true);
 
     try {
-      await onSubmit(email.trim(), password, authMode);
+      let signupDetails: SignupDetails | undefined;
       if (authMode === "signup") {
-        setMessage("נרשמת בהצלחה. בדוק את האימייל לאימות (אם נדרש) ואז התחבר.");
+        signupDetails = {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: phone.trim(),
+        };
+        validateSignupDetails(signupDetails);
+      }
+
+      await onSubmit(email.trim(), password, authMode, rememberMe, signupDetails);
+      if (authMode === "signup" && !signupAutoSignIn) {
+        setMessage("נרשמת בהצלחה! עכשיו אפשר להתחבר עם אותו אימייל וסיסמה.");
         setAuthMode("login");
       }
     } catch (err) {
@@ -110,46 +164,56 @@ function AuthForm({ onSubmit }: { onSubmit: AuthLoginScreenProps["onSubmit"] }) 
 
   function toggleMode() {
     setAuthMode(authMode === "login" ? "signup" : "login");
+    setFirstName("");
+    setLastName("");
+    setPhone("");
     setError(null);
     setMessage(null);
   }
 
+  async function handleGoogleSignIn() {
+    if (!onGoogleSignIn) return;
+    setError(null);
+    setMessage(null);
+    setOauthLoading(true);
+    try {
+      await onGoogleSignIn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "התחברות Google נכשלה");
+    } finally {
+      setOauthLoading(false);
+    }
+  }
+
+  async function handleMicrosoftSignIn() {
+    if (!onMicrosoftSignIn) return;
+    setError(null);
+    setMessage(null);
+    setOauthLoading(true);
+    try {
+      await onMicrosoftSignIn();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "התחברות Microsoft נכשלה");
+    } finally {
+      setOauthLoading(false);
+    }
+  }
+
+  const busy = loading || oauthLoading;
+  const hasOAuth = Boolean(onGoogleSignIn || onMicrosoftSignIn);
+
   return (
     <LoginShell
-      subtitle={authMode === "login" ? "התחברות ללוח הבקרה" : "יצירת חשבון חדש"}
+      subtitle={
+        subtitle ??
+        (onGoogleSignIn && authMode === "login"
+          ? "התחבר עם חשבון Google שלך"
+          : authMode === "login"
+            ? "התחברות ללוח הבקרה"
+            : "יצירת חשבון חדש")
+      }
     >
-      <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-        <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">אימייל</span>
-            <input
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-              autoComplete="email"
-              dir="ltr"
-              required
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-slate-600">סיסמה</span>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-              autoComplete={authMode === "login" ? "current-password" : "new-password"}
-              dir="ltr"
-              required
-              minLength={6}
-            />
-          </label>
-        </div>
-
+      <div className="space-y-4">
         {error ? (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
             {error}
@@ -160,22 +224,139 @@ function AuthForm({ onSubmit }: { onSubmit: AuthLoginScreenProps["onSubmit"] }) 
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
         ) : null}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-        >
-          {loading ? "ממתין..." : authMode === "login" ? "התחבר" : "הירשם"}
-        </button>
+        {onGoogleSignIn ? (
+          <GoogleSignInButton
+            onClick={() => void handleGoogleSignIn()}
+            disabled={busy}
+            loading={oauthLoading}
+          />
+        ) : null}
 
-        <button
-          type="button"
-          onClick={toggleMode}
-          className="w-full py-1 text-sm text-slate-500 hover:text-indigo-600"
-        >
-          {authMode === "login" ? "אין חשבון? הירשם" : "יש לך חשבון? התחבר"}
-        </button>
-      </form>
+        {hasOAuth && onMicrosoftSignIn ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleMicrosoftSignIn()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <span aria-hidden>Ⓜ</span>
+            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
+          </button>
+        ) : null}
+
+        {onGoogleSignIn ? (
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">או עם אימייל וסיסמה</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+        ) : null}
+
+        {showEmailForm ? (
+          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+            <div className="space-y-3">
+              {authMode === "signup" ? (
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">שם פרטי</span>
+                    <input
+                      type="text"
+                      placeholder="ישראל"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                      autoComplete="given-name"
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">שם משפחה</span>
+                    <input
+                      type="text"
+                      placeholder="ישראלי"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                      autoComplete="family-name"
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">טלפון</span>
+                    <input
+                      type="tel"
+                      placeholder="050-1234567"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                      autoComplete="tel"
+                      dir="ltr"
+                      required
+                    />
+                  </label>
+                </>
+              ) : null}
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">{usernameLabel}</span>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                  autoComplete="username email"
+                  dir="ltr"
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-slate-600">סיסמה</span>
+                <PasswordInput
+                  value={password}
+                  onChange={setPassword}
+                  autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                  minLength={8}
+                  required
+                />
+              </label>
+            </div>
+
+            {showRememberMe && authMode === "login" ? (
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                זכור אותי במכשיר זה
+              </label>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {loading ? "ממתין..." : authMode === "login" ? "התחבר" : "הירשם"}
+            </button>
+          </form>
+        ) : null}
+
+        {allowSignup ? (
+          <button
+            type="button"
+            onClick={toggleMode}
+            className="w-full py-1 text-sm text-slate-500 hover:text-indigo-600"
+          >
+            {authMode === "login" ? "אין חשבון? הירשם" : "יש לך חשבון? התחבר"}
+          </button>
+        ) : null}
+      </div>
     </LoginShell>
   );
 }
@@ -206,15 +387,20 @@ function SetupForm() {
 
         <ol className="list-decimal space-y-2 pr-5 text-sm text-slate-700">
           <li>
-            צור קובץ <code className="rounded bg-slate-100 px-1">web/.env</code>
+            הרץ <code className="rounded bg-slate-100 px-1">.\scripts\setup-supabase.ps1</code>
           </li>
           <li>
-            העתק מ-<code className="rounded bg-slate-100 px-1">web/.env.example</code>
+            הרץ <code className="rounded bg-slate-100 px-1">.\scripts\setup-google-auth.ps1</code> להנחיות Google
+          </li>
+          <li>
+            הרץ <code className="rounded bg-slate-100 px-1">.\scripts\setup-azure-auth.ps1</code> להנחיות Microsoft
           </li>
           <li>
             מלא <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_URL</code> ו-{" "}
-            <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_ANON_KEY</code>
+            <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_ANON_KEY</code> ב-{" "}
+            <code className="rounded bg-slate-100 px-1">web/.env</code>
           </li>
+          <li>הגדר <code className="rounded bg-slate-100 px-1">VITE_DEMO_MODE=false</code></li>
           <li>רענן את הדף</li>
         </ol>
       </div>
@@ -231,5 +417,17 @@ export function LoginScreen(props: LoginScreenProps) {
     return <SetupForm />;
   }
 
-  return <AuthForm onSubmit={props.onSubmit} />;
+  return (
+    <AuthForm
+      onSubmit={props.onSubmit}
+      onGoogleSignIn={props.onGoogleSignIn}
+      onMicrosoftSignIn={props.onMicrosoftSignIn}
+      subtitle={props.subtitle}
+      showEmailForm={props.showEmailForm}
+      usernameLabel={props.usernameLabel}
+      allowSignup={props.allowSignup}
+      signupAutoSignIn={props.signupAutoSignIn}
+      showRememberMe={props.showRememberMe}
+    />
+  );
 }

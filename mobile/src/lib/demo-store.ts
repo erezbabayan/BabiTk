@@ -14,8 +14,15 @@ import {
 import { trashCutoffIso, type TrashItem } from "./trash";
 import { resolveRestoreFromTrashPatch } from "./item-restore";
 import { buildDemoTestItems, isDemoSeedItemId } from "./demo-seed-data";
+import {
+  invalidateConvexMirrorCache,
+  mirrorItemToConvex,
+  scheduleResyncAllItemsToConvex,
+} from "./convex-mirror";
 
 export const DEMO_USER_ID = "00000000-0000-4000-8000-000000000001";
+export const DEMO_LOGIN_EMAIL = "demo@mindtasker.local";
+export const DEMO_LOGIN_PASSWORD = "demo";
 const DEMO_SESSION_KEY = "mindtasker:demo:session";
 const DEMO_ITEMS_CACHE_KEY = "mindtasker:demo:items-cache";
 const DEMO_PREMIUM_KEY = "mindtasker:demo:premium";
@@ -136,6 +143,7 @@ export async function getDemoItemsSnapshot(knownVersion: number | null = knownSy
       }
       await writeLocalCache(result.snapshot.items);
       knownSyncVersion = result.snapshot.version;
+      scheduleResyncAllItemsToConvex();
       return {
         items: result.snapshot.items,
         version: result.snapshot.version,
@@ -213,6 +221,7 @@ export async function clearDemoItems(): Promise<void> {
 
   await writeLocalCache([]);
   knownSyncVersion = null;
+  invalidateConvexMirrorCache();
 }
 
 export async function clearDemoSeedItems(): Promise<number> {
@@ -242,6 +251,7 @@ export async function addDemoItem(item: MindtaskerItem): Promise<MindtaskerItem[
     try {
       const { version } = await createSyncItem(buildSyncItem(item));
       knownSyncVersion = version;
+      await mirrorItemToConvex(item);
       return items.filter((entry) => !entry.deleted_at);
     } catch (error) {
       console.warn("Sync add failed, kept locally", error);
@@ -269,6 +279,8 @@ export async function updateDemoItem(
     try {
       const { version } = await patchSyncItem(id, buildSyncPatch(patch));
       knownSyncVersion = version;
+      const updated = items.find((entry) => entry.id === id);
+      if (updated) await mirrorItemToConvex(updated);
       return items.filter((entry) => !entry.deleted_at);
     } catch (error) {
       console.warn("Sync patch failed, kept locally", error);
@@ -291,6 +303,7 @@ export async function removeDemoItem(id: string): Promise<MindtaskerItem[]> {
     try {
       const { version } = await deleteSyncItem(id);
       knownSyncVersion = version;
+      scheduleResyncAllItemsToConvex();
       return items.filter((entry) => !entry.deleted_at);
     } catch (error) {
       console.warn("Sync delete failed, kept locally", error);

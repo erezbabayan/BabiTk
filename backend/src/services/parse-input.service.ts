@@ -1,6 +1,12 @@
 import type { ParseInputOptions, ParseInputResponse } from "../types/ai.js";
 import { parseInputLocally } from "./local-parse.service.js";
-import { parseInputWithAI } from "./openai.service.js";
+import {
+  parseInputWithAI,
+  proofreadHebrewInboundText,
+} from "./openai.service.js";
+import { enforceIngestionRules } from "./entity-rules.service.js";
+import { correctEnglishKeyboardHebrew } from "../lib/ingest/englishKeyboardHebrew.js";
+import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
 
 const PLACEHOLDER_KEY_MARKERS = [
   "placeholder",
@@ -21,13 +27,32 @@ export function isOpenAiUsable(): boolean {
 export async function parseInputForIngest(
   options: ParseInputOptions,
 ): Promise<ParseInputResponse> {
+  const timezone = options.timezone ?? "Asia/Jerusalem";
+  const referenceDate = options.referenceDate ?? new Date();
+  const keyboardFixed = correctEnglishKeyboardHebrew(options.text.trim());
+  const lexiconFixed = applyHebrewAsrSpellingFixes(keyboardFixed);
+  const correctedText = isOpenAiUsable()
+    ? applyHebrewAsrSpellingFixes(await proofreadHebrewInboundText(lexiconFixed))
+    : lexiconFixed;
+  const normalizedOptions: ParseInputOptions = {
+    ...options,
+    text: correctedText,
+  };
+  const sourceText = correctedText;
+  const ruleOptions = {
+    allowedTags: options.allowedTags,
+    timezone,
+    referenceDate,
+    sourceText,
+  };
+
   if (!isOpenAiUsable()) {
-    return parseInputLocally(options);
+    return enforceIngestionRules(parseInputLocally(normalizedOptions), ruleOptions);
   }
 
   try {
-    return await parseInputWithAI(options);
+    return await parseInputWithAI(normalizedOptions);
   } catch {
-    return parseInputLocally(options);
+    return enforceIngestionRules(parseInputLocally(normalizedOptions), ruleOptions);
   }
 }

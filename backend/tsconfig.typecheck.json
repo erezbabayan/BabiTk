@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Tests and a few services import shared logic from the repo-root convex/
+    // directory, which sits outside the build rootDir.
+    "rootDir": "..",
+    "noEmit": true
+  },
   "exclude": ["node_modules", "dist", "src/tests/convex-*.test.ts"]
 }

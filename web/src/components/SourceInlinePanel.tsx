@@ -1,8 +1,8 @@
 import type { MindtaskerItem } from "../types";
-import { SOURCE_LABELS, type DisplaySourceType, resolveItemSource } from "../lib/item-source";
+import { SOURCE_ICONS, SOURCE_LABELS, type SourceType } from "../lib/source-display";
+import { resolveItemSource } from "../lib/item-source";
 import { useSourceMaterial } from "../hooks/useSourceMaterial";
 import { HighlightedNotebookImage } from "./HighlightedNotebookImage";
-import { SOURCE_ICONS } from "../types";
 
 interface SourceInlinePanelProps {
   item: MindtaskerItem;
@@ -18,9 +18,9 @@ export function SourceInlinePanel({ item, onClose }: SourceInlinePanelProps) {
   );
 
   const source = material ?? item.source_materials ?? resolved.material;
-  const displayType: DisplaySourceType = source?.source_type ?? resolved.type;
+  const displayType: SourceType = source?.source_type ?? resolved.type;
   const isVoice = displayType === "whatsapp_voice";
-  const isOcr = displayType === "notebook_ocr";
+  const isOcr = displayType === "notebook_ocr" || displayType === "image";
   const rawText = source?.raw_text ?? resolved.rawText;
 
   return (

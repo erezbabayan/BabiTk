@@ -1,5 +1,14 @@
 import type { ParseInputOptions, ParseInputResponse } from "./types";
-import { enforceEntityRules } from "./entityRules";
+import { enforceEntityRules, enforceIngestionRules } from "./entityRules";
+import { splitInputSegments } from "./inputSegmentation";
+import {
+  trySplitTopicActions,
+  topicActionsToSegments,
+} from "./topicTaskSplit";
+import {
+  deriveShortTaskTitle,
+  deriveTaskContent,
+} from "./taskPresentation";
 import {
   extractTimeMention,
   hasTemporalHint,
@@ -12,17 +21,6 @@ const HEBREW_INFINITIVE = /(?:^|\s)(?:ל|לה)[\u0590-\u05FF'-]{2,}/u;
 const ENGLISH_TASK = /\b(?:buy|call|send|pay|prepare|need to|remember to)\b/i;
 const HEBREW_TASK_EVENT =
   /(?:^|\s)(?:שיחה|שיחת|פגישה|פגישת|מפגש|אירוע|תזכורת)(?:\s|$)|(?:^|\s)(?:לדבר|לפגוש|לקבוע|לתאם|להתקשר)(?:\s|$)/u;
-
-function splitInputSegments(text: string): string[] {
-  const segments = text
-    .split(
-      /\n+|(?:\s*;\s*)|(?:,\s*(?=(?:ו?גם\s+)?(?:ל[\u0590-\u05FF]|תזכיר|קוד|הקוד|הסיסמה|והסיסמה)))|(?:\s+ו(?=תזכיר|גם\s+ל))/u,
-    )
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length >= 2);
-
-  return segments.length > 0 ? segments : [text.trim()];
-}
 
 function classifyActionable(segment: string): boolean {
   const trimmed = segment.trim();
@@ -79,8 +77,14 @@ function buildAnalysis(
 function cleanSegmentLead(text: string): string {
   return text
     .replace(/^(?:וגם|תזכיר לי|תזכירי לי)\s+/iu, "")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t\u00a0]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/** Flat form for classification / short titles only — never use for stored content. */
+function flattenForTitle(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -90,31 +94,52 @@ export function parseInputLocally(options: ParseInputOptions): ParseInputRespons
   const timezone = options.timezone ?? "Asia/Jerusalem";
   const referenceDate = options.referenceDate ?? new Date();
   const sourceText = options.text.trim();
-  const segments = splitInputSegments(sourceText);
+  const topicSplit = trySplitTopicActions(sourceText, options.allowedTags);
+  const segments = topicSplit
+    ? topicActionsToSegments(topicSplit)
+    : splitInputSegments(sourceText, options.allowedTags);
 
   const items = segments.map((segment) => {
     const normalizedSegment = cleanSegmentLead(segment);
-    const isActionable = classifyActionable(normalizedSegment);
-    const title = isActionable
-      ? stripTemporalPhrases(normalizedSegment) || normalizedSegment
-      : normalizedSegment.slice(0, 80);
+    const flatForClassify = flattenForTitle(normalizedSegment);
+    const isActionable = classifyActionable(flatForClassify);
+    const shortTitle = isActionable
+      ? deriveShortTaskTitle(flatForClassify) ||
+        stripTemporalPhrases(flatForClassify) ||
+        flatForClassify.slice(0, 80)
+      : flatForClassify.slice(0, 80);
+
+    const bodySource =
+      segments.length === 1 ? cleanSegmentLead(sourceText) : normalizedSegment;
 
     const raw = {
-      title,
-      content: isActionable ? "" : normalizedSegment,
+      title: shortTitle,
+      content: isActionable
+        ? deriveTaskContent(flatForClassify, shortTitle, "", bodySource)
+        : bodySource,
       is_actionable: isActionable,
       due_date: null,
-      tags: isActionable ? ["כללי"] : ["מידע"],
-      analysis: buildAnalysis(normalizedSegment, isActionable, title),
+      tags: topicSplit?.sharedTags ?? [],
+      analysis: buildAnalysis(flatForClassify, isActionable, shortTitle),
     };
 
     return enforceEntityRules(raw, {
       allowedTags: options.allowedTags,
       timezone,
       referenceDate,
-      sourceText: normalizedSegment,
+      sourceText: bodySource,
+      lessons: options.lessons,
     });
   });
 
-  return { items };
+  return enforceIngestionRules(
+    { items },
+    {
+      allowedTags: options.allowedTags,
+      timezone,
+      referenceDate,
+      sourceText,
+      lessons: options.lessons,
+    },
+  );
 }

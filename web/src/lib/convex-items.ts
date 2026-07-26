@@ -25,8 +25,11 @@ type UnifiedItem = {
   deletedAt: number | null;
 };
 
-function iso(ms: number): string {
-  return new Date(ms).toISOString();
+function iso(ms: number | undefined | null): string {
+  if (ms == null || !Number.isFinite(ms)) return new Date(0).toISOString();
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return new Date(0).toISOString();
+  return d.toISOString();
 }
 
 function toSourceMaterial(doc: UnifiedItem): SourceMaterial | null {
@@ -49,14 +52,14 @@ export function convexItemToMindtasker(doc: UnifiedItem): MindtaskerItem {
     user_id: doc.userId,
     source_material_id: doc.sourceStorageId ?? null,
     source_materials: toSourceMaterial(doc),
-    title: doc.title,
-    content: doc.content,
+    title: doc.title ?? "",
+    content: doc.content ?? "",
     is_actionable: doc.isActionable,
     status: doc.status as MindtaskerItem["status"],
     due_date: doc.dueDate,
     completed_at: doc.completedAt,
     calendar_event_id: doc.calendarEventId,
-    tags: doc.tags,
+    tags: doc.tags ?? [],
     metadata: (doc.metadata as MindtaskerItem["metadata"]) ?? null,
     sort_order: doc.sortOrder,
     last_interacted_at: iso(doc.lastInteractedAt),
@@ -94,12 +97,26 @@ export function mindtaskerPatchToConvex(
 
   for (const [key, value] of Object.entries(patch)) {
     const mapped = PATCH_KEY_MAP[key] ?? key;
-    if (
-      mapped === "deletedAt" ||
-      mapped === "lastInteractedAt" ||
-      mapped === "completedAt"
-    ) {
+    // Schema: completedAt is ISO string; deletedAt/lastInteractedAt are epoch ms.
+    if (mapped === "deletedAt" || mapped === "lastInteractedAt") {
       result[mapped] = parseTimestamp(value);
+      continue;
+    }
+    if (mapped === "completedAt") {
+      if (value === undefined) continue;
+      if (value === null) {
+        result[mapped] = null;
+        continue;
+      }
+      if (typeof value === "string") {
+        result[mapped] = value;
+        continue;
+      }
+      if (typeof value === "number") {
+        result[mapped] = new Date(value).toISOString();
+        continue;
+      }
+      result[mapped] = null;
       continue;
     }
     result[mapped] = value;

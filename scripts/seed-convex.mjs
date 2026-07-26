@@ -6,6 +6,7 @@ import { ConvexHttpClient } from "convex/browser";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
+const CHUNK_SIZE = 5;
 
 function loadConvexUrl() {
   const envLocal = readFileSync(join(root, ".env.local"), "utf8");
@@ -19,22 +20,25 @@ const { api } = await import(pathToFileURL(join(root, "convex/_generated/api.js"
 const syncPath = join(root, "backend/data/sync-items.json");
 const payload = JSON.parse(readFileSync(syncPath, "utf8"));
 const activeItems = payload.items.filter((item) => !item.deleted_at);
-const userId = "00000000-0000-4000-8000-000000000001";
+const legacyUserId = "00000000-0000-4000-8000-000000000001";
 
 const client = new ConvexHttpClient(loadConvexUrl());
-const CHUNK_SIZE = 5;
-let imported = 0;
+let tasks = 0;
+let notebooks = 0;
 
 for (let index = 0; index < activeItems.length; index += CHUNK_SIZE) {
   const chunk = activeItems.slice(index, index + CHUNK_SIZE);
-  const result = await client.mutation(api.seed.importSync, {
-    legacyUserId: userId,
+  const result = await client.mutation(api.seed.importSyncDev, {
+    legacyUserId,
     items: chunk,
   });
-  imported += result.tasks + result.notebooks;
+  tasks += result.tasks;
+  notebooks += result.notebooks;
   console.log(
     `Imported chunk ${index / CHUNK_SIZE + 1}: ${result.tasks} tasks, ${result.notebooks} notebooks`,
   );
 }
 
-console.log(`Seeded ${imported}/${activeItems.length} active items into Convex`);
+console.log(
+  `Seeded BabiTk: ${tasks} tasks, ${notebooks} notebooks (${activeItems.length} items)`,
+);

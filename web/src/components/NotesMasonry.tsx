@@ -5,6 +5,8 @@ import { boardSwipeActions } from "../lib/item-swipe-actions";
 import { ItemCard } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
+import { boardItemCellClass, boardItemCellStyle, boardItemsLayoutClass, boardItemsLayoutStyle } from "../lib/board-item-layout";
+import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface NotesMasonryProps {
   notes: MindtaskerItem[];
@@ -13,6 +15,9 @@ interface NotesMasonryProps {
   onToggleType?: (item: MindtaskerItem) => void;
   onArchive?: (item: MindtaskerItem) => void;
   onDelete?: (item: MindtaskerItem) => void;
+  onTagPress?: (item: MindtaskerItem) => void;
+  tagPickerOpenId?: string | null;
+  tagDraftForItem?: (item: MindtaskerItem) => string[] | undefined;
   dragProps?: (item: MindtaskerItem) => {
     draggable: true;
     isDragging: boolean;
@@ -28,35 +33,48 @@ export function NotesMasonry({
   onToggleType,
   onArchive,
   onDelete,
+  onTagPress,
+  tagPickerOpenId = null,
+  tagDraftForItem,
   dragProps,
 }: NotesMasonryProps) {
+  const { view } = useBoardItemViewOptional();
+
   if (notes.length === 0) {
     return null;
   }
 
   return (
-    <div className="space-y-1">
+    <div className={boardItemsLayoutClass(view)} style={boardItemsLayoutStyle(view)}>
       {notes.map((item) => {
         const swipe =
           onArchive && onDelete
-            ? boardSwipeActions(() => onArchive(item), () => onDelete(item))
+            ? boardSwipeActions(() => onArchive(item), () => onDelete(item), "notes")
             : null;
 
         const card = (
           <ItemCard
             item={item}
+            boardAccent="notes"
             compact
             userTags={userTags}
             {...(dragProps ? dragProps(item) : {})}
             onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
             onToggleType={onToggleType ? () => onToggleType(item) : undefined}
+            onTagPress={onTagPress ? () => onTagPress(item) : undefined}
+            tagPickerOpen={tagPickerOpenId === item.id}
+            tagsOverride={tagDraftForItem?.(item)}
           />
         );
 
         return (
-          <div key={item.id}>
+          <div key={item.id} className={boardItemCellClass(view)} style={boardItemCellStyle(view)}>
             {swipe ? (
-              <SwipeableItemCard leftAction={swipe.left} rightAction={swipe.right}>
+              <SwipeableItemCard
+                leftAction={swipe.left}
+                rightAction={swipe.right}
+                squares={view === "squares"}
+              >
                 {card}
               </SwipeableItemCard>
             ) : (

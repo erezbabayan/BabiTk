@@ -1,63 +1,47 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useState } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import {
-  clampStep,
-  combineDueDate,
-  splitDueDate,
+  TIME_PRESETS,
+  dateTimeToParts,
+  formatTimeLabel,
+  partsToDateTime,
   type DueDateParts,
 } from "../lib/due-date-fields";
+import { ClockTimePicker } from "./ClockTimePicker";
 
 interface DueDateFieldsProps {
   value: DueDateParts;
   onChange: (value: DueDateParts) => void;
 }
 
-function TimeStepper({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (next: number) => void;
-  disabled?: boolean;
-}) {
-  const display = String(value).padStart(2, "0");
+function formatDateLabel(date: string): string {
+  if (!date) return "בחר תאריך מהיומן";
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "בחר תאריך מהיומן";
+  return parsed.toLocaleDateString("he-IL", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 
-  return (
-    <View style={styles.stepperBlock}>
-      <Text style={styles.subLabel}>{label}</Text>
-      <View style={styles.stepperRow}>
-        <Pressable
-          style={[styles.stepBtn, disabled && styles.stepBtnDisabled]}
-          onPress={() => onChange(clampStep(value, min, max, step, -1))}
-          disabled={disabled}
-        >
-          <Text style={styles.stepBtnText}>−</Text>
-        </Pressable>
-        <Text style={styles.stepValue}>{display}</Text>
-        <Pressable
-          style={[styles.stepBtn, disabled && styles.stepBtnDisabled]}
-          onPress={() => onChange(clampStep(value, min, max, step, 1))}
-          disabled={disabled}
-        >
-          <Text style={styles.stepBtnText}>+</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
+function isPresetActive(value: DueDateParts, preset: (typeof TIME_PRESETS)[number]): boolean {
+  return value.hour === preset.hour && value.minute === preset.minute;
 }
 
 export function DueDateFields({ value, onChange }: DueDateFieldsProps) {
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const hasDate = value.date.length > 0;
-  const hour = Number.parseInt(value.hour, 10) || 0;
-  const minute = Number.parseInt(value.minute, 10) || 0;
+
+  function handleDateChange(event: DateTimePickerEvent, selected?: Date) {
+    if (Platform.OS === "android") setShowDatePicker(false);
+    if (event.type === "dismissed" || !selected) return;
+    onChange(dateTimeToParts(selected, value));
+  }
 
   return (
     <View style={styles.wrap}>
@@ -69,47 +53,82 @@ export function DueDateFields({ value, onChange }: DueDateFieldsProps) {
           </Pressable>
         ) : null}
       </View>
+
       <Text style={styles.subLabel}>תאריך</Text>
-      <TextInput
-        style={styles.input}
-        value={value.date}
-        onChangeText={(date) => onChange({ ...value, date })}
-        placeholder="YYYY-MM-DD"
-        placeholderTextColor="#94a3b8"
-        textAlign="left"
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-      <Text style={[styles.subLabel, styles.timeLabel]}>שעה</Text>
-      <View style={styles.timeRow}>
-        <TimeStepper
-          label="דקות"
-          value={minute}
-          min={0}
-          max={59}
-          step={5}
-          disabled={!hasDate}
-          onChange={(next) => onChange({ ...value, minute: String(next).padStart(2, "0") })}
+      <Pressable
+        style={[styles.fieldBtn, hasDate && styles.fieldBtnFilled]}
+        onPress={() => setShowDatePicker(true)}
+        accessibilityRole="button"
+        accessibilityLabel="בחר תאריך מהיומן"
+      >
+        <Text style={[styles.fieldBtnText, !hasDate && styles.fieldBtnPlaceholder]}>
+          {formatDateLabel(value.date)}
+        </Text>
+        <Text style={styles.fieldBtnIcon}>📅</Text>
+      </Pressable>
+
+      {showDatePicker ? (
+        <DateTimePicker
+          value={partsToDateTime(value)}
+          mode="date"
+          display={Platform.OS === "ios" ? "inline" : "calendar"}
+          onChange={handleDateChange}
+          minimumDate={new Date()}
+          locale="he-IL"
         />
-        <Text style={styles.colon}>:</Text>
-        <TimeStepper
-          label="שעה"
-          value={hour}
-          min={0}
-          max={23}
-          step={1}
+      ) : null}
+
+      <View style={[styles.timeBox, !hasDate && styles.fieldBtnDisabled]}>
+        <View style={styles.timeHeaderRow}>
+          <Text style={[styles.subLabel, styles.timeLabel]}>שעה ודקות</Text>
+          <Text style={[styles.timePreview, !hasDate && styles.fieldBtnPlaceholder]}>
+            {hasDate ? formatTimeLabel(value) : "בחר תאריך קודם"}
+          </Text>
+        </View>
+
+        <ClockTimePicker
+          hour={value.hour.padStart(2, "0")}
+          minute={value.minute.padStart(2, "0")}
+          onChange={(hour, minute) => onChange({ ...value, hour, minute })}
           disabled={!hasDate}
-          onChange={(next) => onChange({ ...value, hour: String(next).padStart(2, "0") })}
         />
       </View>
+
+      <Text style={[styles.subLabel, styles.presetsLabel]}>זמנים נפוצים</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.presetsRow}
+        style={styles.presetsScroll}
+      >
+        {TIME_PRESETS.map((preset) => {
+          const active = hasDate && isPresetActive(value, preset);
+          return (
+            <Pressable
+              key={preset.label}
+              disabled={!hasDate}
+              onPress={() => onChange({ ...value, hour: preset.hour, minute: preset.minute })}
+              style={[
+                styles.presetChip,
+                active && styles.presetChipActive,
+                !hasDate && styles.presetChipDisabled,
+              ]}
+            >
+              <Text style={[styles.presetChipText, active && styles.presetChipTextActive]}>
+                {preset.label} · {preset.hour}:{preset.minute}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
-export { combineDueDate, splitDueDate, type DueDateParts };
+export { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";
 
 const styles = StyleSheet.create({
-  wrap: { gap: 4 },
+  wrap: { gap: 6 },
   headerRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -132,52 +151,79 @@ const styles = StyleSheet.create({
     color: "#64748b",
     textAlign: "right",
   },
-  input: {
+  fieldBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    fontSize: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
     backgroundColor: "#fff",
   },
-  timeLabel: { marginTop: 4 },
-  timeRow: {
-    flexDirection: "row-reverse",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    gap: 12,
-  },
-  stepperBlock: { alignItems: "center", gap: 4 },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  stepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
+  fieldBtnFilled: {
+    borderColor: "#93c5fd",
     backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
   },
-  stepBtnDisabled: { opacity: 0.4 },
-  stepBtnText: { fontSize: 18, fontWeight: "600", color: "#334155", lineHeight: 20 },
-  stepValue: {
-    minWidth: 36,
-    textAlign: "center",
-    fontSize: 18,
-    fontWeight: "700",
+  fieldBtnDisabled: { opacity: 0.45 },
+  fieldBtnText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
     color: "#0f172a",
-    fontVariant: ["tabular-nums"],
+    textAlign: "right",
   },
-  colon: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#64748b",
-    marginBottom: 10,
+  fieldBtnPlaceholder: {
+    fontWeight: "500",
+    color: "#94a3b8",
   },
+  fieldBtnIcon: { fontSize: 16, marginLeft: 8 },
+  timeLabel: { marginTop: 2 },
+  timeBox: {
+    borderWidth: 1,
+    borderColor: "#dbeafe",
+    borderRadius: 12,
+    padding: 10,
+    gap: 8,
+    backgroundColor: "#f8fafc",
+  },
+  timeHeaderRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  timePreview: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1d4ed8",
+    writingDirection: "ltr",
+  },
+  presetsLabel: { marginTop: 4 },
+  presetsScroll: { marginHorizontal: -2 },
+  presetsRow: {
+    flexDirection: "row-reverse",
+    gap: 8,
+    paddingHorizontal: 2,
+    paddingBottom: 2,
+  },
+  presetChip: {
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#fff",
+  },
+  presetChipActive: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#eff6ff",
+  },
+  presetChipDisabled: { opacity: 0.4 },
+  presetChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  presetChipTextActive: { color: "#1d4ed8" },
 });

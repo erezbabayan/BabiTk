@@ -105,6 +105,46 @@ export function addZonedDays(
   return zonedLocalToIso({ ...target, hour, minute, second: 0 }, timeZone);
 }
 
+/** Add calendar months, keeping the clock time; clamps day to month length. */
+export function addZonedMonths(
+  timeZone: string,
+  referenceDate: Date,
+  months: number,
+  hour: number,
+  minute: number,
+): string {
+  const ref = getZonedParts(referenceDate, timeZone);
+  const total = ref.month - 1 + months;
+  const year = ref.year + Math.floor(total / 12);
+  const month = (total % 12 + 12) % 12 + 1;
+  const day = Math.min(ref.day, daysInMonth(year, month));
+  return zonedLocalToIso({ year, month, day, hour, minute, second: 0 }, timeZone);
+}
+
+export function addZonedMinutes(
+  timeZone: string,
+  referenceDate: Date,
+  minutes: number,
+): string {
+  const shifted = new Date(referenceDate.getTime() + minutes * 60_000);
+  const parts = getZonedParts(shifted, timeZone);
+  return zonedLocalToIso(
+    {
+      year: parts.year,
+      month: parts.month,
+      day: parts.day,
+      hour: parts.hour,
+      minute: parts.minute,
+      second: 0,
+    },
+    timeZone,
+  );
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
 export function nextWeekdayIso(
   timeZone: string,
   referenceDate: Date,

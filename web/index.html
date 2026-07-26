@@ -2,8 +2,31 @@
 <html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
     <title>BabiTk</title>
+    <!-- Non-blocking fonts: Android often stalls on Google Fonts CDN. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&family=Secular+One&family=Solitreo&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&family=Secular+One&family=Solitreo&display=swap"
+      />
+    </noscript>
+    <style>
+      /* Immediate fallbacks so UI paints before remote fonts arrive */
+      html, body {
+        font-family: Rubik, "Segoe UI", Tahoma, Arial, sans-serif;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

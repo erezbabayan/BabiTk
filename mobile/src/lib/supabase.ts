@@ -19,8 +19,12 @@ export const isSupabaseConfigured =
   isValidSupabaseUrl(supabaseUrl) &&
   !supabaseUrl.includes("[project-ref]");
 
-export const isDemoMode =
-  process.env.EXPO_PUBLIC_DEMO_MODE === "true" || !isSupabaseConfigured;
+export const isDemoMode = process.env.EXPO_PUBLIC_DEMO_MODE === "true";
+
+/** When true, show a quick demo entry option alongside normal login. */
+export const allowDemoLogin =
+  process.env.EXPO_PUBLIC_ALLOW_DEMO_LOGIN === "true" ||
+  process.env.EXPO_PUBLIC_DEMO_MODE === "true";
 
 let client: SupabaseClient | null = null;
 
@@ -31,6 +35,7 @@ if (isSupabaseConfigured) {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      flowType: "pkce",
     },
   });
 }

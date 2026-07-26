@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import multipart from "@fastify/multipart";
 import { z } from "zod";
 import { requireSyncAuth } from "../middleware/sync-auth.js";
 import {
@@ -12,11 +13,18 @@ import {
   softDeleteSyncItem,
   type SyncItem,
 } from "../services/sync-store.service.js";
-import { ingestTextToSyncStore } from "../services/sync-ingest.service.js";
+import { ingestTextToSyncStore, ingestVoiceToSyncStore } from "../services/sync-ingest.service.js";
 
 const ingestTextSchema = z.object({
   text: z.string().trim().min(3),
-  sourceType: z.enum(["whatsapp_text", "whatsapp_voice", "notebook_ocr"]).default("whatsapp_text"),
+  sourceType: z.enum([
+    "whatsapp_text",
+    "whatsapp_voice",
+    "notebook_ocr",
+    "typed_text",
+    "image",
+    "document",
+  ]).default("whatsapp_text"),
   timezone: z.string().optional(),
   locale: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
@@ -60,6 +68,10 @@ const patchSchema = z
   .strict();
 
 export const syncRoutes: FastifyPluginAsync = async (app) => {
+  await app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024 },
+  });
+
   app.addHook("preHandler", requireSyncAuth);
 
   app.get("/items", async (request, reply) => {
@@ -109,6 +121,30 @@ export const syncRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(502).send({
         error: "ingest_failed",
         message: error instanceof Error ? error.message : "Ingest failed",
+      });
+    }
+  });
+
+  app.post("/ingest/voice", async (request, reply) => {
+    const file = await request.file();
+    if (!file) {
+      return reply.status(400).send({ error: "validation_error", message: "Audio file required" });
+    }
+
+    try {
+      const buffer = await file.toBuffer();
+      const mimeType = file.mimetype || "audio/m4a";
+      const result = await ingestVoiceToSyncStore(
+        buffer,
+        file.filename || "recording.m4a",
+        mimeType,
+      );
+      return reply.status(201).send(result);
+    } catch (error) {
+      request.log.error({ err: error }, "sync voice ingest failed");
+      return reply.status(502).send({
+        error: "voice_ingest_failed",
+        message: error instanceof Error ? error.message : "Voice ingest failed",
       });
     }
   });

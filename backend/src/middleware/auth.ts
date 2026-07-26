@@ -1,5 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { env } from "../config/env.js";
 import { getSupabaseAuthClient } from "../lib/supabase.js";
+import { SYNC_USER_ID } from "../services/sync-store.service.js";
 
 export interface AuthenticatedUser {
   id: string;
@@ -13,6 +15,8 @@ declare module "fastify" {
   }
 }
 
+const DEMO_BEARER_TOKEN = "demo";
+
 export async function requireAuth(
   request: FastifyRequest,
   reply: FastifyReply,
@@ -24,6 +28,19 @@ export async function requireAuth(
   }
 
   const token = header.slice("Bearer ".length);
+
+  if (
+    !env.isSupabaseAuthConfigured &&
+    env.demoSyncEnabled &&
+    token === DEMO_BEARER_TOKEN
+  ) {
+    request.user = {
+      id: SYNC_USER_ID,
+      email: "demo@mindtasker.local",
+    };
+    return;
+  }
+
   const supabase = getSupabaseAuthClient();
   const { data, error } = await supabase.auth.getUser(token);
 

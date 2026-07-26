@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+import { AdminUsersPanel } from "./AdminUsersPanel";
 import { BoardSettingsPanel } from "./BoardSettingsPanel";
 import { GoogleCalendarLink } from "./GoogleCalendarLink";
 import { NotebookScanSettings } from "./NotebookScanSettings";
@@ -9,12 +11,15 @@ import { TextCaptureSettings } from "./TextCaptureSettings";
 import { TrashSettings } from "./TrashSettings";
 import { UserSettings } from "./UserSettings";
 import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
-import { useUserTags } from "../hooks/useUserTags";
+import { NotificationPrefs } from "./NotificationPrefs";
 import type { UsageSummary } from "../lib/api";
+import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
+import { isDemoMode } from "../lib/supabase";
 
 type SettingsSection =
   | "menu"
   | "user"
+  | "notifications"
   | "whatsapp"
   | "voice"
   | "notebook"
@@ -23,7 +28,8 @@ type SettingsSection =
   | "premium"
   | "tags"
   | "trash"
-  | "boards";
+  | "boards"
+  | "admin";
 
 interface SettingsPanelProps {
   userId: string;
@@ -32,9 +38,13 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
+const OFFLINE =
+  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
-  { id: "whatsapp", label: "💬 וואטסאפ" },
+  { id: "notifications", label: "🔔 התראות" },
+  { id: "whatsapp", label: "💬 וואטסאפ — בחירת קבוצה" },
   { id: "voice", label: "🎙 הקלטה קולית" },
   { id: "notebook", label: "📷 סריקת מחברת" },
   { id: "text", label: "✏️ קליטת טקסט" },
@@ -45,9 +55,24 @@ const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "trash", label: "🗑 סל מחזור" },
 ];
 
+function OfflineNotice({ children }: { children: string }) {
+  return (
+    <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      {children}
+    </p>
+  );
+}
+
 export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: SettingsPanelProps) {
-  const { tags, save } = useUserTags();
   const [section, setSection] = useState<SettingsSection>("menu");
+  const showNotifications = !OFFLINE && shouldUseConvexAuthLogin();
+  // Offline mode: no Convex provider — never call useQuery here.
+  const isAdmin = false;
+
+  const menuItems = (showNotifications
+    ? MENU_ITEMS
+    : MENU_ITEMS.filter((item) => item.id !== "notifications")
+  ).concat(isAdmin ? [{ id: "admin" as const, label: "🛡 ניהול משתמשים" }] : []);
 
   function handleOpenPaywall() {
     onClose();
@@ -72,7 +97,10 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
               ? "הגדרות"
               : section === "boards"
                 ? "הגדרות בורדים"
-                : MENU_ITEMS.find((item) => item.id === section)?.label}
+                : section === "notifications"
+                  ? "התראות"
+                  : MENU_ITEMS.find((item) => item.id === section)?.label ??
+                    (section === "admin" ? "🛡 ניהול משתמשים" : "")}
           </h2>
           <div className="flex gap-2">
             {section !== "menu" ? (
@@ -96,7 +124,7 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
 
         {section === "menu" ? (
           <div className="divide-y divide-slate-100">
-            {MENU_ITEMS.map((item) => (
+            {menuItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -109,25 +137,45 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
           </div>
         ) : null}
 
-        {section === "user" ? <UserSettings /> : null}
+        {section === "user" ? (
+          OFFLINE ? (
+            <OfflineNotice>
+              מצב מקומי ללא Convex — הנתונים נשמרים בדפדפן בלבד. אין סנכרון ענן או פרופיל שרת.
+            </OfflineNotice>
+          ) : (
+            <UserSettings />
+          )
+        ) : null}
+        {section === "notifications" && showNotifications ? <NotificationPrefs /> : null}
         {section === "whatsapp" ? (
-          <PhoneLinkSettings userId={userId} summary={summary} />
+          OFFLINE ? (
+            <OfflineNotice>
+              חיבור WhatsApp דורש Convex פעיל. במצב מקומי אפשר לערוך פריטים שנשמרו בדפדפן בלבד.
+            </OfflineNotice>
+          ) : (
+            <PhoneLinkSettings userId={userId} summary={summary} />
+          )
         ) : null}
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
         {section === "calendar" ? (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">חבר את Google Calendar כדי לסנכרן משימות עם היומן.</p>
-            <GoogleCalendarLink />
-          </div>
+          OFFLINE ? (
+            <OfflineNotice>Google Calendar לא זמין במצב מקומי ללא Convex.</OfflineNotice>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">חבר את Google Calendar כדי לסנכרן משימות עם היומן.</p>
+              <GoogleCalendarLink />
+            </div>
+          )
         ) : null}
         {section === "premium" ? (
           <PremiumSettings summary={summary} onOpenPaywall={handleOpenPaywall} />
         ) : null}
-        {section === "tags" ? <TagSettings tags={tags} onSave={save} /> : null}
+        {section === "tags" ? <TagSettings active /> : null}
         {section === "boards" ? <BoardSettingsPanel /> : null}
-        {section === "trash" ? <TrashSettings /> : null}
+        {section === "trash" ? <TrashSettings userId={userId} /> : null}
+        {section === "admin" && isAdmin ? <AdminUsersPanel /> : null}
       </div>
     </div>
   );

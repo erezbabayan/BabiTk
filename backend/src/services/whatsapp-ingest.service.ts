@@ -28,7 +28,7 @@ import { UsageQuotaExceededError } from "./usage.service.js";
  * 1. Webhook receives JSON; parsers set `message.from` = sender phone (E.164).
  * 2. resolveInboxOwner(message.from):
  *        DB query → users WHERE phone = ? AND phone_verified = true
- *    • No user  → reply on WhatsApp: "מספר לא מקושר"
+ *    • No user  → ignore silently (never auto-reply to strangers)
  *    • Found    → continue with that user.id
  * 3. By media type:
  *        text  → use body as-is
@@ -38,9 +38,6 @@ import { UsageQuotaExceededError } from "./usage.service.js";
  *    Visible in Web + Mobile for the same account.
  */
 
-const UNLINKED_PHONE_MESSAGE =
-  "מספר הטלפון שלך לא מקושר לחשבון MindTasker. פתח הגדרות → וואטסאפ באפליקציה או ב-Web.";
-
 async function resolveInboxOwner(senderPhone: string) {
   return findInboxUserByPhone(senderPhone);
 }
@@ -48,7 +45,7 @@ async function resolveInboxOwner(senderPhone: string) {
 async function saveToUserInbox(params: {
   userId: string;
   text: string;
-  sourceType: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr";
+  sourceType: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr" | "typed_text" | "image" | "document";
   rawText?: string;
   storageUrl?: string | null;
   metadata?: Record<string, unknown>;
@@ -83,7 +80,7 @@ export async function processWhatsAppMessage(
   // Step 2: match sender phone → MindTasker user (Supabase)
   const user = await resolveInboxOwner(message.from);
   if (!user) {
-    await sendWhatsAppText(message.from, UNLINKED_PHONE_MESSAGE);
+    // Do not WhatsApp-reply to unknown numbers (prevents spam from personal bot line).
     return;
   }
 

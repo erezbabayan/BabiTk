@@ -20,7 +20,7 @@ export function PaywallModal({ visible, code, summary, onClose, onUpgraded }: Pa
     ? isAudio
       ? "מכסת תמלול אזלה"
       : "מכסת AI אזלה"
-    : "MindTasker Premium";
+    : "BabiTk Premium";
 
   const description = code
     ? isAudio

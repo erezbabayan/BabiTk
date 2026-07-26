@@ -28,7 +28,8 @@ async function syncFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Sync error ${res.status}`);
+    const message = body.message ?? `Sync error ${res.status}`;
+    throw new Error(message === "Failed to fetch" ? "לא ניתן להתחבר לשרת הסנכרון" : message);
   }
 
   return res.json() as Promise<T>;
@@ -106,7 +107,7 @@ export async function hardDeleteSyncItem(id: string): Promise<void> {
 
 export async function ingestTextSync(params: {
   text: string;
-  sourceType?: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr";
+  sourceType?: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr" | "typed_text" | "image" | "document";
   timezone?: string;
   locale?: string;
 }): Promise<void> {

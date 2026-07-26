@@ -14,6 +14,8 @@
     "dev:expo": "node scripts/dev-supervisor.mjs --expo"
   },
   "dependencies": {
+    "@auth/core": "^0.41.2",
+    "@convex-dev/auth": "^0.0.94",
     "convex": "^1.41.0",
     "openai": "^4.104.0"
   },

@@ -9,7 +9,7 @@ import {
 import { parseInboundWebhook } from "../services/whatsapp/parsers.js";
 import { sendWhatsAppText } from "../services/whatsapp/send.js";
 import { parseMetaWebhook } from "../services/whatsapp/parsers.js";
-import { verifyWhatsAppSignature, WHATSAPP_REJECTION_MESSAGE } from "../utils/whatsapp.js";
+import { verifyWhatsAppSignature } from "../utils/whatsapp.js";
 
 /**
  * WhatsApp webhook controller — Meta Cloud API + Green-API + Whapi.
@@ -21,7 +21,7 @@ import { verifyWhatsAppSignature, WHATSAPP_REJECTION_MESSAGE } from "../utils/wh
  *        → processWhatsAppMessage()
  *             → DB: user with this phone + phone_verified?
  *             → yes: text/audio/image → Inbox (items table)
- *             → no:  WhatsApp reply "מספר לא מקושר"
+ *             → no:  ignore (no outbound reply to strangers)
  *
  * Routes:
  *   POST /api/whatsapp/webhook          → Meta (signature verified)
@@ -134,14 +134,7 @@ export async function dispatchIncomingMessage(
       { messageId: message.id, type: message.type, reason: sanitize.reason },
       "WhatsApp message filtered as junk",
     );
-    await sendWhatsAppText(message.from, WHATSAPP_REJECTION_MESSAGE).catch(
-      (error) => {
-        log.error(
-          { err: error, messageId: message.id },
-          "Failed to send junk rejection",
-        );
-      },
-    );
+    // Never auto-reply to filtered messages — especially from unknown contacts.
     return;
   }
 
@@ -149,6 +142,10 @@ export async function dispatchIncomingMessage(
     await safeProcessWhatsAppMessage(message);
   } catch (error) {
     log.error({ err: error, messageId: message.id }, "WhatsApp ingest failed");
+    // Only notify linked accounts; do not message strangers from the bot line.
+    const { findInboxUserByPhone } = await import("../services/items.service.js");
+    const linked = await findInboxUserByPhone(message.from).catch(() => null);
+    if (!linked) return;
     await sendWhatsAppText(
       message.from,
       "אירעה שגיאה בעיבוד ההודעה. נסה שוב בעוד רגע.",

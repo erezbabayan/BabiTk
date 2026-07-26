@@ -1,3 +1,5 @@
+import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
+import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { sendWhatsAppText } from "./whatsapp.service.js";
 import { normalizePhone } from "./items.service.js";
@@ -11,6 +13,8 @@ export { TRASH_RETENTION_DAYS };
  * Moves idle inbox items to archive per user's notebook archive setting.
  */
 export async function archiveStaleInboxItems(): Promise<number> {
+  if (!env.isSupabaseConfigured) return 0;
+
   const supabase = getSupabaseAdmin();
 
   const { data: users, error: usersError } = await supabase
@@ -53,6 +57,8 @@ export async function archiveStaleInboxItems(): Promise<number> {
  * Morning digest (08:00): WhatsApp summary of pending inbox + today's tasks.
  */
 export async function sendDailyDigests(): Promise<number> {
+  if (!env.isSupabaseConfigured) return 0;
+
   const supabase = getSupabaseAdmin();
 
   const { data: users, error } = await supabase
@@ -95,7 +101,7 @@ export async function sendDailyDigests(): Promise<number> {
       `בוקר טוב! ☀️\n` +
       `מחכים לך ${inbox} פריטים ב-Inbox` +
       (today > 0 ? ` ו-${today} משימות לביצוע` : "") +
-      `.\nפתח את MindTasker לאישור וסידור.`;
+      `.\nפתח את BabaiTk לאישור וסידור.`;
 
     try {
       await sendWhatsAppText(normalizePhone(user.phone), message);
@@ -109,6 +115,8 @@ export async function sendDailyDigests(): Promise<number> {
 }
 
 export async function resetMonthlyUsageForAllUsers(): Promise<number> {
+  if (!env.isSupabaseConfigured) return 0;
+
   const supabase = getSupabaseAdmin();
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -131,16 +139,17 @@ export async function resetMonthlyUsageForAllUsers(): Promise<number> {
 }
 
 /**
- * Sends WhatsApp reminders for tasks whose notify_at has passed.
+ * Sends WhatsApp reminders for tasks (notify_at) and notes (manual due_date).
  */
 export async function sendTaskReminders(): Promise<number> {
+  if (!env.isSupabaseConfigured) return 0;
+
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
 
   const { data: items, error } = await supabase
     .from("mindtasker_items")
-    .select("id, user_id, title, metadata, due_date")
-    .eq("is_actionable", true)
+    .select("id, user_id, title, metadata, due_date, is_actionable")
     .in("status", ["inbox", "pending"])
     .is("deleted_at", null);
 
@@ -155,7 +164,17 @@ export async function sendTaskReminders(): Promise<number> {
     if (metadata.reminder_sent === true) continue;
 
     const analysis = metadata.analysis as Record<string, unknown> | undefined;
-    const notifyAt = typeof analysis?.notify_at === "string" ? analysis.notify_at : null;
+    let notifyAt: string | null = null;
+
+    if (item.is_actionable) {
+      notifyAt = typeof analysis?.notify_at === "string" ? analysis.notify_at : null;
+      if (!notifyAt && metadata.reminder_manual === true && item.due_date) {
+        notifyAt = item.due_date;
+      }
+    } else if (metadata.reminder_manual === true && item.due_date) {
+      notifyAt = item.due_date;
+    }
+
     if (!notifyAt || notifyAt > now) continue;
 
     const { data: user } = await supabase
@@ -178,14 +197,19 @@ export async function sendTaskReminders(): Promise<number> {
     const message =
       `⏰ תזכורת: ${item.title}` +
       (dueLabel ? `\nמועד יעד: ${dueLabel}` : "") +
-      `\nפתח את MindTasker לפרטים.`;
+      `\nפתח את BabiTk לפרטים.`;
 
     try {
       await sendWhatsAppText(normalizePhone(user.phone), message);
+      const after = buildAfterReminderSentPatch(
+        { due_date: item.due_date, metadata },
+        { firedAt: notifyAt },
+      );
       await supabase
         .from("mindtasker_items")
         .update({
-          metadata: { ...metadata, reminder_sent: true },
+          ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+          metadata: after.metadata,
         })
         .eq("id", item.id);
       sent++;
@@ -201,6 +225,8 @@ export async function sendTaskReminders(): Promise<number> {
  * Permanently removes items that were soft-deleted more than 30 days ago.
  */
 export async function purgeExpiredDeletedItems(): Promise<number> {
+  if (!env.isSupabaseConfigured) return 0;
+
   const supabase = getSupabaseAdmin();
   const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 

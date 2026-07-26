@@ -1,5 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { SearchLeafDeco } from "./SearchLeafDeco";
+
 type SearchTone = "slate" | "blue" | "orange";
 
 interface ColumnSearchBarProps {
@@ -16,36 +18,10 @@ interface ColumnSearchBarProps {
 
 const TONE: Record<SearchTone, { btn: string; btnText: string; back: string; backText: string; border: string }> =
   {
-    slate: { btn: "#fff", btnText: "#334155", back: "#fff", backText: "#334155", border: "#cbd5e1" },
-    blue: { btn: "#3b82f6", btnText: "#fff", back: "#fff", backText: "#1d4ed8", border: "#bfdbfe" },
-    orange: { btn: "#ea580c", btnText: "#fff", back: "#fff", backText: "#c2410c", border: "#fed7aa" },
+    slate: { btn: "#fff", btnText: "#334155", back: "#fff", backText: "#334155", border: "rgba(148, 163, 184, 0.55)" },
+    blue: { btn: "#3b82f6", btnText: "#fff", back: "#fff", backText: "#1d4ed8", border: "rgba(96, 165, 250, 0.5)" },
+    orange: { btn: "#ea580c", btnText: "#fff", back: "#fff", backText: "#c2410c", border: "rgba(251, 146, 60, 0.5)" },
   };
-
-export function ColumnSearchAiButton({
-  label,
-  onPress,
-  loading = false,
-  disabled = false,
-}: {
-  label: string;
-  onPress: () => void;
-  loading?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      style={[styles.aiBtn, (loading || disabled) && styles.disabled]}
-      onPress={onPress}
-      disabled={loading || disabled}
-    >
-      {loading ? (
-        <ActivityIndicator color="#475569" size="small" />
-      ) : (
-        <Text style={styles.aiBtnText}>{label}</Text>
-      )}
-    </Pressable>
-  );
-}
 
 export function ColumnSearchBar({
   value,
@@ -70,7 +46,7 @@ export function ColumnSearchBar({
     }
   }
 
-  const shellBorder = { borderColor: "#000" };
+  const shellBorder = { borderColor: colors.border };
 
   return (
     <View style={[styles.wrap, inline && styles.wrapInline]}>
@@ -102,7 +78,7 @@ export function ColumnSearchBar({
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor="#a8a29e"
           value={value}
           onChangeText={onChange}
           onSubmitEditing={() => {
@@ -111,6 +87,9 @@ export function ColumnSearchBar({
           returnKeyType="search"
           textAlign="right"
         />
+        <View style={styles.decoSlot} pointerEvents="none">
+          <SearchLeafDeco tone={tone} />
+        </View>
       </View>
     </View>
   );
@@ -118,16 +97,16 @@ export function ColumnSearchBar({
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 6 },
-  wrapInline: { marginBottom: 0, flex: 1.35, minWidth: 120, minHeight: 0, alignSelf: "stretch" },
+  wrapInline: { marginBottom: 0, flex: 1.65, minWidth: 148, minHeight: 0, alignSelf: "stretch" },
   inputShell: {
     flexDirection: "row",
     alignItems: "stretch",
-    borderWidth: 1,
-    borderColor: "#000",
-    borderRadius: 8,
-    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    backgroundColor: "#fffefb",
     overflow: "hidden",
-    minHeight: 32,
+    minHeight: 24,
   },
   inputShellInline: {
     flex: 1,
@@ -136,32 +115,27 @@ const styles = StyleSheet.create({
   embeddedBtn: {
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 6,
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderRightColor: "rgba(0,0,0,0.2)",
-    minWidth: 44,
+    borderRightColor: "rgba(120, 113, 108, 0.25)",
+    minWidth: 34,
   },
   embeddedBtnOutline: {},
-  embeddedBtnText: { color: "#fff", fontWeight: "700", fontSize: 10 },
+  embeddedBtnText: { color: "#fff", fontWeight: "700", fontSize: 9 },
   input: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    fontSize: 11,
-    backgroundColor: "#fff",
+    paddingLeft: 6,
+    paddingRight: 4,
+    paddingVertical: 3,
+    fontSize: 10,
+    backgroundColor: "transparent",
   },
-  aiBtn: {
-    borderWidth: 1,
-    borderColor: "#000",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    backgroundColor: "#fff",
-    minWidth: 34,
-    alignItems: "center",
+  decoSlot: {
     justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 4,
+    paddingLeft: 2,
   },
-  aiBtnText: { color: "#475569", fontWeight: "600", fontSize: 10 },
   disabled: { opacity: 0.5 },
 });

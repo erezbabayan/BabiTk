@@ -1,0 +1,1 @@
+{"properties":{"linuxFxVersion":"NODE|22-lts","appCommandLine":"npx --yes serve -s . -l $PORT"}}
