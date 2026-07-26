@@ -23,7 +23,11 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Install root deps (Convex shared)
+        run: npm ci
       - name: Build web
         working-directory: web
         env:
