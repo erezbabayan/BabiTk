@@ -28,7 +28,7 @@ export function buildBackupNotificationMessage(options: {
 
   const triggerLabel = options.trigger === "scheduled" ? "מתוזמן" : "ידני";
   const lines = [
-    `גיבוי MindTasker ${statusLabel} (${triggerLabel}).`,
+    `גיבוי BabiTk ${statusLabel} (${triggerLabel}).`,
     "",
     `מחשב: ${links.web}`,
     `אנדרואיד: ${links.android}`,

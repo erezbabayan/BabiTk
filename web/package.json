@@ -1,5 +1,5 @@
 {
-  "name": "@mindtasker/web",
+  "name": "@babitk/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@auth/core": "^0.41.2",
+    "@convex-dev/auth": "^0.0.94",
     "@supabase/supabase-js": "^2.49.8",
+    "@tanstack/react-virtual": "^3.14.6",
     "convex": "^1.41.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

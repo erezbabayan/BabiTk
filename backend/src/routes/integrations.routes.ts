@@ -35,7 +35,7 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
       return reply.type("text/html").send(
         "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>" +
           "<h2>Google Calendar מחובר בהצלחה!</h2>" +
-          "<p>אפשר לסגור את החלון ולחזור ל-MindTasker.</p></body></html>",
+          "<p>אפשר לסגור את החלון ולחזור ל-BabiTk.</p></body></html>",
       );
     } catch (error) {
       return reply.status(400).send({

@@ -1,4 +1,4 @@
-# MindTasker — one-shot local bootstrap (no Supabase token required)
+# BabiTk — one-shot local bootstrap (no Supabase token required)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
@@ -37,7 +37,7 @@ try {
   & "$root\scripts\run-dev.ps1"
 
   Write-Host ""
-  Write-Host "MindTasker ready (demo mode):" -ForegroundColor Green
+  Write-Host "BabiTk ready (demo mode):" -ForegroundColor Green
   Write-Host "  Web:     http://localhost:5173"
   Write-Host "  Backend: http://localhost:3001/health"
   Write-Host ""

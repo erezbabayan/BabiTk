@@ -268,7 +268,7 @@ export async function createTaskFromNluForWhatsAppSender(
   if (!user) {
     throw new NluTaskServiceError(
       "user_not_found",
-      "No verified MindTasker user linked to this WhatsApp number",
+      "No verified BabiTk user linked to this WhatsApp number",
     );
   }
 

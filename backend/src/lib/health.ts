@@ -39,7 +39,7 @@ export async function getHealthStatus(): Promise<HealthStatus> {
   const hasError = Object.values(checks).includes("error");
   const status: HealthStatus = {
     status: hasError ? "degraded" : "ok",
-    service: "mindtasker-backend",
+    service: "babitk-backend",
     checks,
   };
   cachedHealth = { at: Date.now(), status };

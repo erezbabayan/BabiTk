@@ -10,7 +10,7 @@ export function startMindtaskerScheduler(logger: {
   error: (obj: Record<string, unknown>, msg?: string) => void;
 }): void {
   if (!env.cronEnabled) {
-    logger.info({}, "MindTasker cron disabled (CRON_ENABLED=false)");
+    logger.info({}, "BabiTk cron disabled (CRON_ENABLED=false)");
     return;
   }
 
@@ -107,7 +107,7 @@ export function startMindtaskerScheduler(logger: {
 
   logger.info(
     { timezone: env.cronTimezone, archive: "02:00", digest: "08:00", trashPurge: "03:00", reminders: "*/15" },
-    "MindTasker cron scheduler started",
+    "BabiTk cron scheduler started",
   );
 }
 

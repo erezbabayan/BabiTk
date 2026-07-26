@@ -85,7 +85,7 @@ export async function syncTaskToCalendar(params: {
 
   const eventBody = {
     summary: params.title,
-    description: `${params.content}\n\n— MindTasker`.trim(),
+    description: `${params.content}\n\n— BabiTk`.trim(),
     start: { dateTime: start.toISOString(), timeZone },
     end: { dateTime: end.toISOString(), timeZone },
   };
