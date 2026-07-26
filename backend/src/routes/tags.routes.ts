@@ -9,7 +9,7 @@ const tagInputSchema = z.object({
 });
 
 const replaceBodySchema = z.object({
-  tags: z.array(tagInputSchema).min(1).max(20),
+  tags: z.array(tagInputSchema).min(1).max(12),
 });
 
 export const tagsRoutes: FastifyPluginAsync = async (app) => {
@@ -37,7 +37,7 @@ export const tagsRoutes: FastifyPluginAsync = async (app) => {
     if (!body.success) {
       return reply.status(400).send({
         error: "validation_error",
-        message: body.error.flatten(),
+        message: "נתוני תגיות לא תקינים",
       });
     }
 

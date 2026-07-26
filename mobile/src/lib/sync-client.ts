@@ -1,6 +1,6 @@
 import { isDemoMode } from "./supabase";
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
 const SYNC_TOKEN =
   process.env.EXPO_PUBLIC_SYNC_TOKEN?.trim() || "mindtasker-local-sync";
 
@@ -110,7 +110,7 @@ export async function hardDeleteSyncItem(id: string): Promise<void> {
 
 export async function ingestTextSync(params: {
   text: string;
-  sourceType?: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr";
+  sourceType?: "whatsapp_text" | "whatsapp_voice" | "notebook_ocr" | "typed_text" | "image" | "document";
   timezone?: string;
   locale?: string;
 }): Promise<void> {
@@ -123,4 +123,24 @@ export async function ingestTextSync(params: {
       locale: params.locale ?? "he-IL",
     }),
   });
+}
+
+export async function ingestVoiceSync(
+  uri: string,
+  mimeType: string,
+  name: string,
+): Promise<void> {
+  const form = new FormData();
+  form.append("file", { uri, name, type: mimeType } as unknown as Blob);
+
+  const res = await fetch(`${API_BASE}/api/sync/ingest/voice`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SYNC_TOKEN}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? `Voice ingest failed ${res.status}`);
+  }
 }

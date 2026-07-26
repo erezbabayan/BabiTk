@@ -1,4 +1,10 @@
-export type SourceType = "whatsapp_voice" | "whatsapp_text" | "notebook_ocr";
+export type SourceType =
+  | "whatsapp_voice"
+  | "whatsapp_text"
+  | "notebook_ocr"
+  | "typed_text"
+  | "image"
+  | "document";
 
 export type ItemStatus = "inbox" | "pending" | "completed" | "snoozed_archive";
 

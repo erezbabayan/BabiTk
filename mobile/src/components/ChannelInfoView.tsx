@@ -11,6 +11,8 @@ import {
 interface ChannelInfoViewProps {
   channelId: keyof typeof CHANNELS;
   summary?: UsageSummary | null;
+  /** Hide long description / platform / notes — keep quotas + children. */
+  compact?: boolean;
   children?: ReactNode;
 }
 
@@ -52,23 +54,34 @@ function LimitsBlock({
   );
 }
 
-export function ChannelInfoView({ channelId, summary, children }: ChannelInfoViewProps) {
+export function ChannelInfoView({
+  channelId,
+  summary,
+  compact = false,
+  children,
+}: ChannelInfoViewProps) {
   const channel = CHANNELS[channelId];
 
   return (
     <ScrollView contentContainerStyle={styles.content}>
-      <Text style={styles.description}>{channel.description}</Text>
-      <Text style={styles.platforms}>זמין ב: {channel.platforms}</Text>
+      {!compact ? (
+        <>
+          <Text style={styles.description}>{channel.description}</Text>
+          <Text style={styles.platforms}>זמין ב: {channel.platforms}</Text>
+        </>
+      ) : null}
 
       {children}
 
       <LimitsBlock channel={channel} summary={summary} />
 
-      {channel.notes?.map((note) => (
-        <Text key={note} style={styles.note}>
-          • {note}
-        </Text>
-      ))}
+      {!compact
+        ? channel.notes?.map((note) => (
+            <Text key={note} style={styles.note}>
+              • {note}
+            </Text>
+          ))
+        : null}
     </ScrollView>
   );
 }

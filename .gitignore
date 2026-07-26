@@ -7,6 +7,16 @@ backend/data/
 !.env.*.example
 .env.production
 .supabase-local.env
+.whatsapp.local.env
+!.whatsapp.local.env.example
+.azure-babitk.local.env
+.deploy-babitk-web/
+.deploy-babitk-web.zip
+.deploy-keys/
+.google-oauth.local.env
+!.google-oauth.local.env.example
+.convex-auth-keys.json
+.convex-auth-env.tmp
 node_modules/
 .expo/
 dist/

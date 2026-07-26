@@ -1,4 +1,4 @@
-# MindTasker — create (optional) + link + migrations + .env sync
+# BabiTk — create (optional) + link + migrations + .env sync
 # Usage (existing project):
 #   $env:SUPABASE_ACCESS_TOKEN = "sbp_..."
 #   $env:SUPABASE_PROJECT_REF = "abcdefghijklmnop"
@@ -47,7 +47,7 @@ if (-not $projectRef -and (Get-Env "SUPABASE_CREATE") -eq "1") {
   }
 
   $region = Get-Env "SUPABASE_REGION" "eu-central-1"
-  $projectName = Get-Env "SUPABASE_PROJECT_NAME" "mindtasker"
+  $projectName = Get-Env "SUPABASE_PROJECT_NAME" "BabiTk"
   Write-Host "Creating project '$projectName' in $region (this may take 1-2 min) ..."
   $createJson = npx supabase projects create $projectName --org-id $orgId --db-password $dbPassword --region $region -o json 2>&1
   if ($LASTEXITCODE -ne 0) { throw "supabase projects create failed: $createJson" }
@@ -114,6 +114,7 @@ try {
   $mobileEnv = "$root\mobile\.env"
   if (-not (Test-Path $mobileEnv)) { Copy-Item "$root\mobile\.env.example" $mobileEnv }
   Update-EnvFile $mobileEnv @{
+    "EXPO_PUBLIC_DEMO_MODE" = "false"
     "EXPO_PUBLIC_SUPABASE_URL" = $supabaseUrl
     "EXPO_PUBLIC_SUPABASE_ANON_KEY" = $anon
     "EXPO_PUBLIC_API_URL" = "http://localhost:3001"
@@ -122,6 +123,15 @@ try {
   Write-Host ""
   Write-Host "Done! Supabase linked, migrations applied, .env files updated."
   Write-Host "Run: node scripts/verify-stack.mjs"
+
+  if ($env:GOOGLE_CLIENT_ID -and $env:GOOGLE_CLIENT_SECRET) {
+    Write-Host ""
+    Write-Host "Configuring Google login ..."
+    & "$root\scripts\setup-google-auth.ps1"
+  } else {
+    Write-Host ""
+    Write-Host "Next: configure Google login with .\scripts\configure-auth.ps1"
+  }
 }
 finally {
   Pop-Location

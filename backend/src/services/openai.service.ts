@@ -1,11 +1,11 @@
 import OpenAI from "openai";
-import { toFile } from "openai/uploads";
 import {
   enforceIngestionRules,
 } from "./entity-rules.service.js";
 import { env } from "../config/env.js";
 import { resizeImageForOcr } from "../utils/image-resize.js";
-import { notebookVisionTranscriptionPrompt, notebookLinguisticEditPrompt } from "../prompts/notebook-ocr.prompt.js";
+import { notebookVisionTranscriptionPrompt, notebookLinguisticEditPrompt, inboundHebrewProofreadPrompt } from "../prompts/notebook-ocr.prompt.js";
+import { applyHebrewAsrSpellingFixes, HEBREW_ASR_WHISPER_PROMPT } from "../lib/ingest/hebrewAsrSpelling.js";
 import {
   type NotebookOcrMetadata,
   type OcrLine,
@@ -126,35 +126,15 @@ export async function parseInputWithAI(
   });
 }
 
+import { transcribeHebrewAudio } from "./hebrew-asr.service.js";
+
 export async function transcribeAudio(
   audio: Buffer,
   fileName: string,
   mimeType = "audio/ogg",
 ): Promise<TranscribeAudioResult> {
-  const file = await toFile(audio, fileName, { type: mimeType });
-
-  const transcription = await openai.audio.transcriptions.create({
-    file,
-    model: env.openaiWhisperModel,
-    language: "he",
-    response_format: "verbose_json",
-  });
-
-  const text = transcription.text?.trim();
-  if (!text) {
-    throw new Error("Whisper returned empty transcription");
-  }
-
-  const durationSeconds = Math.max(
-    1,
-    Math.ceil(
-      "duration" in transcription && typeof transcription.duration === "number"
-        ? transcription.duration
-        : audio.length / 16_000,
-    ),
-  );
-
-  return { text, durationSeconds };
+  const result = await transcribeHebrewAudio(audio, fileName, mimeType);
+  return { text: result.text, durationSeconds: result.durationSeconds };
 }
 
 export interface NotebookVisionTranscriptionResult {
@@ -221,7 +201,32 @@ export async function transcribeNotebookImageVision(
   };
 }
 
-/** Phase B: NLP proofreading — fix OCR artifacts without changing author intent. */
+/** Soft Hebrew spelling / ASR / OCR proofread — never throws; returns original on failure. */
+export async function proofreadHebrewInboundText(text: string): Promise<string> {
+  const trimmed = applyHebrewAsrSpellingFixes(text.trim());
+  if (trimmed.length < 3) return trimmed;
+
+  const hebrewChars = (trimmed.match(/[\u0590-\u05FF]/g) ?? []).length;
+  const latinChars = (trimmed.match(/[A-Za-z]/g) ?? []).length;
+  if (hebrewChars === 0 && latinChars > 0) return trimmed;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: env.openaiParseModel,
+      temperature: 0,
+      messages: [
+        { role: "system", content: inboundHebrewProofreadPrompt },
+        { role: "user", content: trimmed },
+      ],
+    });
+    const corrected = completion.choices[0]?.message?.content?.trim();
+    return applyHebrewAsrSpellingFixes(corrected || trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+/** Phase B: NLP proofreading — fix OCR/ASR/spelling without changing author intent. */
 export async function refineNotebookTranscription(
   rawTranscription: string,
 ): Promise<string> {
@@ -232,7 +237,7 @@ export async function refineNotebookTranscription(
 
   const completion = await openai.chat.completions.create({
     model: env.openaiParseModel,
-    temperature: 0.1,
+    temperature: 0,
     messages: [
       {
         role: "system",

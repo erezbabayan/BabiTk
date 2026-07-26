@@ -1,15 +1,17 @@
 {
-  "name": "mindtasker",
+  "name": "babitk",
   "version": "0.1.0",
   "private": true,
-  "description": "מנהל משימות והערות חכם — קליטה מוואטסאפ, קול ומחברת, עם בינה מלאכותית בעברית",
+  "description": "BabiTk — מנהל משימות והערות חכם: קליטה מוואטסאפ, קול ומחברת, עם בינה מלאכותית בעברית",
   "scripts": {
     "convex:dev": "convex dev",
     "convex:once": "convex dev --once",
     "convex:seed": "node scripts/seed-convex.mjs",
     "convex:link-phone": "node scripts/link-user-phone.mjs",
     "convex:test": "npm test --prefix backend -- --test-name-pattern Convex",
-    "dev:web": "convex dev --start \"npm run dev --prefix web\""
+    "dev": "node scripts/dev-supervisor.mjs",
+    "dev:web": "convex dev --start \"npm run dev --prefix web\"",
+    "dev:expo": "node scripts/dev-supervisor.mjs --expo"
   },
   "dependencies": {
     "convex": "^1.41.0",

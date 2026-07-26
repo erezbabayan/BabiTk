@@ -1,13 +1,28 @@
 {
   "expo": {
-    "name": "MindTasker",
-    "slug": "mindtasker",
+    "name": "BabiTk",
+    "slug": "babitk",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה.",
+        "NSCameraUsageDescription": "BabiTk צריך גישה למצלמה כדי לסרוק דפי מחברת.",
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
     "android": {
       "package": "com.mindtasker.app",
       "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ],
       "statusBar": {
         "backgroundColor": "#ffffff",
         "barStyle": "dark-content"
@@ -31,7 +46,29 @@
     "scheme": "mindtasker",
     "plugins": [
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "BabiTk צריך גישה למצלמה כדי לסרוק דפי מחברת.",
+          "microphonePermission": "BabiTk צריך גישה למיקרופון להקלטת וידאו."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4f46e5"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-web-browser",
+      "expo-secure-store"
     ]
   }
 }

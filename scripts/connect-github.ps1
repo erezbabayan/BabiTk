@@ -1,4 +1,4 @@
-# Connect MindTasker to your private GitHub account.
+# Connect BabiTk to your GitHub account.
 # Prerequisite: run `gh auth login` and complete browser sign-in.
 
 $ErrorActionPreference = "Stop"
@@ -21,19 +21,19 @@ git config user.email $email
 if (-not (Test-Path .git)) { git init; git branch -M main }
 if (-not (git rev-parse HEAD 2>$null)) {
   git add .
-  git commit -m "Initial commit: MindTasker monorepo with CI workflow"
+  git commit -m "Initial commit: BabiTk monorepo with CI workflow"
 }
 
-$existing = gh repo view "$user/MindTasker" 2>$null
+$existing = gh repo view "$user/BabiTk" 2>$null
 if ($LASTEXITCODE -ne 0) {
-  gh repo create MindTasker --private --source=. --remote=origin --push
+  gh repo create BabiTk --private --source=. --remote=origin --push
 } else {
   if (-not (git remote get-url origin 2>$null)) {
-    git remote add origin "https://github.com/$user/MindTasker.git"
+    git remote add origin "https://github.com/$user/BabiTk.git"
   }
   git push -u origin main
 }
 
 Write-Host ""
-Write-Host "Done: https://github.com/$user/MindTasker (private)"
+Write-Host "Done: https://github.com/$user/BabiTk"
 gh repo view --web 2>$null

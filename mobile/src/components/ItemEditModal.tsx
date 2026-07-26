@@ -15,6 +15,14 @@ import type { MindtaskerItem } from "../lib/supabase";
 import type { ItemEditInput } from "../hooks/useBoardItems";
 import { getItemAnalysis, urgencyColor, formatAnalysisTime, showTimeMention } from "../lib/item-analysis";
 import { DueDateFields, combineDueDate, splitDueDate, type DueDateParts } from "./DueDateFields";
+import { effectiveTaskDueDate, getReminderFlags } from "../lib/resolve-item-reminder";
+import { useUserTags } from "../hooks/useUserTags";
+import {
+  MAX_ITEM_TAGS,
+  alignItemTagsWithDefinitions,
+  formatTagLabel,
+  readableTextColor,
+} from "../lib/tags";
 
 interface ItemEditModalProps {
   item: MindtaskerItem | null;
@@ -24,9 +32,10 @@ interface ItemEditModalProps {
 }
 
 export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalProps) {
+  const { tags: userTags } = useUserTags();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [tagsText, setTagsText] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [dueParts, setDueParts] = useState<DueDateParts>({ date: "", hour: "09", minute: "00" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +44,26 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
     if (!item || !visible) return;
     setTitle(item.title);
     setContent(item.content ?? "");
-    setTagsText(item.tags.join(", "));
-    setDueParts(splitDueDate(item.due_date));
+    setSelectedTags(alignItemTagsWithDefinitions(item.tags ?? [], userTags));
+    setDueParts(
+      !getReminderFlags(item.metadata).disabled
+        ? splitDueDate(effectiveTaskDueDate(item))
+        : splitDueDate(null),
+    );
     setError(null);
-  }, [item, visible]);
+    // Reset form only when opening / switching items — not when tag definitions refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: omit userTags
+  }, [item?.id, visible]);
+
+  useEffect(() => {
+    if (!item || !visible) return;
+    setSelectedTags((prev) => alignItemTagsWithDefinitions(prev, userTags));
+  }, [userTags, item, visible]);
 
   function resetAndClose() {
     setTitle("");
     setContent("");
-    setTagsText("");
+    setSelectedTags([]);
     setDueParts({ date: "", hour: "09", minute: "00" });
     setError(null);
     onClose();
@@ -65,15 +85,11 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
     setSaving(true);
     setError(null);
     try {
-      const tags = tagsText
-        .split(",")
-        .map((t) => t.trim().replace(/^#/, ""))
-        .filter(Boolean);
       await onSave(current, {
         title: trimmed,
         content: content.trim(),
-        tags,
-        due_date: current.is_actionable ? combineDueDate(dueParts) : null,
+        tags: alignItemTagsWithDefinitions(selectedTags, userTags),
+        due_date: combineDueDate(dueParts),
       });
       resetAndClose();
     } catch (err) {
@@ -118,15 +134,49 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
               textAlign="right"
               textAlignVertical="top"
             />
-            <Text style={styles.label}>תגיות (מופרדות בפסיק)</Text>
-            <TextInput
-              style={styles.input}
-              value={tagsText}
-              onChangeText={setTagsText}
-              placeholder="עבודה, דחוף"
-              textAlign="right"
-            />
-            {item.is_actionable ? <DueDateFields value={dueParts} onChange={setDueParts} /> : null}
+            <Text style={styles.label}>תגיות</Text>
+            {userTags.length === 0 ? (
+              <Text style={styles.tagEmptyHint}>הגדר תגיות במסך ההגדרות</Text>
+            ) : null}
+            <View style={styles.tagRow}>
+              {userTags.map((tag) => {
+                const active = selectedTags.includes(tag.name);
+                return (
+                  <Pressable
+                    key={tag.id}
+                    onPress={() => {
+                      setSelectedTags((current) => {
+                        if (current.includes(tag.name)) {
+                          return current.filter((name) => name !== tag.name);
+                        }
+                        if (current.length >= MAX_ITEM_TAGS) return current;
+                        return [...current, tag.name];
+                      });
+                    }}
+                    style={[
+                      styles.tagChip,
+                      {
+                        backgroundColor: active ? tag.color : "#f1f5f9",
+                        borderColor: active ? tag.color : "#e2e8f0",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tagChipText,
+                        { color: active ? readableTextColor(tag.color) : "#64748b" },
+                      ]}
+                    >
+                      {formatTagLabel(tag.name)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.tagHint}>
+              {selectedTags.length}/{MAX_ITEM_TAGS} תגיות על הפריט
+            </Text>
+            <DueDateFields value={dueParts} onChange={setDueParts} />
             {analysis ? (
               <View style={styles.analysisBox}>
                 <View style={styles.analysisHeader}>
@@ -236,6 +286,32 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   multiline: { minHeight: 80, maxHeight: 160 },
+  tagRow: {
+    flexDirection: "row-reverse",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  tagChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  tagHint: {
+    fontSize: 11,
+    color: "#94a3b8",
+    textAlign: "right",
+  },
+  tagEmptyHint: {
+    fontSize: 11,
+    color: "#94a3b8",
+    textAlign: "right",
+    marginBottom: 6,
+  },
   analysisBox: {
     marginTop: 8,
     borderWidth: 1,

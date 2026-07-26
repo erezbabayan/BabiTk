@@ -1,154 +1,117 @@
-import { useEffect, useState } from "react";
-import { DEFAULT_USER_TAGS } from "../lib/tags";
-import type { UserTag } from "../lib/tags";
-
-const PALETTE = [
-  "#3b82f6",
-  "#8b5cf6",
-  "#ef4444",
-  "#f59e0b",
-  "#10b981",
-  "#ec4899",
-  "#06b6d4",
-  "#64748b",
-];
+import { useUserTags } from "../hooks/useUserTags";
+import { useTagSettingsDraft } from "../hooks/useTagSettingsDraft";
+import { DEFAULT_USER_TAGS, MAX_USER_TAGS } from "../lib/tags";
 
 interface TagSettingsProps {
-  tags: UserTag[];
-  onSave: (tags: { name: string; color: string }[]) => Promise<void>;
+  className?: string;
+  active?: boolean;
 }
 
-export function TagSettings({ tags, onSave }: TagSettingsProps) {
-  const [draft, setDraft] = useState(() =>
-    (tags.length > 0 ? tags : DEFAULT_USER_TAGS.map((tag, index) => ({
-      id: `new-${index}`,
-      name: tag.name,
-      color: tag.color,
-      sort_order: index,
-    }))).map((tag) => ({ name: tag.name, color: tag.color })),
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+export function TagSettings({ className, active = true }: TagSettingsProps = {}) {
+  const { loading: tagsLoading } = useUserTags();
+  const {
+    draft,
+    updateTag,
+    removeTag,
+    flushSave,
+    resetToDefaults,
+    filledCount,
+    saving,
+    loading,
+    ready,
+    error,
+    synced,
+  } = useTagSettingsDraft(active);
 
-  useEffect(() => {
-    setDraft(
-      (tags.length > 0 ? tags : DEFAULT_USER_TAGS.map((tag, index) => ({
-        id: `new-${index}`,
-        name: tag.name,
-        color: tag.color,
-        sort_order: index,
-      }))).map((tag) => ({ name: tag.name, color: tag.color })),
+  if (!ready && (tagsLoading || loading)) {
+    return (
+      <section className={`space-y-3 border-t border-slate-200 pt-4${className ? ` ${className}` : ""}`}>
+        <p className="text-xs text-slate-500">טוען תגיות...</p>
+      </section>
     );
-  }, [tags]);
-
-  function updateTag(index: number, patch: Partial<{ name: string; color: string }>) {
-    setDraft((current) =>
-      current.map((tag, i) => (i === index ? { ...tag, ...patch } : tag)),
-    );
-  }
-
-  function addTag() {
-    if (draft.length >= 20) return;
-    setDraft((current) => [
-      ...current,
-      { name: "", color: PALETTE[current.length % PALETTE.length]! },
-    ]);
-  }
-
-  function removeTag(index: number) {
-    if (draft.length <= 1) return;
-    setDraft((current) => current.filter((_, i) => i !== index));
-  }
-
-  async function handleSave() {
-    setError(null);
-    setMessage(null);
-    const cleaned = draft
-      .map((tag) => ({ name: tag.name.trim(), color: tag.color }))
-      .filter((tag) => tag.name.length > 0);
-
-    if (cleaned.length === 0) {
-      setError("נדרשת לפחות תגית אחת");
-      return;
-    }
-
-    const names = cleaned.map((tag) => tag.name);
-    if (new Set(names).size !== names.length) {
-      setError("יש תגיות עם שמות כפולים");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await onSave(cleaned);
-      setMessage("התגיות נשמרו — ה-AI ישתמש בהן לפריטים חדשים");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שמירה נכשלה");
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
-    <section className="space-y-3 border-t border-slate-200 pt-4">
+    <section className={`space-y-3 border-t border-slate-200 pt-4${className ? ` ${className}` : ""}`}>
       <div>
         <h3 className="text-sm font-bold text-slate-800">תגיות מותאמות</h3>
         <p className="mt-1 text-xs text-slate-500">
-          הגדר תגיות וצבעים. המערכת תשייך אותן אוטומטית לפריטים חדשים לפי ניתוח ה-AI.
+          הגדר עד {MAX_USER_TAGS} תגיות וצבעים. שינויים נשמרים אוטומטית ומסתנכרנים עם הבורדים.
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          {filledCount}/{MAX_USER_TAGS} תגיות מוגדרות
+          {saving ? " · שומר..." : synced ? " · מסונכרן" : " · ממתין לשמירה..."}
         </p>
       </div>
 
-      <div className="space-y-2">
-        {draft.map((tag, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <input
-              type="color"
-              value={tag.color}
-              onChange={(e) => updateTag(index, { color: e.target.value })}
-              className="h-8 w-10 shrink-0 cursor-pointer rounded border border-slate-300 p-0.5"
-              aria-label={`צבע לתגית ${index + 1}`}
-            />
-            <input
-              type="text"
-              value={tag.name}
-              onChange={(e) => updateTag(index, { name: e.target.value })}
-              placeholder="שם תגית"
-              className="min-w-0 flex-1 py-1"
-            />
-            <button
-              type="button"
-              onClick={() => removeTag(index)}
-              disabled={draft.length <= 1}
-              className="shrink-0 border border-slate-300 px-2 py-1 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+      <div className="max-h-[min(52vh,420px)] space-y-2 overflow-y-auto pr-1">
+        {draft.map((tag, index) => {
+          const empty = !tag.name.trim();
+          return (
+            <div
+              key={index}
+              className={`flex items-center gap-2 rounded-md px-1 py-0.5 ${
+                empty ? "border border-dashed border-slate-200 bg-slate-50/60" : ""
+              }`}
             >
-              מחק
-            </button>
-          </div>
-        ))}
+              <span className="w-5 shrink-0 text-center text-[10px] text-slate-400">{index + 1}</span>
+              <input
+                type="color"
+                value={tag.color}
+                onChange={(e) => updateTag(index, { color: e.target.value })}
+                className="h-8 w-10 shrink-0 cursor-pointer rounded border border-slate-300 p-0.5"
+                aria-label={`צבע לתגית ${index + 1}`}
+              />
+              <input
+                type="text"
+                value={tag.name}
+                onChange={(e) => updateTag(index, { name: e.target.value })}
+                onBlur={() => void flushSave()}
+                placeholder={`תגית ${index + 1}`}
+                className="min-w-0 flex-1 py-1"
+              />
+              <button
+                type="button"
+                onClick={() => removeTag(index)}
+                disabled={empty || filledCount <= 1}
+                className="shrink-0 border border-slate-300 px-2 py-1 text-slate-500 hover:bg-slate-50 disabled:opacity-40"
+              >
+                מחק
+              </button>
+            </div>
+          );
+        })}
       </div>
+
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
 
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={addTag}
-          disabled={draft.length >= 20}
-          className="border border-slate-300 hover:bg-slate-50 disabled:opacity-40"
-        >
-          + תגית
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
+          onClick={() => void flushSave()}
           disabled={saving}
           className="bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
         >
-          {saving ? "שומר..." : "שמור תגיות"}
+          {saving ? "שומר..." : "שמור עכשיו"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (
+              !window.confirm(
+                `לאפס ל-${DEFAULT_USER_TAGS.length} תגיות ברירת מחדל?\n(${DEFAULT_USER_TAGS.map((t) => t.name).join(", ")})\n\nהרשימה תתעדכן בכל הבורדים.`,
+              )
+            ) {
+              return;
+            }
+            void resetToDefaults();
+          }}
+          disabled={saving}
+          className="border border-slate-300 px-3 py-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+        >
+          איפוס לברירת מחדל
         </button>
       </div>
-
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
-      {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
     </section>
   );
 }

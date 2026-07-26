@@ -93,12 +93,26 @@ export function mindtaskerPatchToConvex(
 
   for (const [key, value] of Object.entries(patch)) {
     const mapped = PATCH_KEY_MAP[key] ?? key;
-    if (
-      mapped === "deletedAt" ||
-      mapped === "lastInteractedAt" ||
-      mapped === "completedAt"
-    ) {
+    // Schema: completedAt is ISO string; deletedAt/lastInteractedAt are epoch ms.
+    if (mapped === "deletedAt" || mapped === "lastInteractedAt") {
       result[mapped] = parseTimestamp(value);
+      continue;
+    }
+    if (mapped === "completedAt") {
+      if (value === undefined) continue;
+      if (value === null) {
+        result[mapped] = null;
+        continue;
+      }
+      if (typeof value === "string") {
+        result[mapped] = value;
+        continue;
+      }
+      if (typeof value === "number") {
+        result[mapped] = new Date(value).toISOString();
+        continue;
+      }
+      result[mapped] = null;
       continue;
     }
     result[mapped] = value;

@@ -5,7 +5,7 @@ import { boardSwipeActions } from "../lib/item-swipe-actions";
 import { ItemCard } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
-import { boardItemsLayoutClass } from "../lib/board-item-layout";
+import { boardItemCellClass, boardItemCellStyle, boardItemsLayoutClass, boardItemsLayoutStyle } from "../lib/board-item-layout";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface NotesMasonryProps {
@@ -45,7 +45,7 @@ export function NotesMasonry({
   }
 
   return (
-    <div className={boardItemsLayoutClass(view)}>
+    <div className={boardItemsLayoutClass(view)} style={boardItemsLayoutStyle(view)}>
       {notes.map((item) => {
         const swipe =
           onArchive && onDelete
@@ -68,9 +68,13 @@ export function NotesMasonry({
         );
 
         return (
-          <div key={item.id} className={view === "squares" ? "min-w-0" : undefined}>
+          <div key={item.id} className={boardItemCellClass(view)} style={boardItemCellStyle(view)}>
             {swipe ? (
-              <SwipeableItemCard leftAction={swipe.left} rightAction={swipe.right}>
+              <SwipeableItemCard
+                leftAction={swipe.left}
+                rightAction={swipe.right}
+                squares={view === "squares"}
+              >
                 {card}
               </SwipeableItemCard>
             ) : (

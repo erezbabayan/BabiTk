@@ -21,7 +21,7 @@ export function PaywallModal({ open, code, summary, onClose, onUpgraded }: Paywa
     ? isAudio
       ? "מכסת תמלול אזלה"
       : "מכסת AI אזלה"
-    : "MindTasker Premium";
+    : "BabiTk Premium";
   const description = code
     ? isAudio
       ? "הגעת למכסת דקות התמלול החודשית בחשבון החינמי."

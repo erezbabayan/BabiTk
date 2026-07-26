@@ -1,4 +1,5 @@
 import type { UsageSummary } from "./api";
+import type { NotebookIconName } from "../components/NotebookIcons";
 
 export interface ChannelLimitRow {
   label: string;
@@ -7,7 +8,7 @@ export interface ChannelLimitRow {
 
 export interface ChannelInfo {
   id: string;
-  icon: string;
+  icon: NotebookIconName;
   title: string;
   description: string;
   platforms: string;
@@ -32,35 +33,27 @@ export const TECH_LIMITS = {
 export const CHANNELS: Record<string, ChannelInfo> = {
   whatsapp: {
     id: "whatsapp",
-    icon: "💬",
+    icon: "whatsapp",
     title: "וואטסאפ",
-    description: "שלח הודעות טקסט, הקלטות קוליות או תמונות מחברת לבוט MindTasker.",
-    platforms: "וואטסאפ (לאחר חיבור מספר)",
+    description: "קליטת משימות מקבוצת וואטסאפ קיימת ותזכורות יומיות.",
+    platforms: "וואטסאפ",
     limits: [
-      { label: "סוגי הודעות", value: "טקסט, הקלטה קולית, תמונת מחברת" },
-      { label: "חיבור חשבון", value: "מספר טלפון מאומת בפורמט +972..." },
+      { label: "סוגי הודעות", value: "טקסט, קול, תמונה" },
       { label: "תמלול קולי", value: `עד ${FREE_TIER_DEFAULTS.audioMinutesPerMonth} דק׳/חודש (חינמי)` },
       { label: "עיבוד AI", value: `עד ${FREE_TIER_DEFAULTS.aiParsesPerMonth} פעולות/חודש (חינמי)` },
       { label: "איפוס מכסה", value: `כל ${FREE_TIER_DEFAULTS.periodDays} יום` },
-      { label: "פורמט קול", value: "OGG (מוואטסאפ)" },
-      { label: "טקסט מינימלי", value: `${TECH_LIMITS.minTextChars} תווים` },
-    ],
-    notes: [
-      "נתמך: Meta Cloud API, Green-API, Whapi — לפי WHATSAPP_PROVIDER בשרת.",
-      "הודעות ריקות, אימוג׳י בלבד או סוגים לא נתמכים יידחו.",
-      "ב-Premium אין הגבלת מכסה על תמלול ועיבוד AI.",
     ],
   },
   voice: {
     id: "voice",
-    icon: "🎙",
+    icon: "mic",
     title: "הקלטה קולית",
-    description: "הקלט רעיונות ומשימות ישירות מהאפליקציה — מתומללים ומסווגים אוטומטית.",
-    platforms: "אפליקציית מובייל (קליטה מהירה)",
+    description: "הקלט רעיונות ומשימות ישירות מהאפליקציה או מהדפדפן — מתומללים ומסווגים אוטומטית.",
+    platforms: "מובייל ודפדפן (כולל אנדרואיד) — קליטה מהירה",
     limits: [
-      { label: "זמינות", value: "מובייל בלבד (לא בדפדפן)" },
+      { label: "זמינות", value: "מובייל ודפדפן (Chrome/Android)" },
       { label: "הרשאה", value: "גישה למיקרופון" },
-      { label: "פורמט", value: "M4A (איכות גבוהה)" },
+      { label: "פורמט", value: "M4A / WebM" },
       { label: "גודל העלאה", value: `עד ${TECH_LIMITS.voiceApiMaxMb} MB לבקשה` },
       { label: "אחסון", value: `עד ${TECH_LIMITS.storageMaxMb} MB לקובץ בשרת` },
       { label: "תמלול", value: `עד ${FREE_TIER_DEFAULTS.audioMinutesPerMonth} דק׳/חודש (חינמי)` },
@@ -74,10 +67,10 @@ export const CHANNELS: Record<string, ChannelInfo> = {
   },
   notebook: {
     id: "notebook",
-    icon: "📷",
+    icon: "image",
     title: "סריקת מחברת",
     description: "צלם דף מחברת או פתק — OCR מחלץ טקסט ויוצר משימות והערות.",
-    platforms: "מובייל (מצלמה) או וואטסאפ (תמונה)",
+    platforms: "מובייל, דפדפן (מצלמה) או וואטסאפ (תמונה)",
     limits: [
       { label: "קלט", value: "תמונת JPEG/PNG/WebP" },
       { label: "גודל העלאה", value: `עד ${TECH_LIMITS.ocrApiMaxMb} MB לבקשה` },
@@ -92,7 +85,7 @@ export const CHANNELS: Record<string, ChannelInfo> = {
   },
   text: {
     id: "text",
-    icon: "✏️",
+    icon: "edit",
     title: "קליטת טקסט",
     description: "הדבק או הקלד טקסט, רשימה או רעיון — ה-AI מפרק למשימות והערות.",
     platforms: "Web + מובייל (קליטה מהירה)",

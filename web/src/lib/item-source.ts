@@ -1,63 +1,73 @@
-import type { MindtaskerItem, SourceMaterial, SourceType } from "../types";
-import { SOURCE_ICONS } from "../types";
+import type { NotebookIconName } from "../components/NotebookIcons";
+import type { MindtaskerItem, SourceMaterial } from "../types";
+import {
+  displayForSourceType,
+  MANUAL_SOURCE_DISPLAY,
+  type SourceType,
+  SOURCE_ICONS,
+  SOURCE_LABELS,
+} from "./source-display";
 
 export type DisplaySourceType = SourceType;
 
-export const SOURCE_LABELS: Record<DisplaySourceType, string> = {
-  whatsapp_voice: "הקלטה קולית",
-  whatsapp_text: "וואטסאפ",
-  notebook_ocr: "סריקת מחברת",
-};
+export { SOURCE_LABELS, SOURCE_ICONS };
 
 export interface ResolvedItemSource {
   type: DisplaySourceType;
-  icon: string;
+  icon: NotebookIconName;
   label: string;
   material: SourceMaterial | null;
   rawText: string | null;
   canOpen: boolean;
 }
 
+function resolveFromType(type: SourceType, material: SourceMaterial | null, rawText: string | null): ResolvedItemSource {
+  const display = displayForSourceType(type);
+  return {
+    type,
+    icon: display.icon,
+    label: display.label,
+    material,
+    rawText,
+    canOpen: true,
+  };
+}
+
 export function resolveItemSource(item: MindtaskerItem): ResolvedItemSource {
   const material = item.source_materials ?? null;
 
   if (material) {
-    return {
-      type: material.source_type,
-      icon: SOURCE_ICONS[material.source_type],
-      label: SOURCE_LABELS[material.source_type],
-      material,
-      rawText: material.raw_text,
-      canOpen: true,
-    };
+    return resolveFromType(material.source_type, material, material.raw_text);
   }
 
   if (item.source_material_id) {
-    return {
-      type: "whatsapp_text",
-      icon: SOURCE_ICONS.whatsapp_text,
-      label: SOURCE_LABELS.whatsapp_text,
-      material: null,
-      rawText: item.content || item.title,
-      canOpen: true,
-    };
+    return resolveFromType("whatsapp_text", null, item.content || item.title);
   }
 
   const fallbackText = [item.content, item.title].find((t) => t.trim().length > 0) ?? "";
 
+  if (!fallbackText) {
+    return {
+      type: "typed_text",
+      icon: MANUAL_SOURCE_DISPLAY.icon,
+      label: MANUAL_SOURCE_DISPLAY.label,
+      material: null,
+      rawText: null,
+      canOpen: false,
+    };
+  }
+
   return {
-    type: "whatsapp_text",
-    icon: SOURCE_ICONS.whatsapp_text,
-    label: SOURCE_LABELS.whatsapp_text,
-    material: fallbackText
-      ? {
-          id: `inline-${item.id}`,
-          source_type: "whatsapp_text",
-          storage_url: null,
-          raw_text: fallbackText,
-        }
-      : null,
-    rawText: fallbackText || null,
-    canOpen: fallbackText.length > 0,
+    type: "typed_text",
+    icon: MANUAL_SOURCE_DISPLAY.icon,
+    label: MANUAL_SOURCE_DISPLAY.label,
+    material: {
+      id: `inline-${item.id}`,
+      source_type: "typed_text",
+      storage_url: null,
+      raw_text: fallbackText,
+    },
+    rawText: fallbackText,
+    canOpen: true,
   };
 }

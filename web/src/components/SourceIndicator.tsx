@@ -1,5 +1,9 @@
 import type { MindtaskerItem } from "../types";
+import { MANUAL_SOURCE_DISPLAY } from "../lib/source-display";
 import { resolveItemSource } from "../lib/item-source";
+import { NotebookIcon } from "./NotebookIcons";
+import type { NotebookIconTone } from "./NotebookIcons";
+import { ITEM_ACTION_ATTR } from "./SwipeableItemCard";
 
 interface SourceIndicatorProps {
   item: MindtaskerItem;
@@ -7,6 +11,12 @@ interface SourceIndicatorProps {
   compact?: boolean;
   iconOnly?: boolean;
   isOpen?: boolean;
+  tone?: NotebookIconTone;
+}
+
+function sourceTone(isOpen: boolean, canOpen: boolean): NotebookIconTone {
+  if (!canOpen) return "muted";
+  return isOpen ? "slate" : "neutral";
 }
 
 export function SourceIndicator({
@@ -15,14 +25,20 @@ export function SourceIndicator({
   compact = false,
   iconOnly = false,
   isOpen = false,
+  tone,
 }: SourceIndicatorProps) {
   const source = resolveItemSource(item);
+  const iconTone = tone ?? sourceTone(isOpen, source.canOpen);
 
   if (!source.canOpen) {
     if (iconOnly) {
       return (
-        <span className="shrink-0 text-[10px] text-slate-300" title="ידני" aria-hidden>
-          ✏️
+        <span
+          className="notebook-icon-btn notebook-icon-btn--muted"
+          title={MANUAL_SOURCE_DISPLAY.label}
+          aria-hidden
+        >
+          <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={14} tone={iconTone} />
         </span>
       );
     }
@@ -31,10 +47,10 @@ export function SourceIndicator({
         className={`inline-flex items-center gap-1 rounded-full bg-slate-100 text-slate-400 ${
           compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"
         }`}
-        title="אין מקור שמור"
+        title={`אין מקור שמור — ${MANUAL_SOURCE_DISPLAY.label}`}
       >
-        <span aria-hidden>✏️</span>
-        <span>ידני</span>
+        <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={12} tone="muted" />
+        <span>{MANUAL_SOURCE_DISPLAY.label}</span>
       </span>
     );
   }
@@ -43,15 +59,19 @@ export function SourceIndicator({
     return (
       <button
         type="button"
-        onClick={onOpen}
-        className={`shrink-0 rounded px-0.5 text-[10px] leading-none hover:bg-slate-100 ${
-          isOpen ? "bg-slate-200 text-slate-800" : "text-slate-500"
-        }`}
+        {...{ [ITEM_ACTION_ATTR]: "" }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen();
+        }}
+        className={`notebook-icon-btn ${isOpen ? "notebook-icon-btn--active" : ""}`}
         title={isOpen ? "סגור מקור" : `${source.label} — צפייה במקור`}
         aria-label={isOpen ? "סגור מקור" : `${source.label} — צפייה במקור`}
         aria-pressed={isOpen}
       >
-        {source.icon}
+        <NotebookIcon name={source.icon} size={14} tone={iconTone} />
       </button>
     );
   }
@@ -65,11 +85,8 @@ export function SourceIndicator({
       }`}
       title={`מקור: ${source.label} — לחץ לצפייה`}
     >
-      <span aria-hidden>{source.icon}</span>
+      <NotebookIcon name={source.icon} size={12} tone={iconTone} />
       <span>{source.label}</span>
-      <span className="text-slate-400" aria-hidden>
-        👁
-      </span>
     </button>
   );
 }

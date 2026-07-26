@@ -40,7 +40,7 @@ export const ingestRoutes: FastifyPluginAsync = async (app) => {
       const result = await ingestText({
         userId: request.user.id,
         text: body.data.text,
-        sourceType: "whatsapp_text",
+        sourceType: "typed_text",
         metadata: { channel: "api" },
         timezone: body.data.timezone,
         locale: body.data.locale,

@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { getSupabaseAuthStorage } from "./auth-storage";
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
 
@@ -18,13 +20,19 @@ export const isSupabaseConfigured =
   isValidSupabaseUrl(supabaseUrl) &&
   !supabaseUrl.includes("[project-ref]");
 
-export const isDemoMode =
-  import.meta.env.VITE_DEMO_MODE === "true" || !isSupabaseConfigured;
+export const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
 let client: SupabaseClient | null = null;
 
 if (isSupabaseConfigured) {
-  client = createClient(supabaseUrl, supabaseAnonKey);
+  client = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      detectSessionInUrl: true,
+      flowType: "pkce",
+      storage: getSupabaseAuthStorage() as unknown as Storage,
+      persistSession: true,
+    },
+  });
 } else if (import.meta.env.DEV) {
   console.warn(
     "Missing or invalid VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY in web/.env",

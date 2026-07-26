@@ -7,7 +7,7 @@ import { useConvexUserId } from "./useConvexUserId";
 
 export function useConvexPhoneLink(legacyUserId: string | undefined) {
   const enabled = useConvexBackend() && Boolean(legacyUserId);
-  const convexUserId = useConvexUserId(legacyUserId);
+  const { convexUserId } = useConvexUserId(legacyUserId);
   const convexUser = useQuery(
     api.users.getByLegacyId,
     enabled && legacyUserId ? { legacyId: legacyUserId } : "skip",

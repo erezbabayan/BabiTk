@@ -1,0 +1,538 @@
+2026-07-19T00:09:52.1138853Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:09:54.8368509Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:09:54.8369691Z Container start method called.
+2026-07-19T00:09:54.8371631Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:09:54.8393894Z Establishing network.
+2026-07-19T00:09:54.8395955Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:09:55.8126117Z Container is starting.
+2026-07-19T00:09:55.8126800Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:09:55.8127348Z Establishing user namespace if not established already.
+2026-07-19T00:09:55.8136653Z Establishing network if not established already.
+2026-07-19T00:09:55.8137542Z Mounting volumes.
+2026-07-19T00:09:55.8138349Z Nested mountpoint 
+2026-07-19T00:09:55.8411518Z Nested mountpoint volatile/logs
+2026-07-19T00:09:55.8513080Z Nested mountpoint 
+2026-07-19T00:09:55.8610506Z Nested mountpoint 
+2026-07-19T00:09:55.8621307Z Nested mountpoint 
+2026-07-19T00:09:55.8923972Z Nested mountpoint 
+2026-07-19T00:09:56.1920218Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:09:56.2009045Z Creating container.
+2026-07-19T00:09:56.2096869Z Creating pipes for streaming container io.
+2026-07-19T00:09:56.2098605Z Creating stdout named pipe at /podr/container/pipe/2d29812cb69f_babitk-app/stdout_c2f50d13bcc341efb86ffb6c7e25648e.
+2026-07-19T00:09:56.2106357Z Successfully created stdout named pipe at: /podr/container/pipe/2d29812cb69f_babitk-app/stdout_c2f50d13bcc341efb86ffb6c7e25648e.
+2026-07-19T00:09:56.2110494Z Opening named pipe /podr/container/pipe/2d29812cb69f_babitk-app/stdout_c2f50d13bcc341efb86ffb6c7e25648e for reading in non-blocking mode.
+2026-07-19T00:09:56.2116658Z Successfully opened named pipe: /podr/container/pipe/2d29812cb69f_babitk-app/stdout_c2f50d13bcc341efb86ffb6c7e25648e.
+2026-07-19T00:09:56.2198371Z Successfully removed non-blocking flag from /podr/container/pipe/2d29812cb69f_babitk-app/stdout_c2f50d13bcc341efb86ffb6c7e25648e.
+2026-07-19T00:09:56.2225317Z Creating stderr named pipe at /podr/container/pipe/2d29812cb69f_babitk-app/stderr_3908bfc7e9d04c898e4c28bd60364b02.
+2026-07-19T00:09:56.2226782Z Successfully created stderr named pipe at: /podr/container/pipe/2d29812cb69f_babitk-app/stderr_3908bfc7e9d04c898e4c28bd60364b02.
+2026-07-19T00:09:56.2313041Z Opening named pipe /podr/container/pipe/2d29812cb69f_babitk-app/stderr_3908bfc7e9d04c898e4c28bd60364b02 for reading in non-blocking mode.
+2026-07-19T00:09:56.2401122Z Successfully opened named pipe: /podr/container/pipe/2d29812cb69f_babitk-app/stderr_3908bfc7e9d04c898e4c28bd60364b02.
+2026-07-19T00:09:56.2403499Z Successfully removed non-blocking flag from /podr/container/pipe/2d29812cb69f_babitk-app/stderr_3908bfc7e9d04c898e4c28bd60364b02.
+2026-07-19T00:09:56.2408682Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:09:57.3088953Z Starting container: 2d29812cb69f_babitk-app.
+2026-07-19T00:09:57.4310341Z Starting watchers and probes.
+2026-07-19T00:09:57.4581663Z Starting metrics collection.
+2026-07-19T00:09:57.4601657Z Container is running.
+2026-07-19T00:09:57.4607242Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:09:58.0190510Z Container start method finished after 3181 ms.
+2026-07-19T00:09:58.0193065Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:09:58.0504537Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:10:12.1458278Z Site startup probe failed after 14.0349243 seconds.
+2026-07-19T00:10:12.9954385Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T00:10:13.0361971Z Failed to start site. Revert by stopping site.
+2026-07-19T00:10:13.0460536Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T00:10:13.0749338Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T00:10:13.0751226Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:10:13.1041658Z Stop and delete container. Retry count = 0
+2026-07-19T00:10:13.1052922Z Stopping container: 2d29812cb69f_babitk-app.
+2026-07-19T00:10:18.1848448Z Deleting container: 2d29812cb69f_babitk-app. Retry count = 0
+2026-07-19T00:10:18.3721436Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:10:18.3726627Z Container is terminated. Total time elapsed: 5297 ms.
+2026-07-19T00:10:18.3733178Z Site container: babitk-app terminated during site startup.
+2026-07-19T00:10:18.3742339Z State: Stopping, Action: CancellingStartup, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site container: babitk-app terminated during site startup. Cancelling site startup., DetailsLevel: ERR
+2026-07-19T00:10:18.3832634Z Site: babitk-app stopped.
+2026-07-19T00:10:39.8271439Z State: Stopping, Action: StoppingSite, LastError: VNETFailure, LastErrorTimestamp: 07/17/2026 14:11:46, LastErrorDetails: There was an issue setting up VNet., Details: Site started at 07/18/2026 22:43:07 (UTC), DetailsLevel: INFO
+2026-07-19T00:10:39.8362175Z State: Stopping, Action: StoppingSiteContainers, LastError: VNETFailure, LastErrorTimestamp: 07/17/2026 14:11:46, LastErrorDetails: There was an issue setting up VNet., Details: Site started at 07/18/2026 22:43:07 (UTC), DetailsLevel: INFO
+2026-07-19T00:10:39.8363514Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:10:39.8569961Z Stop and delete container. Retry count = 0
+2026-07-19T00:10:39.8570866Z Stopping container: dce015272386_babitk-app.
+2026-07-19T00:10:45.0491300Z Deleting container: dce015272386_babitk-app. Retry count = 0
+2026-07-19T00:10:45.2375326Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:10:45.2381989Z Container is terminated. Total time elapsed: 5401 ms.
+2026-07-19T00:10:45.2383279Z Site: babitk-app stopped.
+2026-07-19T00:11:06.8961438Z State: Starting, Action: EstablishingSiteNetworks, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site stopped at 07/19/2026 00:10:19 (UTC), DetailsLevel: ERR
+2026-07-19T00:11:07.7535986Z State: Starting, Action: StartingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site stopped at 07/19/2026 00:10:19 (UTC), DetailsLevel: ERR
+2026-07-19T00:11:07.7536757Z Container start method called.
+2026-07-19T00:11:07.7537004Z State: Starting, Action: PullingImage, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:11:07.7537505Z Establishing network.
+2026-07-19T00:11:07.7538027Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:11:08.0265436Z Container is starting.
+2026-07-19T00:11:08.0437408Z State: Starting, Action: MountingVolumes, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:11:08.0438734Z Establishing user namespace if not established already.
+2026-07-19T00:11:08.0439517Z Establishing network if not established already.
+2026-07-19T00:11:08.0440276Z Mounting volumes.
+2026-07-19T00:11:08.0441158Z Nested mountpoint 
+2026-07-19T00:11:08.0556828Z Nested mountpoint volatile/logs
+2026-07-19T00:11:08.0759677Z Nested mountpoint 
+2026-07-19T00:11:08.0763389Z Nested mountpoint 
+2026-07-19T00:11:08.1056047Z Nested mountpoint 
+2026-07-19T00:11:08.2656730Z Nested mountpoint 
+2026-07-19T00:11:08.4257294Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:11:08.4258717Z Creating container.
+2026-07-19T00:11:08.4259540Z Creating pipes for streaming container io.
+2026-07-19T00:11:08.4260312Z Creating stdout named pipe at /podr/container/pipe/9fa40b904f90_babitk-app/stdout_8a721d583660480f86e3a245376711eb.
+2026-07-19T00:11:08.4348536Z Successfully created stdout named pipe at: /podr/container/pipe/9fa40b904f90_babitk-app/stdout_8a721d583660480f86e3a245376711eb.
+2026-07-19T00:11:08.4351770Z Opening named pipe /podr/container/pipe/9fa40b904f90_babitk-app/stdout_8a721d583660480f86e3a245376711eb for reading in non-blocking mode.
+2026-07-19T00:11:08.4354462Z Successfully opened named pipe: /podr/container/pipe/9fa40b904f90_babitk-app/stdout_8a721d583660480f86e3a245376711eb.
+2026-07-19T00:11:08.4356893Z Successfully removed non-blocking flag from /podr/container/pipe/9fa40b904f90_babitk-app/stdout_8a721d583660480f86e3a245376711eb.
+2026-07-19T00:11:08.4435787Z Creating stderr named pipe at /podr/container/pipe/9fa40b904f90_babitk-app/stderr_eabbff47f5f64a3b8a05c85093b25092.
+2026-07-19T00:11:08.4436954Z Successfully created stderr named pipe at: /podr/container/pipe/9fa40b904f90_babitk-app/stderr_eabbff47f5f64a3b8a05c85093b25092.
+2026-07-19T00:11:08.4437853Z Opening named pipe /podr/container/pipe/9fa40b904f90_babitk-app/stderr_eabbff47f5f64a3b8a05c85093b25092 for reading in non-blocking mode.
+2026-07-19T00:11:08.4438509Z Successfully opened named pipe: /podr/container/pipe/9fa40b904f90_babitk-app/stderr_eabbff47f5f64a3b8a05c85093b25092.
+2026-07-19T00:11:08.4439042Z Successfully removed non-blocking flag from /podr/container/pipe/9fa40b904f90_babitk-app/stderr_eabbff47f5f64a3b8a05c85093b25092.
+2026-07-19T00:11:08.4439785Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:11:08.7001340Z Starting container: 9fa40b904f90_babitk-app.
+2026-07-19T00:11:08.8362285Z Starting watchers and probes.
+2026-07-19T00:11:08.8374205Z Starting metrics collection.
+2026-07-19T00:11:08.8379470Z Container is running.
+2026-07-19T00:11:08.8383770Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:11:08.9060083Z Container start method finished after 1151 ms.
+2026-07-19T00:11:08.9336966Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:11:08.9337521Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:11:29.0503180Z Site startup probe succeeded after 20.0845079 seconds.
+2026-07-19T00:11:29.2377726Z State: Starting, Action: WarmUpProbeSucceeded, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site startup probe succeeded after 20.0845079 seconds., DetailsLevel: INFO
+2026-07-19T00:11:29.5296670Z Site is running with deployment version: 8f3a960b-0395-42a5-9f7d-be1c746ebdb8
+2026-07-19T00:11:29.5306078Z Site started.
+2026-07-19T00:11:29.5307259Z State: Started, Action: None, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:11:29 (UTC), DetailsLevel: INFO
+2026-07-19T00:11:29.5993119Z Site is running with patch version NODE-22.22.2
+2026-07-19T00:17:32.6524087Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:17:35.2023259Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:17:35.2024801Z Container start method called.
+2026-07-19T00:17:35.2025227Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:17:35.2025914Z Establishing network.
+2026-07-19T00:17:35.2026591Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:17:36.5414113Z Container is starting.
+2026-07-19T00:17:36.5416277Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:17:36.5417085Z Establishing user namespace if not established already.
+2026-07-19T00:17:36.5417748Z Establishing network if not established already.
+2026-07-19T00:17:36.5418339Z Mounting volumes.
+2026-07-19T00:17:36.5419163Z Nested mountpoint 
+2026-07-19T00:17:36.5628608Z Nested mountpoint volatile/logs
+2026-07-19T00:17:36.6110012Z Nested mountpoint 
+2026-07-19T00:17:36.6113927Z Nested mountpoint 
+2026-07-19T00:17:36.6133558Z Nested mountpoint 
+2026-07-19T00:17:36.6605816Z Nested mountpoint 
+2026-07-19T00:17:37.2702894Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:17:37.2703590Z Creating container.
+2026-07-19T00:17:37.2704079Z Creating pipes for streaming container io.
+2026-07-19T00:17:37.2704579Z Creating stdout named pipe at /podr/container/pipe/574df972f27a_babitk-app/stdout_5168789eed61404f96ad73ecbb8af069.
+2026-07-19T00:17:37.2705676Z Successfully created stdout named pipe at: /podr/container/pipe/574df972f27a_babitk-app/stdout_5168789eed61404f96ad73ecbb8af069.
+2026-07-19T00:17:37.2706177Z Opening named pipe /podr/container/pipe/574df972f27a_babitk-app/stdout_5168789eed61404f96ad73ecbb8af069 for reading in non-blocking mode.
+2026-07-19T00:17:37.2706764Z Successfully opened named pipe: /podr/container/pipe/574df972f27a_babitk-app/stdout_5168789eed61404f96ad73ecbb8af069.
+2026-07-19T00:17:37.2707240Z Successfully removed non-blocking flag from /podr/container/pipe/574df972f27a_babitk-app/stdout_5168789eed61404f96ad73ecbb8af069.
+2026-07-19T00:17:37.2707861Z Creating stderr named pipe at /podr/container/pipe/574df972f27a_babitk-app/stderr_5ab533234eb5403ab74121e56d47d10e.
+2026-07-19T00:17:37.2708575Z Successfully created stderr named pipe at: /podr/container/pipe/574df972f27a_babitk-app/stderr_5ab533234eb5403ab74121e56d47d10e.
+2026-07-19T00:17:37.2709036Z Opening named pipe /podr/container/pipe/574df972f27a_babitk-app/stderr_5ab533234eb5403ab74121e56d47d10e for reading in non-blocking mode.
+2026-07-19T00:17:37.2709600Z Successfully opened named pipe: /podr/container/pipe/574df972f27a_babitk-app/stderr_5ab533234eb5403ab74121e56d47d10e.
+2026-07-19T00:17:37.2710051Z Successfully removed non-blocking flag from /podr/container/pipe/574df972f27a_babitk-app/stderr_5ab533234eb5403ab74121e56d47d10e.
+2026-07-19T00:17:37.3291047Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:17:38.4657326Z Starting container: 574df972f27a_babitk-app.
+2026-07-19T00:17:38.6157856Z Starting watchers and probes.
+2026-07-19T00:17:38.6166224Z Starting metrics collection.
+2026-07-19T00:17:38.6172911Z Container is running.
+2026-07-19T00:17:38.6173802Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:17:38.8960098Z Container start method finished after 3693 ms.
+2026-07-19T00:17:38.8961231Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:17:38.8961384Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:18:12.1500339Z Site startup probe succeeded after 33.1615096 seconds.
+2026-07-19T00:18:12.4099401Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 33.1615096 seconds., DetailsLevel: INFO
+2026-07-19T00:18:12.9280933Z Site is running with deployment version: 8f3a960b-0395-42a5-9f7d-be1c746ebdb8
+2026-07-19T00:18:12.9366440Z Site started.
+2026-07-19T00:18:12.9370122Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 00:18:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:18:12.9486396Z Site is running with patch version NODE-22.22.2
+2026-07-19T00:18:33.3003664Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:11:29 (UTC), DetailsLevel: INFO
+2026-07-19T00:18:33.3208008Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:11:29 (UTC), DetailsLevel: INFO
+2026-07-19T00:18:33.3296312Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:18:33.6285630Z Stop and delete container. Retry count = 0
+2026-07-19T00:18:33.6295371Z Stopping container: 9fa40b904f90_babitk-app.
+2026-07-19T00:18:38.5700155Z Deleting container: 9fa40b904f90_babitk-app. Retry count = 0
+2026-07-19T00:18:38.8195253Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:18:38.8205668Z Container is terminated. Total time elapsed: 5480 ms.
+2026-07-19T00:18:38.8372755Z Site: babitk-app stopped.
+2026-07-19T00:18:39.6593578Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:18:41.6880848Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:18:41.6882083Z Container start method called.
+2026-07-19T00:18:41.6883047Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:18:41.6883853Z Establishing network.
+2026-07-19T00:18:41.7452154Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:18:42.4276689Z Container is starting.
+2026-07-19T00:18:42.4363592Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:18:42.4364612Z Establishing user namespace if not established already.
+2026-07-19T00:18:42.4365152Z Establishing network if not established already.
+2026-07-19T00:18:42.4367532Z Mounting volumes.
+2026-07-19T00:18:42.4459002Z Nested mountpoint 
+2026-07-19T00:18:42.6053095Z Nested mountpoint volatile/logs
+2026-07-19T00:18:42.6371101Z Nested mountpoint 
+2026-07-19T00:18:42.7270997Z Nested mountpoint 
+2026-07-19T00:18:42.7274964Z Nested mountpoint 
+2026-07-19T00:18:42.8270758Z Nested mountpoint 
+2026-07-19T00:18:43.1163495Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:18:43.1164746Z Creating container.
+2026-07-19T00:18:43.1165359Z Creating pipes for streaming container io.
+2026-07-19T00:18:43.1165892Z Creating stdout named pipe at /podr/container/pipe/f13676af1b02_babitk-app/stdout_a64a5f6b234e42b4a6419db29cf01be3.
+2026-07-19T00:18:43.1177438Z Successfully created stdout named pipe at: /podr/container/pipe/f13676af1b02_babitk-app/stdout_a64a5f6b234e42b4a6419db29cf01be3.
+2026-07-19T00:18:43.1178036Z Opening named pipe /podr/container/pipe/f13676af1b02_babitk-app/stdout_a64a5f6b234e42b4a6419db29cf01be3 for reading in non-blocking mode.
+2026-07-19T00:18:43.1178639Z Successfully opened named pipe: /podr/container/pipe/f13676af1b02_babitk-app/stdout_a64a5f6b234e42b4a6419db29cf01be3.
+2026-07-19T00:18:43.1179113Z Successfully removed non-blocking flag from /podr/container/pipe/f13676af1b02_babitk-app/stdout_a64a5f6b234e42b4a6419db29cf01be3.
+2026-07-19T00:18:43.1353835Z Creating stderr named pipe at /podr/container/pipe/f13676af1b02_babitk-app/stderr_675e79fe953c42c5ad26d288c2e18b42.
+2026-07-19T00:18:43.1355445Z Successfully created stderr named pipe at: /podr/container/pipe/f13676af1b02_babitk-app/stderr_675e79fe953c42c5ad26d288c2e18b42.
+2026-07-19T00:18:43.1356015Z Opening named pipe /podr/container/pipe/f13676af1b02_babitk-app/stderr_675e79fe953c42c5ad26d288c2e18b42 for reading in non-blocking mode.
+2026-07-19T00:18:43.1356635Z Successfully opened named pipe: /podr/container/pipe/f13676af1b02_babitk-app/stderr_675e79fe953c42c5ad26d288c2e18b42.
+2026-07-19T00:18:43.1357120Z Successfully removed non-blocking flag from /podr/container/pipe/f13676af1b02_babitk-app/stderr_675e79fe953c42c5ad26d288c2e18b42.
+2026-07-19T00:18:43.1365026Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:18:43.7700150Z Starting container: f13676af1b02_babitk-app.
+2026-07-19T00:18:43.8350386Z Starting watchers and probes.
+2026-07-19T00:18:43.8445560Z Starting metrics collection.
+2026-07-19T00:18:43.8448618Z Container is running.
+2026-07-19T00:18:43.8449422Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:18:44.0454365Z Container start method finished after 2328 ms.
+2026-07-19T00:18:44.0466121Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:18:44.0468827Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:19:03.5126565Z Site startup probe succeeded after 19.435937 seconds.
+2026-07-19T00:19:03.6743625Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 19.435937 seconds., DetailsLevel: INFO
+2026-07-19T00:19:03.8142841Z Site is running with deployment version: 40f08d24-6e24-4720-b2a2-78cd0153c71e
+2026-07-19T00:19:03.8148643Z Site started.
+2026-07-19T00:19:03.8155977Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 00:19:03 (UTC), DetailsLevel: INFO
+2026-07-19T00:19:03.8222536Z Site is running with patch version NODE-22.22.2
+2026-07-19T00:19:23.8971632Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:18:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:19:23.9048611Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:18:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:19:23.9049937Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:19:23.9263877Z Stop and delete container. Retry count = 0
+2026-07-19T00:19:23.9264571Z Stopping container: 574df972f27a_babitk-app.
+2026-07-19T00:19:29.4588473Z Deleting container: 574df972f27a_babitk-app. Retry count = 0
+2026-07-19T00:19:30.3621703Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:19:30.3697513Z Container is terminated. Total time elapsed: 6463 ms.
+2026-07-19T00:19:30.3698797Z Site: babitk-app stopped.
+2026-07-19T00:19:32.1642172Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:19:33.5147898Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:19:33.5148825Z Container start method called.
+2026-07-19T00:19:33.5149085Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:19:33.5149581Z Establishing network.
+2026-07-19T00:19:33.5150093Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:19:33.9830406Z Container is starting.
+2026-07-19T00:19:33.9939583Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:19:33.9941621Z Establishing user namespace if not established already.
+2026-07-19T00:19:33.9945972Z Establishing network if not established already.
+2026-07-19T00:19:33.9948330Z Mounting volumes.
+2026-07-19T00:19:33.9951007Z Nested mountpoint 
+2026-07-19T00:19:34.0727350Z Nested mountpoint volatile/logs
+2026-07-19T00:19:34.1626065Z Nested mountpoint 
+2026-07-19T00:19:34.1630176Z Nested mountpoint 
+2026-07-19T00:19:34.1634083Z Nested mountpoint 
+2026-07-19T00:19:34.2542730Z Nested mountpoint 
+2026-07-19T00:19:34.9636202Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:19:34.9639779Z Creating container.
+2026-07-19T00:19:34.9644549Z Creating pipes for streaming container io.
+2026-07-19T00:19:34.9648697Z Creating stdout named pipe at /podr/container/pipe/3473fddcffea_babitk-app/stdout_03c6e22f254f4c8e85f5ff926b759ca4.
+2026-07-19T00:19:34.9651229Z Successfully created stdout named pipe at: /podr/container/pipe/3473fddcffea_babitk-app/stdout_03c6e22f254f4c8e85f5ff926b759ca4.
+2026-07-19T00:19:34.9651993Z Opening named pipe /podr/container/pipe/3473fddcffea_babitk-app/stdout_03c6e22f254f4c8e85f5ff926b759ca4 for reading in non-blocking mode.
+2026-07-19T00:19:34.9652968Z Successfully opened named pipe: /podr/container/pipe/3473fddcffea_babitk-app/stdout_03c6e22f254f4c8e85f5ff926b759ca4.
+2026-07-19T00:19:35.0233200Z Successfully removed non-blocking flag from /podr/container/pipe/3473fddcffea_babitk-app/stdout_03c6e22f254f4c8e85f5ff926b759ca4.
+2026-07-19T00:19:35.0337584Z Creating stderr named pipe at /podr/container/pipe/3473fddcffea_babitk-app/stderr_cab3988f0cb64c54ab65168ccd71a092.
+2026-07-19T00:19:35.0340723Z Successfully created stderr named pipe at: /podr/container/pipe/3473fddcffea_babitk-app/stderr_cab3988f0cb64c54ab65168ccd71a092.
+2026-07-19T00:19:35.0341970Z Opening named pipe /podr/container/pipe/3473fddcffea_babitk-app/stderr_cab3988f0cb64c54ab65168ccd71a092 for reading in non-blocking mode.
+2026-07-19T00:19:35.0343424Z Successfully opened named pipe: /podr/container/pipe/3473fddcffea_babitk-app/stderr_cab3988f0cb64c54ab65168ccd71a092.
+2026-07-19T00:19:35.0344202Z Successfully removed non-blocking flag from /podr/container/pipe/3473fddcffea_babitk-app/stderr_cab3988f0cb64c54ab65168ccd71a092.
+2026-07-19T00:19:35.0346190Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:19:35.6527255Z Starting container: 3473fddcffea_babitk-app.
+2026-07-19T00:19:35.6937702Z Starting watchers and probes.
+2026-07-19T00:19:35.6940164Z Starting metrics collection.
+2026-07-19T00:19:35.6945710Z Container is running.
+2026-07-19T00:19:35.7016018Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:19:35.9944742Z Container start method finished after 2479 ms.
+2026-07-19T00:19:36.0325207Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:19:36.0326068Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:20:11.1269223Z Site startup probe succeeded after 35.0749251 seconds.
+2026-07-19T00:20:11.4052624Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 35.0749251 seconds., DetailsLevel: INFO
+2026-07-19T00:20:12.2043696Z Site is running with deployment version: 40f08d24-6e24-4720-b2a2-78cd0153c71e
+2026-07-19T00:20:12.2046619Z Site started.
+2026-07-19T00:20:12.2047605Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 00:20:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:20:12.2049315Z Site is running with patch version NODE-22.22.2
+2026-07-19T00:20:32.2769087Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:19:03 (UTC), DetailsLevel: INFO
+2026-07-19T00:20:32.2776016Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:19:03 (UTC), DetailsLevel: INFO
+2026-07-19T00:20:32.2777032Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:20:32.2959745Z Stop and delete container. Retry count = 0
+2026-07-19T00:20:32.2966072Z Stopping container: f13676af1b02_babitk-app.
+2026-07-19T00:20:37.4980431Z Deleting container: f13676af1b02_babitk-app. Retry count = 0
+2026-07-19T00:20:37.7158164Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:20:37.7162069Z Container is terminated. Total time elapsed: 5438 ms.
+2026-07-19T00:20:37.7163085Z Site: babitk-app stopped.
+2026-07-19T00:20:38.7867006Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:20:40.2173622Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T00:20:40.2177813Z Container start method called.
+2026-07-19T00:20:40.2181811Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T00:20:40.2184009Z Establishing network.
+2026-07-19T00:20:40.2185745Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T00:20:40.4793274Z Container is starting.
+2026-07-19T00:20:40.4794180Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T00:20:40.4795040Z Establishing user namespace if not established already.
+2026-07-19T00:20:40.4795815Z Establishing network if not established already.
+2026-07-19T00:20:40.4796702Z Mounting volumes.
+2026-07-19T00:20:40.4797733Z Nested mountpoint 
+2026-07-19T00:20:40.4899670Z Nested mountpoint volatile/logs
+2026-07-19T00:20:40.5079539Z Nested mountpoint 
+2026-07-19T00:20:40.5083242Z Nested mountpoint 
+2026-07-19T00:20:40.5103675Z Nested mountpoint 
+2026-07-19T00:20:40.5274874Z Nested mountpoint 
+2026-07-19T00:20:40.8503163Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T00:20:40.8896701Z Creating container.
+2026-07-19T00:20:40.8901345Z Creating pipes for streaming container io.
+2026-07-19T00:20:40.8980727Z Creating stdout named pipe at /podr/container/pipe/fb6b02a6bc8a_babitk-app/stdout_963be520308b42448c0d1e31176d5007.
+2026-07-19T00:20:40.8987861Z Successfully created stdout named pipe at: /podr/container/pipe/fb6b02a6bc8a_babitk-app/stdout_963be520308b42448c0d1e31176d5007.
+2026-07-19T00:20:40.8991926Z Opening named pipe /podr/container/pipe/fb6b02a6bc8a_babitk-app/stdout_963be520308b42448c0d1e31176d5007 for reading in non-blocking mode.
+2026-07-19T00:20:40.8993161Z Successfully opened named pipe: /podr/container/pipe/fb6b02a6bc8a_babitk-app/stdout_963be520308b42448c0d1e31176d5007.
+2026-07-19T00:20:40.9202403Z Successfully removed non-blocking flag from /podr/container/pipe/fb6b02a6bc8a_babitk-app/stdout_963be520308b42448c0d1e31176d5007.
+2026-07-19T00:20:40.9502810Z Creating stderr named pipe at /podr/container/pipe/fb6b02a6bc8a_babitk-app/stderr_4694557f6dc9416080cea22d55f2d95c.
+2026-07-19T00:20:40.9677675Z Successfully created stderr named pipe at: /podr/container/pipe/fb6b02a6bc8a_babitk-app/stderr_4694557f6dc9416080cea22d55f2d95c.
+2026-07-19T00:20:40.9678616Z Opening named pipe /podr/container/pipe/fb6b02a6bc8a_babitk-app/stderr_4694557f6dc9416080cea22d55f2d95c for reading in non-blocking mode.
+2026-07-19T00:20:40.9679370Z Successfully opened named pipe: /podr/container/pipe/fb6b02a6bc8a_babitk-app/stderr_4694557f6dc9416080cea22d55f2d95c.
+2026-07-19T00:20:40.9679893Z Successfully removed non-blocking flag from /podr/container/pipe/fb6b02a6bc8a_babitk-app/stderr_4694557f6dc9416080cea22d55f2d95c.
+2026-07-19T00:20:40.9691895Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T00:20:41.3915566Z Starting container: fb6b02a6bc8a_babitk-app.
+2026-07-19T00:20:41.4304501Z Starting watchers and probes.
+2026-07-19T00:20:41.4309496Z Starting metrics collection.
+2026-07-19T00:20:41.4315216Z Container is running.
+2026-07-19T00:20:41.4315805Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:20:41.5605208Z Container start method finished after 1342 ms.
+2026-07-19T00:20:41.5607260Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T00:20:41.5607599Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T00:21:07.6540899Z Site startup probe succeeded after 26.0927802 seconds.
+2026-07-19T00:21:07.8537137Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 26.0927802 seconds., DetailsLevel: INFO
+2026-07-19T00:21:08.2719063Z Site is running with deployment version: 40f08d24-6e24-4720-b2a2-78cd0153c71e
+2026-07-19T00:21:08.2720908Z Site started.
+2026-07-19T00:21:08.2721796Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 00:21:08 (UTC), DetailsLevel: INFO
+2026-07-19T00:21:08.2723416Z Site is running with patch version NODE-22.22.2
+2026-07-19T00:21:28.7071366Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:20:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:21:28.7263180Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:20:12 (UTC), DetailsLevel: INFO
+2026-07-19T00:21:28.7266386Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T00:21:28.7562651Z Stop and delete container. Retry count = 0
+2026-07-19T00:21:28.7567806Z Stopping container: 3473fddcffea_babitk-app.
+2026-07-19T00:21:33.8792778Z Deleting container: 3473fddcffea_babitk-app. Retry count = 0
+2026-07-19T00:21:34.0633494Z Container spec TerminationMessagePolicy  path 
+2026-07-19T00:21:34.0690771Z Container is terminated. Total time elapsed: 5341 ms.
+2026-07-19T00:21:34.0691684Z Site: babitk-app stopped.
+2026-07-19T01:14:23.5217353Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:14:26.7006531Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:14:26.7011336Z Container start method called.
+2026-07-19T01:14:26.7013996Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T01:14:26.7015817Z Establishing network.
+2026-07-19T01:14:26.7019202Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T01:14:27.5030355Z Container is starting.
+2026-07-19T01:14:27.5030883Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T01:14:27.5031380Z Establishing user namespace if not established already.
+2026-07-19T01:14:27.5031904Z Establishing network if not established already.
+2026-07-19T01:14:27.5032517Z Mounting volumes.
+2026-07-19T01:14:27.5033273Z Nested mountpoint 
+2026-07-19T01:14:27.5847299Z Nested mountpoint volatile/logs
+2026-07-19T01:14:27.6231157Z Nested mountpoint 
+2026-07-19T01:14:27.7446816Z Nested mountpoint 
+2026-07-19T01:14:27.9238542Z Nested mountpoint 
+2026-07-19T01:14:27.9435492Z Nested mountpoint 
+2026-07-19T01:14:28.9232964Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T01:14:28.9235897Z Creating container.
+2026-07-19T01:14:28.9243329Z Creating pipes for streaming container io.
+2026-07-19T01:14:28.9244328Z Creating stdout named pipe at /podr/container/pipe/5467c17b3427_babitk-app/stdout_850004d5f314441cb0b3473ac90b968e.
+2026-07-19T01:14:28.9525494Z Successfully created stdout named pipe at: /podr/container/pipe/5467c17b3427_babitk-app/stdout_850004d5f314441cb0b3473ac90b968e.
+2026-07-19T01:14:28.9526541Z Opening named pipe /podr/container/pipe/5467c17b3427_babitk-app/stdout_850004d5f314441cb0b3473ac90b968e for reading in non-blocking mode.
+2026-07-19T01:14:28.9527665Z Successfully opened named pipe: /podr/container/pipe/5467c17b3427_babitk-app/stdout_850004d5f314441cb0b3473ac90b968e.
+2026-07-19T01:14:28.9528291Z Successfully removed non-blocking flag from /podr/container/pipe/5467c17b3427_babitk-app/stdout_850004d5f314441cb0b3473ac90b968e.
+2026-07-19T01:14:28.9529160Z Creating stderr named pipe at /podr/container/pipe/5467c17b3427_babitk-app/stderr_66bf0cf4b6e541f38704f86b1eda656b.
+2026-07-19T01:14:28.9530303Z Successfully created stderr named pipe at: /podr/container/pipe/5467c17b3427_babitk-app/stderr_66bf0cf4b6e541f38704f86b1eda656b.
+2026-07-19T01:14:28.9530866Z Opening named pipe /podr/container/pipe/5467c17b3427_babitk-app/stderr_66bf0cf4b6e541f38704f86b1eda656b for reading in non-blocking mode.
+2026-07-19T01:14:28.9531531Z Successfully opened named pipe: /podr/container/pipe/5467c17b3427_babitk-app/stderr_66bf0cf4b6e541f38704f86b1eda656b.
+2026-07-19T01:14:28.9532131Z Successfully removed non-blocking flag from /podr/container/pipe/5467c17b3427_babitk-app/stderr_66bf0cf4b6e541f38704f86b1eda656b.
+2026-07-19T01:14:28.9535485Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.6:13209 and fully qualified image name: 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T01:14:30.5161530Z Starting container: 5467c17b3427_babitk-app.
+2026-07-19T01:14:30.6337217Z Starting watchers and probes.
+2026-07-19T01:14:30.6341958Z Starting metrics collection.
+2026-07-19T01:14:30.6353249Z Container is running.
+2026-07-19T01:14:30.6354059Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:14:30.7357299Z Container start method finished after 4034 ms.
+2026-07-19T01:14:30.7431887Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:14:30.7531892Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T01:15:07.9983076Z Site startup probe succeeded after 37.2405149 seconds.
+2026-07-19T01:15:08.2583966Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 37.2405149 seconds., DetailsLevel: INFO
+2026-07-19T01:15:10.0767243Z Site is running with deployment version: 40f08d24-6e24-4720-b2a2-78cd0153c71e
+2026-07-19T01:15:10.0979877Z Site started.
+2026-07-19T01:15:10.1076107Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 01:15:10 (UTC), DetailsLevel: INFO
+2026-07-19T01:15:10.1381557Z Site is running with patch version NODE-22.22.2
+2026-07-19T01:15:30.3883258Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:21:08 (UTC), DetailsLevel: INFO
+2026-07-19T01:15:30.3985517Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 00:21:08 (UTC), DetailsLevel: INFO
+2026-07-19T01:15:30.3991814Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T01:15:30.5274823Z Stop and delete container. Retry count = 0
+2026-07-19T01:15:30.5287145Z Stopping container: fb6b02a6bc8a_babitk-app.
+2026-07-19T01:15:35.5362428Z Deleting container: fb6b02a6bc8a_babitk-app. Retry count = 0
+2026-07-19T01:15:35.7565030Z Container spec TerminationMessagePolicy  path 
+2026-07-19T01:15:35.7577293Z Container is terminated. Total time elapsed: 5358 ms.
+2026-07-19T01:15:35.7588273Z Site: babitk-app stopped.
+2026-07-19T01:15:36.6685449Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:15:38.8715391Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:15:38.8791436Z Container start method called.
+2026-07-19T01:15:38.8807274Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T01:15:38.8808310Z Establishing network.
+2026-07-19T01:15:38.8808962Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T01:15:39.5314142Z Container is starting.
+2026-07-19T01:15:39.5614201Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T01:15:39.5800930Z Establishing user namespace if not established already.
+2026-07-19T01:15:39.5804975Z Establishing network if not established already.
+2026-07-19T01:15:39.5808860Z Mounting volumes.
+2026-07-19T01:15:39.5910163Z Nested mountpoint 
+2026-07-19T01:15:39.6095894Z Nested mountpoint volatile/logs
+2026-07-19T01:15:39.6308850Z Nested mountpoint 
+2026-07-19T01:15:39.6312652Z Nested mountpoint 
+2026-07-19T01:15:39.6504966Z Nested mountpoint 
+2026-07-19T01:15:39.6797687Z Nested mountpoint 
+2026-07-19T01:15:40.1506536Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T01:15:40.1509698Z Creating container.
+2026-07-19T01:15:40.1610096Z Creating pipes for streaming container io.
+2026-07-19T01:15:40.1611549Z Creating stdout named pipe at /podr/container/pipe/c4a7c4aab57b_babitk-app/stdout_1da964b48b0a44a486cf6c93857399af.
+2026-07-19T01:15:40.1688116Z Successfully created stdout named pipe at: /podr/container/pipe/c4a7c4aab57b_babitk-app/stdout_1da964b48b0a44a486cf6c93857399af.
+2026-07-19T01:15:40.1691393Z Opening named pipe /podr/container/pipe/c4a7c4aab57b_babitk-app/stdout_1da964b48b0a44a486cf6c93857399af for reading in non-blocking mode.
+2026-07-19T01:15:40.1693264Z Successfully opened named pipe: /podr/container/pipe/c4a7c4aab57b_babitk-app/stdout_1da964b48b0a44a486cf6c93857399af.
+2026-07-19T01:15:40.1695808Z Successfully removed non-blocking flag from /podr/container/pipe/c4a7c4aab57b_babitk-app/stdout_1da964b48b0a44a486cf6c93857399af.
+2026-07-19T01:15:40.1703775Z Creating stderr named pipe at /podr/container/pipe/c4a7c4aab57b_babitk-app/stderr_96fda535dc114945b5613ca1a83cd715.
+2026-07-19T01:15:40.1705966Z Successfully created stderr named pipe at: /podr/container/pipe/c4a7c4aab57b_babitk-app/stderr_96fda535dc114945b5613ca1a83cd715.
+2026-07-19T01:15:40.1708208Z Opening named pipe /podr/container/pipe/c4a7c4aab57b_babitk-app/stderr_96fda535dc114945b5613ca1a83cd715 for reading in non-blocking mode.
+2026-07-19T01:15:40.1709556Z Successfully opened named pipe: /podr/container/pipe/c4a7c4aab57b_babitk-app/stderr_96fda535dc114945b5613ca1a83cd715.
+2026-07-19T01:15:40.1710915Z Successfully removed non-blocking flag from /podr/container/pipe/c4a7c4aab57b_babitk-app/stderr_96fda535dc114945b5613ca1a83cd715.
+2026-07-19T01:15:40.1712524Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.6:13209 and fully qualified image name: 10.1.0.6:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T01:15:40.6484835Z Starting container: c4a7c4aab57b_babitk-app.
+2026-07-19T01:15:40.7387488Z Starting watchers and probes.
+2026-07-19T01:15:40.7392992Z Starting metrics collection.
+2026-07-19T01:15:40.7401440Z Container is running.
+2026-07-19T01:15:40.7474756Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:15:40.9699245Z Container start method finished after 2090 ms.
+2026-07-19T01:15:40.9700429Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:15:40.9700566Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T01:16:02.0822813Z Site startup probe succeeded after 21.0622234 seconds.
+2026-07-19T01:16:02.2518433Z State: Starting, Action: WarmUpProbeSucceeded, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site startup probe succeeded after 21.0622234 seconds., DetailsLevel: INFO
+2026-07-19T01:16:02.6752706Z Site is running with deployment version: 1b9b511e-e097-49c5-99a4-a9a0820d3ac6
+2026-07-19T01:16:02.6759342Z Site started.
+2026-07-19T01:16:02.6819596Z State: Started, Action: None, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Site started at 07/19/2026 01:16:02 (UTC), DetailsLevel: INFO
+2026-07-19T01:16:02.6824993Z Site is running with patch version NODE-22.22.2
+2026-07-19T01:16:22.8651451Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 01:15:10 (UTC), DetailsLevel: INFO
+2026-07-19T01:16:22.8655830Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 01:15:10 (UTC), DetailsLevel: INFO
+2026-07-19T01:16:22.8680815Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T01:16:22.8770263Z Stop and delete container. Retry count = 0
+2026-07-19T01:16:22.8776031Z Stopping container: 5467c17b3427_babitk-app.
+2026-07-19T01:16:28.5268626Z Deleting container: 5467c17b3427_babitk-app. Retry count = 0
+2026-07-19T01:16:28.9872962Z Container spec TerminationMessagePolicy  path 
+2026-07-19T01:16:28.9874574Z Container is terminated. Total time elapsed: 6119 ms.
+2026-07-19T01:16:28.9878794Z Site: babitk-app stopped.
+2026-07-19T01:16:30.2349851Z State: Starting, Action: EstablishingSiteNetworks, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:16:32.5625889Z State: Starting, Action: StartingSiteContainers, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: , DetailsLevel: INFO
+2026-07-19T01:16:32.5626608Z Container start method called.
+2026-07-19T01:16:32.5626845Z State: Starting, Action: PullingImage, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T01:16:32.5627384Z Establishing network.
+2026-07-19T01:16:32.5806535Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T01:16:32.9211111Z Container is starting.
+2026-07-19T01:16:32.9213260Z State: Starting, Action: MountingVolumes, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T01:16:32.9214264Z Establishing user namespace if not established already.
+2026-07-19T01:16:32.9215278Z Establishing network if not established already.
+2026-07-19T01:16:32.9216132Z Mounting volumes.
+2026-07-19T01:16:32.9217202Z Nested mountpoint 
+2026-07-19T01:16:32.9316987Z Nested mountpoint volatile/logs
+2026-07-19T01:16:32.9729420Z Nested mountpoint 
+2026-07-19T01:16:32.9734786Z Nested mountpoint 
+2026-07-19T01:16:33.0308673Z Nested mountpoint 
+2026-07-19T01:16:33.0410468Z Nested mountpoint 
+2026-07-19T01:16:33.7005230Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T01:16:33.7006205Z Creating container.
+2026-07-19T01:16:33.7006949Z Creating pipes for streaming container io.
+2026-07-19T01:16:33.7011461Z Creating stdout named pipe at /podr/container/pipe/6583b0de9362_babitk-app/stdout_4b95f29a5b9b4f87a15d5145017be39e.
+2026-07-19T01:16:33.7013168Z Successfully created stdout named pipe at: /podr/container/pipe/6583b0de9362_babitk-app/stdout_4b95f29a5b9b4f87a15d5145017be39e.
+2026-07-19T01:16:33.7013931Z Opening named pipe /podr/container/pipe/6583b0de9362_babitk-app/stdout_4b95f29a5b9b4f87a15d5145017be39e for reading in non-blocking mode.
+2026-07-19T01:16:33.7026136Z Successfully opened named pipe: /podr/container/pipe/6583b0de9362_babitk-app/stdout_4b95f29a5b9b4f87a15d5145017be39e.
+2026-07-19T01:16:33.7027389Z Successfully removed non-blocking flag from /podr/container/pipe/6583b0de9362_babitk-app/stdout_4b95f29a5b9b4f87a15d5145017be39e.
+2026-07-19T01:16:33.7309964Z Creating stderr named pipe at /podr/container/pipe/6583b0de9362_babitk-app/stderr_32063661a75b4f799be07cb677f1d2b8.
+2026-07-19T01:16:33.7310994Z Successfully created stderr named pipe at: /podr/container/pipe/6583b0de9362_babitk-app/stderr_32063661a75b4f799be07cb677f1d2b8.
+2026-07-19T01:16:33.7311552Z Opening named pipe /podr/container/pipe/6583b0de9362_babitk-app/stderr_32063661a75b4f799be07cb677f1d2b8 for reading in non-blocking mode.
+2026-07-19T01:16:33.7312144Z Successfully opened named pipe: /podr/container/pipe/6583b0de9362_babitk-app/stderr_32063661a75b4f799be07cb677f1d2b8.
+2026-07-19T01:16:33.7312604Z Successfully removed non-blocking flag from /podr/container/pipe/6583b0de9362_babitk-app/stderr_32063661a75b4f799be07cb677f1d2b8.
+2026-07-19T01:16:33.7318893Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T01:16:35.1088150Z Starting container: 6583b0de9362_babitk-app.
+2026-07-19T01:16:35.1984715Z Starting watchers and probes.
+2026-07-19T01:16:35.2001161Z Starting metrics collection.
+2026-07-19T01:16:35.2006917Z Container is running.
+2026-07-19T01:16:35.2009968Z State: Starting, Action: CreatingContainer, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:16:35.5089626Z Container start method finished after 2946 ms.
+2026-07-19T01:16:35.5090978Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:16:35.5091130Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: , LastErrorTimestamp: 01/01/0001 00:00:00, LastErrorDetails: , Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T01:16:42.7986509Z Site startup probe failed after 7.2890269 seconds.
+2026-07-19T01:16:43.1974084Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T01:16:43.2001874Z Failed to start site. Revert by stopping site.
+2026-07-19T01:16:43.2091053Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T01:16:43.2779859Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: ERR
+2026-07-19T01:16:43.2781162Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T01:16:43.2991758Z Stop and delete container. Retry count = 0
+2026-07-19T01:16:43.2996060Z Stopping container: 6583b0de9362_babitk-app.
+2026-07-19T01:16:48.3828678Z Deleting container: 6583b0de9362_babitk-app. Retry count = 0
+2026-07-19T01:16:48.5329097Z Container spec TerminationMessagePolicy  path 
+2026-07-19T01:16:48.5332388Z Container is terminated. Total time elapsed: 5254 ms.
+2026-07-19T01:16:48.5336035Z Site container: babitk-app terminated during site startup.
+2026-07-19T01:16:48.5343828Z State: Stopping, Action: CancellingStartup, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site container: babitk-app terminated during site startup. Cancelling site startup., DetailsLevel: ERR
+2026-07-19T01:16:48.5348060Z Site: babitk-app stopped.
+2026-07-19T01:17:09.4703306Z State: Stopping, Action: StoppingSite, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 01:16:02 (UTC), DetailsLevel: INFO
+2026-07-19T01:17:09.4715619Z State: Stopping, Action: StoppingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 00:10:12, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 01:16:02 (UTC), DetailsLevel: INFO
+2026-07-19T01:17:09.4720123Z Container is terminating. Grace period: 5 seconds.
+2026-07-19T01:17:09.5008889Z Stop and delete container. Retry count = 0
+2026-07-19T01:17:09.5017520Z Stopping container: c4a7c4aab57b_babitk-app.
+2026-07-19T01:17:15.8637504Z Deleting container: c4a7c4aab57b_babitk-app. Retry count = 0
+2026-07-19T01:17:16.0848203Z Container spec TerminationMessagePolicy  path 
+2026-07-19T01:17:16.0851826Z Container is terminated. Total time elapsed: 6613 ms.
+2026-07-19T01:17:16.0852874Z Site: babitk-app stopped.
+2026-07-19T01:21:51.4453139Z State: Starting, Action: EstablishingSiteNetworks, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site stopped at 07/19/2026 01:16:49 (UTC), DetailsLevel: ERR
+2026-07-19T01:21:52.5302727Z State: Starting, Action: StartingSiteContainers, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site stopped at 07/19/2026 01:16:49 (UTC), DetailsLevel: ERR
+2026-07-19T01:21:52.5304860Z Container start method called.
+2026-07-19T01:21:52.5305538Z State: Starting, Action: PullingImage, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pulling image 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod for babitk-app., DetailsLevel: INFO
+2026-07-19T01:21:52.5306419Z Establishing network.
+2026-07-19T01:21:52.5387789Z Pulling image: appsvc/node:22-lts_20260504.4.tuxprod.
+2026-07-19T01:21:52.7501938Z Container is starting.
+2026-07-19T01:21:52.7504640Z State: Starting, Action: MountingVolumes, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Mounting volumes for babitk-app., DetailsLevel: INFO
+2026-07-19T01:21:52.7507540Z Establishing user namespace if not established already.
+2026-07-19T01:21:52.7510169Z Establishing network if not established already.
+2026-07-19T01:21:52.7512823Z Mounting volumes.
+2026-07-19T01:21:52.7515668Z Nested mountpoint 
+2026-07-19T01:21:52.7816438Z Nested mountpoint volatile/logs
+2026-07-19T01:21:52.8099848Z Nested mountpoint 
+2026-07-19T01:21:52.8217577Z Nested mountpoint 
+2026-07-19T01:21:52.8225293Z Nested mountpoint 
+2026-07-19T01:21:52.8510084Z Nested mountpoint 
+2026-07-19T01:21:53.1022668Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Finished pulling container image and mounting volumes for babitk-app. Allocatinng the rest of the container resources to finish container creation., DetailsLevel: INFO
+2026-07-19T01:21:53.1023792Z Creating container.
+2026-07-19T01:21:53.1211345Z Creating pipes for streaming container io.
+2026-07-19T01:21:53.1215043Z Creating stdout named pipe at /podr/container/pipe/e8951cbf2ee1_babitk-app/stdout_74523074690540ecb36c907b4a77753b.
+2026-07-19T01:21:53.1218421Z Successfully created stdout named pipe at: /podr/container/pipe/e8951cbf2ee1_babitk-app/stdout_74523074690540ecb36c907b4a77753b.
+2026-07-19T01:21:53.1220897Z Opening named pipe /podr/container/pipe/e8951cbf2ee1_babitk-app/stdout_74523074690540ecb36c907b4a77753b for reading in non-blocking mode.
+2026-07-19T01:21:53.1223501Z Successfully opened named pipe: /podr/container/pipe/e8951cbf2ee1_babitk-app/stdout_74523074690540ecb36c907b4a77753b.
+2026-07-19T01:21:53.1303651Z Successfully removed non-blocking flag from /podr/container/pipe/e8951cbf2ee1_babitk-app/stdout_74523074690540ecb36c907b4a77753b.
+2026-07-19T01:21:53.1397573Z Creating stderr named pipe at /podr/container/pipe/e8951cbf2ee1_babitk-app/stderr_1ddefae66cd54fc1ad9dc6784f7562e4.
+2026-07-19T01:21:53.1399722Z Successfully created stderr named pipe at: /podr/container/pipe/e8951cbf2ee1_babitk-app/stderr_1ddefae66cd54fc1ad9dc6784f7562e4.
+2026-07-19T01:21:53.1401556Z Opening named pipe /podr/container/pipe/e8951cbf2ee1_babitk-app/stderr_1ddefae66cd54fc1ad9dc6784f7562e4 for reading in non-blocking mode.
+2026-07-19T01:21:53.1403621Z Successfully opened named pipe: /podr/container/pipe/e8951cbf2ee1_babitk-app/stderr_1ddefae66cd54fc1ad9dc6784f7562e4.
+2026-07-19T01:21:53.1405225Z Successfully removed non-blocking flag from /podr/container/pipe/e8951cbf2ee1_babitk-app/stderr_1ddefae66cd54fc1ad9dc6784f7562e4.
+2026-07-19T01:21:53.1409166Z Creating container with image: appsvc/node:22-lts_20260504.4.tuxprod from registry: 10.1.0.4:13209 and fully qualified image name: 10.1.0.4:13209/appsvc/node:22-lts_20260504.4.tuxprod
+2026-07-19T01:21:53.8429284Z Starting container: e8951cbf2ee1_babitk-app.
+2026-07-19T01:21:53.9154631Z Starting watchers and probes.
+2026-07-19T01:21:53.9166910Z Starting metrics collection.
+2026-07-19T01:21:53.9249428Z Container is running.
+2026-07-19T01:21:53.9250027Z State: Starting, Action: CreatingContainer, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:21:54.3339642Z Container start method finished after 1803 ms.
+2026-07-19T01:21:54.3343020Z State: Starting, Action: InitiatingSiteWarmUpProbe, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Container babitk-app successfully created and is running., DetailsLevel: INFO
+2026-07-19T01:21:54.3343543Z State: Starting, Action: WaitingForSiteWarmUpProbeSuccess, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Pinging warmup path to ensure container is ready to receive requests., DetailsLevel: INFO
+2026-07-19T01:22:12.5919129Z Site startup probe succeeded after 18.2571062 seconds.
+2026-07-19T01:22:12.8925125Z State: Starting, Action: WarmUpProbeSucceeded, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site startup probe succeeded after 18.2571062 seconds., DetailsLevel: INFO
+2026-07-19T01:22:13.6723145Z Site is running with deployment version: 1b9b511e-e097-49c5-99a4-a9a0820d3ac6
+2026-07-19T01:22:13.6725820Z Site started.
+2026-07-19T01:22:13.6726837Z State: Started, Action: None, LastError: ContainerTimeout, LastErrorTimestamp: 07/19/2026 01:16:43, LastErrorDetails: Container did not start within expected time limit of 600s. Please inspect your container logs for more details., Details: Site started at 07/19/2026 01:22:13 (UTC), DetailsLevel: INFO
+2026-07-19T01:22:13.7318189Z Site is running with patch version NODE-22.22.2

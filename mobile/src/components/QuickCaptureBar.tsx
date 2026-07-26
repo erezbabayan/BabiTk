@@ -1,30 +1,39 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { Audio } from "expo-av";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import * as ImagePicker from "expo-image-picker";
-import { ingestText, uploadNotebookOcr, uploadVoiceNote, isPaywallError } from "../lib/api";
+import {
+  formatCaptureError,
+  ingestText,
+  uploadNotebookOcr,
+  uploadVoiceNote,
+} from "../lib/api";
 import { parseCaptureText } from "../lib/capture-parse";
 import { isSyncEnabled } from "../lib/sync-client";
 import { isDemoMode, type MindtaskerItem } from "../lib/supabase";
+import { materializeLocalAudioUri } from "../lib/voice-upload";
 import { MindTaskerLogo } from "./MindTaskerLogo";
+import { NotebookIcon } from "./NotebookIcons";
+
+/** Keep clips short enough for reliable upload + Whisper. */
+const MAX_RECORD_SECONDS = 60;
 
 interface QuickCaptureBarProps {
+  userId?: string;
   onAddItem: (item: MindtaskerItem) => Promise<void>;
   onAfterCapture?: () => void | Promise<void>;
 }
 
-function demoCaptureItem(
-  title: string,
-  content: string,
-): MindtaskerItem {
+function demoCaptureItem(title: string, content: string): MindtaskerItem {
   return {
     id: `cap-${Date.now()}`,
     title,
@@ -36,9 +45,32 @@ function demoCaptureItem(
   } as MindtaskerItem;
 }
 
-export function QuickCaptureBar({ onAddItem, onAfterCapture }: QuickCaptureBarProps) {
+export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCaptureBarProps) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordSecondsRef = useRef(0);
+  const stoppingRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      const active = recordingRef.current;
+      if (active) {
+        void active.stopAndUnloadAsync().catch(() => undefined);
+      }
+    };
+  }, []);
+
+  function clearRecordTimer() {
+    if (recordTimerRef.current) {
+      clearInterval(recordTimerRef.current);
+      recordTimerRef.current = null;
+    }
+  }
 
   async function handleTextSubmit() {
     const trimmed = text.trim();
@@ -52,144 +84,273 @@ export function QuickCaptureBar({ onAddItem, onAfterCapture }: QuickCaptureBarPr
           await onAddItem(item);
         }
       } else {
-        await ingestText(trimmed);
+        await ingestText(trimmed, userId);
         await onAfterCapture?.();
       }
       setText("");
     } catch (err) {
-      Alert.alert("שגיאה", isPaywallError(err) ? err.message : "קליטה נכשלה");
+      Alert.alert("שגיאה", formatCaptureError(err, "קליטה נכשלה"));
     } finally {
       setLoading(false);
     }
   }
 
   async function handleScan() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("נדרשת הרשאה", "אפשר גישה למצלמה כדי לסרוק מחברת");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets[0]) return;
-
     setLoading(true);
     try {
-      if (isDemoMode) {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("נדרשת הרשאה", "אפשר גישה למצלמה כדי לסרוק מחברת");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets[0]) return;
+
+      if (isDemoMode && !isSyncEnabled()) {
         await onAddItem(demoCaptureItem("סריקת מחברת", "פריט מסריקה (הדגמה)"));
       } else {
-        await uploadNotebookOcr(result.assets[0].uri, result.assets[0].mimeType ?? "image/jpeg");
+        await uploadNotebookOcr(result.assets[0].uri, result.assets[0].mimeType ?? "image/jpeg", userId);
         await onAfterCapture?.();
       }
     } catch (err) {
-      Alert.alert("שגיאה", err instanceof Error ? err.message : "סריקה נכשלה");
+      Alert.alert("שגיאה", formatCaptureError(err, "סריקה נכשלה"));
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleRecord() {
+  async function startDeviceRecording() {
     const permission = await Audio.requestPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("נדרשת הרשאה", "אפשר גישה למיקרופון להקלטה");
+      Alert.alert(
+        "נדרשת הרשאה",
+        "אפשר גישה למיקרופון בהגדרות המכשיר כדי להקליט הודעות קוליות",
+        [
+          { text: "ביטול", style: "cancel" },
+          {
+            text: "פתח הגדרות",
+            onPress: () => {
+              void Linking.openSettings();
+            },
+          },
+        ],
+      );
       return;
     }
 
-    await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-    const recording = new Audio.Recording();
-    await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-    await recording.startAsync();
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+      interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+    });
 
-    Alert.alert("מקליט...", "לחץ אישור כשסיימת", [
-      {
-        text: "סיום והעלאה",
-        onPress: () => {
-          void (async () => {
-            setLoading(true);
-            try {
-              await recording.stopAndUnloadAsync();
-              const uri = recording.getURI();
-              if (!uri) throw new Error("הקלטה ריקה");
-
-              if (isDemoMode) {
-                await onAddItem(demoCaptureItem("הקלטה קולית", "פריט מהקלטה (הדגמה)"));
-              } else {
-                await uploadVoiceNote(uri);
-                await onAfterCapture?.();
-              }
-            } catch (err) {
-              Alert.alert("שגיאה", err instanceof Error ? err.message : "העלאה נכשלה");
-            } finally {
-              setLoading(false);
-            }
-          })();
-        },
-      },
-      { text: "ביטול", style: "cancel" },
-    ]);
+    const { recording } = await Audio.Recording.createAsync(
+      Audio.RecordingOptionsPresets.HIGH_QUALITY,
+    );
+    recordingRef.current = recording;
+    setIsRecording(true);
+    recordSecondsRef.current = 0;
+    setRecordSeconds(0);
+    clearRecordTimer();
+    recordTimerRef.current = setInterval(() => {
+      const next = recordSecondsRef.current + 1;
+      recordSecondsRef.current = next;
+      setRecordSeconds(next);
+      if (next >= MAX_RECORD_SECONDS) {
+        void stopDeviceRecording(true);
+      }
+    }, 1000);
   }
+
+  async function stopDeviceRecording(upload: boolean) {
+    if (stoppingRef.current && upload) {
+      // Auto-stop and manual stop can race; ignore the second upload attempt.
+      return;
+    }
+    stoppingRef.current = true;
+
+    const recording = recordingRef.current;
+    recordingRef.current = null;
+    const elapsedSeconds = recordSecondsRef.current;
+    clearRecordTimer();
+    setIsRecording(false);
+
+    if (!recording) {
+      recordSecondsRef.current = 0;
+      setRecordSeconds(0);
+      stoppingRef.current = false;
+      return;
+    }
+
+    let uri: string | null = null;
+    try {
+      await recording.stopAndUnloadAsync();
+      uri = recording.getURI();
+    } catch {
+      uri = recording.getURI();
+    }
+
+    await Audio.setAudioModeAsync({ allowsRecordingIOS: false }).catch(() => undefined);
+
+    const durationForUpload = Math.max(1, elapsedSeconds || 1);
+    recordSecondsRef.current = 0;
+    setRecordSeconds(0);
+
+    if (!upload) {
+      stoppingRef.current = false;
+      return;
+    }
+    if (!uri) {
+      stoppingRef.current = false;
+      Alert.alert("שגיאה", "ההקלטה ריקה");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Freeze the file in cache immediately after stop so unload/GC cannot delete it.
+      const stableUri = await materializeLocalAudioUri(uri);
+
+      if (isDemoMode && !isSyncEnabled()) {
+        await onAddItem(demoCaptureItem("הקלטה קולית", "פריט מהקלטה (הדגמה)"));
+      } else {
+        await uploadVoiceNote(stableUri, userId, {
+          durationSeconds: durationForUpload,
+        });
+        await onAfterCapture?.();
+      }
+    } catch (err) {
+      const message = formatCaptureError(err, "העלאת ההקלטה נכשלה");
+      Alert.alert("שגיאה בהקלטה", message);
+    } finally {
+      setLoading(false);
+      stoppingRef.current = false;
+    }
+  }
+
+  async function handleRecordPress() {
+    if (loading || stoppingRef.current) return;
+    try {
+      if (isRecording) {
+        await stopDeviceRecording(true);
+      } else {
+        stoppingRef.current = false;
+        await startDeviceRecording();
+      }
+    } catch (err) {
+      recordingRef.current = null;
+      clearRecordTimer();
+      setIsRecording(false);
+      recordSecondsRef.current = 0;
+      setRecordSeconds(0);
+      stoppingRef.current = false;
+      Alert.alert(
+        "הקלטה נכשלה",
+        err instanceof Error ? err.message : "לא ניתן להתחיל הקלטה מהמיקרופון",
+      );
+    }
+  }
+
+  const canSubmit = text.trim().length >= 3;
+  const recordLabel =
+    recordSeconds >= 60
+      ? `${Math.floor(recordSeconds / 60)}:${String(recordSeconds % 60).padStart(2, "0")}`
+      : `0:${String(recordSeconds).padStart(2, "0")}`;
 
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
         <View style={styles.inputShell}>
           <Pressable
-            style={[styles.logoBtn, (loading || text.trim().length < 3) && styles.logoBtnDisabled]}
+            style={[styles.submitBtn, (loading || !canSubmit || isRecording) && styles.submitBtnDisabled]}
             onPress={() => void handleTextSubmit()}
-            disabled={loading || text.trim().length < 3}
+            disabled={loading || !canSubmit || isRecording}
             accessibilityLabel="קלוט"
             accessibilityRole="button"
             hitSlop={4}
           >
             {loading ? (
-              <ActivityIndicator color="#334155" size="small" />
+              <MindTaskerLogo size="capture" variant="mark" thinking />
             ) : (
-              <MindTaskerLogo size="capture" variant="mark" />
+              <>
+                <NotebookIcon name="plus" size={15} tone="white" />
+                <Text style={styles.submitLabel}>קלוט</Text>
+              </>
             )}
           </Pressable>
-          <TextInput
-            style={styles.input}
-            placeholder="קליטה מהירה — טקסט או רעיון..."
-            placeholderTextColor="#94a3b8"
-            value={text}
-            onChangeText={setText}
-            onSubmitEditing={() => void handleTextSubmit()}
-            textAlign="right"
-            editable={!loading}
-          />
+          <View style={styles.inputCol}>
+            <Text style={styles.kicker}>
+              {isRecording ? `מקליט מהמיקרופון · ${recordLabel}` : "קליטה מהירה"}
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="הוסף משימה, הערה או רעיון..."
+              placeholderTextColor="#94a3b8"
+              value={text}
+              onChangeText={setText}
+              onSubmitEditing={() => void handleTextSubmit()}
+              textAlign="right"
+              editable={!loading && !isRecording}
+              accessibilityLabel="קליטה מהירה"
+            />
+          </View>
         </View>
         <View style={styles.tools}>
           <Pressable
-            style={[styles.iconBtn, loading && styles.disabled]}
-            onPress={() => void handleRecord()}
-            disabled={loading}
-            accessibilityLabel="הקלטה"
+            style={[
+              styles.iconBtn,
+              isRecording && styles.iconBtnRecording,
+              loading && !isRecording && styles.disabled,
+            ]}
+            onPress={() => void handleRecordPress()}
+            disabled={loading && !isRecording}
+            accessibilityLabel={isRecording ? "עצור הקלטה והעלה" : "התחל הקלטה"}
             accessibilityRole="button"
             hitSlop={4}
           >
-            <Text style={styles.iconEmoji}>🎙</Text>
+            {loading && !isRecording ? (
+              <ActivityIndicator size="small" color="#334155" />
+            ) : (
+              <NotebookIcon name="mic" size={18} tone={isRecording ? "orange" : "slate"} />
+            )}
           </Pressable>
-          <Pressable
-            style={[styles.iconBtn, loading && styles.disabled]}
-            onPress={() => void handleScan()}
-            disabled={loading}
-            accessibilityLabel="סריקת מחברת"
-            accessibilityRole="button"
-            hitSlop={4}
-          >
-            <Text style={styles.iconEmoji}>📷</Text>
-          </Pressable>
+          {isRecording ? (
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => void stopDeviceRecording(false)}
+              accessibilityLabel="בטל הקלטה"
+              accessibilityRole="button"
+              hitSlop={4}
+            >
+              <Text style={styles.cancelRecord}>✕</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.iconBtn, loading && styles.disabled]}
+              onPress={() => void handleScan()}
+              disabled={loading}
+              accessibilityLabel="סריקת מחברת"
+              accessibilityRole="button"
+              hitSlop={4}
+            >
+              <NotebookIcon name="image" size={18} tone="slate" />
+            </Pressable>
+          )}
         </View>
       </View>
     </View>
   );
 }
 
-const BAR_HEIGHT = 40;
-const LOGO_BTN_SIZE = 36;
+const BAR_HEIGHT = 48;
 const ICON_SIZE = 40;
 
 const styles = StyleSheet.create({
@@ -209,44 +370,53 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 999,
+    borderColor: "#d6d3d1",
+    borderRadius: 12,
     backgroundColor: "#fff",
     minHeight: BAR_HEIGHT,
-    padding: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
-  logoBtn: {
-    width: LOGO_BTN_SIZE,
-    height: LOGO_BTN_SIZE,
-    borderRadius: LOGO_BTN_SIZE / 2,
-    justifyContent: "center",
+  submitBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    shadowColor: "#0f172a",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 1,
-    elevation: 1,
+    gap: 4,
+    backgroundColor: "#ea580c",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minHeight: 36,
   },
-  logoBtnDisabled: { opacity: 0.45 },
-  input: {
+  submitBtnDisabled: { opacity: 0.45 },
+  submitLabel: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  inputCol: {
     flex: 1,
     minWidth: 0,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 11,
-    lineHeight: 16,
-    minHeight: BAR_HEIGHT - 4,
-    color: "#0f172a",
+  },
+  kicker: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "rgba(234, 88, 12, 0.9)",
+    textAlign: "right",
+    marginBottom: 2,
+  },
+  input: {
+    width: "100%",
+    paddingVertical: 0,
+    fontSize: 14,
+    lineHeight: 18,
+    color: "#1c1917",
   },
   tools: {
     flexDirection: "row-reverse",
@@ -264,6 +434,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  iconEmoji: { fontSize: 17 },
+  iconBtnRecording: {
+    borderColor: "#ea580c",
+    backgroundColor: "#fff7ed",
+  },
+  cancelRecord: {
+    color: "#64748b",
+    fontSize: 16,
+    fontWeight: "700",
+  },
   disabled: { opacity: 0.6 },
 });

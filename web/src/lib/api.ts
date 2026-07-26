@@ -62,7 +62,14 @@ export async function apiFetch<T>(
       throw new PaywallError(body.code, body.message);
     }
 
-    throw new Error(body.message ?? `API error ${response.status}`);
+    const message =
+      typeof body.message === "string"
+        ? body.message
+        : body.error === "tags_save_failed" || body.error === "validation_error"
+          ? "שמירת תגיות נכשלה — בדוק שהבקאנד פועל"
+          : `API error ${response.status}`;
+
+    throw new Error(message);
   }
 
   return response.json() as Promise<T>;

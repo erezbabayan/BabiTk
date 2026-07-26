@@ -1,5 +1,5 @@
 import type { MindtaskerItem } from "../types";
-import { mirrorItemToConvex } from "./convex-mirror";
+import { invalidateConvexMirrorCache, mirrorItemToConvex } from "./convex-mirror";
 import { resolveRestoreFromTrashPatch } from "./item-restore";
 import {
   createSyncItem,
@@ -20,6 +20,7 @@ let knownSyncVersion: number | null = null;
 
 export function invalidateSyncCache(): void {
   knownSyncVersion = null;
+  invalidateConvexMirrorCache();
 }
 
 export function isDemoPremium(): boolean {
@@ -96,6 +97,24 @@ function writeLocalItems(items: MindtaskerItem[]): void {
 export async function getDemoItems(): Promise<MindtaskerItem[]> {
   const snapshot = await getDemoItemsSnapshot();
   return snapshot.items;
+}
+
+/** Load offline seed (from Convex export) into localStorage once. */
+export async function ensureLocalSeedItems(): Promise<number> {
+  if (readLocalItems().length > 0) return 0;
+  if (localStorage.getItem("mindtasker:demo:seeded") === "1") return 0;
+  try {
+    const response = await fetch("/babitk-local-seed.json", { cache: "no-store" });
+    if (!response.ok) return 0;
+    const payload = (await response.json()) as { items?: MindtaskerItem[] };
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (items.length === 0) return 0;
+    writeLocalItems(items);
+    localStorage.setItem("mindtasker:demo:seeded", "1");
+    return items.length;
+  } catch {
+    return 0;
+  }
 }
 
 export async function getDemoItemsSnapshot(

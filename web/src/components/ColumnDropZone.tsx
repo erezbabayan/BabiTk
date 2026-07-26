@@ -1,5 +1,6 @@
 import type { DragEvent, ReactNode } from "react";
 import type { DashboardColumn } from "../lib/item-columns";
+import { boardItemsZoneClass } from "../lib/board-item-layout";
 
 const ACTIVE_RING: Record<DashboardColumn, string> = {
   inbox: "ring-2 ring-slate-300 ring-offset-1",
@@ -49,7 +50,7 @@ export function ColumnDropZone({
 
   return (
     <div
-      className={`min-h-0 flex-1 transition ${dragging ? ACTIVE_BG[column] : ""} ${active ? ACTIVE_RING[column] : ""} ${className}`}
+      className={`${boardItemsZoneClass(column)} transition ${dragging ? ACTIVE_BG[column] : ""} ${active ? ACTIVE_RING[column] : ""} ${className}`}
       onDragEnter={(e) => {
         e.preventDefault();
         onActivate(column);

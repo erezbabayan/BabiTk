@@ -7,6 +7,7 @@ import {
   getItemColumn,
   itemsInColumn,
   sortColumnItems,
+  withPinnedBoardColumn,
   type DashboardColumn,
 } from "../lib/item-columns";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -19,27 +20,132 @@ import {
   buildArchivePatch,
   buildSoftDeletePatch,
   resolveRestoreFromArchivePatch,
+  resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
 import type { MindtaskerItem } from "../lib/supabase";
 import type { ItemEditInput } from "./useBoardItems";
+import {
+  buildClearReminderPatch,
+  buildInferredReminderPatch,
+  buildManualReminderPatch,
+  buildTaskReminderUpdate,
+  type ReminderRecurrence,
+} from "../lib/resolve-item-reminder";
+import { buildPriorityTogglePatch } from "../lib/item-priority";
+import {
+  cancelItemReminderNotification,
+  scheduleItemReminderNotification,
+} from "../lib/local-notifications";
 
-export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: boolean) {
-  const rawItems = useQuery(
-    api.items.listActive,
-    enabled && userId ? { userId } : "skip",
+function reminderKindForItem(item: MindtaskerItem): "task" | "notebook" {
+  return item.is_actionable ? "task" : "notebook";
+}
+
+async function syncLocalReminder(item: MindtaskerItem, dueDate: string | null | undefined) {
+  const kind = reminderKindForItem(item);
+  if (!dueDate) {
+    await cancelItemReminderNotification(kind, item.id);
+    return;
+  }
+  await scheduleItemReminderNotification({
+    kind,
+    id: item.id,
+    title: item.title,
+    dueDateIso: dueDate,
+  });
+}
+
+export type BoardSecondaryLoad = {
+  inboxArchive?: boolean;
+  notesArchive?: boolean;
+  completed?: boolean;
+};
+
+export function useBoardItemsConvex(
+  userId: Id<"users"> | undefined,
+  enabled: boolean,
+  secondary: BoardSecondaryLoad = {},
+) {
+  const queryArgs = enabled && userId ? { userId } : "skip";
+  const loadInboxArchive = Boolean(secondary.inboxArchive);
+  const loadNotesArchive = Boolean(secondary.notesArchive);
+  const loadCompleted = Boolean(secondary.completed);
+
+  const rawInbox = useQuery(
+    api.items.listBoardColumn,
+    queryArgs === "skip" ? "skip" : { ...queryArgs, column: "inbox" },
   );
+  const rawToday = useQuery(
+    api.items.listBoardColumn,
+    queryArgs === "skip" ? "skip" : { ...queryArgs, column: "today" },
+  );
+  const rawNotes = useQuery(
+    api.items.listBoardColumn,
+    queryArgs === "skip" ? "skip" : { ...queryArgs, column: "notes" },
+  );
+  const rawInboxArchive = useQuery(
+    api.items.listBoardSecondary,
+    queryArgs === "skip" || !loadInboxArchive
+      ? "skip"
+      : { ...queryArgs, bucket: "inbox_archive" },
+  );
+  const rawNotesArchive = useQuery(
+    api.items.listBoardSecondary,
+    queryArgs === "skip" || !loadNotesArchive
+      ? "skip"
+      : { ...queryArgs, bucket: "notes_archive" },
+  );
+  const rawCompleted = useQuery(
+    api.items.listBoardSecondary,
+    queryArgs === "skip" || !loadCompleted
+      ? "skip"
+      : { ...queryArgs, bucket: "completed" },
+  );
+
   const updateMutation = useMutation(api.items.update);
   const toggleMutation = useMutation(api.items.toggleActionable);
+  const ensureSoonReminder = useMutation(api.notifications.ensureSoonReminder);
+
+  const mapRows = useCallback((rows: typeof rawInbox) => (rows ?? []).map(convexItemToMindtasker), []);
+
+  const inbox = useMemo(
+    () => sortColumnItems(mapRows(rawInbox)),
+    [mapRows, rawInbox],
+  );
+  const todayTasks = useMemo(
+    () => sortColumnItems(mapRows(rawToday)),
+    [mapRows, rawToday],
+  );
+  const notes = useMemo(
+    () => sortColumnItems(mapRows(rawNotes)),
+    [mapRows, rawNotes],
+  );
+  const inboxArchive = useMemo(
+    () => (loadInboxArchive ? mapRows(rawInboxArchive) : []),
+    [loadInboxArchive, mapRows, rawInboxArchive],
+  );
+  const notesArchive = useMemo(
+    () => (loadNotesArchive ? mapRows(rawNotesArchive) : []),
+    [loadNotesArchive, mapRows, rawNotesArchive],
+  );
+  const completedTasks = useMemo(
+    () => (loadCompleted ? mapRows(rawCompleted) : []),
+    [loadCompleted, mapRows, rawCompleted],
+  );
 
   const items = useMemo(
-    () => (rawItems ?? []).map(convexItemToMindtasker),
-    [rawItems],
+    () => [...inbox, ...todayTasks, ...notes, ...inboxArchive, ...notesArchive, ...completedTasks],
+    [inbox, todayTasks, notes, inboxArchive, notesArchive, completedTasks],
   );
-  const loading = enabled && userId ? rawItems === undefined : false;
+
+  const loading =
+    enabled && userId
+      ? rawInbox === undefined || rawToday === undefined || rawNotes === undefined
+      : false;
 
   const patchItem = useCallback(
     async (item: MindtaskerItem, patch: Partial<MindtaskerItem>) => {
-      if (!userId) return;
+      if (!userId) throw new Error("משתמש לא מחובר");
       await updateMutation({
         userId,
         itemId: asConvexItemId(item.id),
@@ -47,31 +153,6 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
       });
     },
     [updateMutation, userId],
-  );
-
-  const inbox = useMemo(
-    () => sortColumnItems(items.filter((i) => i.status === "inbox")),
-    [items],
-  );
-  const todayTasks = useMemo(
-    () => sortColumnItems(items.filter((i) => i.is_actionable && i.status === "pending")),
-    [items],
-  );
-  const notes = useMemo(
-    () => sortColumnItems(items.filter((i) => !i.is_actionable && i.status === "pending")),
-    [items],
-  );
-  const inboxArchive = useMemo(
-    () => items.filter((i) => i.status === "snoozed_archive" && i.is_actionable),
-    [items],
-  );
-  const notesArchive = useMemo(
-    () => items.filter((i) => i.status === "snoozed_archive" && !i.is_actionable),
-    [items],
-  );
-  const completedTasks = useMemo(
-    () => items.filter((i) => i.status === "completed" && i.is_actionable),
-    [items],
   );
 
   return {
@@ -88,16 +169,67 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
     syncError: null,
     pendingCount: 0,
     refresh: async () => {},
-    approveItem: (item: MindtaskerItem) =>
-      patchItem(item, { status: "pending", last_interacted_at: new Date().toISOString() }),
-    completeTask: (item: MindtaskerItem) =>
-      patchItem(item, {
+    approveItem: async (item: MindtaskerItem) => {
+      const patch: Record<string, unknown> = {
+        status: "pending",
+        last_interacted_at: new Date().toISOString(),
+        metadata: withPinnedBoardColumn(item.metadata, null),
+      };
+      if (item.is_actionable) {
+        const reminder = buildInferredReminderPatch(item);
+        patch.due_date = reminder.due_date;
+        patch.metadata = {
+          ...withPinnedBoardColumn(item.metadata, null),
+          ...(reminder.metadata ?? {}),
+        };
+        delete (patch.metadata as Record<string, unknown>).board_column;
+        await patchItem(item, patch);
+        await syncLocalReminder(item, reminder.due_date ?? null);
+        return;
+      }
+      return patchItem(item, patch);
+    },
+    completeTask: async (item: MindtaskerItem) => {
+      await cancelItemReminderNotification(reminderKindForItem(item), item.id);
+      return patchItem(item, {
         status: "completed",
         completed_at: new Date().toISOString(),
         last_interacted_at: new Date().toISOString(),
-      }),
-    snoozeTask: (item: MindtaskerItem, dueDate: string) =>
-      patchItem(item, { due_date: dueDate, last_interacted_at: new Date().toISOString() }),
+      });
+    },
+    snoozeTask: async (
+      item: MindtaskerItem,
+      dueDate: string,
+      recurrence?: ReminderRecurrence | null,
+    ) => {
+      const reminder = buildManualReminderPatch(item, dueDate, recurrence);
+      await patchItem(item, {
+        ...reminder,
+        last_interacted_at: new Date().toISOString(),
+      });
+      const fireAt = reminder.due_date ?? dueDate;
+      await syncLocalReminder(item, fireAt);
+      try {
+        await ensureSoonReminder({
+          kind: item.is_actionable ? "task" : "notebook",
+          ...(item.is_actionable
+            ? { taskId: asConvexItemId(item.id) as Id<"tasks"> }
+            : { notebookId: asConvexItemId(item.id) as Id<"notebooks"> }),
+          title: item.title,
+          fireAt,
+        });
+      } catch (error) {
+        console.warn("ensureSoonReminder failed", error);
+      }
+    },
+    clearReminder: async (item: MindtaskerItem) => {
+      const reminder = buildClearReminderPatch(item);
+      await cancelItemReminderNotification(reminderKindForItem(item), item.id);
+      return patchItem(item, {
+        ...reminder,
+        last_interacted_at: new Date().toISOString(),
+      });
+    },
     archiveItem: (item: MindtaskerItem) => patchItem(item, buildArchivePatch(item)),
     restoreArchiveItem: (item: MindtaskerItem) =>
       patchItem(item, resolveRestoreFromArchivePatch(item)),
@@ -108,26 +240,97 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
         last_interacted_at: new Date().toISOString(),
       }),
     deleteItem: (item: MindtaskerItem) => patchItem(item, buildSoftDeletePatch(item)),
-    restoreDeletedItem: async (_item: MindtaskerItem) => {},
-    editItem: (item: MindtaskerItem, input: ItemEditInput) =>
-      patchItem(item, {
+    restoreDeletedItem: (item: MindtaskerItem) =>
+      patchItem(item, resolveRestoreFromTrashPatch(item)),
+    editItem: async (item: MindtaskerItem, input: ItemEditInput) => {
+      const patch: Record<string, unknown> = {
         title: input.title,
         content: input.content,
         tags: input.tags,
-        due_date: item.is_actionable ? input.due_date : null,
         last_interacted_at: new Date().toISOString(),
-      }),
+      };
+      const reminder = buildTaskReminderUpdate(item, {
+        title: input.title,
+        content: input.content,
+        due_date: input.due_date,
+      });
+      patch.due_date = reminder.dueDate;
+      patch.metadata = reminder.metadata;
+      await patchItem(item, patch);
+      await syncLocalReminder({ ...item, title: input.title }, reminder.dueDate);
+    },
     toggleActionable: async (item: MindtaskerItem) => {
       if (!userId) return;
       const becomesTask = !item.is_actionable;
-      await toggleMutation({
-        userId,
-        itemId: asConvexItemId(item.id),
-        dueDate: becomesTask ? (item.due_date ?? null) : undefined,
-      });
+      try {
+        if (becomesTask) {
+          const reminder = buildInferredReminderPatch({
+            ...item,
+            is_actionable: true,
+          });
+          await toggleMutation({
+            userId,
+            itemId: asConvexItemId(item.id),
+            dueDate: reminder.due_date,
+            metadata: reminder.metadata,
+          });
+        } else {
+          await toggleMutation({
+            userId,
+            itemId: asConvexItemId(item.id),
+          });
+        }
+      } catch (error) {
+        console.error("toggleActionable failed", error);
+        throw error;
+      }
     },
-    moveToColumn: (item: MindtaskerItem, target: DashboardColumn) =>
-      patchItem(item, buildColumnMovePatch(target)),
+    moveToColumn: async (item: MindtaskerItem, target: DashboardColumn) => {
+      const source = getItemColumn(item);
+      if (!source || source === target) return;
+      if (!userId) throw new Error("משתמש לא מחובר");
+
+      const needsTypeFlip =
+        (target === "today" && !item.is_actionable) ||
+        (target === "notes" && item.is_actionable);
+
+      if (needsTypeFlip) {
+        if (!userId) return;
+        let nextItemId = asConvexItemId(item.id);
+        if (target === "today") {
+          const reminder = buildInferredReminderPatch({
+            ...item,
+            is_actionable: true,
+          });
+          const createdId = await toggleMutation({
+            userId,
+            itemId: nextItemId,
+            dueDate: reminder.due_date,
+            metadata: reminder.metadata,
+          });
+          if (createdId) nextItemId = String(createdId);
+        } else {
+          const createdId = await toggleMutation({
+            userId,
+            itemId: nextItemId,
+          });
+          if (createdId) nextItemId = String(createdId);
+        }
+
+        await updateMutation({
+          userId,
+          itemId: nextItemId,
+          patch: mindtaskerPatchToConvex({
+            status: "pending",
+            last_interacted_at: new Date().toISOString(),
+            metadata: withPinnedBoardColumn(item.metadata, null),
+          }),
+        });
+        return;
+      }
+
+      await patchItem(item, buildColumnMovePatch(target, item.metadata));
+    },
     placeItem: async (
       itemId: string,
       targetColumn: DashboardColumn,
@@ -137,6 +340,46 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
       if (!item) return;
 
       const sourceColumn = getItemColumn(item);
+
+      if (sourceColumn && sourceColumn !== targetColumn) {
+        const needsTypeFlip =
+          (targetColumn === "today" && !item.is_actionable) ||
+          (targetColumn === "notes" && item.is_actionable);
+        if (needsTypeFlip) {
+          if (!userId) return;
+          let nextItemId = asConvexItemId(item.id);
+          if (targetColumn === "today") {
+            const reminder = buildInferredReminderPatch({
+              ...item,
+              is_actionable: true,
+            });
+            const createdId = await toggleMutation({
+              userId,
+              itemId: nextItemId,
+              dueDate: reminder.due_date,
+              metadata: reminder.metadata,
+            });
+            if (createdId) nextItemId = String(createdId);
+          } else {
+            const createdId = await toggleMutation({
+              userId,
+              itemId: nextItemId,
+            });
+            if (createdId) nextItemId = String(createdId);
+          }
+          await updateMutation({
+            userId,
+            itemId: nextItemId,
+            patch: mindtaskerPatchToConvex({
+              status: "pending",
+              last_interacted_at: new Date().toISOString(),
+              metadata: withPinnedBoardColumn(item.metadata, null),
+            }),
+          });
+          return;
+        }
+      }
+
       const movedItem = item;
 
       let targetList = sortColumnItems(
@@ -165,7 +408,9 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
       }
 
       const columnPatch =
-        sourceColumn !== targetColumn ? buildColumnMovePatch(targetColumn) : {};
+        sourceColumn !== targetColumn
+          ? buildColumnMovePatch(targetColumn, item.metadata)
+          : {};
 
       for (const [index, entry] of targetList.entries()) {
         const nextOrder = (index + 1) * 10;
@@ -180,6 +425,8 @@ export function useBoardItemsConvex(userId: Id<"users"> | undefined, enabled: bo
     },
     updateTags: (item: MindtaskerItem, tags: string[]) =>
       patchItem(item, { tags, last_interacted_at: new Date().toISOString() }),
+    togglePriority: (item: MindtaskerItem, priority: boolean) =>
+      patchItem(item, buildPriorityTogglePatch(item, priority)),
     addCapturedItem: async (_item: MindtaskerItem) => {},
   };
 }

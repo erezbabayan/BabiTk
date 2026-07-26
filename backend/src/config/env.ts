@@ -35,6 +35,27 @@ export const env = {
   get openaiWhisperModel() {
     return process.env.OPENAI_WHISPER_MODEL ?? "whisper-1";
   },
+  /** Prefer RunPod → Groq → OpenAI when "auto". Force with runpod|groq|openai. */
+  get hebrewAsrEngine() {
+    const raw = (process.env.HEBREW_ASR_ENGINE ?? "auto").trim().toLowerCase();
+    if (raw === "runpod" || raw === "groq" || raw === "openai") return raw;
+    return "auto" as const;
+  },
+  get runpodApiKey() {
+    return optionalEnv("RUNPOD_API_KEY");
+  },
+  get runpodEndpointId() {
+    return optionalEnv("RUNPOD_ENDPOINT_ID");
+  },
+  get runpodWhisperModel() {
+    return process.env.RUNPOD_WHISPER_MODEL ?? "ivrit-ai/whisper-large-v3-turbo-ct2";
+  },
+  get groqApiKey() {
+    return optionalEnv("GROQ_API_KEY");
+  },
+  get groqWhisperModel() {
+    return process.env.GROQ_WHISPER_MODEL ?? "whisper-large-v3-turbo";
+  },
   get openaiVisionModel() {
     return process.env.OPENAI_VISION_MODEL ?? "gpt-4o";
   },
@@ -172,7 +193,24 @@ export const env = {
     const key = optionalEnv("SUPABASE_SERVICE_ROLE_KEY");
     if (!url || !key) return false;
     if (url.includes("[project-ref]") || key.startsWith("eyJ...")) return false;
-    return true;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  },
+  get isSupabaseAuthConfigured() {
+    const url = optionalEnv("SUPABASE_URL");
+    const key = optionalEnv("SUPABASE_ANON_KEY");
+    if (!url || !key) return false;
+    if (url.includes("[project-ref]") || key.startsWith("eyJ...")) return false;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
   },
   get demoSyncEnabled() {
     return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";

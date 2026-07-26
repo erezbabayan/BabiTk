@@ -2,13 +2,20 @@
 
 @theme {
   --font-board: "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
-  --font-logo: "Segoe Script", "Comic Sans MS", cursive;
+  --font-logo: "Solitreo", cursive;
   --font-hand: "Solitreo", "Segoe Script", cursive;
   --font-board-title: "Secular One", "Rubik", "Arial Hebrew", "Segoe UI", sans-serif;
 }
 
 html {
   font-size: 12px;
+}
+
+@media (max-width: 1023px) {
+  /* Phone / Android browser — match native app density */
+  html {
+    font-size: 14px;
+  }
 }
 
 @layer components {
@@ -41,6 +48,14 @@ body {
       rgb(120 113 108 / 0.05) 23px,
       rgb(120 113 108 / 0.05) 24px
     );
+}
+
+@media (max-width: 1023px) {
+  /* Flat slate page like the Expo app — not notebook paper */
+  body {
+    background-color: #f1f5f9;
+    background-image: none;
+  }
 }
 
 .font-hand {
@@ -87,6 +102,70 @@ body {
   }
 }
 
+/* —— Startup splash —— */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #f8fafc 0%, #ffffff 45%, #fff7ed 100%);
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+.splash-screen--exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-screen-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  animation: splash-rise 0.55s ease-out both;
+}
+
+.splash-logo {
+  transform: scale(1.35);
+  transform-origin: center;
+}
+
+.splash-logo .logo-bar-pulse {
+  animation-duration: 0.7s;
+}
+
+.splash-caption {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  animation: splash-caption-fade 1.2s ease-in-out infinite;
+}
+
+@keyframes splash-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splash-caption-fade {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 @keyframes logo-bar-think {
   0%,
   100% {
@@ -120,6 +199,7 @@ body {
 .logo-wordmark {
   font-family: var(--font-logo);
   font-weight: 700;
+  font-synthesis: none;
 }
 
 /* App header — cream paper, matches dashboard background */
@@ -129,6 +209,17 @@ body {
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.55) 0%, transparent 100%);
   box-shadow: 0 1px 3px rgb(120 113 108 / 0.06);
   backdrop-filter: blur(8px);
+}
+
+@media (max-width: 1023px) {
+  /* Match native top bar */
+  .app-header {
+    border-bottom: 1px solid #e2e8f0;
+    background-color: rgb(255 255 255 / 0.95);
+    background-image: none;
+    box-shadow: none;
+    backdrop-filter: none;
+  }
 }
 
 .app-header-nav-link {
@@ -141,6 +232,13 @@ body {
 
 .board-view-toggle__label {
   @apply hidden whitespace-nowrap sm:inline;
+}
+
+@media (max-width: 1023px) {
+  /* App always shows the view-toggle label */
+  .board-view-toggle__label {
+    display: inline;
+  }
 }
 
 .board-view-toggle__track {
@@ -219,9 +317,28 @@ body {
     0 2px 8px rgb(120 113 108 / 0.1);
 }
 
+@media (max-width: 1023px) {
+  /* Solid capture bar like QuickCaptureBar on mobile */
+  .quick-capture-header-box {
+    border: 1px solid #d6d3d1;
+    border-radius: 12px;
+    background-color: #fff;
+    box-shadow: none;
+  }
+
+  .quick-capture-header-box:focus-within {
+    border-color: #a8a29e;
+    box-shadow: 0 0 0 2px rgb(168 162 158 / 0.2);
+  }
+}
+
 .quick-capture-submit {
   background: linear-gradient(180deg, #fb923c 0%, #f97316 100%);
   box-shadow: 0 1px 3px rgb(234 88 12 / 0.35);
+}
+
+.quick-capture-media-btn:active:not(:disabled) {
+  transform: scale(0.96);
 }
 
 .quick-capture-submit:not(:disabled):hover {
@@ -246,6 +363,14 @@ body {
 /* Thin-line icon buttons on item cards */
 .notebook-icon-btn {
   @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 bg-transparent transition;
+}
+
+.notebook-icon-btn--dense {
+  @apply h-4 w-4;
+}
+
+.board-notebook-item--dense .notebook-icon-btn {
+  @apply h-4 w-4;
 }
 
 .notebook-icon-btn:hover {
@@ -295,10 +420,30 @@ body {
 }
 
 .board-notebook-panel {
-  @apply relative z-[2] flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-300/60 bg-[#fffefb] p-2.5 shadow-sm ring-1 ring-slate-200/30 sm:p-3;
+  @apply relative z-[2] flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-300/60 bg-[#fffefb] px-0 py-2.5 shadow-sm ring-1 ring-slate-200/30 sm:py-3;
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.45) 0%, transparent 18%);
   border-top-width: 1px;
   padding-top: 0.7rem;
+}
+
+@media (max-width: 1023px) {
+  .board-notebook {
+    margin-inline: 0.35rem;
+  }
+
+  .board-notebook-panel {
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  }
+
+  .board-title-hand {
+    font-size: 1.35rem;
+  }
+}
+
+/* Title / toolbar / filters — always inset from the board frame */
+.board-notebook-chrome {
+  @apply px-3.5 sm:px-4;
 }
 
 .board-notebook--slate .board-notebook-panel {
@@ -331,12 +476,79 @@ body {
   @apply rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
 }
 
-.board-notebook-item--squares {
-  @apply flex flex-col;
+.board-notebook-item--dense {
+  @apply h-auto min-h-0 rounded-md shadow-none hover:shadow-sm;
 }
 
-.board-notebook-toolbar {
-  @apply mt-1 lg:mt-1;
+/* Squares: soft gap; each row matches taller tile; grid must not stretch to board height. */
+.board-items-squares {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-rows: auto !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  padding: 6px !important;
+  width: 100% !important;
+  height: fit-content !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  align-self: flex-start !important;
+  align-content: start !important;
+  align-items: stretch !important;
+}
+
+.board-items-squares-empty {
+  grid-column: 1 / -1 !important;
+  padding: 1rem 0.5rem !important;
+  text-align: center !important;
+}
+
+.board-item-square-cell {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 10px !important;
+  background-color: #fff !important;
+  border: 1px solid rgb(226 232 240 / 0.9) !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.board-item-square-cell > * {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  background-color: #fff !important;
+  border-radius: inherit !important;
+}
+
+.board-notebook-item.board-notebook-item--squares {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Squares: items go edge-to-edge; chrome keeps board-notebook-chrome inset. */
+.board-notebook-panel:has(.board-items-squares) {
+  padding-bottom: 0;
+}
+
+.board-notebook-panel:has(.board-items-squares) .board-items-zone,
+.board-items-zone:has(.board-items-squares) {
+  padding-top: 0 !important;
+  padding-inline: 0 !important;
 }
 
 /* Column search — scrapbook dashed frame */

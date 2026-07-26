@@ -1,0 +1,27 @@
+﻿BabiTk ג€” Google login setup
+============================
+
+1) Open Google Cloud credentials (browser will open).
+2) Click: Create credentials -> OAuth client ID
+3) Application type: Web application
+4) Name: BabiTk (or MindTasker)
+5) Authorized JavaScript origins:
+   http://localhost:5173
+6) Authorized redirect URIs:
+   https://scintillating-fly-225.convex.site/api/auth/callback/google
+7) Click Create ג€” copy Client ID and Client Secret
+
+8) Create file: .google-oauth.local.env  (in repo root) with:
+
+GOOGLE_CLIENT_ID=YOUR_ID.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
+
+# Redirect URI for Convex Auth:
+#   https://scintillating-fly-225.convex.site/api/auth/callback/google
+# JavaScript origin:
+#   http://localhost:5173
+
+9) Run in terminal:
+   node scripts/apply-google-oauth.mjs
+
+Then refresh http://localhost:5173 and click Sign in with Google.

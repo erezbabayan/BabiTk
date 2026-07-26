@@ -1,0 +1,13 @@
+[Unit]
+Description=BabiTk Web
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/babitk/web
+ExecStart=/usr/bin/python3 /opt/babitk/web/serve.py
+Restart=always
+User=pro2do
+
+[Install]
+WantedBy=multi-user.target

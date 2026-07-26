@@ -1,5 +1,5 @@
 #!/bin/sh
-# MindTasker — reminder before commit + block secret .env files.
+# BabiTk — reminder before commit + block secret .env files.
 
 staged=$(git diff --cached --name-only --diff-filter=ACM)
 
@@ -18,7 +18,7 @@ if [ "$blocked" -ne 0 ]; then
 fi
 
 echo ""
-echo "📌 MindTasker — לפני שמירה ב-GitHub:"
+echo "📌 BabiTk — לפני שמירה ב-GitHub:"
 echo "   1. git push origin main"
 echo "   2. CI ירוץ אוטומטית; deploy לשרת אחרי הצלחה (אם הוגדרו secrets)"
 echo ""

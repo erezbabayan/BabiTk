@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import type { Doc } from "./_generated/dataModel";
 import { query } from "./_generated/server";
+import { requireScopedUserId } from "./lib/requireAuth";
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
@@ -24,7 +25,8 @@ export const searchNotebooks = query({
     queryEmbedding: v.array(v.float64()),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, { userId, queryEmbedding, limit = 10 }) => {
+  handler: async (ctx, { userId: requestedUserId, queryEmbedding, limit = 10 }) => {
+    const userId = await requireScopedUserId(ctx, requestedUserId);
     const notebooks = await ctx.db
       .query("notebooks")
       .withIndex("by_user_deleted", (q) =>

@@ -13,8 +13,8 @@ After a successful CI run on `main`, the **Deploy** workflow SSHs into your serv
 ### One-time server setup
 
 ```bash
-git clone https://github.com/erezbabayan/MindTasker.git /opt/mindtasker
-cd /opt/mindtasker
+git clone https://github.com/erezbabayan/BabiTk.git /opt/babitk
+cd /opt/babitk
 cp .env.production.example .env.production
 # edit .env.production
 docker compose up -d --build
@@ -27,7 +27,7 @@ docker compose up -d --build
 | `DEPLOY_HOST` | `203.0.113.10` or `app.yourdomain.com` |
 | `DEPLOY_USER` | `deploy` |
 | `DEPLOY_SSH_PRIVATE_KEY` | PEM private key (read-only deploy user recommended) |
-| `DEPLOY_PATH` | `/opt/mindtasker` |
+| `DEPLOY_PATH` | `/opt/babitk` |
 | `DEPLOY_PORT` | `22` (optional) |
 
 Until these secrets are set, deploy is **skipped** (CI still runs).

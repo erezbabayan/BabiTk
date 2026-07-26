@@ -1,0 +1,33 @@
+export type SignupDetails = {
+  firstName: string;
+  lastName: string;
+  phone: string;
+};
+
+export function validateSignupPassword(password: string): void {
+  if (password.length < 8) {
+    throw new Error("הסיסמה חייבת להכיל לפחות 8 תווים");
+  }
+}
+
+export function validateSignupDetails(
+  details: SignupDetails,
+  password?: string,
+): void {
+  const firstName = details.firstName.trim();
+  const lastName = details.lastName.trim();
+  const phone = details.phone.trim();
+
+  if (password !== undefined) {
+    validateSignupPassword(password);
+  }
+
+  if (!firstName) throw new Error("יש להזין שם פרטי");
+  if (!lastName) throw new Error("יש להזין שם משפחה");
+  if (!phone) throw new Error("יש להזין מספר טלפון");
+
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 9) {
+    throw new Error("מספר טלפון לא תקין");
+  }
+}

@@ -2,11 +2,38 @@
 <html lang="he" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MindTasker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <title>BabiTk</title>
+    <!-- Non-blocking fonts: Android often stalls on Google Fonts CDN. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&family=Secular+One&family=Solitreo&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&family=Secular+One&family=Solitreo&display=swap"
+      />
+    </noscript>
+    <style>
+      /* Immediate fallbacks so UI paints before remote fonts arrive */
+      html, body {
+        font-family: Rubik, "Segoe UI", Tahoma, Arial, sans-serif;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-DC2MrKq1.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-qoZPGuNy.js">
+    <link rel="modulepreload" crossorigin href="/assets/convex-K4lk5Uzv.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Z42wR2e_.css">
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+
   </body>
 </html>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BOARD_SETTINGS_LABELS } from "../lib/board-settings";
+import { BOARD_SETTINGS_LABELS, type InboxArchiveHours } from "../lib/board-settings";
 import { useBoardSettings } from "../hooks/useBoardSettings";
 import { NotebookBoardSettings } from "./NotebookBoardSettings";
 
@@ -11,44 +11,41 @@ const BOARD_MENU: { id: BoardSection; label: string }[] = [
   { id: "notes", label: `📝 ${BOARD_SETTINGS_LABELS.notes}` },
 ];
 
+function formatBoardSettingsError(error: unknown): string {
+  if (!(error instanceof Error)) return "שמירה נכשלה";
+  const message = error.message;
+  if (message.includes("Not authenticated") || message.includes("Unauthenticated")) {
+    return "יש להתחבר מחדש כדי לשמור";
+  }
+  if (message.includes("Supabase")) {
+    return "שמירה דרך השרת נכשלה — נסה לרענן את העמוד";
+  }
+  return message;
+}
+
 export function BoardSettingsPanel() {
   const { settings, loading, save } = useBoardSettings();
   const [section, setSection] = useState<BoardSection>("menu");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedHint, setSavedHint] = useState(false);
 
   async function handleSaveInboxArchive(hours: number) {
     setSaving(true);
     setError(null);
+    setSavedHint(false);
     try {
-      await save({ inbox_archive_hours: hours as typeof settings.inbox_archive_hours });
+      await save({ inbox_archive_hours: hours as InboxArchiveHours });
+      setSavedHint(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שמירה נכשלה");
+      setError(formatBoardSettingsError(err));
     } finally {
       setSaving(false);
     }
   }
 
-  const title =
-    section === "menu"
-      ? "הגדרות בורדים"
-      : BOARD_MENU.find((item) => item.id === section)?.label.replace(/^[^\s]+\s/, "");
-
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold">{title}</h3>
-        {section !== "menu" ? (
-          <button
-            type="button"
-            onClick={() => setSection("menu")}
-            className="border border-slate-300 text-xs hover:bg-slate-50"
-          >
-            חזור לבורדים
-          </button>
-        ) : null}
-      </div>
-
       {section === "menu" ? (
         <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
           {BOARD_MENU.map((item) => (
@@ -62,16 +59,34 @@ export function BoardSettingsPanel() {
             </button>
           ))}
         </div>
-      ) : null}
+      ) : (
+        <div className="mb-1 flex items-center justify-between">
+          <h3 className="text-sm font-bold">
+            {BOARD_MENU.find((item) => item.id === section)?.label.replace(/^[^\s]+\s/, "")}
+          </h3>
+          <button
+            type="button"
+            onClick={() => setSection("menu")}
+            className="border border-slate-300 text-xs hover:bg-slate-50"
+          >
+            חזור לבורדים
+          </button>
+        </div>
+      )}
 
       {section === "inbox" ? (
-        <NotebookBoardSettings
-          hours={settings.inbox_archive_hours}
-          loading={loading}
-          saving={saving}
-          error={error}
-          onSave={handleSaveInboxArchive}
-        />
+        <>
+          <NotebookBoardSettings
+            hours={settings.inbox_archive_hours}
+            loading={loading}
+            saving={saving}
+            error={error}
+            onSave={handleSaveInboxArchive}
+          />
+          {savedHint && !error ? (
+            <p className="text-xs text-emerald-700">נשמר בהצלחה · מסונכרן עם האפליקציה</p>
+          ) : null}
+        </>
       ) : null}
 
       {section === "today" || section === "notes" ? (

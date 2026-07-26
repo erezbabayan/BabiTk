@@ -1,5 +1,8 @@
 export type ItemStatus = "inbox" | "pending" | "completed" | "snoozed_archive";
-export type SourceType = "whatsapp_voice" | "whatsapp_text" | "notebook_ocr";
+export type { SourceType } from "./lib/source-display";
+export { SOURCE_ICONS } from "./lib/source-display";
+
+import type { SourceType } from "./lib/source-display";
 
 export interface OcrBBox {
   left: number;
@@ -45,8 +48,3 @@ export interface MindtaskerItem {
   deleted_at?: string | null;
 }
 
-export const SOURCE_ICONS: Record<SourceType, string> = {
-  whatsapp_voice: "🎙️",
-  whatsapp_text: "💬",
-  notebook_ocr: "📷",
-};

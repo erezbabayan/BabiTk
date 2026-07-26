@@ -3,12 +3,12 @@ import {
   type BoardSettings,
   type InboxArchiveHours,
 } from "./board-settings";
-import { isDemoMode } from "./supabase";
+import { isDemoMode, isSupabaseConfigured } from "./supabase";
 import { apiFetch } from "./api";
 
 const DEMO_BOARD_SETTINGS_KEY = "mindtasker:demo:board-settings";
 
-function readDemoSettings(): BoardSettings {
+function readLocalSettings(): BoardSettings {
   try {
     const raw = localStorage.getItem(DEMO_BOARD_SETTINGS_KEY);
     if (!raw) return { inbox_archive_hours: DEFAULT_INBOX_ARCHIVE_HOURS };
@@ -21,12 +21,13 @@ function readDemoSettings(): BoardSettings {
   }
 }
 
-function writeDemoSettings(settings: BoardSettings): void {
+function writeLocalSettings(settings: BoardSettings): void {
   localStorage.setItem(DEMO_BOARD_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+/** Fallback when Convex is unavailable (demo / local). */
 export async function getBoardSettingsApi(): Promise<BoardSettings> {
-  if (isDemoMode) return readDemoSettings();
+  if (isDemoMode || !isSupabaseConfigured) return readLocalSettings();
   const data = await apiFetch<{ settings: BoardSettings }>("/api/board-settings");
   return data.settings;
 }
@@ -34,9 +35,9 @@ export async function getBoardSettingsApi(): Promise<BoardSettings> {
 export async function saveBoardSettingsApi(
   patch: Partial<BoardSettings>,
 ): Promise<BoardSettings> {
-  if (isDemoMode) {
-    const next = { ...readDemoSettings(), ...patch };
-    writeDemoSettings(next);
+  if (isDemoMode || !isSupabaseConfigured) {
+    const next = { ...readLocalSettings(), ...patch };
+    writeLocalSettings(next);
     return next;
   }
   const data = await apiFetch<{ settings: BoardSettings }>("/api/board-settings", {

@@ -1,10 +1,11 @@
-import { supabase, normalizeMindtaskerRows, type MindtaskerItem } from "../lib/supabase";
+import { supabase, normalizeMindtaskerRows, isSupabaseConfigured, type MindtaskerItem } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 import { buildSoftDeletePatch, resolveRestoreFromTrashPatch } from "../lib/item-restore";
 import type { OfflineAction } from "./types";
 import { readQueue, writeQueue } from "./store";
 
 async function getAccessToken(): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
@@ -89,17 +90,24 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
 
   const remaining: OfflineAction[] = [];
   let synced = 0;
+  let lastError: string | null = null;
 
   for (const action of queue) {
     try {
       await executeAction(action);
       synced++;
-    } catch {
+    } catch (error) {
       remaining.push(action);
+      lastError = error instanceof Error ? error.message : String(error);
     }
   }
 
   await writeQueue(remaining);
+  if (lastError && remaining.length > 0) {
+    console.warn(
+      `[offline-sync] ${remaining.length} action(s) still pending: ${lastError}`,
+    );
+  }
   return { synced, failed: remaining.length };
 }
 

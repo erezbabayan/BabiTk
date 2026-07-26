@@ -1,7 +1,15 @@
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import { env } from "../config/env.js";
+import { getDemoUserProfile } from "./demo-user.service.js";
+import { SYNC_USER_ID } from "./sync-store.service.js";
 import type { ParsedItem } from "../types/ai.js";
 import { extractAnalysisMetadata } from "./item-analysis.service.js";
 import { resolveIngestItemStatus } from "./entity-rules.service.js";
+import {
+  finalizeIngestItem,
+  finalizedToParsedItem,
+} from "../lib/ingest/finalizeIngestItem.js";
+import { getUserTagNames } from "./user-tags.service.js";
 import type { DbMindtaskerItem, DbSourceMaterial, SourceType } from "../types/database.js";
 import { syncNoteEmbedding } from "./search.service.js";
 import { syncTaskToCalendar } from "./calendar.service.js";
@@ -54,20 +62,45 @@ export async function saveParsedItems(
   userId: string,
   sourceMaterialId: string,
   parsedItems: ParsedItem[],
+  options?: { sourceText?: string; allowedTags?: string[] },
 ): Promise<DbMindtaskerItem[]> {
   const supabase = getSupabaseAdmin();
+  const timezone = "Asia/Jerusalem";
+  const referenceDate = new Date();
+  const allowedTags =
+    options?.allowedTags?.length ? options.allowedTags : await getUserTagNames(userId);
 
-  const rows = parsedItems.map((item) => ({
-    user_id: userId,
-    source_material_id: sourceMaterialId,
-    title: item.title,
-    content: item.content,
-    is_actionable: item.is_actionable,
-    status: resolveIngestItemStatus(item),
-    due_date: item.is_actionable ? item.due_date : null,
-    tags: item.tags,
-    metadata: extractAnalysisMetadata(item) ?? {},
-  }));
+  const rows = parsedItems.map((item) => {
+    const finalized = finalizeIngestItem(
+      {
+        title: item.title,
+        content: item.content,
+        isActionable: item.is_actionable,
+        dueDate: item.due_date,
+        tags: item.tags,
+        metadata: { analysis: item.analysis },
+      },
+      {
+        sourceText: options?.sourceText ?? item.content ?? item.title,
+        allowedTags,
+        timezone,
+        referenceDate,
+      },
+    );
+    const parsed = finalizedToParsedItem(item, finalized);
+
+    return {
+      user_id: userId,
+      source_material_id: sourceMaterialId,
+      title: parsed.title,
+      content: parsed.content,
+      is_actionable: parsed.is_actionable,
+      status: resolveIngestItemStatus(parsed),
+      due_date: parsed.is_actionable ? parsed.due_date : null,
+      tags: parsed.tags,
+      metadata: extractAnalysisMetadata(parsed) ?? {},
+    };
+  });
 
   const { data, error } = await supabase
     .from("mindtasker_items")
@@ -120,11 +153,21 @@ export async function toggleItemType(
     last_interacted_at: new Date().toISOString(),
   };
 
+  const meta =
+    item.metadata && typeof item.metadata === "object"
+      ? { ...(item.metadata as Record<string, unknown>) }
+      : {};
+  // Boards follow type for pending items; inbox keeps status (color-only flip).
+  delete meta.board_column;
+  patch.metadata = meta;
+
   if (becomesTask) {
     patch.due_date = options?.due_date ?? null;
     patch.embedding = null;
   } else {
-    patch.due_date = null;
+    if (meta.reminder_manual !== true) {
+      patch.due_date = null;
+    }
     patch.completed_at = null;
     patch.calendar_event_id = null;
     if (item.status === "completed") {
@@ -295,10 +338,15 @@ export async function saveIngestionResult(
   input: SaveIngestionInput,
 ): Promise<SaveIngestionResult> {
   const sourceMaterial = await createSourceMaterial(input.source);
+  const allowedTags = await getUserTagNames(input.userId);
   const items = await saveParsedItems(
     input.userId,
     sourceMaterial.id,
     input.items,
+    {
+      sourceText: input.source.rawText?.trim() ?? undefined,
+      allowedTags,
+    },
   );
 
   return { sourceMaterial, items };
@@ -319,9 +367,25 @@ export async function findUserByPhone(phone: string) {
  * If no  → caller rejects the message (user must link phone in Web/Mobile settings).
  */
 export async function findInboxUserByPhone(phone: string) {
-  const supabase = getSupabaseAdmin();
   const normalized = normalizePhone(phone);
 
+  if (!env.isSupabaseConfigured) {
+    const profile = await getDemoUserProfile();
+    if (profile.phone_verified && profile.phone === normalized) {
+      return {
+        id: SYNC_USER_ID,
+        email: profile.email,
+        phone: profile.phone,
+        phone_verified: true,
+        tier: "free" as const,
+        allocated_audio_seconds: 1800,
+        used_audio_seconds: 0,
+      };
+    }
+    return null;
+  }
+
+  const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("users")
     .select("id, email, phone, phone_verified, tier, allocated_audio_seconds, used_audio_seconds")

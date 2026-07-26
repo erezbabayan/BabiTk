@@ -1,6 +1,6 @@
-import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -9,131 +9,84 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { DEFAULT_USER_TAGS, type UserTag } from "../lib/tags";
-
-const PALETTE = [
-  "#3b82f6",
-  "#8b5cf6",
-  "#ef4444",
-  "#f59e0b",
-  "#10b981",
-  "#ec4899",
-  "#06b6d4",
-  "#64748b",
-];
+import { useTagSettingsDraft } from "../hooks/useTagSettingsDraft";
+import { DEFAULT_USER_TAGS, MAX_USER_TAGS, TAG_PALETTE } from "../lib/tags";
 
 interface TagSettingsScreenProps {
   visible: boolean;
-  tags: UserTag[];
-  onSave: (tags: { name: string; color: string }[]) => Promise<void>;
   onClose: () => void;
 }
 
-export function TagSettingsScreen({
-  visible,
-  tags,
-  onSave,
-  onClose,
-}: TagSettingsScreenProps) {
-  const [draft, setDraft] = useState(() =>
-    (tags.length > 0 ? tags : DEFAULT_USER_TAGS.map((tag, index) => ({
-      id: `new-${index}`,
-      name: tag.name,
-      color: tag.color,
-      sort_order: index,
-    }))).map((tag) => ({ name: tag.name, color: tag.color })),
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  function updateTag(index: number, patch: Partial<{ name: string; color: string }>) {
-    setDraft((current) =>
-      current.map((tag, i) => (i === index ? { ...tag, ...patch } : tag)),
-    );
-  }
-
-  function addTag() {
-    if (draft.length >= 20) return;
-    setDraft((current) => [
-      ...current,
-      { name: "", color: PALETTE[current.length % PALETTE.length]! },
-    ]);
-  }
-
-  function removeTag(index: number) {
-    if (draft.length <= 1) return;
-    setDraft((current) => current.filter((_, i) => i !== index));
-  }
-
-  async function handleSave() {
-    setError(null);
-    setMessage(null);
-    const cleaned = draft
-      .map((tag) => ({ name: tag.name.trim(), color: tag.color }))
-      .filter((tag) => tag.name.length > 0);
-
-    if (cleaned.length === 0) {
-      setError("נדרשת לפחות תגית אחת");
-      return;
-    }
-
-    const names = cleaned.map((tag) => tag.name);
-    if (new Set(names).size !== names.length) {
-      setError("יש תגיות עם שמות כפולים");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await onSave(cleaned);
-      setMessage("התגיות נשמרו — ה-AI ישתמש בהן לפריטים חדשים");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שמירה נכשלה");
-    } finally {
-      setSaving(false);
-    }
-  }
+export function TagSettingsScreen({ visible, onClose }: TagSettingsScreenProps) {
+  const {
+    draft,
+    updateTag,
+    removeTag,
+    flushSave,
+    resetToDefaults,
+    filledCount,
+    saving,
+    loading,
+    ready,
+    error,
+    synced,
+  } = useTagSettingsDraft(visible);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>הגדרות תגיות</Text>
+          <Text style={styles.title}>תגיות מותאמות</Text>
           <Pressable onPress={onClose}>
             <Text style={styles.close}>סגור</Text>
           </Pressable>
         </View>
 
         <Text style={styles.subtitle}>
-          הגדר תגיות וצבעים. המערכת תשייך אותן אוטומטית לפריטים חדשים לפי ניתוח ה-AI.
+          הגדר עד {MAX_USER_TAGS} תגיות וצבעים. שינויים נשמרים אוטומטית ומסתנכרנים עם הבורדים.
+        </Text>
+        <Text style={styles.meta}>
+          {filledCount}/{MAX_USER_TAGS} תגיות מוגדרות
+          {saving ? " · שומר..." : synced ? " · מסונכרן" : " · ממתין לשמירה..."}
         </Text>
 
-        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-          {draft.map((tag, index) => (
-            <View key={index} style={styles.row}>
-              <View style={[styles.colorSwatch, { backgroundColor: tag.color }]} />
-              <TextInput
-                style={styles.input}
-                value={tag.name}
-                onChangeText={(value) => updateTag(index, { name: value })}
-                placeholder="שם תגית"
-                placeholderTextColor="#94a3b8"
-                textAlign="right"
-              />
-              <Pressable
-                style={[styles.removeBtn, draft.length <= 1 && styles.disabled]}
-                onPress={() => removeTag(index)}
-                disabled={draft.length <= 1}
-              >
-                <Text style={styles.removeText}>מחק</Text>
-              </Pressable>
-            </View>
-          ))}
-        </ScrollView>
+        {!ready && loading ? (
+          <ActivityIndicator style={styles.loader} color="#4f46e5" />
+        ) : (
+          <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+            {draft.map((tag, index) => {
+              const empty = !tag.name.trim();
+              return (
+                <View
+                  key={index}
+                  style={[styles.row, empty && styles.rowEmpty]}
+                >
+                  <Text style={styles.slot}>{index + 1}</Text>
+                  <View style={[styles.colorSwatch, { backgroundColor: tag.color }]} />
+                  <TextInput
+                    style={styles.input}
+                    value={tag.name}
+                    onChangeText={(value) => updateTag(index, { name: value })}
+                    onBlur={() => void flushSave()}
+                    placeholder={`תגית ${index + 1}`}
+                    placeholderTextColor="#94a3b8"
+                    textAlign="right"
+                  />
+                  <Pressable
+                    style={[styles.removeBtn, (empty || filledCount <= 1) && styles.disabled]}
+                    onPress={() => removeTag(index)}
+                    disabled={empty || filledCount <= 1}
+                  >
+                    <Text style={styles.removeText}>מחק</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
 
         <View style={styles.palette}>
-          {PALETTE.map((color) => (
+          {TAG_PALETTE.map((color) => (
             <Pressable
               key={color}
               style={[styles.paletteDot, { backgroundColor: color }]}
@@ -147,26 +100,34 @@ export function TagSettingsScreen({
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        {message ? <Text style={styles.success}>{message}</Text> : null}
 
         <View style={styles.actions}>
           <Pressable
-            style={[styles.secondaryBtn, draft.length >= 20 && styles.disabled]}
-            onPress={addTag}
-            disabled={draft.length >= 20}
-          >
-            <Text style={styles.secondaryBtnText}>+ תגית</Text>
-          </Pressable>
-          <Pressable
             style={[styles.primaryBtn, saving && styles.disabled]}
-            onPress={() => void handleSave()}
+            onPress={() => void flushSave()}
             disabled={saving}
           >
             {saving ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.primaryBtnText}>שמור תגיות</Text>
+              <Text style={styles.primaryBtnText}>שמור עכשיו</Text>
             )}
+          </Pressable>
+          <Pressable
+            style={[styles.secondaryBtn, saving && styles.disabled]}
+            onPress={() => {
+              Alert.alert(
+                "איפוס תגיות",
+                `לאפס ל-${DEFAULT_USER_TAGS.length} תגיות ברירת מחדל?\n(${DEFAULT_USER_TAGS.map((t) => t.name).join(", ")})\n\nהרשימה תתעדכן בכל הבורדים.`,
+                [
+                  { text: "ביטול", style: "cancel" },
+                  { text: "איפוס", style: "destructive", onPress: () => void resetToDefaults() },
+                ],
+              );
+            }}
+            disabled={saving}
+          >
+            <Text style={styles.secondaryBtnText}>איפוס לברירת מחדל</Text>
           </Pressable>
         </View>
       </View>
@@ -184,10 +145,22 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 20, fontWeight: "800", color: "#0f172a" },
   close: { color: "#64748b", fontSize: 15 },
-  subtitle: { color: "#64748b", fontSize: 13, textAlign: "right", marginBottom: 12 },
+  subtitle: { color: "#64748b", fontSize: 13, textAlign: "right", marginBottom: 4 },
+  meta: { color: "#94a3b8", fontSize: 12, textAlign: "right", marginBottom: 12 },
+  loader: { marginTop: 24 },
   list: { flex: 1 },
   listContent: { gap: 8, paddingBottom: 12 },
   row: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  rowEmpty: {
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    backgroundColor: "#f8fafc",
+  },
+  slot: { width: 18, textAlign: "center", fontSize: 10, color: "#94a3b8" },
   colorSwatch: { width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: "#cbd5e1" },
   input: {
     flex: 1,
@@ -211,7 +184,6 @@ const styles = StyleSheet.create({
   palette: { flexDirection: "row-reverse", flexWrap: "wrap", gap: 8, marginVertical: 10 },
   paletteDot: { width: 24, height: 24, borderRadius: 12 },
   error: { color: "#dc2626", textAlign: "right", marginBottom: 6 },
-  success: { color: "#047857", textAlign: "right", marginBottom: 6 },
   actions: { flexDirection: "row-reverse", gap: 8, paddingBottom: 24 },
   secondaryBtn: {
     borderWidth: 1,

@@ -135,7 +135,7 @@ export function ItemMenuSheet({
           {tab === "today" && listView === "active" ? (
             <>
               <MenuOption label="בוצע ✓" primary onPress={() => closeAnd(onComplete)} />
-              <MenuOption label="נודניק" onPress={() => closeAnd(onSnooze)} />
+              <MenuOption label="תזכורת" onPress={() => closeAnd(onSnooze)} />
               <MenuOption label="📦 ארכיון" onPress={() => closeAnd(onArchive)} />
             </>
           ) : null}

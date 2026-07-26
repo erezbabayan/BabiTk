@@ -4,56 +4,39 @@ import {
   type BoardSettings,
   type InboxArchiveHours,
 } from "./board-settings";
-import { apiFetch } from "./api";
-import { isDemoMode } from "./supabase";
 
-const DEMO_BOARD_SETTINGS_KEY = "mindtasker:demo:board-settings";
+const BOARD_SETTINGS_KEY = "mindtasker:board-settings";
 
-async function readDemoSettings(): Promise<BoardSettings> {
+async function readLocalSettings(): Promise<BoardSettings> {
   try {
-    const raw = await AsyncStorage.getItem(DEMO_BOARD_SETTINGS_KEY);
+    const raw = await AsyncStorage.getItem(BOARD_SETTINGS_KEY);
     if (!raw) return { inbox_archive_hours: DEFAULT_INBOX_ARCHIVE_HOURS };
     const parsed = JSON.parse(raw) as BoardSettings;
-    return {
-      inbox_archive_hours: parsed.inbox_archive_hours ?? DEFAULT_INBOX_ARCHIVE_HOURS,
-    };
+    const hours = parsed.inbox_archive_hours;
+    if (hours === 48 || hours === 72 || hours === 168 || hours === 720) {
+      return { inbox_archive_hours: hours };
+    }
+    return { inbox_archive_hours: DEFAULT_INBOX_ARCHIVE_HOURS };
   } catch {
     return { inbox_archive_hours: DEFAULT_INBOX_ARCHIVE_HOURS };
   }
 }
 
-async function writeDemoSettings(settings: BoardSettings): Promise<void> {
-  await AsyncStorage.setItem(DEMO_BOARD_SETTINGS_KEY, JSON.stringify(settings));
+async function writeLocalSettings(settings: BoardSettings): Promise<void> {
+  await AsyncStorage.setItem(BOARD_SETTINGS_KEY, JSON.stringify(settings));
 }
 
+/** Local fallback when Convex hooks are unavailable. Never depends on Supabase. */
 export async function getBoardSettings(): Promise<BoardSettings> {
-  if (isDemoMode) return readDemoSettings();
-
-  const res = await apiFetch("/api/board-settings");
-  if (!res.ok) throw new Error(`Board settings failed: ${res.status}`);
-  const data = (await res.json()) as { settings: BoardSettings };
-  return data.settings;
+  return readLocalSettings();
 }
 
 export async function saveBoardSettings(
   patch: Partial<BoardSettings>,
 ): Promise<BoardSettings> {
-  if (isDemoMode) {
-    const next = { ...await readDemoSettings(), ...patch };
-    await writeDemoSettings(next);
-    return next;
-  }
-
-  const res = await apiFetch("/api/board-settings", {
-    method: "PATCH",
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Save failed: ${res.status}`);
-  }
-  const data = (await res.json()) as { settings: BoardSettings };
-  return data.settings;
+  const next = { ...(await readLocalSettings()), ...patch };
+  await writeLocalSettings(next);
+  return next;
 }
 
 export type { InboxArchiveHours };

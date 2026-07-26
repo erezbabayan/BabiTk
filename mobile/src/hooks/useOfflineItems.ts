@@ -16,6 +16,7 @@ import {
 import type { MindtaskerItem } from "../lib/supabase";
 import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { getDemoItems, updateDemoItem, removeDemoItem } from "../lib/demo-store";
+import { itemsInColumn } from "../lib/item-columns";
 import { useNetworkStatus } from "./useNetworkStatus";
 
 type ListKind = "inbox" | "today" | "notes";
@@ -23,11 +24,11 @@ type ListKind = "inbox" | "today" | "notes";
 function filterByKind(items: MindtaskerItem[], kind: ListKind): MindtaskerItem[] {
   switch (kind) {
     case "inbox":
-      return items.filter((item) => item.status === "inbox");
+      return itemsInColumn(items, "inbox");
     case "today":
-      return items.filter((item) => item.is_actionable && item.status === "pending");
+      return itemsInColumn(items, "today");
     case "notes":
-      return items.filter((item) => !item.is_actionable && item.status === "pending");
+      return itemsInColumn(items, "notes");
   }
 }
 
@@ -182,6 +183,7 @@ export function useOfflineItems(kind: ListKind) {
 export function snoozePresets() {
   const now = new Date();
   return [
+    { label: "בעוד דקה", iso: new Date(now.getTime() + 60_000).toISOString() },
     { label: "עוד 3 שעות", iso: new Date(now.getTime() + 3 * 3600000).toISOString() },
     {
       label: "מחר בבוקר",
@@ -204,4 +206,4 @@ export function snoozePresets() {
   ];
 }
 
-export const QUICK_TAGS = ["בית", "עבודה", "קודים", "רעיונות", "פיננסי", "משפחה"];
+export const QUICK_TAGS = ["בית", "עבודה", "לימודים", "קודים", "רעיונות", "פיננסי", "משפחה"];

@@ -6,21 +6,17 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
 import { enrichParsedItemsWithAnalysis } from "./lib/ingest/itemAnalysis";
+import { applyHebrewAsrSpellingFixes } from "./lib/ingest/hebrewAsrSpelling";
+import { parseInputLocally } from "./lib/ingest/localParse";
 import { storeMediaBuffer } from "./lib/mediaStorage";
-import {
-  AUDIO_QUOTA_MESSAGE,
-  WHATSAPP_REJECTION_MESSAGE,
-  buildIngestConfirmation,
-} from "./lib/messages";
-import { replyToSender } from "./lib/replyToSender";
+import { markSenderMessageRead } from "./lib/replyToSender";
 import type { ParseInputResponse } from "./lib/ingest/types";
 import {
   downloadMedia,
   estimateAudioSeconds,
-  parseInputForIngest,
   sanitizeInboundText,
-  transcribeAudioBuffer,
 } from "./openaiPipeline";
+import { snapshotHebrewAsrEnv, transcribeHebrewAudio } from "./lib/hebrewAsr";
 
 const DEFAULT_TIMEZONE = "Asia/Jerusalem";
 
@@ -48,9 +44,12 @@ export const processVoiceMessage = internalAction({
     messageId: v.string(),
     audioUrl: v.string(),
     senderPhone: v.optional(v.string()),
+    chatId: v.optional(v.string()),
     mimeType: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<VoicePipelineResult> => {
+    const asrEnv = snapshotHebrewAsrEnv();
+
     const { buffer, mimeType: downloadedMime } = await downloadMedia(args.audioUrl);
     const mimeType = args.mimeType ?? downloadedMime;
     const estimatedSeconds = estimateAudioSeconds(buffer);
@@ -60,34 +59,47 @@ export const processVoiceMessage = internalAction({
       { userId: args.userId as Id<"users">, estimatedSeconds },
     );
     if (!quota.allowed) {
-      await replyToSender(ctx, args.senderPhone, AUDIO_QUOTA_MESSAGE);
       return { ok: false, reason: "audio_quota_exceeded" };
     }
 
     const storageId = await storeMediaBuffer(ctx, buffer, mimeType);
-    const transcribed = await transcribeAudioBuffer(
+    const transcribed = await transcribeHebrewAudio(
       buffer,
       audioFileName(args.messageId, mimeType),
       mimeType,
+      asrEnv,
     );
 
     const sanitized = sanitizeInboundText(transcribed.text);
     if (!sanitized.accepted) {
-      await replyToSender(ctx, args.senderPhone, WHATSAPP_REJECTION_MESSAGE);
       return { ok: false, reason: "empty_or_junk_text" };
     }
 
+    const correctedText = applyHebrewAsrSpellingFixes(sanitized.text);
+
+    await ctx.runMutation(internal.userTagDefinitions.ensureDefaults, {
+      userId: args.userId as Id<"users">,
+    });
+    const allowedTags = await ctx.runQuery(internal.userTagDefinitions.listNamesInternal, {
+      userId: args.userId as Id<"users">,
+    });
+    const lessons = await ctx.runQuery(internal.ingestLessons.listForUserInternal, {
+      userId: args.userId as Id<"users">,
+    });
+
     const referenceDate = new Date();
-    const parsed = await parseInputForIngest({
-      text: sanitized.text,
+    const localParsed = parseInputLocally({
+      text: correctedText,
       timezone: DEFAULT_TIMEZONE,
       locale: "he-IL",
       referenceDate,
+      allowedTags,
+      lessons,
     });
 
-    const enriched = enrichParsedItemsWithAnalysis(parsed.items, {
+    const enriched = enrichParsedItemsWithAnalysis(localParsed.items, {
       sourceType: "whatsapp_voice",
-      sourceText: sanitized.text,
+      sourceText: correctedText,
       timezone: DEFAULT_TIMEZONE,
       referenceDate,
     });
@@ -96,15 +108,19 @@ export const processVoiceMessage = internalAction({
       userId: args.userId as Id<"users">,
       sourceType: "whatsapp_voice",
       sourceRawText: transcribed.text,
+      sourceCorrectedText: correctedText,
       sourceStorageUrl: args.audioUrl,
       sourceStorageId: storageId,
       whatsappMessageId: args.messageId,
       sourceMetadata: {
         whisper_transcription: transcribed.text,
+        corrected_transcription: correctedText,
         duration_seconds: transcribed.durationSeconds,
-        parse_response: parsed,
+        parse_response: localParsed,
+        parse_path: "local_fast",
         audio_mime_type: mimeType,
         storage_id: storageId,
+        whatsapp_chat_id: args.chatId,
       },
       items: enriched.map((item) => ({
         title: item.title,
@@ -126,23 +142,33 @@ export const processVoiceMessage = internalAction({
       })),
     });
 
+    if (saved.created.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.inboundPipeline.refineIngestedText, {
+        userId: args.userId as Id<"users">,
+        messageId: args.messageId,
+        text: correctedText,
+        sourceType: "whatsapp_voice",
+        created: saved.created,
+        chatId: args.chatId,
+      });
+    }
+
     await ctx.runMutation(internal.users.recordAudioUsage, {
       userId: args.userId as Id<"users">,
       seconds: transcribed.durationSeconds,
     });
 
-    await replyToSender(
-      ctx,
-      args.senderPhone,
-      buildIngestConfirmation(saved.createdCount),
-    );
+    await markSenderMessageRead(ctx, {
+      chatId: args.chatId,
+      messageId: args.messageId,
+    });
 
     return {
       ok: true,
       reason: "ingested",
-      transcription: transcribed.text,
+      transcription: correctedText,
       durationSeconds: transcribed.durationSeconds,
-      parseResponse: parsed,
+      parseResponse: localParsed,
       createdCount: saved.createdCount,
     };
   },

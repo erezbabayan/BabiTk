@@ -7,6 +7,9 @@ import { fetchSyncItems } from "./sync-client";
 import { isConvexConfigured } from "./convex";
 
 let client: ConvexHttpClient | null = null;
+let resyncInFlight: Promise<void> | null = null;
+let lastSyncedVersion: number | null = null;
+let resyncTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getClient(): ConvexHttpClient | null {
   const url = import.meta.env.VITE_CONVEX_URL?.trim() ?? "";
@@ -20,6 +23,10 @@ function getClient(): ConvexHttpClient | null {
 export function isConvexMirrorEnabled(): boolean {
   if (import.meta.env.VITE_USE_CONVEX === "false") return false;
   return isConvexConfigured;
+}
+
+export function invalidateConvexMirrorCache(): void {
+  lastSyncedVersion = null;
 }
 
 function toSyncPayload(item: MindtaskerItem) {
@@ -57,7 +64,7 @@ export async function mirrorItemToConvex(item: MindtaskerItem): Promise<void> {
   if (!convex || !isConvexMirrorEnabled()) return;
 
   try {
-    await convex.mutation(api.seed.importSync, {
+    await convex.mutation(api.seed.importSyncDev, {
       legacyUserId: item.user_id ?? DEMO_USER_ID,
       items: [toSyncPayload(item)],
     });
@@ -66,18 +73,42 @@ export async function mirrorItemToConvex(item: MindtaskerItem): Promise<void> {
   }
 }
 
-export async function resyncAllItemsToConvex(): Promise<void> {
+async function resyncAllItemsToConvexNow(force = false): Promise<void> {
   const convex = getClient();
   if (!convex || !isConvexMirrorEnabled()) return;
 
   try {
     const snapshot = await fetchSyncItems<MindtaskerItem>();
     if (!snapshot.items.length) return;
-    await convex.mutation(api.seed.importSync, {
+    if (!force && lastSyncedVersion === snapshot.version) return;
+
+    await convex.mutation(api.seed.importSyncDev, {
       legacyUserId: DEMO_USER_ID,
       items: snapshot.items.map((item) => toSyncPayload(item)),
     });
+    lastSyncedVersion = snapshot.version;
   } catch (error) {
     console.warn("Convex resync failed", error);
   }
+}
+
+/** Debounced full sync — avoids hammering Convex after every keystroke/capture. */
+export function scheduleResyncAllItemsToConvex(delayMs = 400): void {
+  if (resyncTimer) clearTimeout(resyncTimer);
+  resyncTimer = setTimeout(() => {
+    resyncTimer = null;
+    void resyncAllItemsToConvex();
+  }, delayMs);
+}
+
+export async function resyncAllItemsToConvex(force = false): Promise<void> {
+  if (resyncInFlight) {
+    await resyncInFlight;
+    return;
+  }
+
+  resyncInFlight = resyncAllItemsToConvexNow(force).finally(() => {
+    resyncInFlight = null;
+  });
+  await resyncInFlight;
 }

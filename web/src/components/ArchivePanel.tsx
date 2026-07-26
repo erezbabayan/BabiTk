@@ -5,7 +5,7 @@ import type { MindtaskerItem } from "../types";
 import type { UserTag } from "../lib/tags";
 import { restoreSwipeActions, boardToneForItem } from "../lib/item-swipe-actions";
 import { resolveBoardAccent } from "../lib/board-accent";
-import { boardItemsLayoutClass } from "../lib/board-item-layout";
+import { boardItemCellClass, boardItemCellStyle, boardItemsLayoutClass, boardItemsLayoutStyle } from "../lib/board-item-layout";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface ArchivePanelProps {
@@ -46,7 +46,7 @@ export function ArchivePanel({
   }
 
   return (
-    <div className={boardItemsLayoutClass(view)}>
+    <div className={boardItemsLayoutClass(view)} style={boardItemsLayoutStyle(view)}>
       {items.map((item) => {
         const swipe = restoreSwipeActions(
           () => onRestore(item),
@@ -54,21 +54,27 @@ export function ArchivePanel({
           variant === "notes" ? "notes" : boardToneForItem(item),
         );
         return (
-          <SwipeableItemCard key={item.id} leftAction={swipe.left} rightAction={swipe.right}>
-            <ItemCard
-              item={item}
-              boardAccent={variant === "notes" ? "notes" : resolveBoardAccent(item, "inbox")}
-              compact
-              userTags={userTags}
-              onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
-              onTagPress={onTagPress ? () => onTagPress(item) : undefined}
-              onTogglePriority={
-                onTogglePriority ? () => onTogglePriority(item) : undefined
-              }
-              tagPickerOpen={tagPickerOpenId === item.id}
-              tagsOverride={tagsOverrideForItem?.(item)}
-            />
-          </SwipeableItemCard>
+          <div key={item.id} className={boardItemCellClass(view)} style={boardItemCellStyle(view)}>
+            <SwipeableItemCard
+              leftAction={swipe.left}
+              rightAction={swipe.right}
+              squares={view === "squares"}
+            >
+              <ItemCard
+                item={item}
+                boardAccent={variant === "notes" ? "notes" : resolveBoardAccent(item, "inbox")}
+                compact
+                userTags={userTags}
+                onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
+                onTagPress={onTagPress ? () => onTagPress(item) : undefined}
+                onTogglePriority={
+                  onTogglePriority ? () => onTogglePriority(item) : undefined
+                }
+                tagPickerOpen={tagPickerOpenId === item.id}
+                tagsOverride={tagsOverrideForItem?.(item)}
+              />
+            </SwipeableItemCard>
+          </div>
         );
       })}
     </div>

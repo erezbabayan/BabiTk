@@ -18,6 +18,17 @@ const PROVIDER_HINTS: Record<WhatsAppProviderId, string> = {
     "Whapi Dashboard → Webhook URL: https://YOUR_DOMAIN/api/whatsapp/webhook/inbound",
 };
 
+function isRealMetaConfigured(): boolean {
+  const token = env.whatsappAccessToken?.trim() ?? "";
+  const phoneId = env.whatsappPhoneNumberId?.trim() ?? "";
+  if (!token || !phoneId) return false;
+  // Reject placeholders like EAA... / 1234567890 / your-* so UI stops lying.
+  if (token.length < 20) return false;
+  if (phoneId === "1234567890") return false;
+  if (/^your[-_]/i.test(token) || /^your[-_]/i.test(phoneId)) return false;
+  return true;
+}
+
 export function isWhatsAppProviderConfigured(
   provider: WhatsAppProviderId = env.whatsappProvider,
 ): boolean {
@@ -25,10 +36,10 @@ export function isWhatsAppProviderConfigured(
     case "green-api":
       return Boolean(env.greenApiInstanceId && env.greenApiToken);
     case "whapi":
-      return Boolean(env.whapiApiToken);
+      return Boolean(env.whapiApiToken && env.whapiApiToken.length >= 16);
     case "meta":
     default:
-      return Boolean(env.whatsappAccessToken && env.whatsappPhoneNumberId);
+      return isRealMetaConfigured();
   }
 }
 
