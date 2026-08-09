@@ -32,7 +32,7 @@ jobs:
         working-directory: web
         env:
           VITE_BASE_PATH: "/BabiTk/"
-          VITE_DEMO_MODE: "true"
+          VITE_DEMO_MODE: "false"
           VITE_USE_CONVEX: "true"
           VITE_CONVEX_URL: "https://scintillating-fly-225.convex.cloud"
         run: |
