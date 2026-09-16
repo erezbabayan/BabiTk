@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { BOARD_ITEMS_INNER_CLASS, BOARD_SCROLL_SCROLLBAR_EDGE_CLASS } from "../lib/board-item-layout";
 import { ITEM_ACTION_ATTR, ITEM_DRAG_HANDLE_ATTR } from "./SwipeableItemCard";
 
-const INTERACTIVE_SELECTOR = `button, a, input, textarea, select, label, [contenteditable="true"], [role="button"], [data-no-drag-scroll], [${ITEM_DRAG_HANDLE_ATTR}], [${ITEM_ACTION_ATTR}]`;
+const INTERACTIVE_SELECTOR = `button, a, input, textarea, select, label, [contenteditable="true"], [role="button"], [data-no-drag-scroll], [data-item-drag-root], [${ITEM_DRAG_HANDLE_ATTR}], [${ITEM_ACTION_ATTR}]`;
 
 const DRAG_THRESHOLD_PX = 6;
 
@@ -102,7 +102,7 @@ function useMouseDragScroll<T extends HTMLElement>() {
 }
 
 export const BOARD_SCROLL_CLASS =
-  "min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y [scrollbar-gutter:stable]";
+  "min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-manipulation [scrollbar-gutter:stable]";
 
 export function scrollAllBoardColumnsToTop(smooth = true): void {
   for (const element of document.querySelectorAll("[data-board-scroll]")) {

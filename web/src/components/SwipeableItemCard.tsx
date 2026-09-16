@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { resolveSwipeRelease } from "../lib/item-board-actions";
 
 export const ITEM_DRAG_HANDLE_ATTR = "data-item-drag-handle";
 export const ITEM_ACTION_ATTR = "data-item-action";
@@ -73,7 +74,23 @@ export function SwipeableItemCard({
 
     function onDragStart(e: DragEvent) {
       const target = e.target as HTMLElement;
-      if (target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`)) return;
+      if (
+        target.closest(
+          `button, input, textarea, label, select, a, [${ITEM_ACTION_ATTR}]`,
+        )
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      // Desktop: native drag from the card or handle. Touch keeps swipe only
+      // because ItemCard is not draggable there.
+      if (
+        target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`) ||
+        target.closest("[data-item-drag-root]")
+      ) {
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
     }
@@ -148,14 +165,16 @@ export function SwipeableItemCard({
   }
 
   function onPointerUp(e: PointerEvent<HTMLDivElement>) {
-    if (shouldIgnoreTarget(e.target)) {
+    const wasSwiping = drag.current.locked === true;
+    // Releasing over a button must not cancel an in-progress swipe (RTL
+    // swipe-left ends over the action row).
+    if (!wasSwiping && shouldIgnoreTarget(e.target)) {
       endGesture();
       return;
     }
 
     if (!drag.current.active && drag.current.locked === null) return;
 
-    const wasSwiping = drag.current.locked === true;
     const current = offsetRef.current;
     endGesture();
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
@@ -164,9 +183,10 @@ export function SwipeableItemCard({
 
     if (!wasSwiping) return;
 
-    if (current >= threshold && rightAction) {
+    const side = resolveSwipeRelease(current, threshold);
+    if (side === "right" && rightAction) {
       rightAction.onTrigger();
-    } else if (current <= -threshold && leftAction) {
+    } else if (side === "left" && leftAction) {
       leftAction.onTrigger();
     }
     resetOffset();
@@ -207,9 +227,15 @@ export function SwipeableItemCard({
       {rightAction ? (
         <div
           className={`absolute inset-y-0 left-0 z-0 flex ${actionWidthClass} flex-col items-center justify-center text-center ${TONE_CLASS[rightAction.tone ?? "danger"]} ${
-            revealing && offset > 0 ? "opacity-100" : "pointer-events-none opacity-0"
+            revealing && offset > 0 ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
           aria-hidden={!revealing || offset <= 0}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            rightAction.onTrigger();
+            resetOffset();
+          }}
         >
           <span className="flex items-center justify-center leading-none" aria-hidden>
             <NotebookIcon name={rightAction.icon} size={actionIconSize} tone="white" />
@@ -222,9 +248,15 @@ export function SwipeableItemCard({
       {leftAction ? (
         <div
           className={`absolute inset-y-0 right-0 z-0 flex ${actionWidthClass} flex-col items-center justify-center text-center ${TONE_CLASS[leftAction.tone ?? "primary"]} ${
-            revealing && offset < 0 ? "opacity-100" : "pointer-events-none opacity-0"
+            revealing && offset < 0 ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
           }`}
           aria-hidden={!revealing || offset >= 0}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            leftAction.onTrigger();
+            resetOffset();
+          }}
         >
           <span className="flex items-center justify-center leading-none" aria-hidden>
             <NotebookIcon name={leftAction.icon} size={actionIconSize} tone="white" />

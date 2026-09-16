@@ -36,7 +36,8 @@ import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-la
 import { BoardDateSortButton } from "./BoardDateSortButton";
 import { BoardMobileTabs } from "./BoardMobileTabs";
 import { MAX_ITEM_TAGS, alignItemTagsWithDefinitions } from "../lib/tags";
-import type { DashboardColumn } from "../lib/item-columns";
+import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
+import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import type { MindtaskerItem } from "../types";
@@ -112,6 +113,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [dropTarget, setDropTarget] = useState<DashboardColumn | null>(null);
   const [dropSlot, setDropSlot] = useState<DropSlot | null>(null);
   const draggingIdRef = useRef<string | null>(null);
+  const dropHandledRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const lastDragXRef = useRef(0);
+  const boardItemsByIdRef = useRef(new Map<string, MindtaskerItem>());
 
   const filteredInbox = useMemo(
     () =>
@@ -258,6 +263,22 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     () => new Map(filteredNotes.map((item) => [item.id, item])),
     [filteredNotes],
   );
+  boardItemsByIdRef.current = new Map(
+    [...inbox, ...todayTasks, ...notes].map((item) => [item.id, item]),
+  );
+
+  useEffect(() => {
+    if (!draggingId) return;
+    function trackDragX(event: globalThis.DragEvent) {
+      lastDragXRef.current = event.clientX;
+    }
+    window.addEventListener("dragover", trackDragX);
+    return () => window.removeEventListener("dragover", trackDragX);
+  }, [draggingId]);
+
+  function logItemActionError(label: string, error: unknown) {
+    console.error(label, error);
+  }
 
   const inboxReorderDisabled = Boolean(
     inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || inboxDateSort,
@@ -325,23 +346,59 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         if (dragImage instanceof HTMLElement) {
           e.dataTransfer.setDragImage(dragImage, dragImage.offsetWidth / 2, 20);
         }
+        dropHandledRef.current = false;
         draggingIdRef.current = item.id;
+        dragStartXRef.current = e.clientX;
+        lastDragXRef.current = e.clientX;
         setDraggingId(item.id);
       },
-      onDragEnd: () => {
+      onDragEnd: (e: DragEvent) => {
+        e.stopPropagation();
+        const id = draggingIdRef.current;
+        const dropped = dropHandledRef.current;
+        const startX = dragStartXRef.current;
+        const endX = lastDragXRef.current || e.clientX;
+        const dragged = id ? boardItemsByIdRef.current.get(id) : undefined;
+        draggingIdRef.current = null;
+        dropHandledRef.current = false;
         clearDragState();
-        window.setTimeout(() => {
-          draggingIdRef.current = null;
-        }, 0);
+        if (dropped || !dragged) return;
+        const decision = resolveInboxDragTransfer({
+          sourceColumn: getItemColumn(dragged),
+          dropColumn: null,
+          startX,
+          endX,
+        });
+        if (decision === "approve") {
+          void approveInboxItem(dragged).catch((error) => {
+            logItemActionError("approveInboxItem failed", error);
+          });
+        }
       },
     };
   }
 
   function handlePlaceDrop(column: DashboardColumn, beforeId: string | null) {
     const id = draggingIdRef.current ?? draggingId;
+    const dragged = id ? boardItemsByIdRef.current.get(id) : undefined;
+    dropHandledRef.current = true;
     draggingIdRef.current = null;
+    const decision = dragged
+      ? resolveInboxDragTransfer({
+          sourceColumn: getItemColumn(dragged),
+          dropColumn: column,
+          startX: dragStartXRef.current,
+          endX: lastDragXRef.current,
+        })
+      : "none";
     clearDragState();
-    if (!id) return;
+    if (!id || !dragged) return;
+    if (decision === "approve") {
+      void approveInboxItem(dragged).catch((error) => {
+        logItemActionError("approveInboxItem failed", error);
+      });
+      return;
+    }
     void placeItem(id, column, beforeId);
   }
 
@@ -404,11 +461,20 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     if (!item) return null;
     const swipe = inboxSwipeActions(
       item,
-      () => void approveInboxItem(item),
+      () => {
+        void approveInboxItem(item).catch((error) => {
+          logItemActionError("approveInboxItem failed", error);
+        });
+      },
       () => confirmDelete(item),
     );
     return (
-      <SwipeableItemCard leftAction={swipe.left} rightAction={swipe.right} squares={swipeSquares}>
+      <SwipeableItemCard
+        leftAction={swipe.left}
+        rightAction={swipe.right}
+        squares={swipeSquares}
+        disabled={isDesktop}
+      >
         <ItemCard
           item={item}
           boardAccent="inbox"
@@ -416,7 +482,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           {...bindDrag(item)}
           {...bindItemChrome(item)}
           onEdit={(patch) => editItem(item, patch)}
-          onToggleType={() => void toggleActionable(item)}
+          onToggleType={() => {
+            void toggleActionable(item).catch((error) => {
+              logItemActionError("toggleActionable failed", error);
+            });
+          }}
         />
       </SwipeableItemCard>
     );
@@ -431,7 +501,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       "tasks",
     );
     return (
-      <SwipeableItemCard leftAction={swipe.left} rightAction={swipe.right} squares={swipeSquares}>
+      <SwipeableItemCard
+        leftAction={swipe.left}
+        rightAction={swipe.right}
+        squares={swipeSquares}
+        disabled={isDesktop}
+      >
         <ItemCard
           item={item}
           boardAccent="today"
@@ -439,7 +514,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           {...bindDrag(item)}
           {...bindItemChrome(item)}
           onEdit={(patch) => editItem(item, patch)}
-          onToggleType={() => void toggleActionable(item)}
+          onToggleType={() => {
+            void toggleActionable(item).catch((error) => {
+              logItemActionError("toggleActionable failed", error);
+            });
+          }}
           onSnooze={() => setSnoozeItem(item)}
           onComplete={item.is_actionable ? () => void completeTask(item) : undefined}
         />
@@ -460,6 +539,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
+        disabled={isDesktop}
       >
         <ItemCard
           item={item}
@@ -469,7 +549,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           {...bindDrag(item)}
           {...bindItemChrome(item)}
           onEdit={(patch) => editItem(item, patch)}
-          onToggleType={() => void toggleActionable(item)}
+          onToggleType={() => {
+            void toggleActionable(item).catch((error) => {
+              logItemActionError("toggleActionable failed", error);
+            });
+          }}
           onSnooze={() => setSnoozeItem(item)}
           onComplete={item.is_actionable ? () => void completeTask(item) : undefined}
         />

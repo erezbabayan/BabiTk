@@ -17,6 +17,7 @@ import {
   boardItemsLayoutStyle,
 } from "../lib/board-item-layout";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
+import { ITEM_DRAG_MIME } from "./ItemCard";
 
 const ACTIVE_RING: Record<DashboardColumn, string> = {
   inbox: "ring-2 ring-slate-400 ring-offset-1",
@@ -104,19 +105,26 @@ export function DraggableItemList({
     overscan: 8,
   });
 
+  function isBoardItemDrag(e: DragEvent): boolean {
+    if (draggingId) return true;
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    return Array.from(types).includes(ITEM_DRAG_MIME) || Array.from(types).includes("text/plain");
+  }
+
   function handleDragOver(e: DragEvent, beforeId: string | null) {
-    if (disabled || !draggingId) return;
+    if (!isBoardItemDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
-    onDropSlotChange({ column, beforeId });
+    onDropSlotChange({ column, beforeId: disabled ? null : beforeId });
   }
 
   function handleDrop(e: DragEvent, beforeId: string | null) {
-    if (disabled || !draggingId) return;
+    if (!isBoardItemDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    onDrop({ column, beforeId });
+    onDrop({ column, beforeId: disabled ? null : beforeId });
   }
 
   function renderItemCell(item: { id: string }, index: number) {

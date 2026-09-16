@@ -289,27 +289,33 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      if (isDemoMode) {
-        const typedPatch = patch as Partial<MindtaskerItem>;
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === id ? ({ ...item, ...typedPatch } as MindtaskerItem) : item,
-          ),
-        );
-        await updateDemoItem(id, typedPatch);
+      const typedPatch = patch as Partial<MindtaskerItem>;
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id ? ({ ...item, ...typedPatch } as MindtaskerItem) : item,
+        ),
+      );
+
+      try {
+        if (isDemoMode) {
+          await updateDemoItem(id, typedPatch);
+          return;
+        }
+
+        const supabase = requireSupabase();
+        const { data, error } = await supabase
+          .from("mindtasker_items")
+          .update(patch)
+          .eq("id", id)
+          .select("id")
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!data) throw new Error("העדכון לא נשמר");
+      } catch (error) {
         await refresh();
-        return;
+        throw error;
       }
-
-
-
-      const supabase = requireSupabase();
-
-      const { error } = await supabase.from("mindtasker_items").update(patch).eq("id", id);
-
-      if (error) throw error;
-
-      await refresh();
 
     },
 

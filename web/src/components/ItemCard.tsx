@@ -48,7 +48,7 @@ interface ItemCardProps {
   draggable?: boolean;
   isDragging?: boolean;
   onDragStart?: (e: DragEvent) => void;
-  onDragEnd?: () => void;
+  onDragEnd?: (e: DragEvent) => void;
   userTags?: UserTag[];
   boardAccent?: BoardAccentTone;
   /** Strikethrough title/body in task lists when done/archived/deleted on the board. */
@@ -204,13 +204,28 @@ export function ItemCard({
     <>
       <article
         data-item-drag-root=""
+        draggable={draggable && !showSource}
+        onDragStart={(event) => {
+          if (!draggable || showSource) return;
+          const target = event.target as HTMLElement;
+          if (
+            target.closest(
+              `button, a, input, textarea, select, label, [${ITEM_ACTION_ATTR}]`,
+            )
+          ) {
+            event.preventDefault();
+            return;
+          }
+          onDragStart?.(event);
+        }}
+        onDragEnd={onDragEnd}
         onDoubleClick={handleDoubleClick}
         style={cardStyle}
         className={`board-notebook-item relative overflow-hidden transition ${
           dense ? "board-notebook-item--dense" : ""
         } ${isSquares ? "board-notebook-item--squares" : ""} ${
           isDragging ? "opacity-40" : ""
-        } ${onEdit ? "cursor-default" : ""}`}
+        } ${draggable && !showSource ? "cursor-grab active:cursor-grabbing" : onEdit ? "cursor-default" : ""}`}
       >
         <div
           className={`absolute inset-y-0 w-[3px] ${
@@ -296,7 +311,10 @@ export function ItemCard({
                     e.stopPropagation();
                     onDragStart?.(e);
                   }}
-                  onDragEnd={onDragEnd}
+                  onDragEnd={(e) => {
+                    e.stopPropagation();
+                    onDragEnd?.(e);
+                  }}
                   className="notebook-icon-btn notebook-icon-btn--muted mt-0.5 hidden h-5 w-4 cursor-grab select-none items-center justify-center active:cursor-grabbing lg:flex"
                   title="גרור"
                   aria-label="גרור"

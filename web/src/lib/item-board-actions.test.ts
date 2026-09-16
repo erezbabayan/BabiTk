@@ -5,6 +5,8 @@ import {
   buildApproveInboxPatch,
   buildCompleteTaskPatch,
   buildToggleActionablePatch,
+  resolveInboxDragTransfer,
+  resolveSwipeRelease,
   type BoardActionItem,
 } from "./item-board-actions.js";
 import { getItemColumn } from "./item-columns.js";
@@ -98,5 +100,72 @@ describe("buildCompleteTaskPatch", () => {
     const patch = buildCompleteTaskPatch();
     assert.equal(patch.status, "completed");
     assert.equal(typeof patch.completed_at, "string");
+  });
+});
+
+describe("resolveInboxDragTransfer", () => {
+  it("approves an inbox item dragged left even if dropped back on the notebook", () => {
+    assert.equal(
+      resolveInboxDragTransfer({
+        sourceColumn: "inbox",
+        dropColumn: "inbox",
+        startX: 800,
+        endX: 700,
+      }),
+      "approve",
+    );
+  });
+
+  it("approves an inbox item dragged left with no drop target", () => {
+    assert.equal(
+      resolveInboxDragTransfer({
+        sourceColumn: "inbox",
+        dropColumn: null,
+        startX: 800,
+        endX: 740,
+      }),
+      "approve",
+    );
+  });
+
+  it("places an inbox item dropped onto the tasks or notes board", () => {
+    assert.equal(
+      resolveInboxDragTransfer({
+        sourceColumn: "inbox",
+        dropColumn: "today",
+        startX: 800,
+        endX: 700,
+      }),
+      "place",
+    );
+    assert.equal(
+      resolveInboxDragTransfer({
+        sourceColumn: "inbox",
+        dropColumn: "notes",
+        startX: 800,
+        endX: 100,
+      }),
+      "place",
+    );
+  });
+
+  it("does not approve a tiny movement that stays on the notebook", () => {
+    assert.equal(
+      resolveInboxDragTransfer({
+        sourceColumn: "inbox",
+        dropColumn: "inbox",
+        startX: 800,
+        endX: 790,
+      }),
+      "place",
+    );
+  });
+});
+
+describe("resolveSwipeRelease", () => {
+  it("maps left swipe to the left action (inbox transfer)", () => {
+    assert.equal(resolveSwipeRelease(-52, 52), "left");
+    assert.equal(resolveSwipeRelease(52, 52), "right");
+    assert.equal(resolveSwipeRelease(-20, 52), null);
   });
 });
