@@ -162,15 +162,16 @@ export async function sendTaskReminders(): Promise<number> {
   for (const item of items ?? []) {
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
     if (metadata.reminder_sent === true) continue;
+    if (metadata.reminder_disabled === true) continue;
 
     const analysis = metadata.analysis as Record<string, unknown> | undefined;
     let notifyAt: string | null = null;
 
     if (item.is_actionable) {
-      notifyAt = typeof analysis?.notify_at === "string" ? analysis.notify_at : null;
-      if (!notifyAt && metadata.reminder_manual === true && item.due_date) {
-        notifyAt = item.due_date;
-      }
+      notifyAt =
+        (typeof analysis?.notify_at === "string" && analysis.notify_at) ||
+        item.due_date ||
+        null;
     } else if (metadata.reminder_manual === true && item.due_date) {
       notifyAt = item.due_date;
     }

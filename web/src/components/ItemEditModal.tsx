@@ -15,6 +15,7 @@ import { ReminderRecurrenceChips } from "./ReminderRecurrenceChips";
 import { ItemTagSelect } from "./ItemTagSelect";
 import { useUserTags } from "../hooks/useUserTags";
 import { alignItemTagsWithDefinitions } from "../lib/tags";
+import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
 
 export interface ItemEditInput {
   title: string;
@@ -134,12 +135,16 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
     setSaving(true);
     setError(null);
     try {
+      const dueDate = combineDueDate(dueParts);
+      if (dueDate) {
+        void ensureBrowserNotificationPermission();
+      }
       await onSave({
         title: trimmedTitle,
         content: content.trim(),
         tags: alignItemTagsWithDefinitions(selectedTags, userTags),
-        due_date: combineDueDate(dueParts),
-        recurrence: combineDueDate(dueParts) ? recurrence : null,
+        due_date: dueDate,
+        recurrence: dueDate ? recurrence : null,
       });
       onClose();
     } catch (err) {

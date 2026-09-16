@@ -15,8 +15,10 @@ import { TagWheelPicker } from "./TagWheelPicker";
 import { TaskListsModal, type TaskListsModalMode } from "./TaskListsModal";
 import { ListBoardIcon } from "./ListBoardIcon";
 import { ReminderPicker } from "./ReminderPicker";
+import { ReminderAlertModal } from "./ReminderAlertModal";
 import { NotebookBoardSection } from "./NotebookBoardSection";
 import { useItems } from "../hooks/useItems";
+import { useDueDateReminderAlerts } from "../hooks/useDueDateReminderAlerts";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useTaskLists } from "../hooks/useTaskLists";
 import { useUserTags } from "../hooks/useUserTags";
@@ -70,6 +72,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     approveInboxItem,
     snoozeTask,
     clearReminder,
+    markReminderFired,
     restoreArchiveItem,
     archiveItem,
     completeTask,
@@ -90,6 +93,16 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const taskLists = useTaskLists(convexUserId);
   useTagCascadeSync(convexUserId);
   const { requestConfirm, confirmDialog } = useConfirmDialog();
+
+  const reminderItems = useMemo(
+    () => [...inbox, ...todayTasks, ...notes],
+    [inbox, todayTasks, notes],
+  );
+  const dueReminders = useDueDateReminderAlerts(
+    reminderItems,
+    true,
+    (item, fireAt) => markReminderFired(item as MindtaskerItem, fireAt),
+  );
 
   useEffect(() => {
     if (refreshTick > 0) void refresh();
@@ -1116,6 +1129,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           onClose={() => setSnoozeItem(null)}
         />
       ) : null}
+
+      <ReminderAlertModal
+        alert={dueReminders.alert}
+        onDismiss={() => dueReminders.dismiss()}
+        onAcknowledge={() => void dueReminders.acknowledge()}
+      />
 
       {!showTaskLists ? (
         <TagWheelPicker

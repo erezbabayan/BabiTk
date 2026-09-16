@@ -249,7 +249,10 @@ function resolveNoteReminder(
   if (flags.manual && input.dueDate) {
     const normalized = normalizeDueDateIso(input.dueDate, timezone);
     if (normalized) {
-      return { dueDate: normalized, metadata };
+      return {
+        dueDate: normalized,
+        metadata: syncAnalysisFireTimes(metadata, normalized),
+      };
     }
   }
 
@@ -303,7 +306,10 @@ export function resolveItemReminder(
   if (flags.manual && input.dueDate) {
     const normalized = normalizeDueDateIso(input.dueDate, timezone);
     if (normalized) {
-      return { dueDate: normalized, metadata };
+      return {
+        dueDate: normalized,
+        metadata: syncAnalysisFireTimes(metadata, normalized),
+      };
     }
   }
 
@@ -318,6 +324,9 @@ export function resolveItemReminder(
       : defaultTomorrowReminderIso(timezone, referenceDate));
 
   metadata = patchReminderMetadata(metadata, { manual: false, disabled: false });
+  if (dueDate) {
+    metadata = syncAnalysisFireTimes(metadata, dueDate);
+  }
   return { dueDate, metadata };
 }
 

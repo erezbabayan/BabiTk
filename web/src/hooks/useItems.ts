@@ -12,6 +12,7 @@ import {
   resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
 import {
+  buildAfterReminderSentPatch,
   buildClearReminderPatch,
   buildManualReminderPatch,
   buildTaskReminderUpdate,
@@ -497,7 +498,19 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   );
 
-
+  const markReminderFired = useCallback(
+    async (item: MindtaskerItem, fireAt?: string) => {
+      if (!enabled) return;
+      const after = buildAfterReminderSentPatch(item, {
+        firedAt: fireAt ?? item.due_date ?? undefined,
+      });
+      await updateItem(item.id, {
+        ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+        metadata: after.metadata,
+      });
+    },
+    [enabled, updateItem],
+  );
 
   const restoreArchiveItem = useCallback(
 
@@ -849,6 +862,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       clearReminder: async () => {},
 
+      markReminderFired: async () => {},
+
       restoreArchiveItem: async () => {},
 
       archiveItem: async () => {},
@@ -904,6 +919,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     snoozeTask,
 
     clearReminder,
+
+    markReminderFired,
 
     restoreArchiveItem,
 

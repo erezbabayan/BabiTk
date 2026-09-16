@@ -11,6 +11,7 @@ import {
 } from "../lib/resolve-item-reminder";
 import { DueDateFields } from "./DueDateFields";
 import { ReminderRecurrenceChips } from "./ReminderRecurrenceChips";
+import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
 
 interface ReminderPickerProps {
   item: MindtaskerItem;
@@ -52,6 +53,7 @@ export function ReminderPicker({ item, onSelect, onClear, onClose }: ReminderPic
   }, [item.id, item.due_date, item.metadata]);
 
   function commit(iso: string) {
+    void ensureBrowserNotificationPermission();
     onSelect(item, iso, recurrence);
     onClose();
   }

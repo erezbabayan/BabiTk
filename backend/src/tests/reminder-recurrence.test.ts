@@ -4,6 +4,7 @@ import {
   advanceReminderDueDate,
   buildAfterReminderSentPatch,
   buildClearReminderPatch,
+  buildInferredReminderPatch,
   buildManualReminderPatch,
   getReminderRecurrence,
 } from "../../../convex/lib/resolveItemReminder.js";
@@ -117,5 +118,17 @@ describe("reminder recurrence", () => {
     });
     assert.equal(after.due_date, undefined);
     assert.equal(after.metadata.reminder_sent, true);
+  });
+
+  it("syncs notify_at when a task due date is inferred", () => {
+    const patch = buildInferredReminderPatch({
+      title: "לקנות חלב",
+      content: "",
+      due_date: "2026-07-13T09:00:00+03:00",
+      is_actionable: true,
+    });
+    const analysis = patch.metadata.analysis as Record<string, unknown>;
+    assert.equal(patch.due_date, "2026-07-13T09:00:00+03:00");
+    assert.equal(analysis.notify_at, patch.due_date);
   });
 });

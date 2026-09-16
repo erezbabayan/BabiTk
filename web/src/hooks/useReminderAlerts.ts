@@ -9,9 +9,10 @@ import {
 } from "../lib/reminder-chime";
 
 export type ReminderAlertItem = {
-  _id: Id<"notifications">;
+  _id: string;
   title: string;
   body: string;
+  itemId?: string;
   taskId?: Id<"tasks">;
   notebookId?: Id<"notebooks">;
   listId?: Id<"taskLists">;
@@ -22,7 +23,7 @@ type NotificationRow = ReminderAlertItem & {
 };
 
 function toAlertItem(row: {
-  _id: Id<"notifications">;
+  _id: string;
   title: string;
   body: string;
   taskId?: Id<"tasks">;
@@ -111,7 +112,7 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
   async function acknowledge() {
     if (!alert) return;
     try {
-      await markRead({ notificationId: alert._id });
+      await markRead({ notificationId: alert._id as Id<"notifications"> });
     } catch (error) {
       console.warn(
         "[reminder-alert] markRead failed:",

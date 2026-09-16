@@ -180,9 +180,8 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
     dateLabel: formatItemDate(scheduleIso),
     timeLabel: formatItemTime(scheduleIso),
     reminderLabel: (() => {
-      const base = item.is_actionable
-        ? formatItemReminder(analysis?.notify_at)
-        : formatItemReminder(effectiveTaskDueDate(item));
+      const fireAt = analysis?.notify_at ?? effectiveTaskDueDate(item);
+      const base = formatItemReminder(fireAt);
       if (!base) return recurrenceLabel ? `חוזרת · ${recurrenceLabel}` : null;
       if (!recurrenceLabel) return base;
       return `${base} · ${recurrenceLabel}`;
