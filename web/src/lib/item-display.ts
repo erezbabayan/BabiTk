@@ -1,4 +1,5 @@
 import type { SourceMaterial } from "../types";
+import { formatLocalDateDdMmYyyy } from "./date-display";
 import { getItemAnalysis, type StoredItemAnalysis } from "./item-analysis";
 import {
   effectiveTaskDueDate,
@@ -112,11 +113,7 @@ function parseIso(iso: string | null | undefined): Date | null {
 export function formatItemDate(iso: string | null | undefined): string | null {
   const d = parseIso(iso);
   if (!d) return null;
-  return d.toLocaleDateString("he-IL", {
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-  });
+  return formatLocalDateDdMmYyyy(d);
 }
 
 export function formatItemTime(iso: string | null | undefined): string | null {
@@ -131,12 +128,11 @@ export function formatItemTime(iso: string | null | undefined): string | null {
 export function formatItemReminder(iso: string | null | undefined): string | null {
   const d = parseIso(iso);
   if (!d) return null;
-  return d.toLocaleString("he-IL", {
-    day: "numeric",
-    month: "numeric",
+  const time = d.toLocaleTimeString("he-IL", {
     hour: "2-digit",
     minute: "2-digit",
   });
+  return `${formatLocalDateDdMmYyyy(d)} ${time}`;
 }
 
 function resolveScheduleIso(

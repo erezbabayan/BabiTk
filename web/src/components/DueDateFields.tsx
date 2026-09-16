@@ -3,6 +3,7 @@ import {
   type DueDateParts,
 } from "../lib/due-date-fields";
 import { ClockTimePicker } from "./ClockTimePicker";
+import { DateDdMmYyyyInput } from "./DateDdMmYyyyInput";
 
 const FIELD_CLASS =
   "w-full !rounded-md !border-slate-300 bg-white !px-2 !py-1.5 !text-[12px] !leading-snug text-slate-900 shadow-sm outline-none transition focus:!border-blue-400 focus:!ring-1 focus:!ring-blue-100";
@@ -62,13 +63,11 @@ export function DueDateFields({
           <span className={`mb-0.5 block text-slate-500 ${compact ? "text-[9px]" : "text-[10px]"}`}>
             תאריך
           </span>
-          <input
-            type="date"
+          <DateDdMmYyyyInput
             value={value.date}
             min={minDateToday ? todayDateValue() : undefined}
-            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            onChange={(date) => onChange({ ...value, date })}
             className={fieldClass}
-            dir="ltr"
           />
         </div>
 

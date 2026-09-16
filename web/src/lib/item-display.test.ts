@@ -25,4 +25,16 @@ describe("buildItemDisplayFields voice placeholders", () => {
     assert.equal(isVoicePlaceholderText(display.fullHeadline), false);
     assert.equal(display.headline, VOICE_TRANSCRIBING_TITLE);
   });
+
+  it("shows due dates as dd/mm/yyyy", () => {
+    const display = buildItemDisplayFields({
+      title: "משימה",
+      content: "",
+      tags: [],
+      is_actionable: true,
+      due_date: "2026-09-18T12:00:00",
+    });
+
+    assert.equal(display.dateLabel, "18/09/2026");
+  });
 });
