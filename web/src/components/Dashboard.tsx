@@ -725,7 +725,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
                       setShowTaskLists(true);
                     }}
-                    className={`${boardToolbarButtonClass("blue")} gap-1 hover:bg-blue-100/70`}
+                    className={`${boardToolbarButtonClass("blue")} gap-1 whitespace-nowrap px-2 font-medium hover:bg-blue-100/70`}
                     title="רשימה"
                     aria-label="רשימה"
                   >
