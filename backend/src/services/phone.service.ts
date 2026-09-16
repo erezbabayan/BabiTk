@@ -1,4 +1,4 @@
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomInt, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import {
@@ -12,6 +12,17 @@ const CODE_TTL_MS = 10 * 60 * 1000;
 
 function hashCode(code: string): string {
   return createHash("sha256").update(code).digest("hex");
+}
+
+function hashesMatch(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 function generateCode(): string {
@@ -154,7 +165,7 @@ export async function verifyPhoneCode(userId: string, code: string): Promise<Use
     throw new Error("קוד האימות פג תוקף. בקש קוד חדש.");
   }
 
-  if (hashCode(code.trim()) !== user.phone_verify_hash) {
+  if (!hashesMatch(hashCode(code.trim()), user.phone_verify_hash)) {
     throw new Error("קוד שגוי");
   }
 

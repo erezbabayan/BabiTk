@@ -50,7 +50,6 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       request.log.error({ err: error }, "Stripe webhook failed");
       return reply.status(400).send({
         error: "webhook_failed",
-        message: error instanceof Error ? error.message : "Webhook failed",
       });
     }
   });

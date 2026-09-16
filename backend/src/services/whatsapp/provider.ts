@@ -1,4 +1,5 @@
 import { env } from "../../config/env.js";
+import { secretEquals } from "../../lib/secret-equals.js";
 import type {
   WhatsAppProviderId,
   WhatsAppProviderStatus,
@@ -66,7 +67,7 @@ export function verifyAlternateWebhookAuth(
       : env.whapiWebhookToken);
 
   if (!expected) {
-    return true;
+    return false;
   }
 
   const authHeader = headers.authorization;
@@ -79,8 +80,8 @@ export function verifyAlternateWebhookAuth(
   const headerToken = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
 
   return (
-    bearer === expected ||
-    headerToken === expected ||
-    query.token === expected
+    secretEquals(bearer, expected) ||
+    secretEquals(headerToken, expected) ||
+    secretEquals(query.token, expected)
   );
 }

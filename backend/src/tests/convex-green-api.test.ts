@@ -159,6 +159,14 @@ describe("Convex Green-API parser", () => {
     assert.equal(extractGreenApiSenderId(ownerGroupPayload()), "972526448067");
   });
 
+  it("rejects missing webhook token (fail closed)", () => {
+    const request = new Request("https://example.com/webhook/green-api", {
+      headers: { Authorization: "Bearer secret-token" },
+    });
+    assert.equal(verifyGreenApiWebhookAuth(request, undefined), false);
+    assert.equal(verifyGreenApiWebhookAuth(request, ""), false);
+  });
+
   it("accepts bearer webhook token", () => {
     const request = new Request("https://example.com/webhook/green-api", {
       headers: { Authorization: "Bearer secret-token" },

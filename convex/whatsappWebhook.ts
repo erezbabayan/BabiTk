@@ -37,6 +37,20 @@ async function lookupVerifiedUser(
   return null;
 }
 
+async function lookupUserByPhone(
+  ctx: QueryCtx | MutationCtx,
+  phone: string,
+): Promise<Doc<"users"> | null> {
+  for (const candidate of phoneLookupVariants(phone)) {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("phone", (q) => q.eq("phone", candidate))
+      .unique();
+    if (user) return user;
+  }
+  return null;
+}
+
 export const findVerifiedByPhone = internalQuery({
   args: { phone: v.string() },
   handler: async (ctx, { phone }) => {
@@ -63,6 +77,7 @@ export const resolveGreenApiSender = internalMutation({
     messageType,
     /** Extra phones to try (e.g. instance wid) when senderPhone is LID / device-odd. */
     fallbackPhones: v.optional(v.array(v.string())),
+    instanceWid: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const candidates = [
@@ -78,6 +93,20 @@ export const resolveGreenApiSender = internalMutation({
       if (user) {
         matchedPhone = user.phone ? normalizePhone(user.phone) : normalized;
         break;
+      }
+    }
+
+    if (!user && args.instanceWid?.trim()) {
+      // Auto-verify only the WhatsApp line that owns this instance (wid),
+      // never an arbitrary phone a client stored without proof.
+      const pending = await lookupUserByPhone(ctx, args.instanceWid);
+      if (pending?.phone && pending.phoneVerified !== true) {
+        await ctx.db.patch(pending._id, {
+          phoneVerified: true,
+          updatedAt: Date.now(),
+        });
+        user = { ...pending, phoneVerified: true };
+        matchedPhone = normalizePhone(pending.phone);
       }
     }
 

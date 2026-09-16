@@ -270,6 +270,10 @@ function ConfiguredApp() {
       throw new Error("יש להזין שם, שם משפחה וטלפון");
     }
 
+    if (password.length < 8) {
+      throw new Error("הסיסמה חייבת להכיל לפחות 8 תווים");
+    }
+
     const normalizedEmail = normalizeLoginIdentifier(email);
     if (!normalizedEmail.includes("@")) {
       throw new Error("בהרשמה יש להזין אימייל תקין בנוסף לשם המשתמש");

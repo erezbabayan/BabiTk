@@ -286,11 +286,16 @@ export const importSync = internalMutation({
   handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
 });
 
-/** Dev seeding from sync JSON (public for local scripts). */
+/** Dev seeding from sync JSON. Disabled unless CONVEX_ALLOW_DEV_SEED=true. */
 export const importSyncDev = mutation({
   args: importSyncArgs,
   returns: importSyncReturns,
-  handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
+  handler: async (ctx, args) => {
+    if (process.env.CONVEX_ALLOW_DEV_SEED !== "true") {
+      throw new Error("Dev seed is disabled");
+    }
+    return await importSyncHandler(ctx, args.legacyUserId, args.items);
+  },
 });
 
 /** Wipe demo data for a legacy user (dev only). */

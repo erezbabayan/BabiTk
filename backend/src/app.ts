@@ -34,7 +34,9 @@ export async function buildApp() {
     timeWindow: "1 minute",
     allowList: (request) => {
       const url = request.url?.split("?")[0] ?? "";
-      return url === "/health" || url.endsWith("/api/sync/items");
+      if (url === "/health") return true;
+      // Local demo sync only — never skip rate limits in production.
+      return env.isDevelopment && env.demoSyncEnabled && url.endsWith("/api/sync/items");
     },
   });
 

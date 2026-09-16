@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../config/env.js";
+import { secretEquals } from "../lib/secret-equals.js";
 
 export function requireCronSecret(
   request: FastifyRequest,
@@ -13,7 +14,7 @@ export function requireCronSecret(
   const header = request.headers.authorization;
   const token = header?.startsWith("Bearer ") ? header.slice(7) : header;
 
-  if (token !== env.cronSecret) {
+  if (!secretEquals(token, env.cronSecret)) {
     reply.status(401).send({ error: "unauthorized" });
     return false;
   }

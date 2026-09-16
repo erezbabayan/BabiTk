@@ -289,11 +289,25 @@ export function parseGreenApiWebhook(body: unknown): {
   return { ignored: false, reason: "not_capture_chat", messages: [] };
 }
 
+function secretEquals(
+  received: string | null | undefined,
+  expected: string | undefined,
+): boolean {
+  if (typeof expected !== "string" || expected.length === 0) return false;
+  if (typeof received !== "string") return false;
+  const max = Math.max(received.length, expected.length);
+  let mismatch = received.length === expected.length ? 0 : 1;
+  for (let i = 0; i < max; i++) {
+    mismatch |= (received.charCodeAt(i) || 0) ^ (expected.charCodeAt(i) || 0);
+  }
+  return mismatch === 0;
+}
+
 export function verifyGreenApiWebhookAuth(
   request: Request,
   expectedToken: string | undefined,
 ): boolean {
-  if (!expectedToken) return true;
+  if (!expectedToken) return false;
   const authHeader = request.headers.get("authorization");
   const bearer =
     authHeader?.startsWith("Bearer ") === true
@@ -302,9 +316,9 @@ export function verifyGreenApiWebhookAuth(
   const headerToken = request.headers.get("x-webhook-token");
   const queryToken = new URL(request.url).searchParams.get("token");
   return (
-    bearer === expectedToken ||
-    headerToken === expectedToken ||
-    queryToken === expectedToken
+    secretEquals(bearer, expectedToken) ||
+    secretEquals(headerToken, expectedToken) ||
+    secretEquals(queryToken, expectedToken)
   );
 }
 

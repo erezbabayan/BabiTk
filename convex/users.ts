@@ -693,6 +693,14 @@ export const usageSummary = query({
 
 export const getByLegacyId = query({
   args: { legacyId: v.string() },
+  returns: v.union(
+    v.object({
+      userId: v.id("users"),
+      phone: v.union(v.string(), v.null()),
+      phoneVerified: v.boolean(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, { legacyId }) => {
     const authUserId = await requireAuthUserId(ctx);
     const user = await ctx.db.get("users", authUserId);
@@ -700,17 +708,36 @@ export const getByLegacyId = query({
     if (!storedLegacyIdMatchesRequest(authUserId, user.legacyId, legacyId)) {
       return null;
     }
-    return user;
+    return {
+      userId: authUserId,
+      phone: user.phone ?? null,
+      phoneVerified: user.phoneVerified === true,
+    };
   },
 });
 
 export const getByToken = query({
   args: { tokenIdentifier: v.string() },
+  returns: v.union(
+    v.object({
+      userId: v.id("users"),
+      email: v.union(v.string(), v.null()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, { tokenIdentifier }) => {
-    return await ctx.db
+    const authUserId = await requireAuthUserId(ctx);
+    const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
       .unique();
+    if (!user || user._id !== authUserId) {
+      return null;
+    }
+    return {
+      userId: user._id,
+      email: user.email ?? null,
+    };
   },
 });
 
@@ -941,7 +968,7 @@ export const linkVerifiedPhone = mutation({
 
     await ctx.db.patch(userId, {
       phone: normalized,
-      phoneVerified: true,
+      phoneVerified: false,
       updatedAt: now,
     });
 

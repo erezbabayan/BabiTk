@@ -1,5 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 
+import {
+  requestPhoneVerificationApi,
+  verifyPhoneCodeApi,
+} from "../lib/api";
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import type { UsageSummary } from "../lib/api";
@@ -29,6 +33,8 @@ interface SupabasePhoneLinkSettingsProps {
 export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettingsProps) {
   const [profile, setProfile] = useState<CloudUserProfile | null>(null);
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [verifyStep, setVerifyStep] = useState(false);
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -76,22 +82,54 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     setMessage(null);
     try {
       const normalized = normalizePhone(phone);
-      const personalChat = personalCaptureChatId(normalized);
-      const next = await updateCloudUserProfile({
-        phone: normalized,
-        phone_verified: true,
-        whatsapp_capture_group_chat_id:
-          profile?.whatsapp_capture_group_chat_id ?? personalChat,
-        whatsapp_capture_group_name:
-          profile?.whatsapp_capture_group_name ??
-          (personalChat ? "הודעה לעצמי (BabiTk)" : null),
-      });
-      setProfile(next);
-      setPhone("");
-      setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
-      setMessage(`מספר מחובר: ${normalized}`);
+      try {
+        const result = await requestPhoneVerificationApi(normalized);
+        setVerifyStep(true);
+        setMessage(
+          result.devCode
+            ? `${result.message}: ${result.devCode}`
+            : result.message,
+        );
+        return;
+      } catch {
+        const personalChat = personalCaptureChatId(normalized);
+        const next = await updateCloudUserProfile({
+          phone: normalized,
+          whatsapp_capture_group_chat_id:
+            profile?.whatsapp_capture_group_chat_id ?? personalChat,
+          whatsapp_capture_group_name:
+            profile?.whatsapp_capture_group_name ??
+            (personalChat ? "הודעה לעצמי (BabiTk)" : null),
+        });
+        setProfile(next);
+        setPhone("");
+        setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
+        setMessage(
+          `המספר נשמר: ${normalized}. הוא יאומת כשתשלחו הודעה מהוואטסאפ המחובר.`,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בחיבור המספר");
+    } finally {
+      setSavingPhone(false);
+    }
+  }
+
+  async function handleVerifyCode(event: FormEvent) {
+    event.preventDefault();
+    setSavingPhone(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await verifyPhoneCodeApi(code.trim());
+      const next = await refresh();
+      setVerifyStep(false);
+      setCode("");
+      setPhone("");
+      setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
+      setMessage(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "קוד האימות שגוי");
     } finally {
       setSavingPhone(false);
     }
@@ -327,24 +365,47 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       </p>
       <GreenApiConnectSettings />
       {digestBlock}
-      <form onSubmit={(event) => void handleLinkPhone(event)} className="space-y-3">
-        <input
-          type="tel"
-          placeholder="+972501234567"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2"
-          dir="ltr"
-          required
-        />
-        <button
-          type="submit"
-          disabled={savingPhone}
-          className="w-full rounded-lg bg-blue-600 px-3 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {savingPhone ? "שומר..." : "חבר מספר"}
-        </button>
-      </form>
+      {verifyStep ? (
+        <form onSubmit={(event) => void handleVerifyCode(event)} className="space-y-3">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="קוד אימות"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            dir="ltr"
+            required
+          />
+          <button
+            type="submit"
+            disabled={savingPhone || code.trim().length < 4}
+            className="w-full rounded-lg bg-blue-600 px-3 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {savingPhone ? "מאמת..." : "אמת קוד"}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={(event) => void handleLinkPhone(event)} className="space-y-3">
+          <input
+            type="tel"
+            placeholder="+972501234567"
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2"
+            dir="ltr"
+            required
+          />
+          <button
+            type="submit"
+            disabled={savingPhone}
+            className="w-full rounded-lg bg-blue-600 px-3 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {savingPhone ? "שומר..." : "חבר מספר"}
+          </button>
+        </form>
+      )}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </ChannelInfoPanel>
