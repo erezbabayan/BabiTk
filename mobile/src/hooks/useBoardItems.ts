@@ -47,6 +47,7 @@ const ITEM_SELECT = `
   metadata,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
+const REALTIME_REFRESH_MS = 250;
 
 export interface ItemEditInput {
   title: string;
@@ -55,13 +56,17 @@ export interface ItemEditInput {
   due_date: string | null;
 }
 
-async function fetchAllFromServer(): Promise<MindtaskerItem[]> {
-  const { data, error } = await requireSupabase()
+async function fetchAllFromServer(userId?: string): Promise<MindtaskerItem[]> {
+  let query = requireSupabase()
     .from("mindtasker_items")
     .select(ITEM_SELECT)
     .is("deleted_at", null)
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+  const { data, error } = await query;
 
   if (error) throw error;
   return normalizeMindtaskerRows(data);
@@ -190,7 +195,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       }
 
       try {
-        const data = await fetchAllFromServer();
+        const data = await fetchAllFromServer(userId);
         setItems(data);
         await writeCache(CACHE_KEYS.inbox, data);
         setSyncError(null);
@@ -207,7 +212,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
     } finally {
       refreshInFlightRef.current = false;
     }
-  }, [enabled, isOnline]);
+  }, [enabled, isOnline, userId]);
 
   const syncQueue = useCallback(async () => {
     if (!enabled || !isOnline || isDemoMode) return;
@@ -240,20 +245,34 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   }, [enabled, isOnline, refresh, syncQueue]);
 
   useEffect(() => {
-    if (!enabled || !isOnline || isDemoMode) return;
+    if (!enabled || !isOnline || isDemoMode || !userId) return;
     const supabase = requireSupabase();
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refresh();
+      }, REALTIME_REFRESH_MS);
+    };
     const channel = supabase
-      .channel("mobile-board")
+      .channel(`mobile-board-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "mindtasker_items" },
-        () => void refresh(),
+        {
+          event: "*",
+          schema: "public",
+          table: "mindtasker_items",
+          filter: `user_id=eq.${userId}`,
+        },
+        scheduleRefresh,
       )
       .subscribe();
     return () => {
+      if (debounce) clearTimeout(debounce);
       void supabase.removeChannel(channel);
     };
-  }, [enabled, isOnline, refresh]);
+  }, [enabled, isOnline, refresh, userId]);
 
   const patchItem = useCallback(
     async (item: MindtaskerItem, patch: Partial<MindtaskerItem>) => {

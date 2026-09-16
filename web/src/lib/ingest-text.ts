@@ -2,6 +2,7 @@ import { ingestTextApi, clientTimezone } from "./api";
 import { invalidateSyncCache } from "./demo-store";
 import { ingestTextSync } from "./sync-client";
 import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
+import { buildSupabaseIngestRows } from "./supabase-ingest-rows";
 
 export function formatIngestError(error: unknown): string {
   if (error instanceof Error) {
@@ -18,21 +19,13 @@ export function formatIngestError(error: unknown): string {
 
 async function ingestViaSupabase(userId: string, text: string): Promise<void> {
   const supabase = requireSupabase();
-  const trimmed = text.trim();
-  const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim()) ?? "פריט חדש";
-  const title = firstLine.trim().slice(0, 120);
-  const now = Date.now();
-  const { error } = await supabase.from("mindtasker_items").insert({
-    user_id: userId,
-    title,
-    content: trimmed,
-    is_actionable: true,
-    status: "inbox",
-    tags: [],
-    metadata: { source: "typed_text" },
-    sort_order: now,
-    last_interacted_at: new Date(now).toISOString(),
+  const rows = buildSupabaseIngestRows(userId, text, {
+    timezone: clientTimezone(),
   });
+  if (rows.length === 0) {
+    throw new Error("אין טקסט לקליטה");
+  }
+  const { error } = await supabase.from("mindtasker_items").insert(rows);
   if (error) {
     throw new Error(error.message || "שמירת הפריט נכשלה");
   }

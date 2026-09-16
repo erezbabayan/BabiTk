@@ -56,24 +56,12 @@ import { buildPriorityTogglePatch } from "../lib/item-priority";
 
 
 const ITEM_SELECT = `
-
-  *,
-
-  source_materials (
-
-    id,
-
-    source_type,
-
-    storage_url,
-
-    raw_text,
-
-    metadata
-
-  )
-
+  id, user_id, title, content, is_actionable, status, due_date, tags,
+  source_material_id, sort_order, created_at, updated_at, last_interacted_at,
+  completed_at, calendar_event_id, deleted_at, metadata,
+  source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
+const REALTIME_REFRESH_MS = 250;
 
 
 
@@ -160,6 +148,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       .select(ITEM_SELECT)
 
+      .eq("user_id", userId)
+
       .is("deleted_at", null)
 
       .order("sort_order", { ascending: true })
@@ -180,7 +170,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-    setItems((data ?? []) as MindtaskerItem[]);
+    setItems((data ?? []) as unknown as MindtaskerItem[]);
 
     setLoading(false);
 
@@ -222,17 +212,32 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     const supabase = requireSupabase();
 
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleRefresh = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refresh();
+      }, REALTIME_REFRESH_MS);
+    };
+
     const channel = supabase
 
-      .channel("mindtasker-items")
+      .channel(`mindtasker-items-${userId}`)
 
       .on(
 
         "postgres_changes",
 
-        { event: "*", schema: "public", table: "mindtasker_items" },
+        {
+          event: "*",
+          schema: "public",
+          table: "mindtasker_items",
+          filter: `user_id=eq.${userId}`,
+        },
 
-        () => void refresh(),
+        scheduleRefresh,
 
       )
 
@@ -241,6 +246,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
     return () => {
+
+      if (debounce) clearTimeout(debounce);
 
       void supabase.removeChannel(channel);
 
