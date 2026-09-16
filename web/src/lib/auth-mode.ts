@@ -8,9 +8,9 @@ export function isExplicitDemoMode(): boolean {
 }
 
 /** Google / Microsoft login via Convex Auth when Supabase is not configured.
- * Explicit demo mode must not activate this path — Demo uses a legacy UUID. */
+ * Demo / local fallback uses a legacy UUID and must not activate this path. */
 export function shouldUseConvexAuthLogin(): boolean {
-  return !isExplicitDemoMode() && !isSupabaseConfigured && isConvexConfigured;
+  return !isDemoMode && !isSupabaseConfigured && isConvexConfigured;
 }
 
 /** Persist user tag definitions locally (offline demo without sync only). */

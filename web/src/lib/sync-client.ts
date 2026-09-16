@@ -1,13 +1,12 @@
-import { isDemoMode } from "./supabase";
+import { isDemoMode, isForcedLocalMode } from "./supabase";
 
 const SYNC_TOKEN =
   import.meta.env.VITE_SYNC_TOKEN?.trim() || "mindtasker-local-sync";
 
 export function isSyncEnabled(): boolean {
-  return (
-    isDemoMode &&
-    (import.meta.env.VITE_SYNC_ENABLED ?? "true").toLowerCase() !== "false"
-  );
+  if (!isDemoMode) return false;
+  if (isForcedLocalMode()) return false;
+  return (import.meta.env.VITE_SYNC_ENABLED ?? "true").toLowerCase() !== "false";
 }
 
 function syncBase(): string {

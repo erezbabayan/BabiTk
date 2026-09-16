@@ -1,5 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { isConvexPlanLimitText } from "../lib/convex-health";
+import { FREE_BACKEND_OPTIONS } from "../lib/free-backends";
+import { enableForcedLocalMode } from "../lib/supabase";
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -10,12 +14,12 @@ interface State {
 }
 
 function isConvexPlanDisabled(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("free plan limits") ||
-    lower.includes("deployments have been disabled") ||
-    lower.includes("exceeded the free plan")
-  );
+  return isConvexPlanLimitText(message);
+}
+
+function continueInLocalMode(): void {
+  enableForcedLocalMode();
+  window.location.reload();
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -42,17 +46,32 @@ export class ErrorBoundary extends Component<Props, State> {
           >
             <h1 className="text-xl font-bold text-stone-900">השרת לא זמין כרגע</h1>
             <p className="max-w-md text-sm leading-relaxed text-stone-600">
-              שרת Convex חסום — חרגתם ממגבלת תוכנית Free. יש לשדרג ל־Pro כדי שהמערכת
-              תחזור (התחברות, נתונים, וואטסאפ).
+              שרת Convex חסום בגלל מגבלת תוכנית Free. אפשר להמשיך במצב מקומי חינם
+              בלי לשלם — הנתונים נשמרים בדפדפן זה.
             </p>
-            <a
+            <button
+              type="button"
               className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
-              href="https://dashboard.convex.dev/t/erezbabayan/babitk/settings/billing"
-              target="_blank"
-              rel="noreferrer"
+              onClick={() => continueInLocalMode()}
             >
-              שדרוג Convex Pro
-            </a>
+              המשך במצב מקומי חינם
+            </button>
+            <p className="max-w-md text-xs leading-relaxed text-stone-500">
+              חלופות חינמיות לענן:{" "}
+              {FREE_BACKEND_OPTIONS.map((option, index) => (
+                <span key={option.url}>
+                  {index > 0 ? " · " : null}
+                  <a
+                    className="font-semibold text-sky-800 underline"
+                    href={option.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {option.name}
+                  </a>
+                </span>
+              ))}
+            </p>
             <button
               type="button"
               className="text-sm font-semibold text-sky-800 underline"
@@ -61,7 +80,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 window.location.reload();
               }}
             >
-              נסה שוב אחרי השדרוג
+              נסה שוב את הענן
             </button>
           </div>
         );

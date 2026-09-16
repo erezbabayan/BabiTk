@@ -5,6 +5,7 @@ import type { MindtaskerItem } from "../types";
 import { DEMO_USER_ID } from "./demo-store";
 import { fetchSyncItems } from "./sync-client";
 import { isConvexConfigured } from "./convex";
+import { isDemoMode } from "./supabase";
 
 let client: ConvexHttpClient | null = null;
 let resyncInFlight: Promise<void> | null = null;
@@ -21,6 +22,7 @@ function getClient(): ConvexHttpClient | null {
 }
 
 export function isConvexMirrorEnabled(): boolean {
+  if (isDemoMode) return false;
   if (import.meta.env.VITE_USE_CONVEX === "false") return false;
   return isConvexConfigured;
 }

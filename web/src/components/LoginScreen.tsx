@@ -1,6 +1,7 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
+import { isForcedLocalMode } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
@@ -362,9 +363,22 @@ function AuthForm({
 }
 
 function DemoForm({ onEnter }: { onEnter: () => void }) {
+  const localFallback = isForcedLocalMode();
   return (
-    <LoginShell subtitle="מצב הדגמה מקומי — ללא Supabase">
+    <LoginShell
+      subtitle={
+        localFallback
+          ? "שרת Convex חסום — כניסה למצב מקומי חינם"
+          : "מצב הדגמה מקומי — ללא Supabase"
+      }
+    >
       <div className="space-y-4">
+        {localFallback ? (
+          <p className="text-sm leading-relaxed text-slate-600">
+            המערכת עובדת בדפדפן בלי לשלם. וואטסאפ וסנכרון בין מכשירים יחזרו אחרי
+            חיבור לשרת חינמי (Supabase / Firebase / PocketBase) או לפרויקט Convex חדש.
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={onEnter}

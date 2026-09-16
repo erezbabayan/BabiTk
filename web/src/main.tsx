@@ -1,6 +1,7 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SplashScreen } from "./components/SplashScreen";
+import { prepareRuntimeMode } from "./lib/convex-health";
 import { BoardItemViewProvider } from "./providers/BoardItemViewProvider";
 import { ConvexAppProvider } from "./providers/ConvexAppProvider";
 import "./index.css";
@@ -70,11 +71,26 @@ function BootError({ message, onRetry }: { message: string; onRetry: () => void 
 
 function Root() {
   const [showSplash, setShowSplash] = useState(true);
+  const [bootReady, setBootReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
   const dismissSplash = useCallback(() => setShowSplash(false), []);
 
   useEffect(() => {
     sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void prepareRuntimeMode()
+      .catch((error: unknown) => {
+        console.warn("Runtime mode probe failed", error);
+      })
+      .finally(() => {
+        if (!cancelled) setBootReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -98,6 +114,10 @@ function Root() {
         }}
       />
     );
+  }
+
+  if (!bootReady) {
+    return <SplashScreen onDone={() => undefined} />;
   }
 
   return (

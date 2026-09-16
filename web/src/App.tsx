@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../convex/_generated/api";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { LocalBackendBanner } from "./components/LocalBackendBanner";
 import { AppShell } from "./components/AppShell";
 import { Dashboard } from "./components/Dashboard";
 import { LoginScreen } from "./components/LoginScreen";
@@ -31,7 +32,7 @@ import {
   type ConvexHealth,
 } from "./lib/convex-health";
 import { isSyncEnabled } from "./lib/sync-client";
-import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./lib/supabase";
+import { isDemoMode, isSupabaseConfigured, requireSupabase, enableForcedLocalMode } from "./lib/supabase";
 import { signInWithMicrosoft } from "./lib/microsoft-auth";
 import { writeCachedHeaderName, readCachedHeaderName } from "./lib/header-name-cache";
 import type { UserNameParts } from "./lib/user-display-name";
@@ -136,6 +137,7 @@ function DemoApp() {
       onCaptured={() => setCaptureTick((t) => t + 1)}
       beforeMain={
         <>
+          <LocalBackendBanner />
           {settingsOpen && userId ? (
             <SettingsPanel
               userId={userId}
@@ -352,14 +354,16 @@ function ConvexAuthApp() {
           {convexHealthMessage(backendHealth)}
         </p>
         {backendHealth.reason === "plan_disabled" ? (
-          <a
+          <button
+            type="button"
             className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
-            href="https://dashboard.convex.dev/t/erezbabayan/babitk/settings/billing"
-            target="_blank"
-            rel="noreferrer"
+            onClick={() => {
+              enableForcedLocalMode();
+              window.location.reload();
+            }}
           >
-            שדרוג Convex Pro
-          </a>
+            המשך במצב מקומי חינם
+          </button>
         ) : null}
         <button
           type="button"

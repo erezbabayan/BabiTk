@@ -6,6 +6,22 @@
 
 **https://erezbabayan.github.io/BabiTk/**
 
+אם שרת Convex (תוכנית Free) חסום — האתר עובר אוטומטית **למצב מקומי חינם**: הלוח עובד בדפדפן, בלי לשלם. וואטסאפ וסנכרון בין מכשירים דורשים שרת ענן.
+
+### חלופות חינמיות ל־Convex Cloud
+
+אין חברה שמציעה ענן בזמן־אמת בלי מגבלות ולנצח. אלה האפשרויות החינמיות ביותר ל־BabiTk:
+
+| אפשרות | מחיר | מתאים ל־BabiTk |
+|--------|------|----------------|
+| **[Supabase Free](https://supabase.com/pricing)** | חינם (עם תקרה) | **מומלץ** — כבר כתוב בקוד (`web/` + `backend/` + `supabase/`) |
+| **[Firebase Spark](https://firebase.google.com/pricing)** | חינם לגמרי עד התקרה | התחברות + מסד בזמן אמת, בלי כרטיס אשראי |
+| **[Appwrite Cloud](https://appwrite.io/pricing)** | חינם (עם תקרה) | משתמשים, מסד, קבצים |
+| **[Convex בקוד פתוח](https://docs.convex.dev/self-hosting)** | חינם על שרת שלכם | שומר את תיקיית `convex/` — למשל Oracle Cloud Always Free |
+| **[PocketBase](https://pocketbase.io)** | חינם לגמרי (MIT) | קובץ אחד על כל שרת או מחשב, בלי מנוי |
+
+פרויקט Convex **חדש** בתוכנית Free גם יעבוד זמנית, עד שהתקרה תיחסם שוב.
+
 ---
 
 ## מה המערכת עושה

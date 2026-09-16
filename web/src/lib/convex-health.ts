@@ -1,8 +1,23 @@
+import {
+  clearForcedLocalMode,
+  enableForcedLocalMode,
+  isSupabaseConfigured,
+} from "./supabase";
+
 /** Probe whether the Convex deployment answers (plan disabled / network). */
 
 export type ConvexHealth =
   | { ok: true }
   | { ok: false; reason: "plan_disabled" | "unreachable" | "unknown"; detail?: string };
+
+export function isConvexPlanLimitText(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("free plan limits") ||
+    lower.includes("deployments have been disabled") ||
+    lower.includes("exceeded the free plan")
+  );
+}
 
 export async function probeConvexHealth(
   convexUrl: string,
@@ -22,12 +37,7 @@ export async function probeConvexHealth(
       signal: controller.signal,
     });
     const text = await response.text().catch(() => "");
-    const lower = text.toLowerCase();
-    if (
-      lower.includes("free plan limits") ||
-      lower.includes("deployments have been disabled") ||
-      lower.includes("exceeded the free plan")
-    ) {
+    if (isConvexPlanLimitText(text)) {
       return { ok: false, reason: "plan_disabled", detail: text.slice(0, 200) };
     }
     // 4xx/5xx on health still means we reached Convex — treat as reachable unless plan text.
@@ -45,10 +55,38 @@ export async function probeConvexHealth(
 export function convexHealthMessage(health: ConvexHealth): string {
   if (health.ok) return "";
   if (health.reason === "plan_disabled") {
-    return "שרת Convex חסום — חרגתם ממגבלת תוכנית Free. יש לשדרג ל־Pro ב־dashboard.convex.dev כדי שהמערכת תחזור.";
+    return "שרת Convex חסום בגלל מגבלת תוכנית Free. אפשר להמשיך במצב מקומי חינם בלי לשלם.";
   }
   if (health.reason === "unreachable") {
     return "אין חיבור לשרת Convex. בדקו אינטרנט או נסו שוב בעוד דקה.";
   }
   return "שרת Convex לא זמין כרגע. נסו שוב מאוחר יותר.";
+}
+
+/**
+ * Before mounting Convex, switch to local/demo data if the cloud plan is blocked.
+ * Must run before lazy-loading App so offline hooks snapshot the demo flag.
+ */
+export async function prepareRuntimeMode(): Promise<"cloud" | "local"> {
+  if (isSupabaseConfigured) {
+    return "cloud";
+  }
+  if (import.meta.env.VITE_DEMO_MODE === "true") {
+    return "local";
+  }
+
+  const convexUrl = import.meta.env.VITE_CONVEX_URL?.trim() ?? "";
+  if (!convexUrl) {
+    enableForcedLocalMode();
+    return "local";
+  }
+
+  const health = await probeConvexHealth(convexUrl);
+  if (health.ok) {
+    clearForcedLocalMode();
+    return "cloud";
+  }
+
+  enableForcedLocalMode();
+  return "local";
 }

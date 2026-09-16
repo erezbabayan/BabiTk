@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabaseAuthStorage } from "./auth-storage";
+import { readForcedLocalMode, writeForcedLocalMode } from "./runtime-mode";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
@@ -20,7 +21,28 @@ export const isSupabaseConfigured =
   isValidSupabaseUrl(supabaseUrl) &&
   !supabaseUrl.includes("[project-ref]");
 
-export const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+/** Build-time demo flag or runtime fallback when Convex cloud is blocked. */
+export let isDemoMode =
+  import.meta.env.VITE_DEMO_MODE === "true" || readForcedLocalMode();
+
+export function isForcedLocalMode(): boolean {
+  return readForcedLocalMode();
+}
+
+export function enableForcedLocalMode(): void {
+  writeForcedLocalMode(true);
+  isDemoMode = true;
+}
+
+export function clearForcedLocalMode(): void {
+  writeForcedLocalMode(false);
+  isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+}
+
+export function retryCloudBackend(): void {
+  clearForcedLocalMode();
+  window.location.reload();
+}
 
 let client: SupabaseClient | null = null;
 

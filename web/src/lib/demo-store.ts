@@ -104,7 +104,8 @@ export async function ensureLocalSeedItems(): Promise<number> {
   if (readLocalItems().length > 0) return 0;
   if (localStorage.getItem("mindtasker:demo:seeded") === "1") return 0;
   try {
-    const response = await fetch("/babitk-local-seed.json", { cache: "no-store" });
+    const seedUrl = `${import.meta.env.BASE_URL}babitk-local-seed.json`;
+    const response = await fetch(seedUrl, { cache: "no-store" });
     if (!response.ok) return 0;
     const payload = (await response.json()) as { items?: MindtaskerItem[] };
     const items = Array.isArray(payload.items) ? payload.items : [];
