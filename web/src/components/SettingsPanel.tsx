@@ -14,7 +14,7 @@ import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
 import { NotificationPrefs } from "./NotificationPrefs";
 import type { UsageSummary } from "../lib/api";
 import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { isDemoMode } from "../lib/supabase";
+import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 
 type SettingsSection =
   | "menu"
@@ -39,7 +39,8 @@ interface SettingsPanelProps {
 }
 
 const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+  isDemoMode || (import.meta.env.VITE_USE_CONVEX === "false" && !isSupabaseConfigured);
+const cloudAccountSettings = isSupabaseConfigured || shouldUseConvexAuthLogin();
 
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
@@ -138,12 +139,12 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
         ) : null}
 
         {section === "user" ? (
-          OFFLINE ? (
+          cloudAccountSettings ? (
+            <UserSettings />
+          ) : (
             <OfflineNotice>
               מצב מקומי ללא Convex — הנתונים נשמרים בדפדפן בלבד. אין סנכרון ענן או פרופיל שרת.
             </OfflineNotice>
-          ) : (
-            <UserSettings />
           )
         ) : null}
         {section === "notifications" && showNotifications ? <NotificationPrefs /> : null}

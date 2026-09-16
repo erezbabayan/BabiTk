@@ -12,21 +12,57 @@ interface ChangePasswordFormProps {
 }
 
 export function ChangePasswordForm({ email }: ChangePasswordFormProps) {
+  if (shouldUseConvexAuthLogin()) {
+    return <ConvexChangePasswordForm email={email} />;
+  }
+  if (isSupabaseConfigured) {
+    return <SupabaseChangePasswordForm email={email} />;
+  }
+  return null;
+}
+
+function ConvexChangePasswordForm({ email }: ChangePasswordFormProps) {
   const changePasswordConvex = useAction(api.account.changePassword);
+  return (
+    <PasswordFields
+      email={email}
+      onChangePassword={async (currentPassword, newPassword) => {
+        await changePasswordConvex({ currentPassword, newPassword });
+      }}
+    />
+  );
+}
+
+function SupabaseChangePasswordForm({ email }: ChangePasswordFormProps) {
+  return (
+    <PasswordFields
+      email={email}
+      onChangePassword={async (currentPassword, newPassword) => {
+        if (!email) throw new Error("לא נמצא אימייל לחשבון");
+        await changePasswordWithSupabase(
+          requireSupabase(),
+          email,
+          currentPassword,
+          newPassword,
+        );
+      }}
+    />
+  );
+}
+
+function PasswordFields({
+  email,
+  onChangePassword,
+}: {
+  email: string | null;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+}) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  const convexAuth = shouldUseConvexAuthLogin();
-  const supabaseAuth = isSupabaseConfigured;
-  const canChangePassword = convexAuth || supabaseAuth;
-
-  if (!canChangePassword) {
-    return null;
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -45,20 +81,7 @@ export function ChangePasswordForm({ email }: ChangePasswordFormProps) {
 
     setLoading(true);
     try {
-      if (convexAuth) {
-        await changePasswordConvex({
-          currentPassword,
-          newPassword,
-        });
-      } else if (supabaseAuth) {
-        await changePasswordWithSupabase(
-          requireSupabase(),
-          email,
-          currentPassword,
-          newPassword,
-        );
-      }
-
+      await onChangePassword(currentPassword, newPassword);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
