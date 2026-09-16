@@ -1,15 +1,5 @@
 import { supabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { addDemoItem, isDemoPremium, setDemoPremium } from "./demo-store";
-import { api } from "../../../convex/_generated/api";
-import { requireConvex } from "./convex";
-import { resolveConvexUserId } from "./convex-user-cache";
-import { asDirectConvexUserId } from "./legacy-user-id";
-import type { Id } from "../../../convex/_generated/dataModel";
-import {
-  readLocalAudioAsBase64,
-  uploadLocalAudioToConvexUrl,
-  uploadLocalImageToConvexUrl,
-} from "./voice-upload";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
 
@@ -359,11 +349,7 @@ function clientTimezone(): string {
   }
 }
 
-function convexIngestEnabled(): boolean {
-  return false;
-}
-
-export async function ingestText(text: string, legacyUserId?: string): Promise<void> {
+export async function ingestText(text: string, _legacyUserId?: string): Promise<void> {
   if (isDemoMode) {
     const { ingestTextSync } = await import("./sync-client");
     let timezone = "Asia/Jerusalem";
@@ -373,23 +359,6 @@ export async function ingestText(text: string, legacyUserId?: string): Promise<v
       // keep default
     }
     await ingestTextSync({ text, sourceType: "whatsapp_text", timezone });
-    return;
-  }
-
-  if (convexIngestEnabled()) {
-    if (!legacyUserId) {
-      throw new Error("Not authenticated");
-    }
-    const convex = requireConvex();
-    const convexUserId = await resolveConvexUserId(legacyUserId, () =>
-      convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
-    );
-    await convex.action(api.captureActions.ingestQuickText, {
-      userId: convexUserId,
-      text,
-      timezone: clientTimezone(),
-      locale: "he-IL",
-    });
     return;
   }
 
@@ -446,106 +415,20 @@ async function uploadMultipart(path: string, uri: string, mimeType: string, name
 export async function uploadNotebookOcr(
   uri: string,
   mimeType: string,
-  legacyUserId?: string,
+  _legacyUserId?: string,
 ): Promise<void> {
-  if (isDemoMode) {
-    await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
-    return;
-  }
-
-  if (convexIngestEnabled()) {
-    if (!legacyUserId) {
-      throw new Error("Not authenticated");
-    }
-    const convex = requireConvex();
-    const directId = asDirectConvexUserId(legacyUserId);
-    const convexUserId =
-      directId ??
-      (await resolveConvexUserId(legacyUserId, () =>
-        convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
-      ));
-
-    const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
-    const uploaded = await uploadLocalImageToConvexUrl(uri, uploadUrl, mimeType);
-    await convex.action(api.captureActions.ingestNotebookImage, {
-      userId: convexUserId as Id<"users">,
-      storageId: uploaded.storageId as Id<"_storage">,
-      mimeType: uploaded.mimeType,
-      timezone: clientTimezone(),
-      locale: "he-IL",
-    });
-    return;
-  }
-
   await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
 }
 
 export async function uploadVoiceNote(
   uri: string,
-  legacyUserId?: string,
-  options?: { durationSeconds?: number },
+  _legacyUserId?: string,
+  _options?: { durationSeconds?: number },
 ): Promise<void> {
   if (isDemoMode) {
     const { ingestVoiceSync } = await import("./sync-client");
     await ingestVoiceSync(uri, "audio/m4a", "recording.m4a");
     return;
-  }
-
-  if (convexIngestEnabled()) {
-    if (!legacyUserId) {
-      throw new Error("Not authenticated");
-    }
-    const convex = requireConvex();
-    const directId = asDirectConvexUserId(legacyUserId);
-    const convexUserId =
-      directId ??
-      (await resolveConvexUserId(legacyUserId, () =>
-        convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
-      ));
-
-    const timezone = clientTimezone();
-    const durationSeconds = options?.durationSeconds;
-
-    // Primary: native binary upload → storageId → Node transcription.
-    // Node actions are capped at ~5 MiB args; base64 of real recordings exceeds that.
-    try {
-      const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
-      const uploaded = await uploadLocalAudioToConvexUrl(uri, uploadUrl);
-      await convex.action(api.captureActions.ingestVoiceCapture, {
-        userId: convexUserId as Id<"users">,
-        storageId: uploaded.storageId as Id<"_storage">,
-        mimeType: uploaded.mimeType,
-        timezone,
-        locale: "he-IL",
-        durationSeconds,
-      });
-      return;
-    } catch (primaryError) {
-      const primaryMsg =
-        primaryError instanceof Error ? primaryError.message.toLowerCase() : "";
-      // Only fall back when the upload step itself failed — not ASR/quota/auth.
-      const uploadStepFailed =
-        primaryMsg.includes("העלאת ההקלטה לשרת") ||
-        primaryMsg.includes("upload") ||
-        primaryMsg.includes("network request failed") ||
-        primaryMsg.includes("failed to fetch") ||
-        primaryMsg.includes("תשובת העלאה");
-      if (!uploadStepFailed) {
-        throw primaryError;
-      }
-
-      // Tiny-clip fallback only (must stay under Node 5 MiB arg limit).
-      const audio = await readLocalAudioAsBase64(uri);
-      await convex.action(api.captureActions.ingestVoiceFromBase64, {
-        userId: convexUserId as Id<"users">,
-        audioBase64: audio.base64,
-        mimeType: audio.mimeType,
-        timezone,
-        locale: "he-IL",
-        durationSeconds,
-      });
-      return;
-    }
   }
 
   await uploadMultipart("/api/ai/voice-ingest", uri, "audio/m4a", "recording.m4a");
