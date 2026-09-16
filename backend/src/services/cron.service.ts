@@ -1,5 +1,10 @@
 import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
 import {
+  isCronReminderDue,
+  reminderDueQueryCutoffIso,
+  resolveCronReminderFireAt,
+} from "../lib/task-reminder-due.js";
+import {
   appendDigestSlot,
   buildWhatsAppDigestMessage,
   digestSlotKey,
@@ -278,14 +283,17 @@ export async function sendTaskReminders(): Promise<number> {
   if (!env.isSupabaseConfigured) return 0;
 
   const supabase = getSupabaseAdmin();
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
   let sent = 0;
 
   const { data: items, error } = await supabase
     .from("mindtasker_items")
     .select("id, user_id, title, metadata, due_date, is_actionable")
     .in("status", ["inbox", "pending"])
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .not("due_date", "is", null)
+    .lte("due_date", reminderDueQueryCutoffIso(nowMs));
 
   if (error) {
     throw new Error(`Failed to load items for reminders: ${error.message}`);
@@ -301,11 +309,12 @@ export async function sendTaskReminders(): Promise<number> {
   }
 
   for (const item of items ?? []) {
+    if (!isCronReminderDue(item, nowMs)) continue;
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
-    if (metadata.reminder_sent === true) continue;
-    const notifyAt = resolveItemNotifyAt(item);
-    if (!notifyAt || notifyAt > now) continue;
+    const notifyAt = resolveItemNotifyAt(item) ?? resolveCronReminderFireAt(item);
+    if (!notifyAt || Date.parse(notifyAt) > nowMs) continue;
     if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
+    const fireAt = resolveCronReminderFireAt(item);
 
     const context = await contextFor(item.user_id);
     if (!context) continue;
@@ -330,7 +339,7 @@ export async function sendTaskReminders(): Promise<number> {
       }
       const after = buildAfterReminderSentPatch(
         { due_date: item.due_date, metadata },
-        { firedAt: notifyAt },
+        { firedAt: fireAt ?? undefined },
       );
       await supabase
         .from("mindtasker_items")
@@ -351,7 +360,7 @@ export async function sendTaskReminders(): Promise<number> {
     .eq("status", "active")
     .is("deleted_at", null)
     .not("reminder_at", "is", null)
-    .lte("reminder_at", now);
+    .lte("reminder_at", nowIso);
 
   if (listsError) {
     throw new Error(`Failed to load lists for reminders: ${listsError.message}`);
