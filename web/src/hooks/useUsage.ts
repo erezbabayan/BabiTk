@@ -5,10 +5,10 @@ import { api } from "../../../convex/_generated/api";
 import { getUsageSummaryApi, type UsageSummary } from "../lib/api";
 import { useConvexBackend } from "../lib/data-backend";
 import { useSafeConvexAuth } from "./useSafeConvexAuth";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import { isDemoMode } from "../lib/supabase";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function mapConvexUsage(
   row: {

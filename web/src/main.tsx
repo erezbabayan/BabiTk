@@ -1,9 +1,7 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { SplashScreen } from "./components/SplashScreen";
-import { prepareRuntimeMode } from "./lib/convex-health";
 import { BoardItemViewProvider } from "./providers/BoardItemViewProvider";
-import { ConvexAppProvider } from "./providers/ConvexAppProvider";
 import "./index.css";
 
 const CHUNK_RELOAD_KEY = "babitk:chunk-reload";
@@ -80,17 +78,7 @@ function Root() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void prepareRuntimeMode()
-      .catch((error: unknown) => {
-        console.warn("Runtime mode probe failed", error);
-      })
-      .finally(() => {
-        if (!cancelled) setBootReady(true);
-      });
-    return () => {
-      cancelled = true;
-    };
+    setBootReady(true);
   }, []);
 
   useEffect(() => {
@@ -123,13 +111,11 @@ function Root() {
   return (
     <>
       {showSplash ? <SplashScreen onDone={dismissSplash} /> : null}
-      <ConvexAppProvider>
         <BoardItemViewProvider>
           <Suspense fallback={null}>
             <App />
           </Suspense>
         </BoardItemViewProvider>
-      </ConvexAppProvider>
     </>
   );
 }

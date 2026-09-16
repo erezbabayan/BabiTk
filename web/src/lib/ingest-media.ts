@@ -1,52 +1,18 @@
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { clientTimezone } from "./api";
-import { requireConvex } from "./convex";
-import { resolveConvexUserId } from "./convex-user-cache";
-import { useConvexBackend } from "./data-backend";
-import { asDirectConvexUserId } from "./legacy-user-id";
-import { isDemoMode } from "./supabase";
+import { clientTimezone, uploadNotebookOcrApi } from "./api";
+import { isDemoMode, requireSupabase } from "./supabase";
 
-async function resolveUserId(legacyUserId: string): Promise<Id<"users">> {
-  const convex = requireConvex();
-  const direct = asDirectConvexUserId(legacyUserId);
-  if (direct) return direct;
-  return await resolveConvexUserId(legacyUserId, () =>
-    convex.mutation(api.users.getOrCreateByLegacyId, { legacyId: legacyUserId }),
-  );
-}
-
-async function uploadBlobToConvex(
-  blob: Blob,
-  mimeType: string,
-): Promise<Id<"_storage">> {
-  const convex = requireConvex();
-  const uploadUrl = await convex.mutation(api.files.generateUploadUrl, {});
-  const response = await fetch(uploadUrl, {
-    method: "POST",
-    headers: { "Content-Type": mimeType || blob.type || "application/octet-stream" },
-    body: blob,
-  });
-  if (!response.ok) {
-    throw new Error("העלאת הקובץ לשרת נכשלה");
-  }
-  const payload = (await response.json()) as { storageId?: string };
-  if (!payload.storageId) {
-    throw new Error("תשובת העלאה לא תקינה");
-  }
-  return payload.storageId as Id<"_storage">;
+async function getAccessToken(): Promise<string | null> {
+  const { data } = await requireSupabase().auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 export async function ingestVoiceBlobForUser(
-  legacyUserId: string,
+  _legacyUserId: string,
   blob: Blob,
   options?: { durationSeconds?: number; mimeType?: string },
 ): Promise<void> {
   if (isDemoMode) {
     throw new Error("הקלטה אינה זמינה במצב הדגמה בדפדפן");
-  }
-  if (!useConvexBackend()) {
-    throw new Error("קליטה קולית בדפדפן דורשת Convex");
   }
 
   const mimeType = options?.mimeType || blob.type || "audio/webm";
@@ -54,30 +20,37 @@ export async function ingestVoiceBlobForUser(
     throw new Error("ההקלטה ריקה");
   }
 
-  const convex = requireConvex();
-  const userId = await resolveUserId(legacyUserId);
-  const storageId = await uploadBlobToConvex(blob, mimeType);
+  const token = await getAccessToken();
+  if (!token) throw new Error("יש להתחבר כדי לקלוט הקלטה");
 
-  await convex.action(api.captureActions.ingestVoiceCapture, {
-    userId,
-    storageId,
-    mimeType,
-    timezone: clientTimezone(),
-    locale: "he-IL",
-    durationSeconds: options?.durationSeconds,
+  const form = new FormData();
+  const extension = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
+  form.append("file", blob, `recording.${extension}`);
+  form.append("timezone", clientTimezone());
+  form.append("locale", "he-IL");
+  if (options?.durationSeconds != null) {
+    form.append("durationSeconds", String(options.durationSeconds));
+  }
+
+  const response = await fetch("/api/ai/voice-ingest", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
   });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? "קליטת ההקלטה נכשלה — נדרש שרת AI");
+  }
 }
 
 export async function ingestImageBlobForUser(
-  legacyUserId: string,
+  _legacyUserId: string,
   blob: Blob,
   options?: { mimeType?: string },
 ): Promise<void> {
   if (isDemoMode) {
     throw new Error("סריקת תמונה אינה זמינה במצב הדגמה בדפדפן");
-  }
-  if (!useConvexBackend()) {
-    throw new Error("סריקת תמונה בדפדפן דורשת Convex");
   }
 
   const mimeType = options?.mimeType || blob.type || "image/jpeg";
@@ -85,17 +58,9 @@ export async function ingestImageBlobForUser(
     throw new Error("התמונה ריקה");
   }
 
-  const convex = requireConvex();
-  const userId = await resolveUserId(legacyUserId);
-  const storageId = await uploadBlobToConvex(blob, mimeType);
-
-  await convex.action(api.captureActions.ingestNotebookImage, {
-    userId,
-    storageId,
-    mimeType,
-    timezone: clientTimezone(),
-    locale: "he-IL",
-  });
+  const extension = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
+  const file = new File([blob], `notebook.${extension}`, { type: mimeType });
+  await uploadNotebookOcrApi(file);
 }
 
 export function pickSupportedAudioMimeType(): string {

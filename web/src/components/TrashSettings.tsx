@@ -9,7 +9,7 @@ import {
   permanentDeleteManyConfirmMessage,
 } from "../lib/confirm-copy";
 import { useConvexBackend } from "../lib/data-backend";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import {
   daysUntilTrashExpiry,
   formatDeletedAt,
@@ -33,8 +33,7 @@ type TrashSettingsProps = {
   userId?: string;
 };
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function TrashSettingsView({
   items,

@@ -1,10 +1,9 @@
 import { useConvexAuth as useConvexAuthFromConvex } from "convex/react";
 import { useConvexAuth as useConvexAuthFromAuth } from "@convex-dev/auth/react";
 
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function useOfflineAuthOffline(): {
   isLoading: boolean;

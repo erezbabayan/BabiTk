@@ -1,5 +1,7 @@
-import { requireSupabase, isDemoMode } from "./supabase";
+import { requireSupabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { isDemoPremium, searchDemoNotes, setDemoPremium } from "./demo-store";
+import { getCloudUserProfile } from "./user-profile";
+import { listUserTagsFromSupabase, saveUserTagsToSupabase } from "./user-tags-cloud";
 
 export class PaywallError extends Error {
   readonly code: "audio_quota" | "ai_parse_quota";
@@ -100,6 +102,30 @@ export async function getUsageSummaryApi(): Promise<UsageSummary> {
     };
   }
 
+  if (isSupabaseConfigured) {
+    const profile = await getCloudUserProfile();
+    const isPremium = profile.tier === "premium";
+    const audioAllocated = isPremium ? Number.MAX_SAFE_INTEGER : profile.allocated_audio_seconds;
+    const aiAllocated = isPremium ? Number.MAX_SAFE_INTEGER : profile.allocated_ai_parses;
+    const audioUsed = isPremium ? 0 : profile.used_audio_seconds;
+    const aiUsed = isPremium ? 0 : profile.used_ai_parses;
+    return {
+      tier: profile.tier,
+      isPremium,
+      periodStart: profile.usage_period_start,
+      audio: {
+        used: audioUsed,
+        allocated: audioAllocated,
+        remaining: Math.max(0, audioAllocated - audioUsed),
+      },
+      aiParses: {
+        used: aiUsed,
+        allocated: aiAllocated,
+        remaining: Math.max(0, aiAllocated - aiUsed),
+      },
+    };
+  }
+
   return apiFetch<UsageSummary>("/api/usage/summary");
 }
 
@@ -152,6 +178,9 @@ export interface UserTag {
 }
 
 export async function getUserTagsApi(): Promise<UserTag[]> {
+  if (isSupabaseConfigured) {
+    return listUserTagsFromSupabase();
+  }
   const data = await apiFetch<{ tags: UserTag[] }>("/api/tags");
   return data.tags;
 }
@@ -159,6 +188,9 @@ export async function getUserTagsApi(): Promise<UserTag[]> {
 export async function saveUserTagsApi(
   tags: { name: string; color: string }[],
 ): Promise<UserTag[]> {
+  if (isSupabaseConfigured) {
+    return saveUserTagsToSupabase(tags);
+  }
   const data = await apiFetch<{ tags: UserTag[] }>("/api/tags", {
     method: "PUT",
     body: JSON.stringify({ tags }),
@@ -184,6 +216,9 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
   if (isDemoMode) {
     return "#demo-calendar";
   }
+  if (isSupabaseConfigured) {
+    throw new Error("חיבור Google Calendar באתר הסטטי נשמר בחשבון, בלי שרת OAuth נפרד.");
+  }
 
   const data = await apiFetch<{ url: string }>("/api/integrations/google/connect");
   return data.url;
@@ -192,6 +227,10 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
 export async function getGoogleCalendarStatus(): Promise<boolean> {
   if (isDemoMode) {
     return false;
+  }
+  if (isSupabaseConfigured) {
+    const profile = await getCloudUserProfile();
+    return profile.google_calendar_enabled;
   }
 
   const data = await apiFetch<{ linked: boolean }>("/api/integrations/google/status");

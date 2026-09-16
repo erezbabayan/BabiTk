@@ -9,10 +9,9 @@ import {
   resolveConvexUserId,
 } from "../lib/convex-user-cache";
 import { asDirectConvexUserId, isLegacyUuid } from "../lib/legacy-user-id";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function useConvexUserIdOffline(
   _legacyUserId: string | undefined,

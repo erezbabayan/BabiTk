@@ -1,9 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
-import { isConvexPlanLimitText } from "../lib/convex-health";
-import { FREE_BACKEND_OPTIONS } from "../lib/free-backends";
-import { enableForcedLocalMode } from "../lib/supabase";
-
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -11,15 +7,6 @@ interface Props {
 
 interface State {
   error: Error | null;
-}
-
-function isConvexPlanDisabled(message: string): boolean {
-  return isConvexPlanLimitText(message);
-}
-
-function continueInLocalMode(): void {
-  enableForcedLocalMode();
-  window.location.reload();
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -38,53 +25,6 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       const message = this.state.error.message ?? "";
-      if (isConvexPlanDisabled(message)) {
-        return (
-          <div
-            className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-stone-50 px-6 text-center"
-            dir="rtl"
-          >
-            <h1 className="text-xl font-bold text-stone-900">השרת לא זמין כרגע</h1>
-            <p className="max-w-md text-sm leading-relaxed text-stone-600">
-              שרת Convex חסום בגלל מגבלת תוכנית Free. אפשר להמשיך במצב מקומי חינם
-              בלי לשלם — הנתונים נשמרים בדפדפן זה.
-            </p>
-            <button
-              type="button"
-              className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
-              onClick={() => continueInLocalMode()}
-            >
-              המשך במצב מקומי חינם
-            </button>
-            <p className="max-w-md text-xs leading-relaxed text-stone-500">
-              חלופות חינמיות לענן:{" "}
-              {FREE_BACKEND_OPTIONS.map((option, index) => (
-                <span key={option.url}>
-                  {index > 0 ? " · " : null}
-                  <a
-                    className="font-semibold text-sky-800 underline"
-                    href={option.url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {option.name}
-                  </a>
-                </span>
-              ))}
-            </p>
-            <button
-              type="button"
-              className="text-sm font-semibold text-sky-800 underline"
-              onClick={() => {
-                this.setState({ error: null });
-                window.location.reload();
-              }}
-            >
-              נסה שוב את הענן
-            </button>
-          </div>
-        );
-      }
 
       return (
         <div className="p-8 text-center" dir="rtl">

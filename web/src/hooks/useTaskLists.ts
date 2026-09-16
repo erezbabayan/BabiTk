@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { useConvexFeatures } from "../lib/data-backend";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import {
   normalizeTaskListRecord,
   resolveBoardSourceTaskIds,
@@ -14,8 +14,7 @@ import type { MindtaskerItem } from "../types";
 
 export type { TaskListRecord } from "../lib/task-list-items";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function useTaskListsOffline(_userId: Id<"users"> | undefined) {
   const noop = useCallback(async () => undefined, []);

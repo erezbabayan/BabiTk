@@ -13,8 +13,7 @@ import { UserSettings } from "./UserSettings";
 import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
 import { NotificationPrefs } from "./NotificationPrefs";
 import type { UsageSummary } from "../lib/api";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { isDemoMode } from "../lib/supabase";
+import { isSupabaseConfigured } from "../lib/supabase";
 
 type SettingsSection =
   | "menu"
@@ -38,8 +37,8 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const cloudBackend = isSupabaseConfigured;
+const OFFLINE = !cloudBackend;
 
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
@@ -65,8 +64,7 @@ function OfflineNotice({ children }: { children: string }) {
 
 export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("menu");
-  const showNotifications = !OFFLINE && shouldUseConvexAuthLogin();
-  // Offline mode: no Convex provider — never call useQuery here.
+  const showNotifications = false;
   const isAdmin = false;
 
   const menuItems = (showNotifications
@@ -138,35 +136,35 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
         ) : null}
 
         {section === "user" ? (
-          OFFLINE ? (
-            <OfflineNotice>
-              מצב מקומי ללא Convex — הנתונים נשמרים בדפדפן בלבד. אין סנכרון ענן או פרופיל שרת.
-            </OfflineNotice>
-          ) : (
+          cloudBackend ? (
             <UserSettings />
+          ) : (
+            <OfflineNotice>
+              מצב מקומי ללא חשבון ענן — הנתונים נשמרים בדפדפן בלבד. אין סנכרון או פרופיל שרת.
+            </OfflineNotice>
           )
         ) : null}
         {section === "notifications" && showNotifications ? <NotificationPrefs /> : null}
         {section === "whatsapp" ? (
-          OFFLINE ? (
-            <OfflineNotice>
-              חיבור WhatsApp דורש Convex פעיל. במצב מקומי אפשר לערוך פריטים שנשמרו בדפדפן בלבד.
-            </OfflineNotice>
-          ) : (
+          cloudBackend ? (
             <PhoneLinkSettings userId={userId} summary={summary} />
+          ) : (
+            <OfflineNotice>
+              חיבור WhatsApp דורש חשבון ענן. במצב מקומי אפשר לערוך פריטים שנשמרו בדפדפן בלבד.
+            </OfflineNotice>
           )
         ) : null}
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
         {section === "calendar" ? (
-          OFFLINE ? (
-            <OfflineNotice>Google Calendar לא זמין במצב מקומי ללא Convex.</OfflineNotice>
-          ) : (
+          cloudBackend ? (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">חבר את Google Calendar כדי לסנכרן משימות עם היומן.</p>
               <GoogleCalendarLink />
             </div>
+          ) : (
+            <OfflineNotice>Google Calendar לא זמין במצב מקומי ללא חשבון ענן.</OfflineNotice>
           )
         ) : null}
         {section === "premium" ? (

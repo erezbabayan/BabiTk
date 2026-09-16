@@ -1,10 +1,7 @@
 import { FormEvent, useState } from "react";
-import { useAction } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { changePasswordWithSupabase } from "../lib/change-password";
-import { isSupabaseConfigured, requireSupabase } from "../lib/supabase";
+import { requireSupabase } from "../lib/supabase";
 import { PasswordInput } from "./PasswordInput";
 
 interface ChangePasswordFormProps {
@@ -12,21 +9,12 @@ interface ChangePasswordFormProps {
 }
 
 export function ChangePasswordForm({ email }: ChangePasswordFormProps) {
-  const changePasswordConvex = useAction(api.account.changePassword);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  const convexAuth = shouldUseConvexAuthLogin();
-  const supabaseAuth = isSupabaseConfigured;
-  const canChangePassword = convexAuth || supabaseAuth;
-
-  if (!canChangePassword) {
-    return null;
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -45,20 +33,12 @@ export function ChangePasswordForm({ email }: ChangePasswordFormProps) {
 
     setLoading(true);
     try {
-      if (convexAuth) {
-        await changePasswordConvex({
-          currentPassword,
-          newPassword,
-        });
-      } else if (supabaseAuth) {
-        await changePasswordWithSupabase(
-          requireSupabase(),
-          email,
-          currentPassword,
-          newPassword,
-        );
-      }
-
+      await changePasswordWithSupabase(
+        requireSupabase(),
+        email,
+        currentPassword,
+        newPassword,
+      );
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");

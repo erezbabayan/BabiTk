@@ -5,9 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  VITE_DEMO_MODE = "true"
-  VITE_USE_CONVEX = "true"
-  VITE_CONVEX_URL = "https://scintillating-fly-225.convex.cloud"
+  VITE_DEMO_MODE = "false"
+  VITE_USE_CONVEX = "false"
 
 [[redirects]]
   from = "/*"
