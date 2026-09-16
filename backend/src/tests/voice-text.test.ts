@@ -11,6 +11,7 @@ describe("voice-text", () => {
     assert.equal(isVoicePlaceholderText("הודעה קולית מוואטסאפ"), true);
     assert.equal(isVoicePlaceholderText("הודעה קולית"), true);
     assert.equal(isVoicePlaceholderText("לקנות חלב מחר"), false);
+    assert.equal(isVoicePlaceholderText("ממתין לתמלול"), false);
   });
 
   it("uses the first transcribed line as the title", () => {

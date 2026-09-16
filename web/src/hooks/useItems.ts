@@ -47,6 +47,7 @@ import { useConvexBackend } from "../lib/data-backend";
 
 import { useConvexUserId } from "./useConvexUserId";
 import { useItemsConvex, type BoardSecondaryLoad } from "./useItemsConvex";
+import { useVoicePlaceholderRepair } from "./useVoicePlaceholderRepair";
 
 import type { MindtaskerItem } from "../types";
 import { buildPriorityTogglePatch } from "../lib/item-priority";
@@ -190,20 +191,24 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   }, [enabled, userId]);
 
+  const patchVoiceItem = useCallback(
+    (id: string, patch: Pick<MindtaskerItem, "title" | "content">) => {
+      setItems((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+      );
+    },
+    [],
+  );
 
+  useVoicePlaceholderRepair(items, enabled && Boolean(userId) && !isDemoMode, patchVoiceItem);
 
   useEffect(() => {
-
     if (!enabled) {
-
       setLoading(false);
-
       return;
-
     }
 
     void refresh();
-
   }, [enabled, refresh]);
 
 

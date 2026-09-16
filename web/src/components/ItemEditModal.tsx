@@ -4,6 +4,11 @@ import type { MindtaskerItem } from "../types";
 import { getItemAnalysis } from "../lib/item-analysis";
 import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";
 import { effectiveTaskDueDate, getReminderFlags, getReminderRecurrence, type ReminderRecurrence } from "../lib/resolve-item-reminder";
+import {
+  isVoicePendingText,
+  isVoicePlaceholderText,
+  resolveVoiceDisplayText,
+} from "../lib/voice-text";
 import { ItemAnalysisPanel } from "./ItemAnalysisPanel";
 import { DueDateFields } from "./DueDateFields";
 import { ReminderRecurrenceChips } from "./ReminderRecurrenceChips";
@@ -66,8 +71,9 @@ interface ItemEditModalProps {
 
 export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
   const { tags: userTags } = useUserTags();
-  const [title, setTitle] = useState(item.title);
-  const [content, setContent] = useState(item.content);
+  const resolved = resolveVoiceDisplayText(item);
+  const [title, setTitle] = useState(resolved.transcribing ? "" : resolved.title);
+  const [content, setContent] = useState(resolved.transcribing ? "" : resolved.content);
   const [selectedTags, setSelectedTags] = useState<string[]>(item.tags);
   const [dueParts, setDueParts] = useState<DueDateParts>(() => {
     if (getReminderFlags(item.metadata).disabled) {
@@ -82,6 +88,21 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const analysis = getItemAnalysis(item.metadata);
+
+  useEffect(() => {
+    const next = resolveVoiceDisplayText(item);
+    if (next.transcribing) return;
+    setTitle((current) =>
+      isVoicePlaceholderText(current) || isVoicePendingText(current) || !current.trim()
+        ? next.title
+        : current,
+    );
+    setContent((current) =>
+      isVoicePlaceholderText(current) || isVoicePendingText(current) || !current.trim()
+        ? next.content
+        : current,
+    );
+  }, [item]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -103,6 +124,10 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) {
       setError("כותרת חובה");
+      return;
+    }
+    if (isVoicePlaceholderText(trimmedTitle) || isVoicePendingText(trimmedTitle)) {
+      setError("ההודעה הקולית עדיין בתמלול");
       return;
     }
 
@@ -170,6 +195,9 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
           >
             <div>
               <label className="mb-px block text-[10px] font-medium text-slate-500">כותרת</label>
+              {resolved.transcribing ? (
+                <p className="mb-1 text-[10px] text-slate-500">ההודעה הקולית בתהליך תמלול…</p>
+              ) : null}
               <input
                 type="text"
                 value={title}

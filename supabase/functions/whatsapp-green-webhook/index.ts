@@ -13,13 +13,12 @@ import {
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
 } from "../_shared/green-api.ts";
-import { resolveGreenApiMediaUrl } from "../_shared/green-api-media.ts";
+import { titleFromInboundText } from "../_shared/voice-text.ts";
 import {
-  audioFileName,
-  downloadAudioBytes,
-  transcribeAndProofreadVoice,
-} from "../_shared/hebrew-voice-asr.ts";
-import { isVoicePlaceholderText, titleFromInboundText } from "../_shared/voice-text.ts";
+  pendingVoiceItem,
+  transcribeVoiceMessage,
+  type VoiceGatewayCredentials,
+} from "../_shared/voice-ingest.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -48,12 +47,9 @@ interface UserRow {
   whatsapp_capture_group_name: string | null;
 }
 
-interface GatewayRow {
+interface GatewayRow extends VoiceGatewayCredentials {
   user_id: string;
   webhook_token: string | null;
-  instance_id: string;
-  api_token: string;
-  api_url: string;
 }
 
 async function findVerifiedUser(
@@ -192,7 +188,7 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
   };
 }
 
-async function transcribeVoiceMessage(
+async function voiceItemFromMessage(
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
 ): Promise<{
@@ -202,38 +198,12 @@ async function transcribeVoiceMessage(
   rawText: string;
   audioUrl: string | null;
 }> {
-  const audioUrl = await resolveGreenApiMediaUrl({
-    downloadUrl: message.audioUrl,
-    chatId: message.chatId,
-    messageId: message.messageId,
-    credentials: gateway
-      ? {
-          instanceId: gateway.instance_id,
-          apiToken: gateway.api_token,
-          apiUrl: gateway.api_url,
-        }
-      : null,
-  });
-  if (!audioUrl) {
-    throw new Error("voice_audio_url_missing");
+  try {
+    return await transcribeVoiceMessage(message, gateway);
+  } catch (error) {
+    console.error("voice transcription failed, storing pending item", error);
+    return pendingVoiceItem(message.audioUrl ?? null);
   }
-  const downloaded = await downloadAudioBytes(audioUrl);
-  const mimeType = message.mimeType || downloaded.mimeType;
-  const transcribed = await transcribeAndProofreadVoice({
-    audio: downloaded.bytes,
-    mimeType,
-    fileName: audioFileName(message.messageId, mimeType),
-  });
-  if (isVoicePlaceholderText(transcribed.correctedText)) {
-    throw new Error("voice_placeholder_rejected");
-  }
-  return {
-    sourceType: "whatsapp_voice",
-    title: transcribed.title,
-    content: transcribed.correctedText,
-    rawText: transcribed.rawText,
-    audioUrl,
-  };
 }
 
 async function ingestMessage(
@@ -247,7 +217,7 @@ async function ingestMessage(
   }
   const item =
     message.type === "audio"
-      ? await transcribeVoiceMessage(message, gateway)
+      ? await voiceItemFromMessage(message, gateway)
       : itemFromMessage(message);
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
@@ -305,91 +275,6 @@ async function ingestMessage(
   }
 }
 
-async function reprocessPlaceholderVoiceItems(
-  supabase: ReturnType<typeof adminClient>,
-  userId: string,
-  gateway: GatewayRow | null,
-): Promise<number> {
-  const { data, error } = await supabase
-    .from("mindtasker_items")
-    .select(
-      "id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
-    )
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .or("title.eq.הודעה קולית מוואטסאפ,content.eq.הודעה קולית מוואטסאפ,title.eq.הודעה קולית,content.eq.הודעה קולית");
-  if (error || !data) return 0;
-
-  let updated = 0;
-  for (const row of data) {
-    if (!isVoicePlaceholderText(row.title) && !isVoicePlaceholderText(row.content)) {
-      continue;
-    }
-    const source = Array.isArray(row.source_materials)
-      ? row.source_materials[0]
-      : row.source_materials;
-    const storageUrl =
-      (source && typeof source === "object" && "storage_url" in source
-        ? String(source.storage_url ?? "")
-        : "") || "";
-    const messageId =
-      typeof row.metadata === "object" && row.metadata && "whatsapp_message_id" in row.metadata
-        ? String(row.metadata.whatsapp_message_id ?? "")
-        : "";
-    const chatId =
-      typeof row.metadata === "object" && row.metadata && "chat_id" in row.metadata
-        ? String(row.metadata.chat_id ?? "")
-        : "";
-    try {
-      const transcribed = await transcribeVoiceMessage(
-        {
-          messageId: messageId || row.id,
-          senderId: "",
-          senderPhone: "",
-          chatId,
-          direction: "incoming",
-          type: "audio",
-          audioUrl: storageUrl || undefined,
-        },
-        gateway,
-      );
-      const { error: itemError } = await supabase
-        .from("mindtasker_items")
-        .update({
-          title: transcribed.title,
-          content: transcribed.content,
-          last_interacted_at: new Date().toISOString(),
-          metadata: {
-            ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
-            source: "whatsapp_voice",
-            whisper_transcription: transcribed.rawText,
-            corrected_transcription: transcribed.content,
-          },
-        })
-        .eq("id", row.id);
-      if (itemError) continue;
-      if (source && typeof source === "object" && "id" in source && source.id) {
-        await supabase
-          .from("source_materials")
-          .update({
-            raw_text: transcribed.rawText,
-            storage_url: transcribed.audioUrl ?? storageUrl,
-            metadata: {
-              ...(typeof source.metadata === "object" && source.metadata ? source.metadata : {}),
-              whisper_transcription: transcribed.rawText,
-              corrected_transcription: transcribed.content,
-            },
-          })
-          .eq("id", source.id);
-      }
-      updated += 1;
-    } catch {
-      // Keep the placeholder until audio/ASR is available.
-    }
-  }
-  return updated;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "GET") {
     return json({
@@ -426,10 +311,6 @@ Deno.serve(async (req) => {
     return json({ error: "invalid_webhook_token" }, 401);
   }
 
-  if (gateway) {
-    await reprocessPlaceholderVoiceItems(supabase, gateway.user_id, gateway);
-  }
-
   const parsed = parseGreenApiWebhook(body);
   if (parsed.ignored) {
     return json({ received: true, ignored: true, reason: parsed.reason ?? "not_inbound" });
@@ -442,7 +323,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  const scheduled: Array<{ messageId: string; userId: string; reprocessed?: number }> = [];
+  const scheduled: Array<{ messageId: string; userId: string }> = [];
   const skipped: Array<{ messageId: string; reason: string }> = [];
 
   for (const message of parsed.messages) {
@@ -477,15 +358,9 @@ Deno.serve(async (req) => {
     }
     try {
       await ingestMessage(supabase, user.id, message, gateway);
-      const reprocessed = await reprocessPlaceholderVoiceItems(
-        supabase,
-        user.id,
-        gateway,
-      );
       scheduled.push({
         messageId: message.messageId,
         userId: user.id,
-        ...(reprocessed > 0 ? { reprocessed } : {}),
       });
     } catch (error) {
       skipped.push({

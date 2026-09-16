@@ -29,7 +29,7 @@ import { useBoardSearch } from "../hooks/useBoardSearch";
 import { useBoardFilterTags } from "../hooks/useBoardFilterTags";
 import { useTagCascadeSync } from "../hooks/useTagCascadeSync";
 import { boardTasksForListSync } from "../lib/task-list-items";
-import { boardSwipeActions, inboxSwipeActions } from "../lib/item-swipe-actions";
+import { boardSwipeActions, inboxSendToBoardLabel, inboxSwipeActions } from "../lib/item-swipe-actions";
 import { applyBoardDateSort, type BoardDateSortDirection } from "../lib/board-date-sort";
 import { boardToolbarButtonClass, boardToolbarIconButtonClass } from "../lib/board-toolbar";
 import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-labels";
@@ -103,9 +103,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const inboxSearch = useBoardSearch("inbox");
   const todaySearch = useBoardSearch("today");
   const notesSearch = useBoardSearch("notes");
-  const [inboxDateSort, setInboxDateSort] = useState<BoardDateSortDirection>("desc");
-  const [todayDateSort, setTodayDateSort] = useState<BoardDateSortDirection>("asc");
-  const [notesDateSort, setNotesDateSort] = useState<BoardDateSortDirection>("desc");
+  const [inboxDateSort, setInboxDateSort] = useState<BoardDateSortDirection>(null);
+  const [todayDateSort, setTodayDateSort] = useState<BoardDateSortDirection>(null);
+  const [notesDateSort, setNotesDateSort] = useState<BoardDateSortDirection>(null);
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [tagPickerItem, setTagPickerItem] = useState<MindtaskerItem | null>(null);
   const [tagDraft, setTagDraft] = useState<string[]>([]);
@@ -473,7 +473,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
-        disabled={isDesktop}
       >
         <ItemCard
           item={item}
@@ -487,6 +486,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               logItemActionError("toggleActionable failed", error);
             });
           }}
+          onSendToBoard={() => {
+            void approveInboxItem(item).catch((error) => {
+              logItemActionError("approveInboxItem failed", error);
+            });
+          }}
+          sendToBoardLabel={inboxSendToBoardLabel(item)}
         />
       </SwipeableItemCard>
     );
@@ -505,7 +510,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
-        disabled={isDesktop}
       >
         <ItemCard
           item={item}
@@ -539,7 +543,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
-        disabled={isDesktop}
       >
         <ItemCard
           item={item}

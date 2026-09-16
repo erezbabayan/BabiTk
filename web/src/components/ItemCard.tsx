@@ -35,6 +35,8 @@ interface ItemCardProps {
   item: MindtaskerItem;
   onEdit?: (input: ItemEditInput) => void | Promise<void>;
   onToggleType?: () => void;
+  onSendToBoard?: () => void;
+  sendToBoardLabel?: string;
   onComplete?: () => void;
   onSnooze?: () => void;
   onTagPress?: () => void;
@@ -85,6 +87,7 @@ function NotebookActionButton({
       {...{ [ITEM_ACTION_ATTR]: "" }}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -109,6 +112,7 @@ function TaskCheckbox({ onClick, dense = false }: { onClick: () => void; dense?:
       {...{ [ITEM_ACTION_ATTR]: "" }}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -126,6 +130,8 @@ export function ItemCard({
   item,
   onEdit,
   onToggleType,
+  onSendToBoard,
+  sendToBoardLabel,
   onComplete,
   onSnooze,
   onTagPress,
@@ -154,7 +160,9 @@ export function ItemCard({
   const scheduleLine = buildItemScheduleLine(display);
   const contentCollapsed = isItemContentCollapsed(display.isItemExpandable, itemExpanded);
   const headlineText = display.body ? display.headline : display.fullHeadline;
-  const hasActions = Boolean(onEdit || onToggleType || onComplete || onSnooze || onTagPress);
+  const hasActions = Boolean(
+    onEdit || onToggleType || onSendToBoard || onComplete || onSnooze || onTagPress,
+  );
   const visibleTags = tagsOverride ?? display.tags;
   const hasTags = visibleTags.length > 0;
   const boardAccent = resolveBoardAccent(item, boardAccentProp);
@@ -204,28 +212,13 @@ export function ItemCard({
     <>
       <article
         data-item-drag-root=""
-        draggable={draggable && !showSource}
-        onDragStart={(event) => {
-          if (!draggable || showSource) return;
-          const target = event.target as HTMLElement;
-          if (
-            target.closest(
-              `button, a, input, textarea, select, label, [${ITEM_ACTION_ATTR}]`,
-            )
-          ) {
-            event.preventDefault();
-            return;
-          }
-          onDragStart?.(event);
-        }}
-        onDragEnd={onDragEnd}
         onDoubleClick={handleDoubleClick}
         style={cardStyle}
         className={`board-notebook-item relative overflow-hidden transition ${
           dense ? "board-notebook-item--dense" : ""
         } ${isSquares ? "board-notebook-item--squares" : ""} ${
           isDragging ? "opacity-40" : ""
-        } ${draggable && !showSource ? "cursor-grab active:cursor-grabbing" : onEdit ? "cursor-default" : ""}`}
+        } ${onEdit ? "cursor-default" : ""}`}
       >
         <div
           className={`absolute inset-y-0 w-[3px] ${
@@ -272,6 +265,7 @@ export function ItemCard({
                   {...{ [ITEM_ACTION_ATTR]: "" }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onPointerUp={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation();
                     onTogglePriority();
@@ -381,7 +375,7 @@ export function ItemCard({
 
               {!showSource && (hasActions || (!isSquares && scheduleLine)) ? (
                 <div
-                  className={`w-full overflow-hidden ${
+                  className={`w-full ${
                     isSquares
                       ? "mt-auto flex shrink-0 flex-col pb-0 pt-0.5"
                       : scheduleLine
@@ -428,6 +422,30 @@ export function ItemCard({
                           onClick={onToggleType}
                           dense={dense || isSquares}
                         />
+                      ) : null}
+                      {onSendToBoard ? (
+                        <button
+                          type="button"
+                          {...{ [ITEM_ACTION_ATTR]: "" }}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onPointerUp={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSendToBoard();
+                          }}
+                          title={sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")}
+                          aria-label={
+                            sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")
+                          }
+                          style={{ touchAction: "manipulation" }}
+                          className={`inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 font-semibold text-white ${
+                            dense || isSquares ? "h-4 text-[9px]" : "h-6 text-[10px]"
+                          } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                        >
+                          <NotebookIcon name="check" size={dense || isSquares ? 11 : 13} tone="white" />
+                          {sendToBoardLabel ?? (display.isNote ? "להערות" : "למשימות")}
+                        </button>
                       ) : null}
                       {onSnooze ? (
                         <NotebookActionButton

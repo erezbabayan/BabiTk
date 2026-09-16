@@ -83,12 +83,8 @@ export function SwipeableItemCard({
         e.stopPropagation();
         return;
       }
-      // Desktop: native drag from the card or handle. Touch keeps swipe only
-      // because ItemCard is not draggable there.
-      if (
-        target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`) ||
-        target.closest("[data-item-drag-root]")
-      ) {
+      // Native drag only from the grip — the card body is for swipe + clicks.
+      if (target.closest(`[${ITEM_DRAG_HANDLE_ATTR}]`)) {
         return;
       }
       e.preventDefault();

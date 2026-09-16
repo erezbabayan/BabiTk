@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { inboxSwipeActions } from "./item-swipe-actions.js";
+import { inboxSendToBoardLabel, inboxSwipeActions } from "./item-swipe-actions.js";
 import type { MindtaskerItem } from "../types.js";
 
 function inboxItem(isActionable: boolean): MindtaskerItem {
@@ -34,5 +34,7 @@ describe("inboxSwipeActions", () => {
     assert.equal(taskSwipe.left.label, "משימות");
     assert.equal(noteSwipe.left.label, "הערות");
     assert.equal(taskSwipe.right.label, "מחק");
+    assert.equal(inboxSendToBoardLabel(task), "שלח למשימות");
+    assert.equal(inboxSendToBoardLabel(note), "שלח להערות");
   });
 });

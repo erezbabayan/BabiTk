@@ -1,3 +1,4 @@
+import type { SourceMaterial } from "../types";
 import { getItemAnalysis, type StoredItemAnalysis } from "./item-analysis";
 import {
   effectiveTaskDueDate,
@@ -5,6 +6,7 @@ import {
   getReminderFlags,
   getReminderRecurrence,
 } from "./resolve-item-reminder";
+import { resolveVoiceDisplayText } from "./voice-text";
 
 /** Minimal item shape for card display (MindtaskerItem-compatible). */
 export interface ItemDisplaySource {
@@ -14,6 +16,7 @@ export interface ItemDisplaySource {
   is_actionable: boolean;
   due_date: string | null;
   metadata?: Record<string, unknown> | null | undefined;
+  source_materials?: SourceMaterial | null;
 }
 
 export const HEADLINE_MAX_WORDS = 8;
@@ -157,11 +160,17 @@ export function isReminderActive(item: ItemDisplaySource): boolean {
 }
 
 export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFields {
+  const voiceText = resolveVoiceDisplayText(item);
+  const displayItem = {
+    ...item,
+    title: voiceText.title,
+    content: voiceText.content,
+  };
   const analysis = getItemAnalysis(item.metadata);
-  const body = itemBodyText(item);
+  const body = itemBodyText(displayItem);
   const scheduleIso = resolveScheduleIso(item, analysis);
-  const fullHeadline = resolveFullHeadline(item);
-  const headlineTruncated = isHeadlineTruncated(item);
+  const fullHeadline = resolveFullHeadline(displayItem);
+  const headlineTruncated = isHeadlineTruncated(displayItem);
   const bodyExpandable = isBodyExpandable(body);
 
   const recurrenceLabel = formatReminderRecurrenceLabel(

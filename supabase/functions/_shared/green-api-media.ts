@@ -11,13 +11,10 @@ export async function resolveGreenApiMediaUrl(params: {
   credentials?: GreenApiMediaCredentials | null;
 }): Promise<string | null> {
   const existing = params.downloadUrl?.trim();
+  // Trust a real URL without prefetching the audio (that doubled bandwidth
+  // and could time out the webhook before Whisper ran).
   if (existing && /^https?:\/\//i.test(existing)) {
-    try {
-      const head = await fetch(existing, { method: "GET" });
-      if (head.ok) return existing;
-    } catch {
-      // fall through to downloadFile
-    }
+    return existing;
   }
 
   const chatId = params.chatId?.trim();

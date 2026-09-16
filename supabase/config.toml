@@ -32,6 +32,9 @@ verify_jwt = false
 [functions.whatsapp-green-connect]
 verify_jwt = true
 
+[functions.transcribe-voice-item]
+verify_jwt = true
+
 [realtime]
 enabled = true
 

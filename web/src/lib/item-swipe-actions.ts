@@ -22,6 +22,10 @@ export function inboxTransferLabel(item: MindtaskerItem): string {
   return item.is_actionable ? "משימות" : "הערות";
 }
 
+export function inboxSendToBoardLabel(item: MindtaskerItem): string {
+  return item.is_actionable ? "שלח למשימות" : "שלח להערות";
+}
+
 export function approveSwipeAction(item: MindtaskerItem, onTrigger: () => void): SwipeAction {
   return { label: inboxTransferLabel(item), icon: "check", tone: boardToneForItem(item), onTrigger };
 }
