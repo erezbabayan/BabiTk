@@ -1,12 +1,13 @@
 "use node";
 
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action } from "./_generated/server";
 import type { GreenApiCredentials } from "./lib/greenApiSend";
+import { logSecurityEvent } from "./lib/securityLog";
+import { requireAdminAction } from "./lib/requireAdminAction";
 import { normalizePhone } from "./lib/phone";
 
 function digitsOnly(phone: string): string {
@@ -45,8 +46,8 @@ async function fetchWaSettings(creds: GreenApiCredentials): Promise<WaSettings> 
   return (await response.json()) as WaSettings;
 }
 
-function qrPageUrl(creds: GreenApiCredentials): string {
-  return `https://qr.green-api.com/waInstance${creds.instanceId}/${creds.token}`;
+function qrConsoleUrl(): string {
+  return "https://console.green-api.com/";
 }
 
 /**
@@ -66,8 +67,10 @@ export const checkNotificationSound = action({
     qrPageUrl: v.union(v.string(), v.null()),
   }),
   handler: async (ctx): Promise<RingCheckResult> => {
-    const userId: Id<"users"> | null = await getAuthUserId(ctx);
-    if (!userId) {
+    let userId: Id<"users">;
+    try {
+      userId = await requireAdminAction(ctx);
+    } catch {
       return {
         configured: false,
         stateInstance: null,
@@ -75,7 +78,7 @@ export const checkNotificationSound = action({
         recipientPhone: null,
         willRingOnWhatsApp: false,
         reason: "not_authenticated",
-        fixHint: "יש להתחבר כדי לבדוק התראות",
+        fixHint: "רק מנהל יכול לבדוק את חיבור השולח",
         qrPageUrl: null,
       };
     }
@@ -126,7 +129,7 @@ export const checkNotificationSound = action({
         : !authorized
           ? "סרוק QR עם מספר השולח (שונה ממספר הקבלה)"
           : "השולח שונה מהמקבל — וואטסאפ אמור לצלצל",
-      qrPageUrl: qrPageUrl(creds),
+      qrPageUrl: qrConsoleUrl(),
     };
   },
 });
@@ -140,8 +143,9 @@ export const logoutForNewSender = action({
     qrPageUrl: v.union(v.string(), v.null()),
   }),
   handler: async (ctx): Promise<LogoutResult> => {
-    const userId: Id<"users"> | null = await getAuthUserId(ctx);
-    if (!userId) {
+    try {
+      await requireAdminAction(ctx);
+    } catch {
       return { ok: false, reason: "not_authenticated", qrPageUrl: null };
     }
     const creds: GreenApiCredentials | null = await ctx.runQuery(
@@ -154,17 +158,18 @@ export const logoutForNewSender = action({
     const base: string = creds.baseUrl.replace(/\/$/, "");
     const url: string = `${base}/waInstance${creds.instanceId}/logout/${creds.token}`;
     const response: Response = await fetch(url);
-    const text: string = await response.text().catch(() => "");
     if (!response.ok) {
+      logSecurityEvent("green_api_logout_failed", { status: response.status });
       return {
         ok: false,
-        reason: `logout_failed:${response.status}:${text.slice(0, 120)}`,
+        reason: "logout_failed",
         qrPageUrl: null,
       };
     }
+    logSecurityEvent("green_api_logout", { ok: true });
     return {
       ok: true,
-      qrPageUrl: qrPageUrl(creds),
+      qrPageUrl: qrConsoleUrl(),
     };
   },
 });

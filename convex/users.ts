@@ -32,6 +32,15 @@ export const getEmailInternal = internalQuery({
   },
 });
 
+export const isAdminInternal = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.boolean(),
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get("users", userId);
+    return user?.role === "admin";
+  },
+});
+
 export const getPhoneInternal = internalQuery({
   args: { userId: v.id("users") },
   returns: v.union(
@@ -693,6 +702,14 @@ export const usageSummary = query({
 
 export const getByLegacyId = query({
   args: { legacyId: v.string() },
+  returns: v.union(
+    v.object({
+      userId: v.id("users"),
+      phone: v.union(v.string(), v.null()),
+      phoneVerified: v.boolean(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, { legacyId }) => {
     const authUserId = await requireAuthUserId(ctx);
     const user = await ctx.db.get("users", authUserId);
@@ -700,17 +717,36 @@ export const getByLegacyId = query({
     if (!storedLegacyIdMatchesRequest(authUserId, user.legacyId, legacyId)) {
       return null;
     }
-    return user;
+    return {
+      userId: authUserId,
+      phone: user.phone ?? null,
+      phoneVerified: user.phoneVerified === true,
+    };
   },
 });
 
 export const getByToken = query({
   args: { tokenIdentifier: v.string() },
+  returns: v.union(
+    v.object({
+      userId: v.id("users"),
+      email: v.union(v.string(), v.null()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, { tokenIdentifier }) => {
-    return await ctx.db
+    const authUserId = await requireAuthUserId(ctx);
+    const user = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
       .unique();
+    if (!user || user._id !== authUserId) {
+      return null;
+    }
+    return {
+      userId: user._id,
+      email: user.email ?? null,
+    };
   },
 });
 
@@ -830,10 +866,15 @@ export const getOrCreateByLegacyId = mutation({
 export const linkTokenIdentifier = mutation({
   args: {
     userId: v.id("users"),
-    tokenIdentifier: v.string(),
   },
-  handler: async (ctx, { userId: requestedUserId, tokenIdentifier }) => {
+  returns: v.null(),
+  handler: async (ctx, { userId: requestedUserId }) => {
     const userId = await requireScopedUserId(ctx, requestedUserId);
+    const identity = await ctx.auth.getUserIdentity();
+    const tokenIdentifier = identity?.tokenIdentifier?.trim();
+    if (!tokenIdentifier) {
+      throw new Error("Not authenticated");
+    }
     const conflict = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
@@ -847,6 +888,7 @@ export const linkTokenIdentifier = mutation({
       tokenIdentifier,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 
@@ -941,7 +983,7 @@ export const linkVerifiedPhone = mutation({
 
     await ctx.db.patch(userId, {
       phone: normalized,
-      phoneVerified: true,
+      phoneVerified: false,
       updatedAt: now,
     });
 

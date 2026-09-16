@@ -1,6 +1,7 @@
 import "react-native-gesture-handler";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AppState,
   FlatList,
   Linking,
   RefreshControl,
@@ -41,6 +42,7 @@ import { NotificationsPanel } from "./src/components/NotificationsPanel";
 import { ReminderAlertModal } from "./src/components/ReminderAlertModal";
 import { useDigestLocalAlerts } from "./src/hooks/useDigestLocalAlerts";
 import { usePushRegistration } from "./src/hooks/usePushRegistration";
+import { useDueDateReminderAlerts } from "./src/hooks/useDueDateReminderAlerts";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
 import { BoardViewToggle } from "./src/components/BoardViewToggle";
 import { useConfirmDialog } from "./src/hooks/useConfirmDialog";
@@ -155,6 +157,24 @@ function MainAppInner({
     notificationsEnabled ? board.convexUserId : undefined,
     notificationsEnabled,
   );
+  const reminderItems = useMemo(
+    () => [...board.inbox, ...board.todayTasks, ...board.notes],
+    [board.inbox, board.todayTasks, board.notes],
+  );
+  const dueReminders = useDueDateReminderAlerts(
+    reminderItems,
+    Boolean(userId),
+    (item, fireAt) => board.markReminderFired(item, fireAt),
+  );
+  const activeReminder = dueReminders.alert ?? reminderAlerts.alert;
+  const refreshBoard = board.refresh;
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshBoard();
+    });
+    return () => sub.remove();
+  }, [refreshBoard]);
 
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [moveItem, setMoveItem] = useState<MindtaskerItem | null>(null);
@@ -867,20 +887,24 @@ function MainAppInner({
       ) : null}
 
       <ReminderAlertModal
-        alert={reminderAlerts.alert}
-        onDismiss={reminderAlerts.dismiss}
+        alert={activeReminder}
+        onDismiss={() => {
+          if (dueReminders.alert) dueReminders.dismiss();
+          else reminderAlerts.dismiss();
+        }}
         onAcknowledge={() => {
-          void reminderAlerts.acknowledge();
+          if (dueReminders.alert) void dueReminders.acknowledge();
+          else void reminderAlerts.acknowledge();
         }}
         onOpen={() => {
-          const current = reminderAlerts.alert;
+          const current = dueReminders.alert ?? reminderAlerts.alert;
           if (!current) return;
           if (current.listId) {
             setTaskListsMode("existing");
             setShowTaskLists(true);
             return;
           }
-          const targetId = String(current.taskId ?? current.notebookId ?? "");
+          const targetId = String(current.itemId ?? current.taskId ?? current.notebookId ?? "");
           if (!targetId) return;
           const pool = [
             ...board.inbox,

@@ -1,5 +1,6 @@
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../config/env.js";
+import { secretEquals } from "../lib/secret-equals.js";
 import { sanitizeWhatsAppMessage } from "../middleware/whatsapp-sanitize.js";
 import { safeProcessWhatsAppMessage } from "../services/whatsapp-ingest.service.js";
 import {
@@ -44,7 +45,12 @@ export async function getWhatsAppStatus(
   _request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {
-  await reply.send(getWhatsAppProviderStatus());
+  const status = getWhatsAppProviderStatus();
+  await reply.send({
+    provider: status.provider,
+    configured: status.configured,
+    label: status.label,
+  });
 }
 
 /** Meta webhook subscription verification (GET /webhook). */
@@ -56,7 +62,7 @@ export async function verifyWhatsAppWebhook(
 
   if (
     query["hub.mode"] === "subscribe" &&
-    query["hub.verify_token"] === env.whatsappVerifyToken &&
+    secretEquals(query["hub.verify_token"], env.whatsappVerifyToken) &&
     query["hub.challenge"]
   ) {
     await reply.status(200).send(query["hub.challenge"]);
@@ -78,6 +84,7 @@ export async function handleWhatsAppWebhook(
   const rawBody = request.rawBody ?? Buffer.from(JSON.stringify(request.body));
 
   if (!verifyWhatsAppSignature(rawBody, signature)) {
+    request.log.warn({ event: "webhook_auth_failed", path: "/api/whatsapp/webhook" }, "security");
     await reply.status(401).send({ error: "invalid_signature" });
     return;
   }
@@ -100,6 +107,7 @@ export async function handleAlternateWhatsAppWebhook(
       query,
     )
   ) {
+    request.log.warn({ event: "webhook_auth_failed", path: "/api/whatsapp/webhook/inbound" }, "security");
     await reply.status(401).send({ error: "invalid_webhook_token" });
     return;
   }

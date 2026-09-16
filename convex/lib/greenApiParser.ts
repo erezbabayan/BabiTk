@@ -1,4 +1,5 @@
 import { normalizePhone, phoneFromWhatsAppId, senderIdFromWhatsAppChatId } from "./phone";
+import { secretEquals } from "./secretEquals";
 import {
   isGroupWhatsAppChat,
   isOwnerWhatsAppSender,
@@ -314,7 +315,7 @@ export function verifyGreenApiWebhookAuth(
   expectedToken: string | undefined,
 ): boolean {
   if (!expectedToken) {
-    return true;
+    return false;
   }
 
   const authHeader = request.headers.get("authorization");
@@ -323,12 +324,9 @@ export function verifyGreenApiWebhookAuth(
       ? authHeader.slice("Bearer ".length)
       : undefined;
   const headerToken = request.headers.get("x-webhook-token");
-  const queryToken = new URL(request.url).searchParams.get("token");
 
   return (
-    bearer === expectedToken ||
-    headerToken === expectedToken ||
-    queryToken === expectedToken
+    secretEquals(bearer, expectedToken) || secretEquals(headerToken, expectedToken)
   );
 }
 

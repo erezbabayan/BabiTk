@@ -63,6 +63,7 @@ export const resolveGreenApiSender = internalMutation({
     messageType,
     /** Extra phones to try (e.g. instance wid) when senderPhone is LID / device-odd. */
     fallbackPhones: v.optional(v.array(v.string())),
+    instanceWid: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const candidates = [
@@ -81,15 +82,29 @@ export const resolveGreenApiSender = internalMutation({
       }
     }
 
+    if (!user) {
+      // Do not auto-verify by instance wid: anyone could store that number.
+      return {
+        messageId: args.messageId,
+        senderId: args.senderId,
+        senderPhone: matchedPhone,
+        mediaType: args.messageType,
+        resolved: false,
+        reason: "not_linked" as const,
+        userId: null as Id<"users"> | null,
+        tier: null,
+      };
+    }
+
     return {
       messageId: args.messageId,
       senderId: args.senderId,
       senderPhone: matchedPhone,
       mediaType: args.messageType,
-      resolved: Boolean(user),
-      reason: user ? ("linked" as const) : ("not_linked" as const),
-      userId: (user?._id ?? null) as Id<"users"> | null,
-      tier: user?.tier ?? null,
+      resolved: true,
+      reason: "linked" as const,
+      userId: user._id,
+      tier: user.tier ?? null,
     };
   },
 });

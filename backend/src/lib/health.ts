@@ -37,11 +37,17 @@ export async function getHealthStatus(): Promise<HealthStatus> {
   }
 
   const hasError = Object.values(checks).includes("error");
-  const status: HealthStatus = {
-    status: hasError ? "degraded" : "ok",
-    service: "babitk-backend",
-    checks,
-  };
+  const status: HealthStatus = env.isDevelopment
+    ? {
+        status: hasError ? "degraded" : "ok",
+        service: "babitk-backend",
+        checks,
+      }
+    : {
+        status: hasError ? "degraded" : "ok",
+        service: "babitk-backend",
+        checks: { app: hasError ? "error" : "ok" },
+      };
   cachedHealth = { at: Date.now(), status };
   return status;
 }

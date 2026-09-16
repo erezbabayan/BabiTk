@@ -216,7 +216,9 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
         phone,
       });
       setPhone("");
-      setMessage(`מחובר: ${linked}`);
+      setMessage(
+        `המספר נשמר: ${linked}. הוא יאומת כשהוואטסאפ המחובר ישלח הודעה.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה");
     } finally {

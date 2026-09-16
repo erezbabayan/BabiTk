@@ -3,6 +3,7 @@ import { requireAuth } from "../middleware/auth.js";
 import {
   buildGoogleAuthUrl,
   exchangeGoogleCode,
+  parseGoogleOAuthState,
 } from "../services/calendar.service.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 
@@ -31,7 +32,7 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      await exchangeGoogleCode(query.state, query.code);
+      await exchangeGoogleCode(parseGoogleOAuthState(query.state), query.code);
       return reply.type("text/html").send(
         "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>" +
           "<h2>Google Calendar מחובר בהצלחה!</h2>" +

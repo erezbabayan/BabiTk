@@ -1,4 +1,9 @@
 import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
+import {
+  isCronReminderDue,
+  reminderDueQueryCutoffIso,
+  resolveCronReminderFireAt,
+} from "../lib/task-reminder-due.js";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { sendWhatsAppText } from "./whatsapp.service.js";
@@ -145,46 +150,45 @@ export async function sendTaskReminders(): Promise<number> {
   if (!env.isSupabaseConfigured) return 0;
 
   const supabase = getSupabaseAdmin();
-  const now = new Date().toISOString();
+  const nowMs = Date.now();
 
   const { data: items, error } = await supabase
     .from("mindtasker_items")
     .select("id, user_id, title, metadata, due_date, is_actionable")
     .in("status", ["inbox", "pending"])
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .not("due_date", "is", null)
+    .lte("due_date", reminderDueQueryCutoffIso(nowMs));
 
   if (error) {
     throw new Error(`Failed to load items for reminders: ${error.message}`);
   }
 
+  const dueItems = (items ?? []).filter((item) => isCronReminderDue(item, nowMs));
+  if (dueItems.length === 0) return 0;
+
+  const userIds = [...new Set(dueItems.map((item) => item.user_id))];
+  const { data: users, error: usersError } = await supabase
+    .from("users")
+    .select("id, phone, phone_verified")
+    .in("id", userIds);
+
+  if (usersError) {
+    throw new Error(`Failed to load reminder users: ${usersError.message}`);
+  }
+
+  const usersById = new Map(
+    (users ?? []).map((user) => [user.id as string, user]),
+  );
+
   let sent = 0;
 
-  for (const item of items ?? []) {
-    const metadata = (item.metadata ?? {}) as Record<string, unknown>;
-    if (metadata.reminder_sent === true) continue;
-    if (metadata.reminder_disabled === true) continue;
-
-    const analysis = metadata.analysis as Record<string, unknown> | undefined;
-    let notifyAt: string | null = null;
-
-    if (item.is_actionable) {
-      notifyAt =
-        (typeof analysis?.notify_at === "string" && analysis.notify_at) ||
-        item.due_date ||
-        null;
-    } else if (metadata.reminder_manual === true && item.due_date) {
-      notifyAt = item.due_date;
-    }
-
-    if (!notifyAt || notifyAt > now) continue;
-
-    const { data: user } = await supabase
-      .from("users")
-      .select("phone, phone_verified")
-      .eq("id", item.user_id)
-      .maybeSingle();
-
+  for (const item of dueItems) {
+    const user = usersById.get(item.user_id);
     if (!user?.phone || !user.phone_verified) continue;
+
+    const metadata = (item.metadata ?? {}) as Record<string, unknown>;
+    const fireAt = resolveCronReminderFireAt(item);
 
     const dueLabel = item.due_date
       ? new Date(item.due_date).toLocaleString("he-IL", {
@@ -204,7 +208,7 @@ export async function sendTaskReminders(): Promise<number> {
       await sendWhatsAppText(normalizePhone(user.phone), message);
       const after = buildAfterReminderSentPatch(
         { due_date: item.due_date, metadata },
-        { firedAt: notifyAt },
+        { firedAt: fireAt ?? undefined },
       );
       await supabase
         .from("mindtasker_items")

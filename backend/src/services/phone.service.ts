@@ -1,5 +1,11 @@
-import { createHash, randomInt } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
+import {
+  assertOtpRequestAllowed,
+  assertOtpVerifyAllowed,
+  clearOtpVerifyFailures,
+  recordOtpVerifyFailure,
+} from "../lib/otp-rate-limit.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import {
   getDemoUserProfile,
@@ -10,8 +16,31 @@ import { normalizePhone } from "./items.service.js";
 import { sendWhatsAppText } from "./whatsapp/send.js";
 const CODE_TTL_MS = 10 * 60 * 1000;
 
+function otpPepper(): string {
+  const pepper =
+    process.env.PHONE_OTP_PEPPER?.trim() ||
+    env.supabaseServiceRoleKey ||
+    (env.isDevelopment ? "dev-otp-pepper" : "");
+  return pepper;
+}
+
 function hashCode(code: string): string {
-  return createHash("sha256").update(code).digest("hex");
+  const pepper = otpPepper();
+  if (!pepper) {
+    throw new Error("אימות טלפון אינו מוגדר בשרת");
+  }
+  return createHmac("sha256", pepper).update(code).digest("hex");
+}
+
+function hashesMatch(left: string, right: string): boolean {
+  const a = Buffer.from(left);
+  const b = Buffer.from(right);
+  if (a.length !== b.length) return false;
+  try {
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 function generateCode(): string {
@@ -42,7 +71,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile> {
     .single();
 
   if (error || !data) {
-    throw new Error(`User profile not found: ${error?.message ?? userId}`);
+    throw new Error("פרופיל המשתמש לא נמצא");
   }
 
   return data as UserProfile;
@@ -53,6 +82,7 @@ export async function requestPhoneVerification(
   rawPhone: string,
 ): Promise<{ message: string; devCode?: string }> {
   const phone = normalizePhone(rawPhone);
+  assertOtpRequestAllowed(`${userId}:${phone}`);
 
   if (!env.isSupabaseConfigured) {
     if (userId !== (await getDemoUserProfile()).id) {
@@ -104,7 +134,7 @@ export async function requestPhoneVerification(
     .eq("id", userId);
 
   if (error) {
-    throw new Error(`Failed to save verification: ${error.message}`);
+    throw new Error("שמירת קוד האימות נכשלה");
   }
 
   const message = `קוד האימות שלך ב-BabaiTk: ${code}\nהקוד תקף ל-10 דקות.`;
@@ -124,6 +154,7 @@ export async function requestPhoneVerification(
 }
 
 export async function verifyPhoneCode(userId: string, code: string): Promise<UserProfile> {
+  assertOtpVerifyAllowed(userId);
   if (!env.isSupabaseConfigured) {
     const profile = await getDemoUserProfile();
     if (!profile.phone_pending) {
@@ -131,9 +162,11 @@ export async function verifyPhoneCode(userId: string, code: string): Promise<Use
     }
 
     if (env.isDevelopment && code.trim().length >= 4) {
+      clearOtpVerifyFailures(userId);
       return await linkDemoUserPhone(profile.phone_pending);
     }
 
+    recordOtpVerifyFailure(userId);
     throw new Error("קוד שגוי");
   }
 
@@ -154,7 +187,8 @@ export async function verifyPhoneCode(userId: string, code: string): Promise<Use
     throw new Error("קוד האימות פג תוקף. בקש קוד חדש.");
   }
 
-  if (hashCode(code.trim()) !== user.phone_verify_hash) {
+  if (!hashesMatch(hashCode(code.trim()), user.phone_verify_hash)) {
+    recordOtpVerifyFailure(userId);
     throw new Error("קוד שגוי");
   }
 
@@ -171,8 +205,9 @@ export async function verifyPhoneCode(userId: string, code: string): Promise<Use
     .eq("id", userId);
 
   if (updateError) {
-    throw new Error(`Failed to verify phone: ${updateError.message}`);
+    throw new Error("אימות הטלפון נכשל");
   }
 
+  clearOtpVerifyFailures(userId);
   return getUserProfile(userId);
 }

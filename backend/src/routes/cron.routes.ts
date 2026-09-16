@@ -3,6 +3,7 @@ import { requireCronSecret } from "../middleware/cron-auth.js";
 import {
   archiveStaleInboxItems,
   sendDailyDigests,
+  sendTaskReminders,
 } from "../services/cron.service.js";
 
 /**
@@ -38,6 +39,21 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(500).send({
         error: "digest_failed",
         message: error instanceof Error ? error.message : "Digest failed",
+      });
+    }
+  });
+
+  app.post("/task-reminders", async (request, reply) => {
+    if (!requireCronSecret(request, reply)) return;
+
+    try {
+      const sent = await sendTaskReminders();
+      return reply.send({ ok: true, reminders_sent: sent });
+    } catch (error) {
+      request.log.error({ err: error }, "HTTP cron task reminders failed");
+      return reply.status(500).send({
+        error: "reminders_failed",
+        message: error instanceof Error ? error.message : "Reminders failed",
       });
     }
   });

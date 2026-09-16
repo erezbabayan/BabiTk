@@ -7,9 +7,10 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { presentImmediateReminderAlert } from "../lib/reminder-alert";
 
 export type ReminderAlertItem = {
-  _id: Id<"notifications">;
+  _id: string;
   title: string;
   body: string;
+  itemId?: string;
   taskId?: Id<"tasks">;
   notebookId?: Id<"notebooks">;
   listId?: Id<"taskLists">;
@@ -179,7 +180,7 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
     const isLocal = String(alert._id).startsWith("local-");
     if (!isLocal) {
       try {
-        await markRead({ notificationId: alert._id });
+        await markRead({ notificationId: alert._id as Id<"notifications"> });
       } catch (error) {
         console.warn(
           "[reminder-alert] markRead failed:",

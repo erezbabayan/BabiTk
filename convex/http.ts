@@ -7,6 +7,7 @@ import {
   parseGreenApiWebhook,
   verifyGreenApiWebhookAuth,
 } from "./lib/greenApiParser";
+import { logSecurityEvent } from "./lib/securityLog";
 const http = httpRouter();
 
 auth.addHttpRoutes(http);
@@ -40,9 +41,14 @@ http.route({
   path: "/webhook/green-api",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const expectedToken = process.env.GREEN_API_WEBHOOK_TOKEN;
+    const expectedToken = process.env.GREEN_API_WEBHOOK_TOKEN?.trim();
+    if (!expectedToken) {
+      logSecurityEvent("webhook_not_configured", { path: "/webhook/green-api" });
+      return jsonResponse({ error: "webhook_not_configured" }, 401);
+    }
 
     if (!verifyGreenApiWebhookAuth(request, expectedToken)) {
+      logSecurityEvent("webhook_auth_failed", { path: "/webhook/green-api" });
       return jsonResponse({ error: "invalid_webhook_token" }, 401);
     }
 
@@ -113,6 +119,7 @@ http.route({
             bodyObj.instanceData?.wid,
             ...fallbackPhones,
           ].filter((p): p is string => Boolean(p?.trim())),
+          instanceWid: bodyObj.instanceData?.wid,
         },
       );
       resolutions.push(resolution);
@@ -173,9 +180,11 @@ http.route({
       received: true,
       provider: "green-api",
       count: resolutions.length,
-      scheduled,
-      skipped,
-      resolutions,
+      scheduled: scheduled.map(({ messageId, mediaType }) => ({
+        messageId,
+        mediaType,
+      })),
+      skipped: skipped.map(({ messageId, reason }) => ({ messageId, reason })),
     });
   }),
 });
@@ -188,9 +197,6 @@ http.route({
     return jsonResponse({
       ok: true,
       provider: "green-api",
-      endpoint: "/webhook/green-api",
-      method: "POST",
-      supportedMedia: ["text", "audio", "image"],
     });
   }),
 });

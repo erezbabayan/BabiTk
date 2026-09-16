@@ -1,8 +1,53 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { google } from "googleapis";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
+const OAUTH_STATE_TTL_MS = 15 * 60 * 1000;
+
+function oauthStateSecret(): string {
+  const secret = env.googleClientSecret ?? env.cronSecret;
+  if (!secret) {
+    throw new Error("Google Calendar is not configured");
+  }
+  return secret;
+}
+
+export function createGoogleOAuthState(userId: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, ts: Date.now() }),
+    "utf8",
+  ).toString("base64url");
+  const sig = createHmac("sha256", oauthStateSecret()).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+export function parseGoogleOAuthState(state: string): string {
+  const [payload, sig] = state.split(".");
+  if (!payload || !sig) {
+    throw new Error("invalid_oauth_state");
+  }
+  const expected = createHmac("sha256", oauthStateSecret())
+    .update(payload)
+    .digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new Error("invalid_oauth_state");
+  }
+  const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+    userId?: unknown;
+    ts?: unknown;
+  };
+  if (typeof data.userId !== "string" || data.userId.length < 8) {
+    throw new Error("invalid_oauth_state");
+  }
+  if (typeof data.ts !== "number" || Date.now() - data.ts > OAUTH_STATE_TTL_MS) {
+    throw new Error("oauth_state_expired");
+  }
+  return data.userId;
+}
 
 export function getGoogleOAuthClient() {
   if (!env.googleClientId || !env.googleClientSecret || !env.googleRedirectUri) {
@@ -22,7 +67,7 @@ export function buildGoogleAuthUrl(userId: string): string {
     access_type: "offline",
     prompt: "consent",
     scope: CALENDAR_SCOPES,
-    state: userId,
+    state: createGoogleOAuthState(userId),
   });
 }
 
