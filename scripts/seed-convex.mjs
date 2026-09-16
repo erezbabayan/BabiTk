@@ -22,6 +22,15 @@ const payload = JSON.parse(readFileSync(syncPath, "utf8"));
 const activeItems = payload.items.filter((item) => !item.deleted_at);
 const legacyUserId = "00000000-0000-4000-8000-000000000001";
 
+if (process.env.CONVEX_ALLOW_DEV_SEED !== "true") {
+  console.error(
+    "Set CONVEX_ALLOW_DEV_SEED=true on the Convex deployment before seeding.",
+  );
+  console.error(
+    "importSyncDev also requires a signed-in user. Prefer: npx convex run seed:importSync",
+  );
+}
+
 const client = new ConvexHttpClient(loadConvexUrl());
 let tasks = 0;
 let notebooks = 0;

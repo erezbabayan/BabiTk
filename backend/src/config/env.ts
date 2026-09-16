@@ -213,9 +213,15 @@ export const env = {
     }
   },
   get demoSyncEnabled() {
-    return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";
+    if (this.isDevelopment) {
+      return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";
+    }
+    return (process.env.DEMO_SYNC_ENABLED ?? "false").toLowerCase() === "true";
   },
   get demoSyncToken() {
-    return process.env.DEMO_SYNC_TOKEN ?? "mindtasker-local-sync";
+    const token = process.env.DEMO_SYNC_TOKEN?.trim();
+    if (token) return token;
+    if (this.isDevelopment) return "mindtasker-local-sync";
+    return "";
   },
 } as const;

@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../config/env.js";
+import { secretEquals } from "../lib/secret-equals.js";
 import { SYNC_USER_ID } from "../services/sync-store.service.js";
 
 export async function requireSyncAuth(
@@ -18,7 +19,7 @@ export async function requireSyncAuth(
   }
 
   const token = header.slice("Bearer ".length);
-  if (token !== env.demoSyncToken) {
+  if (!secretEquals(token, env.demoSyncToken)) {
     reply.status(401).send({ error: "unauthorized", message: "Invalid sync token" });
     return;
   }

@@ -265,10 +265,10 @@ export async function verifyPhoneCode(
 export interface WhatsAppProviderStatus {
   provider: "meta" | "green-api" | "whapi";
   configured: boolean;
-  inboundWebhookPath: string;
-  metaWebhookPath?: string;
   label: string;
-  setupHint: string;
+  inboundWebhookPath?: string;
+  metaWebhookPath?: string;
+  setupHint?: string;
 }
 
 export async function getWhatsAppStatus(): Promise<WhatsAppProviderStatus> {

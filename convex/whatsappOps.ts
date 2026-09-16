@@ -1,8 +1,8 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { loadGreenApiCredentials } from "./whatsappConfig";
 import { normalizePhone } from "./lib/phone";
 import { sendViaCallMeBot } from "./lib/whatsappOutbound";
@@ -346,7 +346,7 @@ export const checkGreenApiConnection = internalAction({
               ? `WhatsApp חסם את המספר (${stateInstance}). סרקו QR מחדש או אתחלו את ה-instance.`
               : "Green-API לא מחובר במלואו. סרוק QR בקונסולת Green-API.",
       };
-    } catch (error) {
+    } catch {
       return {
         configured: true,
         stateInstance: null,
@@ -355,11 +355,8 @@ export const checkGreenApiConnection = internalAction({
         restricted: false,
         yellowCardUntil: null,
         webhookUrl: null,
-        qrPageUrl,
-        hint:
-          error instanceof Error
-            ? error.message
-            : "failed_to_check_green_api",
+        qrPageUrl: "https://console.green-api.com/",
+        hint: "failed_to_check_green_api",
       };
     }
   },
@@ -572,6 +569,10 @@ export const getLiveConnectionStatus = action({
     if (!userId) {
       throw new Error("Not authenticated");
     }
-    return await ctx.runAction(internal.whatsappOps.checkGreenApiConnection, {});
+    const result = await ctx.runAction(internal.whatsappOps.checkGreenApiConnection, {});
+    return {
+      ...result,
+      qrPageUrl: null,
+    };
   },
 });

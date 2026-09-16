@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { query } from "./_generated/server";
+import { requireAuthUserId } from "./lib/requireAuth";
 import { loadGreenApiCredentials } from "./whatsappConfig";
 function isMetaConfigured(): boolean {
   const token = process.env.WHATSAPP_ACCESS_TOKEN?.trim() ?? "";
@@ -38,6 +39,7 @@ export const greenApiInfo = query({
     setupHint: v.string(),
   }),
   handler: async (ctx) => {
+    await requireAuthUserId(ctx);
     const siteUrl = process.env.CONVEX_SITE_URL;
     const greenConfigured = (await loadGreenApiCredentials(ctx)) !== null;
     const metaConfigured = isMetaConfigured();

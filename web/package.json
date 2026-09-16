@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@auth/core": "^0.41.2",
+    "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.94",
     "@supabase/supabase-js": "^2.49.8",
     "@tanstack/react-virtual": "^3.14.6",
