@@ -1,3 +1,4 @@
+import { isOwnerAccount } from "./login-aliases";
 import { requireSupabase } from "./supabase";
 
 export type DigestDays = "weekdays" | "everyday";
@@ -73,7 +74,13 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
         : null,
     whatsapp_digest_hours: asHours(row.whatsapp_digest_hours),
     whatsapp_digest_days: asDigestDays(row.whatsapp_digest_days),
-    tier: row.tier === "premium" ? "premium" : "free",
+    tier:
+      (isOwnerAccount({
+        email: String(row.email ?? email),
+        username: typeof row.username === "string" ? row.username : null,
+      }) || row.tier === "premium")
+        ? "premium"
+        : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
     allocated_ai_parses: Number(row.allocated_ai_parses ?? 50),

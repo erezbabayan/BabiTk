@@ -1,5 +1,6 @@
 import Stripe from "stripe";
 import { env } from "../config/env.js";
+import { isOwnerAccount } from "../lib/owner-account.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 
 let stripeClient: Stripe | null = null;
@@ -130,7 +131,10 @@ async function setUserSubscription(params: {
   status?: string | null;
 }): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const tier = isPremiumStatus(params.status) ? "premium" : "free";
+  const user = await loadUserBilling(params.userId);
+  const keepOwnerPremium = isOwnerAccount({ email: user.email });
+  const tier =
+    isPremiumStatus(params.status) || keepOwnerPremium ? "premium" : "free";
 
   const update: Record<string, unknown> = {
     tier,
