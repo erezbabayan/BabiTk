@@ -111,8 +111,8 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
   return { synced, failed: remaining.length };
 }
 
-export async function fetchInboxFromServer(): Promise<MindtaskerItem[]> {
-  const { data, error } = await supabase
+export async function fetchInboxFromServer(userId?: string): Promise<MindtaskerItem[]> {
+  let query = supabase
     .from("mindtasker_items")
     .select(
       `id, title, content, is_actionable, status, due_date, tags, source_material_id,
@@ -121,26 +121,34 @@ export async function fetchInboxFromServer(): Promise<MindtaskerItem[]> {
     .eq("status", "inbox")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+  const { data, error } = await query;
 
   if (error) throw error;
   return normalizeMindtaskerRows(data);
 }
 
-export async function fetchTodayFromServer(): Promise<MindtaskerItem[]> {
-  const { data, error } = await supabase
+export async function fetchTodayFromServer(userId?: string): Promise<MindtaskerItem[]> {
+  let query = supabase
     .from("mindtasker_items")
     .select("id, title, content, is_actionable, status, due_date, tags")
     .eq("is_actionable", true)
     .eq("status", "pending")
     .is("deleted_at", null)
     .order("due_date", { ascending: true, nullsFirst: false });
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+  const { data, error } = await query;
 
   if (error) throw error;
   return normalizeMindtaskerRows(data);
 }
 
-export async function fetchNotesFromServer(): Promise<MindtaskerItem[]> {
-  const { data, error } = await supabase
+export async function fetchNotesFromServer(userId?: string): Promise<MindtaskerItem[]> {
+  let query = supabase
     .from("mindtasker_items")
     .select(
       `id, title, content, is_actionable, status, due_date, tags, source_material_id,
@@ -150,6 +158,10 @@ export async function fetchNotesFromServer(): Promise<MindtaskerItem[]> {
     .eq("status", "pending")
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+  const { data, error } = await query;
 
   if (error) throw error;
   return normalizeMindtaskerRows(data);

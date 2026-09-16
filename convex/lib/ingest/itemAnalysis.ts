@@ -1,12 +1,11 @@
-import type { ParsedItem } from "./types";
-import type { SourceType } from "../../validators";
+import type { ParsedItem, SourceType } from "./types.ts";
 import {
   SOURCE_TYPE_LABELS,
   type ParsedItemAnalysis,
   type StoredItemAnalysis,
   type UrgencyLevel,
   URGENCY_LEVELS,
-} from "./types";
+} from "./types.ts";
 
 const MISSING = "חסר";
 const DEFAULT_TIMEZONE = "Asia/Jerusalem";

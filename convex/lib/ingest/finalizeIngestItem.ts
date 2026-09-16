@@ -1,6 +1,6 @@
-import type { ParsedItem } from "./types";
-import { enforceEntityRules } from "./entityRules";
-import { DEFAULT_TAG_NAMES } from "./defaultTags";
+import type { ParsedItem } from "./types.ts";
+import { enforceEntityRules } from "./entityRules.ts";
+import { DEFAULT_TAG_NAMES } from "./defaultTags.ts";
 
 const EMPTY_ANALYSIS: ParsedItem["analysis"] = {
   goal: "חסר",

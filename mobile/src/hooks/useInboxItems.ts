@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, normalizeMindtaskerRows, type MindtaskerItem } from "../lib/supabase";
+import { getSessionUserId, subscribeUserItems } from "../lib/realtime-items";
 
 const ITEM_SELECT = `
   id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id,
@@ -8,32 +9,39 @@ const ITEM_SELECT = `
 
 export function useInboxItems() {
   const [items, setItems] = useState<MindtaskerItem[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    const sessionUserId = userId ?? (await getSessionUserId());
+    if (!sessionUserId) {
+      setItems([]);
+      return;
+    }
+
     const { data } = await supabase
       .from("mindtasker_items")
       .select(ITEM_SELECT)
+      .eq("user_id", sessionUserId)
       .eq("status", "inbox")
       .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     setItems(normalizeMindtaskerRows(data));
+  }, [userId]);
+
+  useEffect(() => {
+    void getSessionUserId().then((id) => {
+      setUserId(id);
+    });
   }, []);
 
   useEffect(() => {
+    if (!userId) return;
     void refresh();
-    const channel = supabase
-      .channel("mobile-inbox")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "mindtasker_items" },
-        () => void refresh(),
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [refresh]);
+    return subscribeUserItems(supabase, userId, `mobile-inbox-${userId}`, () => {
+      void refresh();
+    });
+  }, [refresh, userId]);
 
   const approveItem = useCallback(
     async (item: MindtaskerItem) => {

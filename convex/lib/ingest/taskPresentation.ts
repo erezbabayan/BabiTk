@@ -1,5 +1,5 @@
-import type { ParsedItem } from "./types";
-import { stripTemporalPhrases } from "./hebrewDates";
+import type { ParsedItem } from "./types.ts";
+import { stripTemporalPhrases } from "./hebrewDates.ts";
 
 /**
  * Topic-title pipeline

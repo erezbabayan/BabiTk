@@ -1,5 +1,6 @@
-import { supabase, isDemoMode, isSupabaseConfigured } from "./supabase";
+import { supabase, isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
 import { addDemoItem, isDemoPremium, setDemoPremium } from "./demo-store";
+import { buildSupabaseIngestRows } from "../../../convex/lib/ingest/supabaseIngestRows";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
 
@@ -432,13 +433,24 @@ function clientTimezone(): string {
 export async function ingestText(text: string, _legacyUserId?: string): Promise<void> {
   if (isDemoMode) {
     const { ingestTextSync } = await import("./sync-client");
-    let timezone = "Asia/Jerusalem";
-    try {
-      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || timezone;
-    } catch {
-      // keep default
+    await ingestTextSync({ text, sourceType: "whatsapp_text", timezone: clientTimezone() });
+    return;
+  }
+
+  if (isSupabaseConfigured) {
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) throw new Error("Not authenticated");
+    const rows = buildSupabaseIngestRows(userId, text, {
+      timezone: clientTimezone(),
+    });
+    if (rows.length === 0) {
+      throw new Error("אין טקסט לקליטה");
     }
-    await ingestTextSync({ text, sourceType: "whatsapp_text", timezone });
+    const { error } = await requireSupabase().from("mindtasker_items").insert(rows);
+    if (error) {
+      throw new Error(error.message || "שמירת הפריט נכשלה");
+    }
     return;
   }
 

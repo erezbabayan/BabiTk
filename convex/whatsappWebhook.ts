@@ -6,10 +6,10 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { phoneLookupVariants } from "./lib/greenApiParser";
 import { normalizePhone } from "./lib/phone";
 import {
+  evaluateCaptureGate,
   isGroupWhatsAppChat,
   isPersonalWhatsAppChat,
   normalizeGroupChatId,
-  personalCaptureChatId,
 } from "./lib/whatsappCaptureGroup";
 
 const messageType = v.union(
@@ -96,6 +96,7 @@ export const resolveGreenApiSender = internalMutation({
 
 /**
  * Allow ingest from the user's designated capture chat.
+ * - Fail-closed when no chat is configured (only Message Yourself may auto-bind)
  * - Exact match on configured group / Message Yourself
  * - If a real group is configured, also allow Message Yourself (free-tier fallback)
  * - If still on default Message Yourself and owner posts in a group — auto-bind that group
@@ -117,54 +118,46 @@ export const gateCaptureMessage = internalMutation({
       return { allowed: false, reason: "user_not_found" };
     }
 
-    const incoming = normalizeGroupChatId(chatId);
-    const configured = user.whatsappCaptureGroupChatId?.trim();
-    const personalId = personalCaptureChatId(user.phone);
+    const decision = evaluateCaptureGate(
+      {
+        phone: user.phone,
+        captureGroupChatId: user.whatsappCaptureGroupChatId,
+        captureGroupName: user.whatsappCaptureGroupName,
+      },
+      chatId,
+      chatName,
+    );
 
-    if (!configured) {
+    if (!decision.allowed) {
+      return { allowed: false, reason: decision.reason };
+    }
+
+    if (decision.bind) {
+      const previous = user.whatsappCaptureGroupChatId?.trim() ?? "";
       await ctx.db.patch(userId, {
-        whatsappCaptureGroupChatId: incoming,
-        whatsappCaptureGroupName: chatName?.trim() || undefined,
-        ...(isGroupWhatsAppChat(incoming) ? { notifyWhatsAppGroup: true } : {}),
+        whatsappCaptureGroupChatId: decision.bind.chatId,
+        whatsappCaptureGroupName: decision.bind.name ?? undefined,
+        ...(isGroupWhatsAppChat(decision.bind.chatId)
+          ? { notifyWhatsAppGroup: true }
+          : {}),
         updatedAt: Date.now(),
       });
-      return { allowed: true, captureGroupChatId: incoming };
+      const upgradedToGroup =
+        Boolean(previous) &&
+        isPersonalWhatsAppChat(previous) &&
+        isGroupWhatsAppChat(decision.bind.chatId);
+      return {
+        allowed: true,
+        reason: upgradedToGroup ? "auto_upgraded_to_group" : undefined,
+        captureGroupChatId: decision.bind.chatId,
+      };
     }
 
-    const configuredNorm = normalizeGroupChatId(configured);
-    if (configuredNorm === incoming) {
-      return { allowed: true, captureGroupChatId: configured };
-    }
-
-    // Group is primary — still accept Message Yourself posts.
-    if (
-      isGroupWhatsAppChat(configuredNorm) &&
-      personalId &&
-      normalizeGroupChatId(personalId) === incoming
-    ) {
-      return { allowed: true, captureGroupChatId: configured };
-    }
-
-    // Stuck on auto Message Yourself after phone link: first owner group post
-    // becomes the capture group (UI already asks user to choose a group).
-    if (isPersonalWhatsAppChat(configuredNorm) && isGroupWhatsAppChat(incoming)) {
-      const name = user.whatsappCaptureGroupName?.trim() ?? "";
-      const isDefaultPersonal =
-        !name ||
-        name.includes("הודעה לעצמי") ||
-        name.toLowerCase().includes("babitk") ||
-        name.toLowerCase().includes("message yourself");
-      if (isDefaultPersonal) {
-        await ctx.db.patch(userId, {
-          whatsappCaptureGroupChatId: incoming,
-          whatsappCaptureGroupName: chatName?.trim() || "קבוצת קליטה",
-          notifyWhatsAppGroup: true,
-          updatedAt: Date.now(),
-        });
-        return { allowed: true, reason: "auto_upgraded_to_group", captureGroupChatId: incoming };
-      }
-    }
-
-    return { allowed: false, reason: "wrong_capture_group" };
+    return {
+      allowed: true,
+      captureGroupChatId: user.whatsappCaptureGroupChatId
+        ? normalizeGroupChatId(user.whatsappCaptureGroupChatId)
+        : normalizeGroupChatId(chatId),
+    };
   },
 });
