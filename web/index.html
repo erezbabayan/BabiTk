@@ -27,6 +27,35 @@
         font-family: Rubik, "Segoe UI", Tahoma, Arial, sans-serif;
       }
     </style>
+    <script>
+      (function () {
+        try {
+          var host = location.hostname;
+          if (host === "localhost" || host === "127.0.0.1") return;
+          var moduleScript = document.querySelector('script[type="module"]');
+          var src = (moduleScript && moduleScript.getAttribute("src")) || "";
+          var current = src.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+          if (!current) return;
+          var root = src.slice(0, src.indexOf("assets/"));
+          fetch(root + "app-version.json?t=" + Date.now(), { cache: "no-store" })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (data) {
+              if (!data || !data.v) return;
+              var prev = localStorage.getItem("babitk:app-version");
+              if (prev && prev !== data.v && !sessionStorage.getItem("babitk:version-reload")) {
+                sessionStorage.setItem("babitk:version-reload", "1");
+                localStorage.setItem("babitk:app-version", data.v);
+                var url = new URL(location.href);
+                url.searchParams.set("_r", String(Date.now()));
+                location.replace(url.toString());
+                return;
+              }
+              localStorage.setItem("babitk:app-version", data.v);
+            })
+            .catch(function () {});
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

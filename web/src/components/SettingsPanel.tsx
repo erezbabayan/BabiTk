@@ -9,6 +9,7 @@ import { PremiumSettings } from "./PremiumSettings";
 import { TagSettings } from "./TagSettings";
 import { TextCaptureSettings } from "./TextCaptureSettings";
 import { TrashSettings } from "./TrashSettings";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { UserSettings } from "./UserSettings";
 import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
 import { NotificationPrefs } from "./NotificationPrefs";
@@ -35,10 +36,13 @@ interface SettingsPanelProps {
   summary: UsageSummary | null;
   onOpenPaywall: () => void;
   onClose: () => void;
+  /** When true, User / WhatsApp / Calendar use the Supabase cloud account. */
+  cloudAccount?: boolean;
 }
 
-const cloudBackend = isSupabaseConfigured;
-const OFFLINE = !cloudBackend;
+function hasCloudAccount(cloudAccount: boolean | undefined): boolean {
+  return cloudAccount ?? isSupabaseConfigured;
+}
 
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
@@ -62,10 +66,17 @@ function OfflineNotice({ children }: { children: string }) {
   );
 }
 
-export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: SettingsPanelProps) {
+export function SettingsPanel({
+  userId,
+  summary,
+  onOpenPaywall,
+  onClose,
+  cloudAccount,
+}: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("menu");
   const showNotifications = false;
   const isAdmin = false;
+  const cloudBackend = hasCloudAccount(cloudAccount);
 
   const menuItems = (showNotifications
     ? MENU_ITEMS
@@ -137,10 +148,18 @@ export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: Setti
 
         {section === "user" ? (
           cloudBackend ? (
-            <UserSettings />
+            <ErrorBoundary
+              fallback={
+                <p className="text-sm text-slate-500">
+                  לא ניתן לטעון את הגדרות המשתמש. רעננו את הדף ונסו שוב.
+                </p>
+              }
+            >
+              <UserSettings />
+            </ErrorBoundary>
           ) : (
             <OfflineNotice>
-              מצב מקומי ללא חשבון ענן — הנתונים נשמרים בדפדפן בלבד. אין סנכרון או פרופיל שרת.
+              מצב מקומי — הנתונים נשמרים בדפדפן בלבד. אין סנכרון ענן או פרופיל שרת.
             </OfflineNotice>
           )
         ) : null}
