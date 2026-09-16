@@ -7,6 +7,7 @@ import {
   resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
 import {
+  buildAfterReminderSentPatch,
   buildClearReminderPatch,
   buildInferredReminderPatch,
   buildManualReminderPatch,
@@ -43,6 +44,7 @@ import { useBoardItemsConvex, type BoardSecondaryLoad } from "./useBoardItemsCon
 
 const ITEM_SELECT = `
   id, title, content, is_actionable, status, due_date, tags, source_material_id, sort_order, created_at,
+  metadata,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
 
@@ -132,6 +134,9 @@ export function useBoardItems(
       updateTags: useConvexData ? convex.updateTags : legacy.updateTags,
       togglePriority: useConvexData ? convex.togglePriority : legacy.togglePriority,
       addCapturedItem: legacy.addCapturedItem,
+      markReminderFired: useConvexData
+        ? convex.markReminderFired
+        : legacy.markReminderFired,
       convexUserId,
     };
   }
@@ -337,6 +342,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       updateTags: async () => {},
       togglePriority: async () => {},
       addCapturedItem: async () => {},
+      markReminderFired: async () => {},
     };
   }
 
@@ -533,6 +539,15 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       patchItem(item, { tags, last_interacted_at: new Date().toISOString() }),
     togglePriority: (item: MindtaskerItem, priority: boolean) =>
       patchItem(item, buildPriorityTogglePatch(item, priority)),
+    markReminderFired: (item: MindtaskerItem, fireAt?: string) => {
+      const after = buildAfterReminderSentPatch(item, {
+        firedAt: fireAt ?? item.due_date ?? undefined,
+      });
+      return patchItem(item, {
+        ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+        metadata: after.metadata,
+      });
+    },
     addCapturedItem: async (item: MindtaskerItem) => {
       if (isDemoMode) {
         const showSync = isSyncEnabled();

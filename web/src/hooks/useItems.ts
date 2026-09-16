@@ -287,6 +287,26 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     };
   }, [enabled, userId, refresh]);
 
+  useEffect(() => {
+    if (!enabled || !userId || isDemoMode) return;
+
+    let lastRefresh = 0;
+    const onResume = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const now = Date.now();
+      if (now - lastRefresh < 1500) return;
+      lastRefresh = now;
+      void refresh();
+    };
+
+    document.addEventListener("visibilitychange", onResume);
+    window.addEventListener("pageshow", onResume);
+    return () => {
+      document.removeEventListener("visibilitychange", onResume);
+      window.removeEventListener("pageshow", onResume);
+    };
+  }, [enabled, userId, refresh]);
+
 
 
   const updateItem = useCallback(
