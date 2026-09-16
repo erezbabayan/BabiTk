@@ -1,11 +1,16 @@
 import { useCallback, useState } from "react";
 import { isPaywallError, searchItemsApi, type NoteSearchHit, type SearchScope } from "../lib/api";
+import {
+  isIgnorableBoardSearchError,
+  isLegacyExpressApiAvailable,
+  shouldRunRemoteBoardSearch,
+} from "../lib/board-search";
 import { useConvexBackend } from "../lib/data-backend";
 
 /**
- * Board column search. With Convex, filtering is client-side via activeQuery
+ * Board column search. Filtering is client-side via activeQuery
  * (mergeSearchResults / filterItemsByQuery). Remote semantic search only runs
- * when the legacy Express+Supabase API is available.
+ * when the legacy Express API is explicitly configured (VITE_API_URL).
  */
 export function useBoardSearch(scope: SearchScope) {
   const convexBackend = useConvexBackend();
@@ -43,8 +48,14 @@ export function useBoardSearch(scope: SearchScope) {
       return;
     }
 
-    // Convex boards already hold items in memory — filter locally, no Supabase token.
-    if (convexBackend) {
+    // Boards already hold items in memory — filter locally. Do not POST
+    // /api/items/search on GitHub Pages (that route 405s and showed "API error 405").
+    if (
+      !shouldRunRemoteBoardSearch(
+        convexBackend,
+        isLegacyExpressApiAvailable(import.meta.env.VITE_API_URL),
+      )
+    ) {
       setLoading(false);
       return;
     }
@@ -54,7 +65,7 @@ export function useBoardSearch(scope: SearchScope) {
       const hits = await searchItemsApi(q, scope);
       setSemanticHits(hits);
     } catch (err) {
-      if (!isPaywallError(err)) {
+      if (!isPaywallError(err) && !isIgnorableBoardSearchError(err)) {
         setError(err instanceof Error ? err.message : "חיפוש נכשל");
       }
       setSemanticHits([]);

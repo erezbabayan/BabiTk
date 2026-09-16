@@ -1,5 +1,10 @@
 import { useCallback, useState } from "react";
 import { isPaywallError, searchItems } from "../lib/api";
+import {
+  isIgnorableBoardSearchError,
+  isLegacyExpressApiAvailable,
+  shouldRunRemoteBoardSearch,
+} from "../lib/board-search";
 import { useConvexBackend } from "../lib/data-backend";
 
 type SearchScope = "inbox" | "today" | "notes";
@@ -13,8 +18,8 @@ export interface BoardSemanticHit {
 }
 
 /**
- * Board column search. With Convex, filtering is client-side via activeQuery.
- * Remote Express search only when the legacy API is available.
+ * Board column search. Filtering is client-side via activeQuery.
+ * Remote Express search only when EXPO_PUBLIC_API_URL is set.
  */
 export function useBoardSearch(scope: SearchScope) {
   const convexBackend = useConvexBackend();
@@ -52,7 +57,12 @@ export function useBoardSearch(scope: SearchScope) {
       return;
     }
 
-    if (convexBackend) {
+    if (
+      !shouldRunRemoteBoardSearch(
+        convexBackend,
+        isLegacyExpressApiAvailable(process.env.EXPO_PUBLIC_API_URL),
+      )
+    ) {
       setLoading(false);
       return;
     }
@@ -62,7 +72,7 @@ export function useBoardSearch(scope: SearchScope) {
       const hits = await searchItems(q, scope);
       setSemanticHits(hits);
     } catch (err) {
-      if (!isPaywallError(err)) {
+      if (!isPaywallError(err) && !isIgnorableBoardSearchError(err)) {
         setError(err instanceof Error ? err.message : "חיפוש נכשל");
       }
       setSemanticHits([]);

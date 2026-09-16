@@ -1,3 +1,4 @@
+import { isLegacyExpressApiAvailable } from "./board-search";
 import { requireSupabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { isDemoPremium, searchDemoNotes, setDemoPremium } from "./demo-store";
 import { getCloudUserProfile, setCloudUserTier } from "./user-profile";
@@ -156,6 +157,10 @@ export async function searchItemsApi(
       is_actionable: item.is_actionable,
       status: item.status,
     }));
+  }
+
+  if (!isLegacyExpressApiAvailable(import.meta.env.VITE_API_URL)) {
+    return [];
   }
 
   const data = await apiFetch<{ results: NoteSearchHit[] }>("/api/items/search", {
