@@ -107,7 +107,7 @@ function AuthForm({
   onMicrosoftSignIn,
   subtitle,
   showEmailForm = true,
-  usernameLabel = "אימייל / שם משתמש",
+  usernameLabel = "שם משתמש או אימייל",
   allowSignup = true,
   signupAutoSignIn = false,
   showRememberMe = false,
@@ -123,6 +123,7 @@ function AuthForm({
   showRememberMe?: AuthLoginScreenProps["showRememberMe"];
 }) {
   const [email, setEmail] = useState(() => readRememberedEmail());
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -147,6 +148,7 @@ function AuthForm({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
           phone: phone.trim(),
+          username: username.trim(),
         };
         validateSignupDetails(signupDetails);
       }
@@ -168,6 +170,7 @@ function AuthForm({
     setFirstName("");
     setLastName("");
     setPhone("");
+    setUsername("");
     setError(null);
     setMessage(null);
   }
@@ -259,6 +262,20 @@ function AuthForm({
               {authMode === "signup" ? (
                 <>
                   <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">שם משתמש</span>
+                    <input
+                      type="text"
+                      placeholder="erezbababan"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                      autoComplete="username"
+                      dir="ltr"
+                      required
+                    />
+                  </label>
+
+                  <label className="block">
                     <span className="mb-1 block text-xs font-medium text-slate-600">שם פרטי</span>
                     <input
                       type="text"
@@ -301,14 +318,16 @@ function AuthForm({
               ) : null}
 
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">{usernameLabel}</span>
+                <span className="mb-1 block text-xs font-medium text-slate-600">
+                  {authMode === "signup" ? "אימייל" : usernameLabel}
+                </span>
                 <input
-                  type="email"
-                  placeholder="you@example.com"
+                  type={authMode === "signup" ? "email" : "text"}
+                  placeholder={authMode === "signup" ? "you@example.com" : "שם משתמש או אימייל"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
-                  autoComplete="username email"
+                  autoComplete={authMode === "signup" ? "email" : "username"}
                   dir="ltr"
                   required
                 />

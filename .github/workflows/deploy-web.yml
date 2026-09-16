@@ -33,8 +33,10 @@ jobs:
         env:
           VITE_BASE_PATH: "/BabiTk/"
           VITE_DEMO_MODE: "false"
-          VITE_USE_CONVEX: "true"
+          VITE_USE_CONVEX: "false"
           VITE_SYNC_ENABLED: "false"
+          VITE_SUPABASE_URL: "https://ghibfuinantybqidwadj.supabase.co"
+          VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4"
           VITE_CONVEX_URL: "https://scintillating-fly-225.convex.cloud"
         run: |
           npm ci

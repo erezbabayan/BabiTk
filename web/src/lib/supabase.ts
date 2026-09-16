@@ -21,22 +21,30 @@ export const isSupabaseConfigured =
   isValidSupabaseUrl(supabaseUrl) &&
   !supabaseUrl.includes("[project-ref]");
 
-/** Build-time demo flag or runtime fallback when Convex cloud is blocked. */
+/** Offline demo only when Supabase is not the live multi-user backend. */
 export let isDemoMode =
-  import.meta.env.VITE_DEMO_MODE === "true" || readForcedLocalMode();
+  !isSupabaseConfigured &&
+  (import.meta.env.VITE_DEMO_MODE === "true" || readForcedLocalMode());
 
 export function isForcedLocalMode(): boolean {
-  return readForcedLocalMode();
+  return !isSupabaseConfigured && readForcedLocalMode();
 }
 
 export function enableForcedLocalMode(): void {
+  if (isSupabaseConfigured) return;
   writeForcedLocalMode(true);
   isDemoMode = true;
 }
 
 export function clearForcedLocalMode(): void {
   writeForcedLocalMode(false);
-  isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+  isDemoMode =
+    !isSupabaseConfigured && import.meta.env.VITE_DEMO_MODE === "true";
+}
+
+export function supabaseAuthRedirectUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
 }
 
 export function retryCloudBackend(): void {
