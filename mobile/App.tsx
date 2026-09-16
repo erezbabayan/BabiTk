@@ -134,7 +134,7 @@ function MainAppInner({
     completed: showTaskLists || listView === "completed",
   });
   const demoHybrid = useDemoHybridSync();
-  const taskLists = useTaskLists(board.convexUserId);
+  const taskLists = useTaskLists(userId);
   useTagCascadeSync(board.convexUserId);
   const { isAuthenticated } = useConvexAuth();
   const notificationsEnabled =
@@ -661,35 +661,22 @@ function MainAppInner({
       >
       <View style={styles.tabHeaderWrap}>
         <View style={styles.tabHeaderTitleRow}>
-          {tab === "today" && listView === "active" && taskLists.enabled ? (
-            <View style={styles.tabHeaderListActions}>
+          <View style={styles.tabHeaderListActionsSpacer} />
+          <View style={styles.boardTitleBlock}>
+            {tab === "today" && listView === "active" && taskLists.enabled ? (
               <TouchableOpacity
-                style={boardToolbarBtn}
+                style={[boardToolbarBtn, styles.listBoardTextBtn]}
                 onPress={() => {
-                  setTaskListsMode("existing");
-                  setShowTaskLists(true);
-                }}
-              >
-                <Text style={boardToolbarText("blue")}>
-                  רשימות קיימות ({activeTaskListsCount})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.listBoardBtn}
-                onPress={() => {
-                  setTaskListsMode("create");
+                  setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
                   setShowTaskLists(true);
                 }}
                 accessibilityLabel="הרשימה"
                 accessibilityRole="button"
               >
-                <ListBoardIcon size={16} color="#2563eb" />
+                <ListBoardIcon size={14} color="#2563eb" />
+                <Text style={boardToolbarText("blue")}>הרשימה</Text>
               </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.tabHeaderListActionsSpacer} />
-          )}
-          <View style={styles.boardTitleBlock}>
+            ) : null}
             <Text
               style={styles.columnTitle}
               numberOfLines={1}
@@ -1291,15 +1278,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: "wrap",
   },
-  listBoardBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(203, 213, 225, 0.9)",
-    backgroundColor: "rgba(255,255,255,0.95)",
-    alignItems: "center",
-    justifyContent: "center",
+  listBoardTextBtn: {
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
   },
   tabHeaderActions: {
     flexShrink: 0,

@@ -33,7 +33,7 @@ import { useTagCascadeSync } from "../hooks/useTagCascadeSync";
 import { boardTasksForListSync } from "../lib/task-list-items";
 import { boardSwipeActions, inboxSendToBoardLabel, inboxSwipeActions } from "../lib/item-swipe-actions";
 import { applyBoardDateSort, type BoardDateSortDirection } from "../lib/board-date-sort";
-import { boardToolbarButtonClass, boardToolbarIconButtonClass } from "../lib/board-toolbar";
+import { boardToolbarButtonClass } from "../lib/board-toolbar";
 import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-labels";
 import { BoardDateSortButton } from "./BoardDateSortButton";
 import { BoardMobileTabs } from "./BoardMobileTabs";
@@ -90,7 +90,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     completed: showCompletedTasks || showTaskLists,
   });
   const { tags: userTags, addTag } = useUserTags();
-  const taskLists = useTaskLists(convexUserId);
+  const taskLists = useTaskLists(userId);
   useTagCascadeSync(convexUserId);
   const { requestConfirm, confirmDialog } = useConfirmDialog();
 
@@ -799,30 +799,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               notebookLayout
               titleTrailing={
                 todayListView === "active" && taskLists.enabled ? (
-                  <div className="flex shrink-0 items-center gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTaskListsMode("existing");
-                        setShowTaskLists(true);
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      רשימות קיימות ({activeTaskListsCount})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTaskListsMode("create");
-                        setShowTaskLists(true);
-                      }}
-                      className={`${boardToolbarIconButtonClass("blue")} hover:bg-blue-100/70`}
-                      title="הרשימה"
-                      aria-label="הרשימה"
-                    >
-                      <ListBoardIcon className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                      setShowTaskLists(true);
+                    }}
+                    className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
+                    title="הרשימה"
+                    aria-label="הרשימה"
+                  >
+                    <ListBoardIcon className="h-3.5 w-3.5" />
+                    הרשימה
+                  </button>
                 ) : null
               }
               dateSort={
@@ -847,16 +836,18 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               }
               toolbarExtra={
                 todayListView === "active" && completedTasks.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCompletedTasks(true);
-                      setShowTasksArchive(false);
-                    }}
-                    className={boardToolbarButtonClass("blue")}
-                  >
-                    הושלמו ({completedTasks.length})
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCompletedTasks(true);
+                        setShowTasksArchive(false);
+                      }}
+                      className={boardToolbarButtonClass("blue")}
+                    >
+                      הושלמו ({completedTasks.length})
+                    </button>
+                  </div>
                 ) : null
               }
               action={

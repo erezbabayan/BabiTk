@@ -41,13 +41,13 @@ export function ColumnBoardHeader({
   const hasToolbar = Boolean(search || dateSort || toolbarExtra || action);
 
   return (
-    <header data-no-drag-scroll className="pt-0.5">
+    <header data-no-drag-scroll className="overflow-visible pt-0.5">
       <div
-        className={BOARD_HEADER_TITLE_ROW_CLASS}
+        className={`${BOARD_HEADER_TITLE_ROW_CLASS} overflow-visible`}
         data-no-drag-scroll
         onWheel={blockHeaderWheel}
       >
-        <div className="inline-flex max-w-full items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
           {/* First in RTL → sits to the right of the title */}
           <BoardBrushMark tone={markTone} />
           <h2
@@ -55,8 +55,10 @@ export function ColumnBoardHeader({
           >
             {title}
           </h2>
+          {titleTrailing ? (
+            <div className="relative z-[4] shrink-0">{titleTrailing}</div>
+          ) : null}
         </div>
-        {titleTrailing ? <div className="ms-auto shrink-0">{titleTrailing}</div> : null}
       </div>
       {hasToolbar ? (
         <div
