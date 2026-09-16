@@ -1,6 +1,6 @@
 import { requireSupabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { isDemoPremium, searchDemoNotes, setDemoPremium } from "./demo-store";
-import { getCloudUserProfile } from "./user-profile";
+import { getCloudUserProfile, setCloudUserTier } from "./user-profile";
 import { listUserTagsFromSupabase, saveUserTagsToSupabase } from "./user-tags-cloud";
 
 export class PaywallError extends Error {
@@ -237,6 +237,26 @@ export async function getGoogleCalendarStatus(): Promise<boolean> {
   return data.linked;
 }
 
+export async function setSubscriptionTierApi(
+  tier: "free" | "premium",
+): Promise<UsageSummary> {
+  if (tier !== "free" && tier !== "premium") {
+    throw new Error("סוג מנוי לא תקין");
+  }
+
+  if (isDemoMode) {
+    setDemoPremium(tier === "premium");
+    return getUsageSummaryApi();
+  }
+
+  if (isSupabaseConfigured) {
+    await setCloudUserTier(tier);
+    return getUsageSummaryApi();
+  }
+
+  throw new Error("ניהול מנוי דורש חשבון ענן");
+}
+
 export async function createCheckoutSessionApi(platform: "web" | "mobile" = "web"): Promise<string> {
   if (isDemoMode) {
     setDemoPremium(true);
@@ -245,12 +265,10 @@ export async function createCheckoutSessionApi(platform: "web" | "mobile" = "web
   }
 
   if (isSupabaseConfigured) {
-    const profile = await getCloudUserProfile();
-    if (profile.tier === "premium") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("billing", "success");
-      return url.toString();
-    }
+    await setCloudUserTier("premium");
+    const url = new URL(window.location.href);
+    url.searchParams.set("billing", "success");
+    return url.toString();
   }
 
   const data = await apiFetch<{ url: string }>("/api/billing/checkout", {
@@ -264,6 +282,13 @@ export async function createBillingPortalApi(): Promise<string> {
   if (isDemoMode) {
     setDemoPremium(false);
     return `${window.location.pathname}?billing=canceled`;
+  }
+
+  if (isSupabaseConfigured) {
+    await setCloudUserTier("free");
+    const url = new URL(window.location.href);
+    url.searchParams.set("billing", "canceled");
+    return url.toString();
   }
 
   const data = await apiFetch<{ url: string }>("/api/billing/portal", {

@@ -1,4 +1,3 @@
-import { isOwnerAccount } from "./login-aliases";
 import { requireSupabase } from "./supabase";
 
 export type DigestDays = "weekdays" | "everyday";
@@ -74,13 +73,7 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
         : null,
     whatsapp_digest_hours: asHours(row.whatsapp_digest_hours),
     whatsapp_digest_days: asDigestDays(row.whatsapp_digest_days),
-    tier:
-      (isOwnerAccount({
-        email: String(row.email ?? email),
-        username: typeof row.username === "string" ? row.username : null,
-      }) || row.tier === "premium")
-        ? "premium"
-        : "free",
+    tier: row.tier === "premium" ? "premium" : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
     allocated_ai_parses: Number(row.allocated_ai_parses ?? 50),
@@ -182,29 +175,7 @@ export async function getCloudUserProfile(): Promise<CloudUserProfile> {
   if (!data) {
     throw new Error("פרופיל המשתמש לא נמצא");
   }
-
-  const row = data as unknown as Record<string, unknown>;
-  const profile = mapProfile(row, auth.id, auth.email);
-  if (
-    isOwnerAccount({ email: profile.email, username: profile.username }) &&
-    row.tier !== "premium"
-  ) {
-    const { data: updated, error: updateError } = await supabase
-      .from("users")
-      .update({ tier: "premium" })
-      .eq("id", auth.id)
-      .select(PROFILE_SELECT)
-      .maybeSingle();
-    if (!updateError && updated) {
-      return mapProfile(
-        updated as unknown as Record<string, unknown>,
-        auth.id,
-        auth.email,
-      );
-    }
-  }
-
-  return profile;
+  return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
 }
 
 export async function updateCloudUserProfile(
@@ -219,6 +190,7 @@ export async function updateCloudUserProfile(
       | "whatsapp_capture_group_name"
       | "whatsapp_digest_hours"
       | "whatsapp_digest_days"
+      | "tier"
     >
   >,
 ): Promise<CloudUserProfile> {
@@ -233,4 +205,21 @@ export async function updateCloudUserProfile(
 
   if (error) throw error;
   return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
+}
+
+export async function setCloudUserTier(
+  tier: CloudUserProfile["tier"],
+): Promise<CloudUserProfile> {
+  if (tier !== "free" && tier !== "premium") {
+    throw new Error("סוג מנוי לא תקין");
+  }
+  try {
+    return await updateCloudUserProfile({ tier });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "";
+    if (message && /[\u0590-\u05FF]/.test(message)) {
+      throw err;
+    }
+    throw new Error("לא ניתן לעדכן את המנוי. נסו שוב.");
+  }
 }

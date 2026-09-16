@@ -1,4 +1,3 @@
-import { isOwnerAccount } from "../lib/owner-account.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 
 export type UsageEventType = "audio" | "ai_parse" | "ocr";
@@ -40,8 +39,8 @@ interface UserUsageRow {
 const USAGE_SELECT =
   "email, username, tier, allocated_audio_seconds, used_audio_seconds, allocated_ai_parses, used_ai_parses, usage_period_start";
 
-function isPremiumUser(user: Pick<UserUsageRow, "email" | "username" | "tier">): boolean {
-  return user.tier === "premium" || isOwnerAccount({ email: user.email, username: user.username });
+function isPremiumUser(user: Pick<UserUsageRow, "tier">): boolean {
+  return user.tier === "premium";
 }
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;

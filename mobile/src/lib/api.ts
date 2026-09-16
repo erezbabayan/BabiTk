@@ -138,9 +138,63 @@ function demoUsageSummary(isPremium: boolean): UsageSummary {
   };
 }
 
+function usageFromProfileRow(row: Record<string, unknown>): UsageSummary {
+  const isPremium = row.tier === "premium";
+  const audioAllocated = isPremium
+    ? Number.MAX_SAFE_INTEGER
+    : Number(row.allocated_audio_seconds ?? 1800);
+  const aiAllocated = isPremium
+    ? Number.MAX_SAFE_INTEGER
+    : Number(row.allocated_ai_parses ?? 50);
+  const audioUsed = isPremium ? 0 : Number(row.used_audio_seconds ?? 0);
+  const aiUsed = isPremium ? 0 : Number(row.used_ai_parses ?? 0);
+  return {
+    tier: isPremium ? "premium" : "free",
+    isPremium,
+    periodStart:
+      typeof row.usage_period_start === "string"
+        ? row.usage_period_start
+        : new Date().toISOString(),
+    audio: {
+      used: audioUsed,
+      allocated: audioAllocated,
+      remaining: Math.max(0, audioAllocated - audioUsed),
+    },
+    aiParses: {
+      used: aiUsed,
+      allocated: aiAllocated,
+      remaining: Math.max(0, aiAllocated - aiUsed),
+    },
+  };
+}
+
 export async function getUsageSummary(): Promise<UsageSummary> {
   if (isDemoMode) {
     return demoUsageSummary(await isDemoPremium());
+  }
+
+  if (isSupabaseConfigured) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user?.id;
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .select(
+        "tier, allocated_audio_seconds, used_audio_seconds, allocated_ai_parses, used_ai_parses, usage_period_start",
+      )
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error("לא ניתן לטעון את המנוי. נסו שוב.");
+    }
+    if (!data) {
+      throw new Error("פרופיל המשתמש לא נמצא");
+    }
+    return usageFromProfileRow(data as Record<string, unknown>);
   }
 
   const token = await getAccessToken();
@@ -198,6 +252,32 @@ async function readBillingError(res: Response, fallback: string): Promise<string
     return body.message ?? "תשלומים אינם מוגדרים בשרת";
   }
   return body.message ?? fallback;
+}
+
+export async function setSubscriptionTier(tier: "free" | "premium"): Promise<void> {
+  if (tier !== "free" && tier !== "premium") {
+    throw new Error("סוג מנוי לא תקין");
+  }
+
+  if (isDemoMode) {
+    await setDemoPremium(tier === "premium");
+    return;
+  }
+
+  if (!isSupabaseConfigured) {
+    throw new Error("ניהול מנוי דורש חשבון ענן");
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) {
+    throw new Error("Not authenticated");
+  }
+
+  const { error } = await supabase.from("users").update({ tier }).eq("id", userId);
+  if (error) {
+    throw new Error("לא ניתן לעדכן את המנוי. נסו שוב.");
+  }
 }
 
 export async function createCheckoutSession(platform: "web" | "mobile" = "mobile"): Promise<string> {

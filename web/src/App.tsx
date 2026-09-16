@@ -130,6 +130,7 @@ function DemoApp() {
                 setPaywallCode(null);
                 setPaywallOpen(true);
               }}
+              onUsageChanged={() => void refreshUsage()}
               onClose={() => setSettingsOpen(false)}
             />
           ) : null}
@@ -157,7 +158,12 @@ function DemoApp() {
         code={paywallCode}
         summary={summary}
         onClose={() => setPaywallOpen(false)}
-        onUpgraded={() => void refreshUsage()}
+        onUpgraded={(tier) => {
+          setBillingNotice(
+            tier === "premium" ? "המנוי Premium הופעל." : "עברת לחשבון רגיל.",
+          );
+          void refreshUsage();
+        }}
       />
     </AppShell>
     </UserTagsProvider>
@@ -364,6 +370,7 @@ function ConfiguredApp() {
                 setPaywallCode(null);
                 setPaywallOpen(true);
               }}
+              onUsageChanged={() => void refreshUsage()}
               onClose={() => setSettingsOpen(false)}
             />
           ) : null}
@@ -391,7 +398,12 @@ function ConfiguredApp() {
         code={paywallCode}
         summary={summary}
         onClose={() => setPaywallOpen(false)}
-        onUpgraded={() => void refreshUsage()}
+        onUpgraded={(tier) => {
+          setBillingNotice(
+            tier === "premium" ? "המנוי Premium הופעל." : "עברת לחשבון רגיל.",
+          );
+          void refreshUsage();
+        }}
       />
     </AppShell>
     </UserTagsProvider>

@@ -833,9 +833,9 @@ function MainAppInner({
         onClose={() => setPaywallVisible(false)}
         onUpgraded={(returnUrl) => {
           if (returnUrl?.includes("billing=cancel")) {
-            setBillingNotice("התשלום בוטל.");
+            setBillingNotice("עברת לחשבון רגיל.");
           } else {
-            setBillingNotice("המנוי הופעל בהצלחה!");
+            setBillingNotice("המנוי Premium הופעל.");
           }
           void refreshUsage();
         }}
@@ -852,6 +852,7 @@ function MainAppInner({
         }}
         onClose={() => setSettingsVisible(false)}
         onDataChanged={() => void board.refresh()}
+        onUsageChanged={() => void refreshUsage()}
       />
 
       {notificationsEnabled && board.convexUserId ? (

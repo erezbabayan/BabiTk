@@ -23,6 +23,8 @@ import {
 
   getProfile,
 
+  setSubscriptionTier,
+
   type UsageSummary,
 
   type UserProfile,
@@ -93,6 +95,8 @@ interface SettingsScreenProps {
 
   onDataChanged?: () => void;
 
+  onUsageChanged?: () => void;
+
 }
 
 
@@ -107,11 +111,11 @@ export function SettingsScreen({
 
   summary,
 
-  onOpenPaywall,
-
   onClose,
 
   onDataChanged,
+
+  onUsageChanged,
 
 }: SettingsScreenProps) {
 
@@ -134,6 +138,8 @@ export function SettingsScreen({
   const [userVisible, setUserVisible] = useState(false);
 
   const [premiumVisible, setPremiumVisible] = useState(false);
+  const [tierBusy, setTierBusy] = useState<"free" | "premium" | null>(null);
+  const [tierError, setTierError] = useState<string | null>(null);
   const [trashVisible, setTrashVisible] = useState(false);
   const [boardsVisible, setBoardsVisible] = useState(false);
   const [testDataVisible, setTestDataVisible] = useState(false);
@@ -192,12 +198,19 @@ export function SettingsScreen({
 
 
 
-  function handleOpenPaywall() {
-
-    onClose();
-
-    onOpenPaywall();
-
+  async function selectTier(tier: "free" | "premium") {
+    const current = summary?.isPremium ? "premium" : "free";
+    if (tier === current || tierBusy) return;
+    setTierBusy(tier);
+    setTierError(null);
+    try {
+      await setSubscriptionTier(tier);
+      onUsageChanged?.();
+    } catch (err) {
+      setTierError(err instanceof Error ? err.message : "לא ניתן לעדכן את המנוי");
+    } finally {
+      setTierBusy(null);
+    }
   }
 
 
@@ -241,8 +254,11 @@ export function SettingsScreen({
             />
             <SettingsMenuRow
               icon="star"
-              label={summary?.isPremium ? "Premium פעיל" : "Premium"}
-              onPress={() => setPremiumVisible(true)}
+              label="מנוי"
+              onPress={() => {
+                setTierError(null);
+                setPremiumVisible(true);
+              }}
             />
             <SettingsMenuRow icon="tag" label="ניהול תגיות" onPress={() => setTagsVisible(true)} />
             <SettingsMenuRow
@@ -330,52 +346,63 @@ export function SettingsScreen({
 
           <View style={styles.subSheet}>
 
-            <Text style={styles.subTitle}>Premium</Text>
+            <Text style={styles.subTitle}>מנוי</Text>
+            <Text style={styles.usageText}>
+              בחרו חשבון רגיל או Premium. ניהול משתמשים אחרים יתווסף למנהל המערכת בהמשך.
+            </Text>
 
-            {summary?.isPremium ? (
-
+            {summary ? (
               <>
-
-                <Text style={styles.premiumActive}>יש לך מנוי Premium פעיל.</Text>
-
-                <Pressable style={styles.premiumButton} onPress={handleOpenPaywall}>
-
-                  <Text style={styles.premiumButtonText}>ניהול מנוי</Text>
-
+                <Pressable
+                  style={[
+                    styles.planCard,
+                    !summary.isPremium && styles.planCardCurrent,
+                    Boolean(tierBusy) && styles.buttonDisabled,
+                  ]}
+                  onPress={() => void selectTier("free")}
+                  disabled={Boolean(tierBusy)}
+                >
+                  <Text style={styles.planTitle}>חשבון רגיל</Text>
+                  <Text style={styles.usageText}>מכסות חודשיות ל-AI, תמלול ו-OCR.</Text>
+                  {!summary.isPremium ? (
+                    <Text style={styles.usageText}>
+                      תמלול: {Math.ceil(summary.audio.used / 60)}/
+                      {Math.ceil(summary.audio.allocated / 60)} דק׳ · AI: {summary.aiParses.used}/
+                      {summary.aiParses.allocated}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.planHint}>
+                    {!summary.isPremium
+                      ? "מנוי נוכחי"
+                      : tierBusy === "free"
+                        ? "מעדכן..."
+                        : "מעבר לחשבון רגיל"}
+                  </Text>
                 </Pressable>
-
-              </>
-
-            ) : summary ? (
-
-              <>
-
-                <Text style={styles.usageText}>
-
-                  מכסת תמלול: {Math.ceil(summary.audio.used / 60)}/
-                  {Math.ceil(summary.audio.allocated / 60)} דק׳
-
-                </Text>
-
-                <Text style={styles.usageText}>
-
-                  מכסת AI: {summary.aiParses.used}/{summary.aiParses.allocated}
-
-                </Text>
-
-                <Pressable style={styles.premiumButton} onPress={handleOpenPaywall}>
-
-                  <Text style={styles.premiumButtonText}>שדרג ל-Premium</Text>
-
+                <Pressable
+                  style={[
+                    styles.planCard,
+                    summary.isPremium && styles.planCardPremium,
+                    Boolean(tierBusy) && styles.buttonDisabled,
+                  ]}
+                  onPress={() => void selectTier("premium")}
+                  disabled={Boolean(tierBusy)}
+                >
+                  <Text style={styles.planTitlePremium}>Premium</Text>
+                  <Text style={styles.usageText}>גישה בלתי מוגבלת ל-AI, תמלול ו-OCR.</Text>
+                  <Text style={styles.planHintPremium}>
+                    {summary.isPremium
+                      ? "מנוי נוכחי"
+                      : tierBusy === "premium"
+                        ? "מעדכן..."
+                        : "שדרוג ל-Premium"}
+                  </Text>
                 </Pressable>
-
               </>
-
             ) : (
-
               <ActivityIndicator color="#4f46e5" />
-
             )}
+            {tierError ? <Text style={styles.tierError}>{tierError}</Text> : null}
 
             <Pressable style={styles.subClose} onPress={() => setPremiumVisible(false)}>
 
@@ -755,7 +782,28 @@ const styles = StyleSheet.create({
   premiumActive: { fontSize: 15, color: "#047857", textAlign: "right", marginBottom: 12 },
 
   usageText: { fontSize: 15, color: "#334155", textAlign: "right", marginBottom: 12 },
-
+  planCard: {
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+  },
+  planCardCurrent: {
+    borderColor: "#1e293b",
+    backgroundColor: "#f8fafc",
+  },
+  planCardPremium: {
+    borderColor: "#047857",
+    backgroundColor: "#ecfdf5",
+  },
+  planTitle: { fontSize: 16, fontWeight: "700", color: "#0f172a", textAlign: "right" },
+  planTitlePremium: { fontSize: 16, fontWeight: "700", color: "#064e3b", textAlign: "right" },
+  planHint: { fontSize: 12, color: "#64748b", textAlign: "right", marginTop: 8 },
+  planHintPremium: { fontSize: 12, color: "#047857", textAlign: "right", marginTop: 8, fontWeight: "600" },
+  buttonDisabled: { opacity: 0.6 },
+  tierError: { fontSize: 13, color: "#dc2626", textAlign: "right", marginBottom: 8 },
+  premiumActive: { fontSize: 15, color: "#047857", textAlign: "right", marginBottom: 12 },
   premiumButton: {
 
     backgroundColor: "#059669",

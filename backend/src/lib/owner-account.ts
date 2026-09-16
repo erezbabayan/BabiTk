@@ -1,4 +1,4 @@
-/** Project owner accounts that always keep a Premium subscription. */
+/** Project owner account — used for login aliases and future admin user management. */
 
 export const OWNER_EMAIL = "erezbabayan@gmail.com";
 

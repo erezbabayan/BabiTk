@@ -36,6 +36,7 @@ interface SettingsPanelProps {
   summary: UsageSummary | null;
   onOpenPaywall: () => void;
   onClose: () => void;
+  onUsageChanged?: () => void;
   /** When true, User / WhatsApp / Calendar use the Supabase cloud account. */
   cloudAccount?: boolean;
 }
@@ -52,7 +53,7 @@ const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "notebook", label: "📷 סריקת מחברת" },
   { id: "text", label: "✏️ קליטת טקסט" },
   { id: "calendar", label: "📅 Google Calendar" },
-  { id: "premium", label: "⭐ Premium" },
+  { id: "premium", label: "⭐ מנוי" },
   { id: "tags", label: "🏷 ניהול תגיות" },
   { id: "boards", label: "📋 הגדרות בורדים" },
   { id: "trash", label: "🗑 סל מחזור" },
@@ -69,8 +70,9 @@ function OfflineNotice({ children }: { children: string }) {
 export function SettingsPanel({
   userId,
   summary,
-  onOpenPaywall,
+  onOpenPaywall: _onOpenPaywall,
   onClose,
+  onUsageChanged,
   cloudAccount,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("menu");
@@ -82,11 +84,6 @@ export function SettingsPanel({
     ? MENU_ITEMS
     : MENU_ITEMS.filter((item) => item.id !== "notifications")
   ).concat(isAdmin ? [{ id: "admin" as const, label: "🛡 ניהול משתמשים" }] : []);
-
-  function handleOpenPaywall() {
-    onClose();
-    onOpenPaywall();
-  }
 
   return (
     <div
@@ -187,7 +184,7 @@ export function SettingsPanel({
           )
         ) : null}
         {section === "premium" ? (
-          <PremiumSettings summary={summary} onOpenPaywall={handleOpenPaywall} />
+          <PremiumSettings summary={summary} onChanged={onUsageChanged} />
         ) : null}
         {section === "tags" ? <TagSettings active /> : null}
         {section === "boards" ? <BoardSettingsPanel /> : null}
