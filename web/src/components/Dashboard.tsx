@@ -86,7 +86,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     completed: showCompletedTasks || showTaskLists,
   });
   const { tags: userTags, addTag } = useUserTags();
-  const taskLists = useTaskLists(convexUserId);
+  const taskLists = useTaskLists(userId);
   useTagCascadeSync(convexUserId);
   const { requestConfirm, confirmDialog } = useConfirmDialog();
 

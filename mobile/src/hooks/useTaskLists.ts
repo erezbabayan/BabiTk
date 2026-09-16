@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useState } from "react";
 
-import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { useConvexFeatures } from "../lib/data-backend";
 import {
-  normalizeTaskListRecord,
-  resolveBoardSourceTaskIds,
-  type TaskListRecord,
-} from "../lib/task-list-items";
+  archiveTaskList,
+  createTaskListsFromTags,
+  deleteTaskList,
+  listTaskLists,
+  refreshTaskListTags,
+  renameTaskList,
+  restoreTaskList,
+  setTaskListReminder,
+  subscribeTaskLists,
+} from "../lib/task-lists-api";
+import { filterTodayBoardTasksByListTags, type TaskListRecord } from "../lib/task-list-items";
 import type { MindtaskerItem } from "../lib/supabase";
 import {
   cancelItemReminderNotification,
@@ -17,156 +21,136 @@ import {
 
 export type { TaskListRecord } from "../lib/task-list-items";
 
-export function useTaskLists(userId: Id<"users"> | undefined) {
-  const features = useConvexFeatures();
-  const queryEnabled = features && Boolean(userId);
+export function useTaskLists(userId: string | undefined) {
+  const [lists, setLists] = useState<TaskListRecord[]>([]);
+  const [loading, setLoading] = useState(Boolean(userId));
 
-  const rawLists = useQuery(
-    api.taskLists.listForUser,
-    queryEnabled ? { userId: userId!, includeArchived: true } : "skip",
-  );
-
-  const createMutation = useMutation(api.taskLists.createListsFromTags);
-  const updateMutation = useMutation(api.taskLists.updateList);
-  const archiveMutation = useMutation(api.taskLists.archiveList);
-  const restoreMutation = useMutation(api.taskLists.restoreList);
-  const deleteMutation = useMutation(api.taskLists.deleteList);
-  const backfillMutation = useMutation(api.taskLists.backfillEmptyLists);
-  const refreshListItemsMutation = useMutation(api.taskLists.refreshListItems);
-  const backfillAttempted = useRef(false);
-
-  const lists = useMemo(
-    () => (rawLists ?? []).map(normalizeTaskListRecord),
-    [rawLists],
-  );
+  const refresh = useCallback(async () => {
+    if (!userId) {
+      setLists([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      const next = await listTaskLists(userId);
+      setLists(next);
+    } catch (error) {
+      console.error("Failed to load task lists", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => {
-    if (!queryEnabled || !userId || rawLists === undefined) return;
+    void refresh();
+  }, [refresh]);
 
-    const needsBackfill = rawLists.some(
-      (list) => (list.items?.length ?? 0) === 0 && (list.filterTags?.length ?? 0) > 0,
-    );
-    if (!needsBackfill || backfillAttempted.current) return;
-
-    backfillAttempted.current = true;
-    void backfillMutation({ userId }).catch((error) => {
-      console.error("Task list backfill failed", error);
-      backfillAttempted.current = false;
+  useEffect(() => {
+    if (!userId) return;
+    return subscribeTaskLists(userId, () => {
+      void refresh();
     });
-  }, [backfillMutation, queryEnabled, rawLists, userId]);
+  }, [userId, refresh]);
 
   const createFromTags = useCallback(
     async (
       filterTags: string[],
       name: string,
-      boardTasks: MindtaskerItem[] = [],
+      _boardTasks: MindtaskerItem[] = [],
     ) => {
       if (!userId) return;
-      const normalizedTags = [
-        ...new Set(filterTags.map((tag) => tag.trim().replace(/^#/, "")).filter(Boolean)),
-      ];
-      if (normalizedTags.length === 0) return;
-
-      const sourceTaskIdsByTag = normalizedTags.map((tag) =>
-        resolveBoardSourceTaskIds(boardTasks, [tag]),
-      );
-
-      return await createMutation({
-        userId,
-        filterTags: normalizedTags,
-        ...(normalizedTags.length === 1 && name.trim() ? { name: name.trim() } : {}),
-        ...(sourceTaskIdsByTag.some((ids) => ids.length > 0)
-          ? { sourceTaskIdsByTag }
-          : {}),
-      });
+      await createTaskListsFromTags(userId, filterTags, name);
+      await refresh();
     },
-    [createMutation, userId],
+    [refresh, userId],
   );
 
   const renameList = useCallback(
     async (listId: Id<"taskLists">, name: string) => {
       if (!userId) return;
-      await updateMutation({ userId, listId, name });
+      await renameTaskList(userId, listId, name);
+      await refresh();
     },
-    [updateMutation, userId],
+    [refresh, userId],
   );
 
   const refreshListTags = useCallback(
     async (listId: Id<"taskLists">, filterTags: string[]) => {
       if (!userId) return;
-      await updateMutation({ userId, listId, filterTags });
+      await refreshTaskListTags(userId, listId, filterTags);
+      await refresh();
     },
-    [updateMutation, userId],
+    [refresh, userId],
   );
 
   const archiveList = useCallback(
     async (listId: Id<"taskLists">) => {
       if (!userId) return;
-      await archiveMutation({ userId, listId });
+      await archiveTaskList(userId, listId);
+      await refresh();
     },
-    [archiveMutation, userId],
+    [refresh, userId],
   );
 
   const restoreList = useCallback(
     async (listId: Id<"taskLists">) => {
       if (!userId) return;
-      await restoreMutation({ userId, listId });
+      await restoreTaskList(userId, listId);
+      await refresh();
     },
-    [restoreMutation, userId],
+    [refresh, userId],
   );
 
   const deleteList = useCallback(
     async (listId: Id<"taskLists">) => {
       if (!userId) return;
-      await deleteMutation({ userId, listId });
+      await deleteTaskList(userId, listId);
+      await cancelItemReminderNotification("list", listId);
+      await refresh();
     },
-    [deleteMutation, userId],
+    [refresh, userId],
   );
 
   const refreshListItems = useCallback(
     async (
-      listId: Id<"taskLists">,
+      _listId: Id<"taskLists">,
       boardTasks: MindtaskerItem[] = [],
       filterTags: string[] = [],
     ) => {
-      if (!userId) return 0;
-      const sourceTaskIds = resolveBoardSourceTaskIds(boardTasks, filterTags);
-      return await refreshListItemsMutation({
-        userId,
-        listId,
-        ...(sourceTaskIds.length > 0 ? { sourceTaskIds } : {}),
-      });
+      return filterTodayBoardTasksByListTags(boardTasks, filterTags).length;
     },
-    [refreshListItemsMutation, userId],
+    [],
   );
 
   const setListReminder = useCallback(
     async (listId: Id<"taskLists">, reminderAt: string, listName?: string) => {
       if (!userId) return;
-      await updateMutation({ userId, listId, reminderAt });
+      await setTaskListReminder(userId, listId, reminderAt);
       await scheduleItemReminderNotification({
         kind: "list",
         id: listId,
         title: listName?.trim() || "רשימה",
         dueDateIso: reminderAt,
       });
+      await refresh();
     },
-    [updateMutation, userId],
+    [refresh, userId],
   );
 
   const clearListReminder = useCallback(
     async (listId: Id<"taskLists">) => {
       if (!userId) return;
-      await updateMutation({ userId, listId, reminderAt: null });
+      await setTaskListReminder(userId, listId, null);
       await cancelItemReminderNotification("list", listId);
+      await refresh();
     },
-    [updateMutation, userId],
+    [refresh, userId],
   );
 
   return {
-    enabled: features,
+    enabled: Boolean(userId),
     lists,
-    loading: features && (!userId || rawLists === undefined),
+    loading: Boolean(userId) && loading,
     createFromTags,
     renameList,
     refreshListTags,

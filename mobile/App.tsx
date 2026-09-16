@@ -134,7 +134,7 @@ function MainAppInner({
     completed: showTaskLists || listView === "completed",
   });
   const demoHybrid = useDemoHybridSync();
-  const taskLists = useTaskLists(board.convexUserId);
+  const taskLists = useTaskLists(userId);
   useTagCascadeSync(board.convexUserId);
   const { isAuthenticated } = useConvexAuth();
   const notificationsEnabled =
