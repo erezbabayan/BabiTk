@@ -1,4 +1,4 @@
-/** Owner login aliases → real email. Other users still sign in with their own email. */
+/** Owner login aliases → real email. Other users resolve via username lookup. */
 const OWNER_EMAIL = "erezbabayan@gmail.com";
 
 const LOGIN_ALIASES: Record<string, string> = {
@@ -18,4 +18,8 @@ export function normalizeLoginIdentifier(raw: string): string {
   if (!trimmed) return trimmed;
   const lower = trimmed.toLowerCase();
   return LOGIN_ALIASES[lower] ?? LOGIN_ALIASES[trimmed] ?? lower;
+}
+
+export function looksLikeEmail(value: string): boolean {
+  return value.includes("@");
 }

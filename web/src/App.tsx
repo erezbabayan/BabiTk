@@ -35,6 +35,7 @@ import { isSyncEnabled } from "./lib/sync-client";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, enableForcedLocalMode, supabaseAuthRedirectUrl } from "./lib/supabase";
 import { writeCachedHeaderName, readCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
+import { resolveLoginEmail } from "./lib/resolve-login-email";
 import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
 
@@ -558,23 +559,30 @@ function ConfiguredApp() {
     password: string,
     authMode: "login" | "signup",
     rememberMe = true,
-    signupDetails?: { firstName: string; lastName: string; phone: string },
+    signupDetails?: { firstName: string; lastName: string; phone: string; username?: string },
   ) {
-    const normalizedEmail = normalizeLoginIdentifier(email);
-    applyRememberMePreference(rememberMe, normalizedEmail);
     if (authMode === "login") {
+      const loginEmail = await resolveLoginEmail(email);
+      applyRememberMePreference(rememberMe, loginEmail);
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
+        email: loginEmail,
         password,
       });
       if (signInError) throw signInError;
-      persistLoginDetails(rememberMe, normalizedEmail);
+      persistLoginDetails(rememberMe, loginEmail);
       return;
     }
 
     if (!signupDetails) {
       throw new Error("יש להזין שם, שם משפחה וטלפון");
     }
+
+    const normalizedEmail = normalizeLoginIdentifier(email);
+    if (!normalizedEmail.includes("@")) {
+      throw new Error("בהרשמה יש להזין אימייל תקין בנוסף לשם המשתמש");
+    }
+    applyRememberMePreference(rememberMe, normalizedEmail);
+    const username = signupDetails.username?.trim();
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -585,6 +593,7 @@ function ConfiguredApp() {
           first_name: signupDetails.firstName,
           last_name: signupDetails.lastName,
           phone: signupDetails.phone,
+          username,
           full_name: [signupDetails.firstName, signupDetails.lastName]
             .filter(Boolean)
             .join(" "),
@@ -600,6 +609,21 @@ function ConfiguredApp() {
       if (signInError) throw signInError;
     }
 
+    if (username) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userIdFromSession = sessionData.session?.user.id;
+      if (userIdFromSession) {
+        const { error: usernameError } = await supabase
+          .from("users")
+          .update({ username })
+          .eq("id", userIdFromSession);
+        if (usernameError) {
+          throw new Error(usernameError.message || "שם המשתמש כבר תפוס");
+        }
+      }
+    }
+
+    persistLoginDetails(rememberMe, normalizedEmail);
     writeCachedHeaderName(
       {
         firstName: signupDetails.firstName,
@@ -619,7 +643,8 @@ function ConfiguredApp() {
       <LoginScreen
         mode="auth"
         onSubmit={handleAuth}
-        subtitle="חשבון אישי בענן — כל משתמש רואה רק את הלוח שלו"
+        subtitle="התחברו עם המשתמש שלכם — כל חשבון עם לוח נפרד"
+        usernameLabel="שם משתמש או אימייל"
         signupAutoSignIn
         showRememberMe
       />
