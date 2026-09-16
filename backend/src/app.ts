@@ -42,16 +42,20 @@ export async function buildApp() {
 
   app.get("/health", async () => getHealthStatus());
 
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler((error: unknown, request, reply) => {
     request.log.error({ err: error }, "unhandled_error");
-    const status =
-      typeof error.statusCode === "number" && error.statusCode >= 400
+    const statusCode =
+      error &&
+      typeof error === "object" &&
+      "statusCode" in error &&
+      typeof error.statusCode === "number" &&
+      error.statusCode >= 400
         ? error.statusCode
         : 500;
-    if (status >= 500) {
-      return reply.status(status).send({ error: "internal_error" });
+    if (statusCode >= 500) {
+      return reply.status(statusCode).send({ error: "internal_error" });
     }
-    return reply.status(status).send({ error: "request_failed" });
+    return reply.status(statusCode).send({ error: "request_failed" });
   });
 
   await app.register(aiRoutes, { prefix: "/api/ai" });
