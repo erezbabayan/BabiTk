@@ -270,6 +270,7 @@ Deno.serve(async (req) => {
   }
 
   if (!verifyGreenApiWebhookAuth(req, gateway.webhook_token)) {
+    console.warn("[security]", "webhook_auth_failed", { path: "whatsapp-green-webhook" });
     return json({ error: "invalid_webhook_token" }, 401);
   }
 
@@ -300,11 +301,6 @@ Deno.serve(async (req) => {
   const scheduled: Array<{ messageId: string }> = [];
   const skipped: Array<{ messageId: string; reason: string }> = [];
 
-  const payload = body as {
-    instanceData?: { wid?: string };
-    senderData?: { sender?: string };
-  };
-
   for (const message of parsed.messages) {
     const gate = await gateCapture(supabase, owner, message.chatId, message.chatName);
     if (!gate.allowed) {
@@ -316,14 +312,15 @@ Deno.serve(async (req) => {
     }
     try {
       await maybeVerifyOwnerPhone(supabase, owner, [
-        payload.instanceData?.wid ?? "",
+        message.senderPhone,
+        message.senderId,
       ]);
       await ingestMessage(supabase, owner.id, message);
       scheduled.push({ messageId: message.messageId });
     } catch (error) {
       skipped.push({
         messageId: message.messageId,
-        reason: error instanceof Error ? error.message : "ingest_failed",
+        reason: "ingest_failed",
       });
     }
   }

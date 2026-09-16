@@ -26,6 +26,9 @@ if (process.env.CONVEX_ALLOW_DEV_SEED !== "true") {
   console.error(
     "Set CONVEX_ALLOW_DEV_SEED=true on the Convex deployment before seeding.",
   );
+  console.error(
+    "importSyncDev also requires a signed-in user. Prefer: npx convex run seed:importSync",
+  );
 }
 
 const client = new ConvexHttpClient(loadConvexUrl());

@@ -314,11 +314,8 @@ export function verifyGreenApiWebhookAuth(
       ? authHeader.slice("Bearer ".length)
       : undefined;
   const headerToken = request.headers.get("x-webhook-token");
-  const queryToken = new URL(request.url).searchParams.get("token");
   return (
-    secretEquals(bearer, expectedToken) ||
-    secretEquals(headerToken, expectedToken) ||
-    secretEquals(queryToken, expectedToken)
+    secretEquals(bearer, expectedToken) || secretEquals(headerToken, expectedToken)
   );
 }
 

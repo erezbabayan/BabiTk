@@ -37,20 +37,6 @@ async function lookupVerifiedUser(
   return null;
 }
 
-async function lookupUserByPhone(
-  ctx: QueryCtx | MutationCtx,
-  phone: string,
-): Promise<Doc<"users"> | null> {
-  for (const candidate of phoneLookupVariants(phone)) {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("phone", (q) => q.eq("phone", candidate))
-      .unique();
-    if (user) return user;
-  }
-  return null;
-}
-
 export const findVerifiedByPhone = internalQuery({
   args: { phone: v.string() },
   handler: async (ctx, { phone }) => {
@@ -96,18 +82,18 @@ export const resolveGreenApiSender = internalMutation({
       }
     }
 
-    if (!user && args.instanceWid?.trim()) {
-      // Auto-verify only the WhatsApp line that owns this instance (wid),
-      // never an arbitrary phone a client stored without proof.
-      const pending = await lookupUserByPhone(ctx, args.instanceWid);
-      if (pending?.phone && pending.phoneVerified !== true) {
-        await ctx.db.patch(pending._id, {
-          phoneVerified: true,
-          updatedAt: Date.now(),
-        });
-        user = { ...pending, phoneVerified: true };
-        matchedPhone = normalizePhone(pending.phone);
-      }
+    if (!user) {
+      // Do not auto-verify by instance wid: anyone could store that number.
+      return {
+        messageId: args.messageId,
+        senderId: args.senderId,
+        senderPhone: matchedPhone,
+        mediaType: args.messageType,
+        resolved: false,
+        reason: "not_linked" as const,
+        userId: null as Id<"users"> | null,
+        tier: null,
+      };
     }
 
     return {
@@ -115,10 +101,10 @@ export const resolveGreenApiSender = internalMutation({
       senderId: args.senderId,
       senderPhone: matchedPhone,
       mediaType: args.messageType,
-      resolved: Boolean(user),
-      reason: user ? ("linked" as const) : ("not_linked" as const),
-      userId: (user?._id ?? null) as Id<"users"> | null,
-      tier: user?.tier ?? null,
+      resolved: true,
+      reason: "linked" as const,
+      userId: user._id,
+      tier: user.tier ?? null,
     };
   },
 });

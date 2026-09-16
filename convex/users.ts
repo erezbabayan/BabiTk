@@ -32,6 +32,15 @@ export const getEmailInternal = internalQuery({
   },
 });
 
+export const isAdminInternal = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.boolean(),
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get("users", userId);
+    return user?.role === "admin";
+  },
+});
+
 export const getPhoneInternal = internalQuery({
   args: { userId: v.id("users") },
   returns: v.union(
@@ -857,10 +866,15 @@ export const getOrCreateByLegacyId = mutation({
 export const linkTokenIdentifier = mutation({
   args: {
     userId: v.id("users"),
-    tokenIdentifier: v.string(),
   },
-  handler: async (ctx, { userId: requestedUserId, tokenIdentifier }) => {
+  returns: v.null(),
+  handler: async (ctx, { userId: requestedUserId }) => {
     const userId = await requireScopedUserId(ctx, requestedUserId);
+    const identity = await ctx.auth.getUserIdentity();
+    const tokenIdentifier = identity?.tokenIdentifier?.trim();
+    if (!tokenIdentifier) {
+      throw new Error("Not authenticated");
+    }
     const conflict = await ctx.db
       .query("users")
       .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
@@ -874,6 +888,7 @@ export const linkTokenIdentifier = mutation({
       tokenIdentifier,
       updatedAt: Date.now(),
     });
+    return null;
   },
 });
 

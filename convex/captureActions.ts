@@ -6,6 +6,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { action, type ActionCtx } from "./_generated/server";
+import { requireAdminAction } from "./lib/requireAdminAction";
 import { applyHebrewAsrSpellingFixes } from "./lib/ingest/hebrewAsrSpelling";
 import { enrichParsedItemsWithAnalysis } from "./lib/ingest/itemAnalysis";
 import { mergeContinuationParsedItems } from "./lib/ingest/inputSegmentation";
@@ -499,7 +500,7 @@ export const ingestNotebookImage = action({
   },
 });
 
-/** Admin/dev probe: verify OpenAI models + Whisper from Convex Node. */
+/** Admin probe: verify OpenAI models + Whisper from Convex Node. */
 export const diagnoseTranscription = action({
   args: {},
   returns: v.object({
@@ -507,16 +508,19 @@ export const diagnoseTranscription = action({
     whisperOk: v.boolean(),
     modelsStatus: v.optional(v.number()),
     whisperDetail: v.optional(v.string()),
-    keyPrefix: v.string(),
     asrEngine: v.string(),
     groqConfigured: v.boolean(),
     runpodConfigured: v.boolean(),
   }),
-  handler: async () => {
+  handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const asrEnv = snapshotHebrewAsrEnv();
     const probe = await probeOpenAiTranscription(asrEnv.openAi?.apiKey);
     return {
-      ...probe,
+      modelsOk: probe.modelsOk,
+      whisperOk: probe.whisperOk,
+      modelsStatus: probe.modelsStatus,
+      whisperDetail: probe.whisperOk ? undefined : "whisper_probe_failed",
       asrEngine: asrEnv.enginePreference,
       groqConfigured: Boolean(asrEnv.groq?.apiKey),
       runpodConfigured: Boolean(asrEnv.runpodApiKey && asrEnv.runpodEndpointId),

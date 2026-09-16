@@ -174,6 +174,13 @@ describe("Convex Green-API parser", () => {
     assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), true);
   });
 
+  it("rejects query-string webhook tokens", () => {
+    const request = new Request(
+      "https://example.com/webhook/green-api?token=secret-token",
+    );
+    assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), false);
+  });
+
   it("includes local and international phone variants", () => {
     const variants = phoneLookupVariants("+972501234567");
     assert.ok(variants.includes("+972501234567"));

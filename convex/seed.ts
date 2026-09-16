@@ -4,6 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { internalMutation, mutation } from "./_generated/server";
 import { notifyAtPatchValue } from "./lib/notifyAt";
+import { requireAuthUserId } from "./lib/requireAuth";
 import { sourceType, taskStatus, type SourceType } from "./validators";
 
 const syncSourceMaterial = v.object({
@@ -286,11 +287,12 @@ export const importSync = internalMutation({
   handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
 });
 
-/** Dev seeding from sync JSON. Disabled unless CONVEX_ALLOW_DEV_SEED=true. */
+/** Dev seeding from sync JSON. Requires auth + CONVEX_ALLOW_DEV_SEED=true. */
 export const importSyncDev = mutation({
   args: importSyncArgs,
   returns: importSyncReturns,
   handler: async (ctx, args) => {
+    await requireAuthUserId(ctx);
     if (process.env.CONVEX_ALLOW_DEV_SEED !== "true") {
       throw new Error("Dev seed is disabled");
     }

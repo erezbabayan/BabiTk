@@ -58,7 +58,7 @@ export function getWhatsAppProviderStatus(): WhatsAppProviderStatus {
 
 export function verifyAlternateWebhookAuth(
   headers: Record<string, string | string[] | undefined>,
-  query: Record<string, string | undefined>,
+  _query?: Record<string, string | undefined>,
 ): boolean {
   const expected =
     env.whatsappInboundWebhookToken ??
@@ -79,9 +79,5 @@ export function verifyAlternateWebhookAuth(
   const tokenHeader = headers["x-webhook-token"];
   const headerToken = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
 
-  return (
-    secretEquals(bearer, expected) ||
-    secretEquals(headerToken, expected) ||
-    secretEquals(query.token, expected)
-  );
+  return secretEquals(bearer, expected) || secretEquals(headerToken, expected);
 }

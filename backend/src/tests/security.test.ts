@@ -47,6 +47,27 @@ describe("webhook auth fail-closed", () => {
     assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), true);
   });
 
+  it("accepts Green-API webhooks with x-webhook-token", () => {
+    const request = new Request("https://example.com/webhook/green-api", {
+      headers: { "x-webhook-token": "secret-token" },
+    });
+    assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), true);
+  });
+
+  it("rejects Green-API webhooks that only send a query token", () => {
+    const request = new Request(
+      "https://example.com/webhook/green-api?token=secret-token",
+    );
+    assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), false);
+  });
+
+  it("rejects alternate inbound webhooks that only send a query token", () => {
+    assert.equal(
+      verifyAlternateWebhookAuth({}, { token: "secret-token" }),
+      false,
+    );
+  });
+
   it("rejects alternate inbound webhooks when no token is configured", () => {
     assert.equal(verifyAlternateWebhookAuth({}, {}), false);
   });
@@ -79,5 +100,29 @@ describe("Google OAuth state", () => {
     assert.equal(parseGoogleOAuthState(state), "user-12345678");
     assert.throws(() => parseGoogleOAuthState(`${state}x`), /invalid_oauth_state/);
     assert.throws(() => parseGoogleOAuthState("user-12345678"), /invalid_oauth_state/);
+  });
+});
+
+describe("password requirements", () => {
+  it("rejects passwords shorter than 8 characters", async () => {
+    const { assertPasswordRequirements } = await import(
+      "../../../convex/lib/password.js"
+    );
+    assert.throws(() => assertPasswordRequirements("1234567"), /8/);
+    assertPasswordRequirements("12345678");
+  });
+});
+
+describe("public error messages", () => {
+  it("keeps Hebrew product errors and hides internal English details", async () => {
+    const { publicErrorMessage } = await import("../lib/public-error.js");
+    assert.equal(
+      publicErrorMessage(new Error("קוד שגוי"), "fallback"),
+      "קוד שגוי",
+    );
+    assert.equal(
+      publicErrorMessage(new Error("Failed to save verification: boom"), "fallback"),
+      "fallback",
+    );
   });
 });

@@ -83,15 +83,17 @@ export const greenApiSetupStatus = query({
     setupSteps: v.array(v.string()),
   }),
   handler: async (ctx) => {
-    await requireAuthUserId(ctx);
+    const userId = await requireAuthUserId(ctx);
+    const user = await ctx.db.get("users", userId);
+    const isAdmin = user?.role === "admin";
     const row = await getSettingsRow(ctx);
     const creds = await loadGreenApiCredentials(ctx);
     return {
       configured: creds !== null,
-      hasStoredCredentials: Boolean(
-        row?.greenApiInstanceId?.trim() && row?.greenApiToken?.trim(),
-      ),
-      instanceId: creds?.instanceId ?? null,
+      hasStoredCredentials: isAdmin
+        ? Boolean(row?.greenApiInstanceId?.trim() && row?.greenApiToken?.trim())
+        : creds !== null,
+      instanceId: isAdmin ? (creds?.instanceId ?? null) : null,
       consoleUrl: GREEN_CONSOLE_URL,
       setupSteps: [
         "היכנס ל-console.green-api.com וצור instance (חינם)",

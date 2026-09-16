@@ -7,7 +7,7 @@ import {
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import type { UsageSummary } from "../lib/api";
-import { normalizePhone, personalCaptureChatId } from "../lib/phone";
+import { normalizePhone } from "../lib/phone";
 import {
   getCloudUserProfile,
   updateCloudUserProfile,
@@ -91,22 +91,10 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
             : result.message,
         );
         return;
-      } catch {
-        const personalChat = personalCaptureChatId(normalized);
-        const next = await updateCloudUserProfile({
-          phone: normalized,
-          whatsapp_capture_group_chat_id:
-            profile?.whatsapp_capture_group_chat_id ?? personalChat,
-          whatsapp_capture_group_name:
-            profile?.whatsapp_capture_group_name ??
-            (personalChat ? "הודעה לעצמי (BabiTk)" : null),
-        });
-        setProfile(next);
-        setPhone("");
-        setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
-        setMessage(
-          `המספר נשמר: ${normalized}. הוא יאומת כשתשלחו הודעה מהוואטסאפ המחובר.`,
-        );
+      } catch (otpError) {
+        throw otpError instanceof Error
+          ? otpError
+          : new Error("שליחת קוד אימות נכשלה. חברו את השרת כדי לאמת מספר.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בחיבור המספר");

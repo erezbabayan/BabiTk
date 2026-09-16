@@ -7,6 +7,7 @@ import {
   parseGreenApiWebhook,
   verifyGreenApiWebhookAuth,
 } from "./lib/greenApiParser";
+import { logSecurityEvent } from "./lib/securityLog";
 const http = httpRouter();
 
 auth.addHttpRoutes(http);
@@ -42,10 +43,12 @@ http.route({
   handler: httpAction(async (ctx, request) => {
     const expectedToken = process.env.GREEN_API_WEBHOOK_TOKEN?.trim();
     if (!expectedToken) {
+      logSecurityEvent("webhook_not_configured", { path: "/webhook/green-api" });
       return jsonResponse({ error: "webhook_not_configured" }, 401);
     }
 
     if (!verifyGreenApiWebhookAuth(request, expectedToken)) {
+      logSecurityEvent("webhook_auth_failed", { path: "/webhook/green-api" });
       return jsonResponse({ error: "invalid_webhook_token" }, 401);
     }
 

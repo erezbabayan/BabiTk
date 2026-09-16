@@ -42,6 +42,18 @@ export async function buildApp() {
 
   app.get("/health", async () => getHealthStatus());
 
+  app.setErrorHandler((error, request, reply) => {
+    request.log.error({ err: error }, "unhandled_error");
+    const status =
+      typeof error.statusCode === "number" && error.statusCode >= 400
+        ? error.statusCode
+        : 500;
+    if (status >= 500) {
+      return reply.status(status).send({ error: "internal_error" });
+    }
+    return reply.status(status).send({ error: "request_failed" });
+  });
+
   await app.register(aiRoutes, { prefix: "/api/ai" });
   await app.register(ingestRoutes, { prefix: "/api/ingest" });
   await app.register(itemsRoutes, { prefix: "/api/items" });

@@ -4,6 +4,7 @@ import type { GenericId } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
+import { assertPasswordRequirements } from "./lib/password";
 import { normalizePhone } from "./lib/phone";
 import { splitFullName } from "./lib/userDisplayName";
 
@@ -78,6 +79,7 @@ async function applyUserDefaults(
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     Password({
+      validatePasswordRequirements: assertPasswordRequirements,
       profile(params) {
         const email = String(params.email ?? "")
           .trim()
@@ -129,41 +131,44 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         typeof profile.email === "string" ? profile.email.trim().toLowerCase() : "";
       let linkedUserId: Id<"users"> | null = null;
 
-      if (email) {
-        const matches = await ctx.db
-          .query("users")
-          .filter((q) => q.eq(q.field("email"), email))
-          .take(2);
-        if (matches.length === 1) {
-          linkedUserId = matches[0]!._id;
+      // Auto-claim of seeded/demo rows is a takeover vector unless explicitly
+      // enabled for local development. Password login still uses existingUserId.
+      if (process.env.CONVEX_ALLOW_DEV_SEED === "true") {
+        if (email) {
+          const matches = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("email"), email))
+            .take(2);
+          if (matches.length === 1) {
+            linkedUserId = matches[0]!._id;
+          }
         }
-      }
 
-      if (!linkedUserId) {
-        const legacyMatches = await ctx.db
-          .query("users")
-          .filter((q) => q.eq(q.field("legacyId"), LEGACY_DEMO_ID))
-          .take(2);
-        const legacyUser = legacyMatches.length === 1 ? legacyMatches[0]! : null;
-        if (legacyUser) {
-          const legacyEmail = legacyUser.email?.trim().toLowerCase() ?? "";
-          const isDemoEmail = legacyEmail.endsWith("@demo.mindtasker.local");
-          if (isDemoEmail || !legacyEmail) {
-            linkedUserId = legacyUser._id;
+        if (!linkedUserId) {
+          const legacyMatches = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("legacyId"), LEGACY_DEMO_ID))
+            .take(2);
+          const legacyUser = legacyMatches.length === 1 ? legacyMatches[0]! : null;
+          if (legacyUser) {
+            const legacyEmail = legacyUser.email?.trim().toLowerCase() ?? "";
+            const isDemoEmail = legacyEmail.endsWith("@demo.mindtasker.local");
+            if (isDemoEmail || !legacyEmail) {
+              linkedUserId = legacyUser._id;
+            }
           }
         }
       }
 
       const {
-        emailVerified: profileEmailVerified,
-        phoneVerified: profilePhoneVerified,
+        emailVerified: _profileEmailVerified,
+        phoneVerified: _profilePhoneVerified,
         ...profileFields
       } = profile;
 
       const userData = {
-        ...(profileEmailVerified ? { emailVerificationTime: Date.now() } : null),
-        ...(profilePhoneVerified ? { phoneVerificationTime: Date.now() } : null),
         ...profileFields,
+        phoneVerified: false,
       };
 
       let userId: Id<"users">;

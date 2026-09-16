@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action } from "./_generated/server";
 
-const MIN_PASSWORD_LENGTH = 8;
+import { assertPasswordRequirements } from "./lib/password";
 
 export const changePassword = action({
   args: {
@@ -18,9 +18,10 @@ export const changePassword = action({
       throw new Error("Not authenticated");
     }
 
-    if (!args.newPassword || args.newPassword.length < MIN_PASSWORD_LENGTH) {
+    if (!args.newPassword) {
       throw new Error("הסיסמה החדשה חייבת להכיל לפחות 8 תווים");
     }
+    assertPasswordRequirements(args.newPassword);
 
     if (args.currentPassword === args.newPassword) {
       throw new Error("הסיסמה החדשה חייבת להיות שונה מהסיסמה הנוכחית");
