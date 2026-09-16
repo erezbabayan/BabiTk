@@ -717,48 +717,36 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   loading={todaySearch.loading}
                 />
               }
+              toolbarLeading={
+                todayListView === "active" && taskLists.enabled ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                      setShowTaskLists(true);
+                    }}
+                    className={`${boardToolbarButtonClass("blue")} gap-1 hover:bg-blue-100/70`}
+                    title="רשימה"
+                    aria-label="רשימה"
+                  >
+                    <ListBoardIcon className="h-3 w-3" />
+                    רשימה
+                  </button>
+                ) : null
+              }
               toolbarExtra={
-                todayListView === "active" ? (
+                todayListView === "active" && completedTasks.length > 0 ? (
                   <div className="flex shrink-0 items-center gap-1">
-                    {taskLists.enabled ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTaskListsMode("existing");
-                            setShowTaskLists(true);
-                          }}
-                          className={boardToolbarButtonClass("blue")}
-                        >
-                          רשימות קיימות ({activeTaskListsCount})
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTaskListsMode("create");
-                            setShowTaskLists(true);
-                          }}
-                          className={`${boardToolbarButtonClass("blue")} gap-1 hover:bg-blue-100/70`}
-                          title="הרשימה"
-                          aria-label="הרשימה"
-                        >
-                          <ListBoardIcon className="h-3 w-3" />
-                          הרשימה
-                        </button>
-                      </>
-                    ) : null}
-                    {completedTasks.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCompletedTasks(true);
-                          setShowTasksArchive(false);
-                        }}
-                        className={boardToolbarButtonClass("blue")}
-                      >
-                        הושלמו ({completedTasks.length})
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCompletedTasks(true);
+                        setShowTasksArchive(false);
+                      }}
+                      className={boardToolbarButtonClass("blue")}
+                    >
+                      הושלמו ({completedTasks.length})
+                    </button>
                   </div>
                 ) : null
               }

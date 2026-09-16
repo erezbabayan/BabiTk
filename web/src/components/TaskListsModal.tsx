@@ -719,6 +719,13 @@ export function TaskListsModal({
             <div className="flex gap-2">
               <button
                 type="button"
+                onClick={() => setView("create")}
+                className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              >
+                רשימה חדשה
+              </button>
+              <button
+                type="button"
                 onClick={() => setView("archive")}
                 className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
               >
@@ -741,13 +748,24 @@ export function TaskListsModal({
               חזור
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-full rounded-md border border-slate-300 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              סגור
-            </button>
+            <div className="flex gap-2">
+              {activeLists.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setView("existing")}
+                  className="shrink-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  חזור
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-md border border-slate-300 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                סגור
+              </button>
+            </div>
           )}
         </div>
       </div>

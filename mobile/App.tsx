@@ -383,31 +383,6 @@ function MainAppInner({
 
     return (
       <View style={styles.tabHeaderActionsRow}>
-        {tab === "today" && taskLists.enabled ? (
-          <>
-            <TouchableOpacity
-              style={boardToolbarBtn}
-              onPress={() => {
-                setTaskListsMode("existing");
-                setShowTaskLists(true);
-              }}
-            >
-              <Text style={textStyle}>רשימות קיימות ({activeTaskListsCount})</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[boardToolbarBtn, styles.listBoardTextBtn]}
-              onPress={() => {
-                setTaskListsMode("create");
-                setShowTaskLists(true);
-              }}
-              accessibilityLabel="הרשימה"
-              accessibilityRole="button"
-            >
-              <ListBoardIcon size={14} color="#2563eb" />
-              <Text style={textStyle}>הרשימה</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
         {tab === "today" && completedCount > 0 ? (
           <TouchableOpacity
             style={boardToolbarBtn}
@@ -700,6 +675,20 @@ function MainAppInner({
           </View>
         </View>
         <View style={styles.tabHeaderToolbar}>
+          {tab === "today" && listView === "active" && taskLists.enabled ? (
+            <TouchableOpacity
+              style={[boardToolbarBtn, styles.listBoardTextBtn]}
+              onPress={() => {
+                setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                setShowTaskLists(true);
+              }}
+              accessibilityLabel="רשימה"
+              accessibilityRole="button"
+            >
+              <ListBoardIcon size={14} color="#2563eb" />
+              <Text style={boardToolbarText("blue")}>רשימה</Text>
+            </TouchableOpacity>
+          ) : null}
           <ColumnSearchBar
             inline
             value={boardSearch.input}

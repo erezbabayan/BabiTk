@@ -11,7 +11,7 @@ export const COLUMN_SEARCH_WIDTH_CLASS = "w-[13rem] min-w-[5.5rem] max-w-full sh
 export const BOARD_HEADER_TITLE_ROW_CLASS =
   "board-notebook-chrome flex min-h-9 shrink-0 items-center justify-start gap-1";
 
-/** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
+/** Toolbar row — packed to the inline end (left in RTL); DOM: leading → search → archive. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
   "board-notebook-chrome board-notebook-toolbar mt-1 flex min-h-6 shrink-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-1.5 overflow-visible lg:mt-1";
 
@@ -24,6 +24,8 @@ interface ColumnBoardHeaderProps {
   titleTrailing?: ReactNode;
   dateSort?: ReactNode;
   search?: ReactNode;
+  /** First in the toolbar DOM — sits to the right of search in RTL (empty title-side slot). */
+  toolbarLeading?: ReactNode;
   toolbarExtra?: ReactNode;
   action?: ReactNode;
 }
@@ -35,10 +37,11 @@ export function ColumnBoardHeader({
   titleTrailing,
   dateSort,
   search,
+  toolbarLeading,
   toolbarExtra,
   action,
 }: ColumnBoardHeaderProps) {
-  const hasToolbar = Boolean(search || dateSort || toolbarExtra || action);
+  const hasToolbar = Boolean(search || dateSort || toolbarLeading || toolbarExtra || action);
 
   return (
     <header data-no-drag-scroll className="pt-0.5">
@@ -64,6 +67,7 @@ export function ColumnBoardHeader({
           onWheel={blockHeaderWheel}
           className={`${BOARD_HEADER_TOOLBAR_ROW_CLASS} relative z-[3]`}
         >
+          {toolbarLeading ? <div className="shrink-0">{toolbarLeading}</div> : null}
           {search ? <div className={COLUMN_SEARCH_WIDTH_CLASS}>{search}</div> : null}
           {dateSort ? <div className="shrink-0">{dateSort}</div> : null}
           {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}

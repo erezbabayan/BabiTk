@@ -737,6 +737,9 @@ export function TaskListsModal({
 
           {view === "existing" ? (
             <View style={styles.footerRow}>
+              <Pressable style={styles.archiveNavBtn} onPress={() => setView("create")}>
+                <Text style={styles.archiveNavBtnText}>רשימה חדשה</Text>
+              </Pressable>
               <Pressable style={styles.archiveNavBtn} onPress={() => setView("archive")}>
                 <Text style={styles.archiveNavBtnText}>ארכיון ({archivedLists.length})</Text>
               </Pressable>
@@ -749,9 +752,16 @@ export function TaskListsModal({
               <Text style={styles.closeBtnText}>חזור</Text>
             </Pressable>
           ) : (
-            <Pressable style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeBtnText}>סגור</Text>
-            </Pressable>
+            <View style={styles.footerRow}>
+              {activeLists.length > 0 ? (
+                <Pressable style={styles.archiveNavBtn} onPress={() => setView("existing")}>
+                  <Text style={styles.archiveNavBtnText}>חזור</Text>
+                </Pressable>
+              ) : null}
+              <Pressable style={styles.closeBtnFlex} onPress={onClose}>
+                <Text style={styles.closeBtnText}>סגור</Text>
+              </Pressable>
+            </View>
           )}
         </View>
       </View>
