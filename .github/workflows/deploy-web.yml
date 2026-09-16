@@ -39,18 +39,8 @@ jobs:
         run: |
           npm ci
           npx vite build
-          python3 - <<'PY'
-from pathlib import Path
-import os
-index = Path("dist/index.html")
-html = index.read_text(encoding="utf-8")
-sha = os.environ.get("GITHUB_SHA", "")[:12]
-stamp = f"<!-- babitk-deploy {sha} -->"
-if stamp not in html:
-    html = html.replace("<head>", f"<head>\n    {stamp}", 1)
-    index.write_text(html, encoding="utf-8")
-Path("dist/404.html").write_text(html, encoding="utf-8")
-PY
+          echo "<!-- babitk-deploy ${{ github.sha }} -->" >> dist/index.html
+          cp dist/index.html dist/404.html
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
