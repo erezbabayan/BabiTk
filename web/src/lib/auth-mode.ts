@@ -1,24 +1,18 @@
-import { isConvexConfigured } from "./convex";
-import { isSyncEnabled } from "./sync-client";
 import { isDemoMode, isSupabaseConfigured } from "./supabase";
 
-/** Explicit demo flag only — missing Supabase does not force demo. */
 export function isExplicitDemoMode(): boolean {
   return import.meta.env.VITE_DEMO_MODE === "true";
 }
 
-/** Google / Microsoft login via Convex Auth when Supabase is not configured.
- * Demo / local fallback uses a legacy UUID and must not activate this path. */
+/** Convex Auth is retired. The web app authenticates with Supabase only. */
 export function shouldUseConvexAuthLogin(): boolean {
-  return !isDemoMode && !isSupabaseConfigured && isConvexConfigured;
+  return false;
 }
 
-/** Persist user tag definitions locally (offline demo without sync only). */
 export function usesLocalUserTags(): boolean {
-  return isDemoMode && !isSyncEnabled() && !shouldUseConvexAuthLogin();
+  return isDemoMode && !isSupabaseConfigured;
 }
 
-/** Tag definitions live in Convex `userTagDefinitions`. */
 export function usesConvexUserTags(): boolean {
-  return shouldUseConvexAuthLogin();
+  return false;
 }

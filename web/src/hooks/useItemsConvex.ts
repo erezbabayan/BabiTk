@@ -33,12 +33,11 @@ import {
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
 import { buildPriorityTogglePatch } from "../lib/item-priority";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 
 const noopRefresh = async () => {};
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 export type BoardSecondaryLoad = {
   inboxArchive?: boolean;

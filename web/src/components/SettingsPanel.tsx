@@ -13,7 +13,6 @@ import { UserSettings } from "./UserSettings";
 import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
 import { NotificationPrefs } from "./NotificationPrefs";
 import type { UsageSummary } from "../lib/api";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { isSupabaseConfigured } from "../lib/supabase";
 
 type SettingsSection =
@@ -38,7 +37,7 @@ interface SettingsPanelProps {
   onClose: () => void;
 }
 
-const cloudBackend = isSupabaseConfigured || shouldUseConvexAuthLogin();
+const cloudBackend = isSupabaseConfigured;
 const OFFLINE = !cloudBackend;
 
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
@@ -65,8 +64,7 @@ function OfflineNotice({ children }: { children: string }) {
 
 export function SettingsPanel({ userId, summary, onOpenPaywall, onClose }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("menu");
-  const showNotifications = !OFFLINE && shouldUseConvexAuthLogin();
-  // Offline mode: no Convex provider — never call useQuery here.
+  const showNotifications = false;
   const isAdmin = false;
 
   const menuItems = (showNotifications

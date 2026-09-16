@@ -7,7 +7,7 @@ import { useConvexUserId } from "../hooks/useConvexUserId";
 import { useReminderAlerts } from "../hooks/useReminderAlerts";
 import { isConvexConfigured } from "../lib/convex";
 import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
 import type { UserNameParts } from "../lib/user-display-name";
 import { AppHeader } from "./AppHeader";
@@ -16,8 +16,7 @@ import { NotificationsPanel } from "./NotificationsPanel";
 import { QuickCapture } from "./QuickCapture";
 import { ReminderAlertModal } from "./ReminderAlertModal";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 interface AppShellProps {
   userName?: UserNameParts | null;

@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoItems, updateDemoItem } from "../lib/demo-store";
 import { useConvexBackend } from "../lib/data-backend";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import { isDemoMode } from "../lib/supabase";
 import {
   applyTagDefinitionDiffToTags,
@@ -12,8 +13,7 @@ import {
 } from "../lib/tags";
 import { useUserTags } from "./useUserTags";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 /** Propagate tag definition renames/removals to local demo items. */
 function useTagCascadeSyncOffline(_convexUserId: Id<"users"> | undefined) {

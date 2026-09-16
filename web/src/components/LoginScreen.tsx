@@ -24,7 +24,7 @@ interface AuthLoginScreenProps {
   showEmailForm?: boolean;
   usernameLabel?: string;
   allowSignup?: boolean;
-  /** Convex Auth signs in immediately after signup — skip "now log in" prompt. */
+  /** Sign in immediately after signup — skip "now log in" prompt. */
   signupAutoSignIn?: boolean;
   showRememberMe?: boolean;
 }
@@ -387,15 +387,15 @@ function DemoForm({ onEnter }: { onEnter: () => void }) {
     <LoginShell
       subtitle={
         localFallback
-          ? "שרת Convex חסום — כניסה למצב מקומי חינם"
+          ? "מצב מקומי — בלי חיבור לענן"
           : "מצב הדגמה מקומי — ללא Supabase"
       }
     >
       <div className="space-y-4">
         {localFallback ? (
           <p className="text-sm leading-relaxed text-slate-600">
-            המערכת עובדת בדפדפן בלי לשלם. וואטסאפ וסנכרון בין מכשירים יחזרו אחרי
-            חיבור לשרת חינמי (Supabase / Firebase / PocketBase) או לפרויקט Convex חדש.
+            המערכת עובדת בדפדפן בלבד. וואטסאפ וסנכרון בין מכשירים זמינים אחרי
+            חיבור ל-Supabase.
           </p>
         ) : null}
         <button

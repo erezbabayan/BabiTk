@@ -42,7 +42,7 @@ export function formatConvexAuthError(
     message.includes("free plan limits") ||
     message.includes("deployments have been disabled")
   ) {
-    return "שרת Convex חסום (מגבלת Free). יש לשדרג ל־Pro ב־dashboard.convex.dev";
+    return "השרת לא זמין כרגע. נסו שוב בעוד כמה דקות.";
   }
 
   if (message.includes("יש להזין")) {

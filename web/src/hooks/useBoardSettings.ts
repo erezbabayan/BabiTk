@@ -12,11 +12,10 @@ import {
   saveBoardSettingsApi,
 } from "../lib/board-settings-api";
 import { useConvexFeatures } from "../lib/data-backend";
-import { isDemoMode } from "../lib/supabase";
+import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import { useSafeConvexAuthFromAuth } from "./useSafeConvexAuth";
 
-const OFFLINE =
-  isDemoMode || import.meta.env.VITE_USE_CONVEX === "false";
+const OFFLINE = !CONVEX_RUNTIME;
 
 function toBoardSettings(hours: number | undefined): BoardSettings {
   const value = (hours ?? DEFAULT_INBOX_ARCHIVE_HOURS) as InboxArchiveHours;
@@ -134,6 +133,3 @@ function useBoardSettingsConvex() {
 export const useBoardSettings = OFFLINE
   ? useBoardSettingsOffline
   : useBoardSettingsConvex;
-
-// silence unused in offline builds
-void isDemoMode;

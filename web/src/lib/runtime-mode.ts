@@ -1,4 +1,4 @@
-/** Persist local/offline mode when the Convex cloud plan is disabled. */
+/** Persist local/offline mode when the cloud backend is unavailable. */
 
 export const FORCE_LOCAL_KEY = "babitk:force-local-mode";
 

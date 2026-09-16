@@ -1,7 +1,7 @@
 import { supabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { addDemoItem, isDemoPremium, setDemoPremium } from "./demo-store";
 import { api } from "../../../convex/_generated/api";
-import { isConvexConfigured, requireConvex } from "./convex";
+import { requireConvex } from "./convex";
 import { resolveConvexUserId } from "./convex-user-cache";
 import { asDirectConvexUserId } from "./legacy-user-id";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -360,9 +360,7 @@ function clientTimezone(): string {
 }
 
 function convexIngestEnabled(): boolean {
-  if (isDemoMode) return false;
-  if (process.env.EXPO_PUBLIC_USE_CONVEX === "false") return false;
-  return isConvexConfigured;
+  return false;
 }
 
 export async function ingestText(text: string, legacyUserId?: string): Promise<void> {

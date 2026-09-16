@@ -1,10 +1,7 @@
 import { FormEvent, useState } from "react";
-import { useAction } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { changePasswordWithSupabase } from "../lib/change-password";
-import { isSupabaseConfigured, requireSupabase } from "../lib/supabase";
+import { requireSupabase } from "../lib/supabase";
 import { PasswordInput } from "./PasswordInput";
 
 interface ChangePasswordFormProps {
@@ -12,51 +9,6 @@ interface ChangePasswordFormProps {
 }
 
 export function ChangePasswordForm({ email }: ChangePasswordFormProps) {
-  if (shouldUseConvexAuthLogin()) {
-    return <ConvexChangePasswordForm email={email} />;
-  }
-  if (isSupabaseConfigured) {
-    return <SupabaseChangePasswordForm email={email} />;
-  }
-  return null;
-}
-
-function ConvexChangePasswordForm({ email }: ChangePasswordFormProps) {
-  const changePasswordConvex = useAction(api.account.changePassword);
-  return (
-    <PasswordFields
-      email={email}
-      onChangePassword={async (currentPassword, newPassword) => {
-        await changePasswordConvex({ currentPassword, newPassword });
-      }}
-    />
-  );
-}
-
-function SupabaseChangePasswordForm({ email }: ChangePasswordFormProps) {
-  return (
-    <PasswordFields
-      email={email}
-      onChangePassword={async (currentPassword, newPassword) => {
-        if (!email) throw new Error("לא נמצא אימייל לחשבון");
-        await changePasswordWithSupabase(
-          requireSupabase(),
-          email,
-          currentPassword,
-          newPassword,
-        );
-      }}
-    />
-  );
-}
-
-function PasswordFields({
-  email,
-  onChangePassword,
-}: {
-  email: string | null;
-  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
-}) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -81,7 +33,12 @@ function PasswordFields({
 
     setLoading(true);
     try {
-      await onChangePassword(currentPassword, newPassword);
+      await changePasswordWithSupabase(
+        requireSupabase(),
+        email,
+        currentPassword,
+        newPassword,
+      );
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
