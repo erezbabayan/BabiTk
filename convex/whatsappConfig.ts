@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
+import { requireAdminUser } from "./lib/adminAuth";
 import { requireAuthUserId } from "./lib/requireAuth";
 
 const SETTINGS_KEY = "default";
@@ -82,14 +83,17 @@ export const greenApiSetupStatus = query({
     setupSteps: v.array(v.string()),
   }),
   handler: async (ctx) => {
+    const userId = await requireAuthUserId(ctx);
+    const user = await ctx.db.get("users", userId);
+    const isAdmin = user?.role === "admin";
     const row = await getSettingsRow(ctx);
     const creds = await loadGreenApiCredentials(ctx);
     return {
       configured: creds !== null,
-      hasStoredCredentials: Boolean(
-        row?.greenApiInstanceId?.trim() && row?.greenApiToken?.trim(),
-      ),
-      instanceId: creds?.instanceId ?? null,
+      hasStoredCredentials: isAdmin
+        ? Boolean(row?.greenApiInstanceId?.trim() && row?.greenApiToken?.trim())
+        : creds !== null,
+      instanceId: isAdmin ? (creds?.instanceId ?? null) : null,
       consoleUrl: GREEN_CONSOLE_URL,
       setupSteps: [
         "היכנס ל-console.green-api.com וצור instance (חינם)",
@@ -110,7 +114,7 @@ export const saveGreenApiCredentials = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await requireAuthUserId(ctx);
+    const { userId } = await requireAdminUser(ctx);
     const instanceId = args.instanceId.trim();
     const token = args.token.trim();
     const baseUrl = trimOrEmpty(args.baseUrl) || DEFAULT_GREEN_URL;
@@ -145,7 +149,7 @@ export const clearGreenApiCredentials = mutation({
   args: {},
   returns: v.null(),
   handler: async (ctx) => {
-    await requireAuthUserId(ctx);
+    await requireAdminUser(ctx);
     const existing = await getSettingsRow(ctx);
     if (!existing) return null;
     await ctx.db.patch(existing._id, {

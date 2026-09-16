@@ -52,34 +52,31 @@ interface GatewayRow extends VoiceGatewayCredentials {
   webhook_token: string | null;
 }
 
-async function findVerifiedUser(
-  supabase: ReturnType<typeof adminClient>,
-  phones: string[],
-): Promise<UserRow | null> {
-  const variants = new Set<string>();
-  for (const phone of phones) {
-    if (!phone.trim()) continue;
-    try {
-      for (const variant of phoneLookupVariants(phone)) {
-        variants.add(variant);
+function phonesMatch(stored: string, senderPhones: string[]): boolean {
+  try {
+    const storedVariants = new Set(phoneLookupVariants(stored));
+    for (const phone of senderPhones) {
+      if (!phone.trim()) continue;
+      for (const candidate of phoneLookupVariants(phone)) {
+        if (storedVariants.has(candidate)) return true;
       }
-    } catch {
-      // skip unparseable
     }
+  } catch {
+    return false;
   }
-  for (const candidate of variants) {
-    const { data } = await supabase
-      .from("users")
-      .select(
-        "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name",
-      )
-      .eq("phone", candidate)
-      .maybeSingle();
-    if (data && (data as UserRow).phone_verified) {
-      return data as UserRow;
-    }
-  }
-  return null;
+  return false;
+}
+
+async function maybeVerifyOwnerPhone(
+  supabase: ReturnType<typeof adminClient>,
+  owner: UserRow,
+  senderPhones: string[],
+): Promise<void> {
+  const stored = owner.phone?.trim() ?? "";
+  if (!stored || owner.phone_verified === true) return;
+  if (!phonesMatch(stored, senderPhones)) return;
+  await supabase.from("users").update({ phone_verified: true }).eq("id", owner.id);
+  owner.phone_verified = true;
 }
 
 async function gateCapture(
@@ -277,12 +274,7 @@ async function ingestMessage(
 
 Deno.serve(async (req) => {
   if (req.method === "GET") {
-    return json({
-      ok: true,
-      provider: "green-api",
-      endpoint: "whatsapp-green-webhook",
-      method: "POST",
-    });
+    return json({ ok: true, provider: "green-api" });
   }
   if (req.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
@@ -297,17 +289,34 @@ Deno.serve(async (req) => {
 
   const supabase = adminClient();
   const instanceId = instanceIdFromPayload(body);
-  let gateway: GatewayRow | null = null;
-  if (instanceId) {
-    const { data } = await supabase
-      .from("whatsapp_gateways")
-      .select("user_id,webhook_token,instance_id,api_token,api_url")
-      .eq("instance_id", instanceId)
-      .maybeSingle();
-    gateway = (data as GatewayRow | null) ?? null;
+  if (!instanceId) {
+    return json({ error: "invalid_webhook_token" }, 401);
   }
 
-  if (!verifyGreenApiWebhookAuth(req, gateway?.webhook_token ?? undefined)) {
+  const { data } = await supabase
+    .from("whatsapp_gateways")
+    .select("user_id,webhook_token,instance_id,api_token,api_url")
+    .eq("instance_id", instanceId)
+    .maybeSingle();
+  const gateway = (data as GatewayRow | null) ?? null;
+  if (!gateway?.webhook_token) {
+    return json({ error: "invalid_webhook_token" }, 401);
+  }
+
+  if (!verifyGreenApiWebhookAuth(req, gateway.webhook_token)) {
+    console.warn("[security]", "webhook_auth_failed", { path: "whatsapp-green-webhook" });
+    return json({ error: "invalid_webhook_token" }, 401);
+  }
+
+  const { data: ownerData } = await supabase
+    .from("users")
+    .select(
+      "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name",
+    )
+    .eq("id", gateway.user_id)
+    .maybeSingle();
+  const owner = (ownerData as UserRow | null) ?? null;
+  if (!owner) {
     return json({ error: "invalid_webhook_token" }, 401);
   }
 
@@ -327,28 +336,7 @@ Deno.serve(async (req) => {
   const skipped: Array<{ messageId: string; reason: string }> = [];
 
   for (const message of parsed.messages) {
-    const payload = body as {
-      instanceData?: { wid?: string };
-      senderData?: { sender?: string };
-    };
-    const user = await findVerifiedUser(supabase, [
-      message.senderPhone,
-      payload.instanceData?.wid ?? "",
-      payload.senderData?.sender ?? "",
-    ]);
-    if (!user) {
-      skipped.push({ messageId: message.messageId, reason: "not_linked" });
-      continue;
-    }
-    if (!gateway) {
-      const { data } = await supabase
-        .from("whatsapp_gateways")
-        .select("user_id,webhook_token,instance_id,api_token,api_url")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      gateway = (data as GatewayRow | null) ?? null;
-    }
-    const gate = await gateCapture(supabase, user, message.chatId, message.chatName);
+    const gate = await gateCapture(supabase, owner, message.chatId, message.chatName);
     if (!gate.allowed) {
       skipped.push({
         messageId: message.messageId,
@@ -357,15 +345,19 @@ Deno.serve(async (req) => {
       continue;
     }
     try {
-      await ingestMessage(supabase, user.id, message, gateway);
+      await maybeVerifyOwnerPhone(supabase, owner, [
+        message.senderPhone,
+        message.senderId,
+      ]);
+      await ingestMessage(supabase, owner.id, message, gateway);
       scheduled.push({
         messageId: message.messageId,
-        userId: user.id,
+        userId: owner.id,
       });
-    } catch (error) {
+    } catch {
       skipped.push({
         messageId: message.messageId,
-        reason: error instanceof Error ? error.message : "ingest_failed",
+        reason: "ingest_failed",
       });
     }
   }

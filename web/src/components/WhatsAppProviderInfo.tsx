@@ -22,7 +22,7 @@ export function WhatsAppProviderInfo({ status }: WhatsAppProviderInfoProps) {
           : status.setupHint ||
             "שליחת וואטסאפ עדיין לא מוגדרת — הרץ setup-whatsapp-green או הזן מפתחות API."}
       </p>
-      {status.provider !== "meta" ? (
+      {status.provider !== "meta" && status.inboundWebhookPath ? (
         <p className="mt-2 text-xs opacity-80" dir="ltr">
           Webhook: {status.inboundWebhookPath}
         </p>

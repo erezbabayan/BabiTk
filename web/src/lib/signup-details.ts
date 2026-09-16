@@ -19,6 +19,12 @@ export function validateUsername(username: string): string {
   return trimmed;
 }
 
+export function validateSignupPassword(password: string): void {
+  if (password.length < 8) {
+    throw new Error("הסיסמה חייבת להכיל לפחות 8 תווים");
+  }
+}
+
 export function validateSignupDetails(details: SignupDetails): void {
   const firstName = details.firstName.trim();
   const lastName = details.lastName.trim();

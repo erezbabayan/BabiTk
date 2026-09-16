@@ -2,7 +2,7 @@ import { FormEvent, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
 import { isForcedLocalMode } from "../lib/supabase";
-import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
+import { type SignupDetails, validateSignupDetails, validateSignupPassword } from "../lib/signup-details";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { PasswordInput } from "./PasswordInput";
@@ -151,6 +151,7 @@ function AuthForm({
           username: username.trim(),
         };
         validateSignupDetails(signupDetails);
+        validateSignupPassword(password);
       }
 
       await onSubmit(email.trim(), password, authMode, rememberMe, signupDetails);

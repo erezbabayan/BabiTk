@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.js";
+import { publicErrorMessage } from "../lib/public-error.js";
 import {
   createBillingPortalSession,
   createCheckoutSession,
@@ -50,7 +51,6 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       request.log.error({ err: error }, "Stripe webhook failed");
       return reply.status(400).send({
         error: "webhook_failed",
-        message: error instanceof Error ? error.message : "Webhook failed",
       });
     }
   });
@@ -79,7 +79,7 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       request.log.error({ err: error }, "Stripe checkout failed");
       return reply.status(502).send({
         error: "checkout_failed",
-        message: error instanceof Error ? error.message : "Checkout failed",
+        message: publicErrorMessage(error, "יצירת תשלום נכשלה"),
       });
     }
   });
@@ -100,9 +100,10 @@ export const billingRoutes: FastifyPluginAsync = async (app) => {
       const url = await createBillingPortalSession(request.user.id);
       return reply.send({ url });
     } catch (error) {
+      request.log.error({ err: error }, "Stripe portal failed");
       return reply.status(400).send({
         error: "portal_failed",
-        message: error instanceof Error ? error.message : "Portal failed",
+        message: publicErrorMessage(error, "פתיחת פורטל התשלומים נכשלה"),
       });
     }
   });

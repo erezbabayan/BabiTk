@@ -34,11 +34,29 @@ export async function buildApp() {
     timeWindow: "1 minute",
     allowList: (request) => {
       const url = request.url?.split("?")[0] ?? "";
-      return url === "/health" || url.endsWith("/api/sync/items");
+      if (url === "/health") return true;
+      // Local demo sync only — never skip rate limits in production.
+      return env.isDevelopment && env.demoSyncEnabled && url.endsWith("/api/sync/items");
     },
   });
 
   app.get("/health", async () => getHealthStatus());
+
+  app.setErrorHandler((error: unknown, request, reply) => {
+    request.log.error({ err: error }, "unhandled_error");
+    const statusCode =
+      error &&
+      typeof error === "object" &&
+      "statusCode" in error &&
+      typeof error.statusCode === "number" &&
+      error.statusCode >= 400
+        ? error.statusCode
+        : 500;
+    if (statusCode >= 500) {
+      return reply.status(statusCode).send({ error: "internal_error" });
+    }
+    return reply.status(statusCode).send({ error: "request_failed" });
+  });
 
   await app.register(aiRoutes, { prefix: "/api/ai" });
   await app.register(ingestRoutes, { prefix: "/api/ingest" });
