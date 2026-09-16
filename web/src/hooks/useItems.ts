@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { toggleItemTypeApi, approveItemApi, completeItemApi, restoreArchiveItemApi } from "../lib/api";
+import {
+  buildApproveInboxPatch,
+  buildCompleteTaskPatch,
+  buildToggleActionablePatch,
+} from "../lib/item-board-actions";
 import {
   buildArchivePatch,
   buildSoftDeletePatch,
@@ -9,10 +13,8 @@ import {
 } from "../lib/item-restore";
 import {
   buildClearReminderPatch,
-  buildInferredReminderPatch,
   buildManualReminderPatch,
   buildTaskReminderUpdate,
-  getReminderFlags,
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
 
@@ -21,11 +23,9 @@ import type { ItemEditInput } from "../components/ItemEditModal";
 import {
   applyColumnPatch,
   buildColumnMovePatch,
-  buildToggleStayMetadata,
   getItemColumn,
   itemsInColumn,
   sortColumnItems,
-  withPinnedBoardColumn,
   type DashboardColumn,
 } from "../lib/item-columns";
 
@@ -378,64 +378,11 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      const becomesTask = !item.is_actionable;
-
-      if (isDemoMode) {
-
-        const patch: Partial<MindtaskerItem> = {
-
-          is_actionable: becomesTask,
-
-          last_interacted_at: new Date().toISOString(),
-
-          metadata: buildToggleStayMetadata(item),
-
-        };
-
-        if (becomesTask) {
-          const reminder = buildInferredReminderPatch({
-            ...item,
-            is_actionable: true,
-          });
-          patch.due_date = reminder.due_date;
-          patch.metadata = {
-            ...buildToggleStayMetadata(item),
-            ...(reminder.metadata ?? {}),
-          };
-          delete (patch.metadata as Record<string, unknown>).board_column;
-        } else {
-          const flags = getReminderFlags(item.metadata);
-          if (!flags.manual) {
-            patch.due_date = null;
-          }
-          patch.completed_at = null;
-          if (item.status === "completed") {
-            patch.status = "pending";
-          }
-        }
-
-        await updateDemoItem(item.id, patch);
-
-        await refresh();
-
-        return;
-
-      }
-
-
-
-      await toggleItemTypeApi(
-        item.id,
-        becomesTask
-          ? buildInferredReminderPatch({ ...item, is_actionable: true }).due_date
-          : null,
-      );
-
-      await refresh();
+      await updateItem(item.id, buildToggleActionablePatch(item));
 
     },
 
-    [enabled, refresh],
+    [enabled, updateItem],
 
   );
 
@@ -447,49 +394,11 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      if (isDemoMode) {
-
-        const patch: Partial<MindtaskerItem> = {
-
-          status: "pending",
-
-          last_interacted_at: new Date().toISOString(),
-
-          metadata: withPinnedBoardColumn(item.metadata, null),
-
-        };
-
-        if (item.is_actionable) {
-
-          const reminder = buildInferredReminderPatch(item);
-
-          patch.due_date = reminder.due_date;
-
-          patch.metadata = {
-            ...withPinnedBoardColumn(item.metadata, null),
-            ...(reminder.metadata ?? {}),
-          };
-          delete (patch.metadata as Record<string, unknown>).board_column;
-
-        }
-
-        await updateDemoItem(item.id, patch);
-
-        await refresh();
-
-        return;
-
-      }
-
-
-
-      await approveItemApi(item.id);
-
-      await refresh();
+      await updateItem(item.id, buildApproveInboxPatch(item));
 
     },
 
-    [enabled, refresh],
+    [enabled, updateItem],
 
   );
 
@@ -501,31 +410,11 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      if (isDemoMode) {
-
-        await updateItem(item.id, {
-
-          status: "completed",
-
-          completed_at: new Date().toISOString(),
-
-          last_interacted_at: new Date().toISOString(),
-
-        });
-
-        return;
-
-      }
-
-
-
-      await completeItemApi(item.id);
-
-      await refresh();
+      await updateItem(item.id, buildCompleteTaskPatch());
 
     },
 
-    [enabled, updateItem, refresh],
+    [enabled, updateItem],
 
   );
 
@@ -605,23 +494,11 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      if (isDemoMode) {
-
-        await updateItem(item.id, resolveRestoreFromArchivePatch(item));
-
-        return;
-
-      }
-
-
-
-      await restoreArchiveItemApi(item.id);
-
-      await refresh();
+      await updateItem(item.id, resolveRestoreFromArchivePatch(item));
 
     },
 
-    [updateItem, refresh],
+    [enabled, updateItem],
 
   );
 
