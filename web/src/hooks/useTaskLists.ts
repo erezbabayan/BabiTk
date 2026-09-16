@@ -136,7 +136,7 @@ export function useTaskLists(userId: string | undefined) {
   );
 
   return {
-    enabled: Boolean(userId),
+    enabled: true,
     lists,
     loading: Boolean(userId) && loading,
     createFromTags,

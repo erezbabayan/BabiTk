@@ -383,6 +383,31 @@ function MainAppInner({
 
     return (
       <View style={styles.tabHeaderActionsRow}>
+        {tab === "today" && taskLists.enabled ? (
+          <>
+            <TouchableOpacity
+              style={boardToolbarBtn}
+              onPress={() => {
+                setTaskListsMode("existing");
+                setShowTaskLists(true);
+              }}
+            >
+              <Text style={textStyle}>רשימות קיימות ({activeTaskListsCount})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[boardToolbarBtn, styles.listBoardTextBtn]}
+              onPress={() => {
+                setTaskListsMode("create");
+                setShowTaskLists(true);
+              }}
+              accessibilityLabel="הרשימה"
+              accessibilityRole="button"
+            >
+              <ListBoardIcon size={14} color="#2563eb" />
+              <Text style={textStyle}>הרשימה</Text>
+            </TouchableOpacity>
+          </>
+        ) : null}
         {tab === "today" && completedCount > 0 ? (
           <TouchableOpacity
             style={boardToolbarBtn}
@@ -661,34 +686,7 @@ function MainAppInner({
       >
       <View style={styles.tabHeaderWrap}>
         <View style={styles.tabHeaderTitleRow}>
-          {tab === "today" && listView === "active" && taskLists.enabled ? (
-            <View style={styles.tabHeaderListActions}>
-              <TouchableOpacity
-                style={boardToolbarBtn}
-                onPress={() => {
-                  setTaskListsMode("existing");
-                  setShowTaskLists(true);
-                }}
-              >
-                <Text style={boardToolbarText("blue")}>
-                  רשימות קיימות ({activeTaskListsCount})
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.listBoardBtn}
-                onPress={() => {
-                  setTaskListsMode("create");
-                  setShowTaskLists(true);
-                }}
-                accessibilityLabel="הרשימה"
-                accessibilityRole="button"
-              >
-                <ListBoardIcon size={16} color="#2563eb" />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.tabHeaderListActionsSpacer} />
-          )}
+          <View style={styles.tabHeaderListActionsSpacer} />
           <View style={styles.boardTitleBlock}>
             <Text
               style={styles.columnTitle}
@@ -1290,15 +1288,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flexWrap: "wrap",
   },
-  listBoardBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(203, 213, 225, 0.9)",
-    backgroundColor: "rgba(255,255,255,0.95)",
-    alignItems: "center",
-    justifyContent: "center",
+  listBoardTextBtn: {
+    flexDirection: "row",
+    gap: 4,
+    paddingHorizontal: 8,
   },
   tabHeaderActions: {
     flexShrink: 0,

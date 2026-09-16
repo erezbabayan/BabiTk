@@ -47,7 +47,7 @@ export function ColumnBoardHeader({
         data-no-drag-scroll
         onWheel={blockHeaderWheel}
       >
-        <div className="inline-flex max-w-full items-center gap-2">
+        <div className="inline-flex min-w-0 flex-1 items-center gap-2">
           {/* First in RTL → sits to the right of the title */}
           <BoardBrushMark tone={markTone} />
           <h2
