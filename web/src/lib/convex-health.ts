@@ -69,6 +69,7 @@ export function convexHealthMessage(health: ConvexHealth): string {
  */
 export async function prepareRuntimeMode(): Promise<"cloud" | "local"> {
   if (isSupabaseConfigured) {
+    clearForcedLocalMode();
     return "cloud";
   }
   if (import.meta.env.VITE_DEMO_MODE === "true") {

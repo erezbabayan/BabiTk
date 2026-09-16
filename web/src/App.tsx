@@ -32,27 +32,27 @@ import {
   type ConvexHealth,
 } from "./lib/convex-health";
 import { isSyncEnabled } from "./lib/sync-client";
-import { isDemoMode, isSupabaseConfigured, requireSupabase, enableForcedLocalMode } from "./lib/supabase";
-import { signInWithMicrosoft } from "./lib/microsoft-auth";
+import { isDemoMode, isSupabaseConfigured, requireSupabase, enableForcedLocalMode, supabaseAuthRedirectUrl } from "./lib/supabase";
 import { writeCachedHeaderName, readCachedHeaderName } from "./lib/header-name-cache";
+import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
 
 const DEMO_HEADER_NAME: UserNameParts = { firstName: "משתמש", lastName: "הדגמה" };
 
 export default function App() {
-  if (isDemoMode) {
-    return (
-      <ErrorBoundary>
-        <DemoApp />
-      </ErrorBoundary>
-    );
-  }
-
   if (isSupabaseConfigured) {
     return (
       <ErrorBoundary>
         <ConfiguredApp />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isDemoMode) {
+    return (
+      <ErrorBoundary>
+        <DemoApp />
       </ErrorBoundary>
     );
   }
@@ -560,7 +560,7 @@ function ConfiguredApp() {
     rememberMe = true,
     signupDetails?: { firstName: string; lastName: string; phone: string },
   ) {
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeLoginIdentifier(email);
     applyRememberMePreference(rememberMe, normalizedEmail);
     if (authMode === "login") {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -576,10 +576,11 @@ function ConfiguredApp() {
       throw new Error("יש להזין שם, שם משפחה וטלפון");
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo: supabaseAuthRedirectUrl(),
         data: {
           first_name: signupDetails.firstName,
           last_name: signupDetails.lastName,
@@ -591,6 +592,13 @@ function ConfiguredApp() {
       },
     });
     if (signUpError) throw signUpError;
+    if (!signUpData.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (signInError) throw signInError;
+    }
 
     writeCachedHeaderName(
       {
@@ -606,16 +614,13 @@ function ConfiguredApp() {
     clearAuthSessionCaches();
   }
 
-  async function handleMicrosoftSignIn() {
-    await signInWithMicrosoft(supabase);
-  }
-
   if (!userId) {
     return (
       <LoginScreen
         mode="auth"
         onSubmit={handleAuth}
-        onMicrosoftSignIn={handleMicrosoftSignIn}
+        subtitle="חשבון אישי בענן — כל משתמש רואה רק את הלוח שלו"
+        signupAutoSignIn
         showRememberMe
       />
     );
