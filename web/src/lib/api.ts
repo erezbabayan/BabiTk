@@ -65,6 +65,10 @@ export async function apiFetch<T>(
       throw new PaywallError(body.code, body.message);
     }
 
+    if (response.status === 404 || response.status === 405) {
+      throw new Error(`API error ${response.status}`);
+    }
+
     const message =
       typeof body.message === "string"
         ? body.message

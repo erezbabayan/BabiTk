@@ -8,10 +8,16 @@ const webDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(webDir, "..");
 
 function appVersionPlugin(): Plugin {
+  const version = process.env.GITHUB_SHA || String(Date.now());
   return {
     name: "babitk-app-version",
+    transformIndexHtml(html) {
+      return html.replace(
+        '<html lang="he" dir="rtl">',
+        `<html lang="he" dir="rtl" data-build="${version}">`,
+      );
+    },
     generateBundle() {
-      const version = process.env.GITHUB_SHA || String(Date.now());
       this.emitFile({
         type: "asset",
         fileName: "app-version.json",

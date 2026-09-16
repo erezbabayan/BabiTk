@@ -673,9 +673,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
-              {inboxSearch.error ? (
-                <p className="mb-1 text-[11px] text-red-600">{inboxSearch.error}</p>
-              ) : null}
               <ColumnDropZone
                 column="inbox"
                 active={false}
@@ -746,9 +743,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
-              {inboxSearch.error ? (
-                <p className="mb-1 text-[11px] text-red-600">{inboxSearch.error}</p>
-              ) : null}
               <ColumnDropZone
                 column="inbox"
                 active={dropTarget === "inbox" && dragging}
@@ -880,9 +874,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               }
             />
             {renderBoardFilters({ showToday: true })}
-            {todaySearch.error ? (
-              <p className="mb-1 text-[11px] text-red-600">{todaySearch.error}</p>
-            ) : null}
             <ColumnDropZone
               column="today"
               active={dropTarget === "today" && dragging && todayListView === "active"}
@@ -996,9 +987,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
-              {notesSearch.error ? (
-                <p className="mb-1 text-[11px] text-red-600">{notesSearch.error}</p>
-              ) : null}
               <ColumnDropZone
                 column="notes"
                 active={false}
@@ -1069,9 +1057,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
-              {notesSearch.error ? (
-                <p className="mb-1 text-[11px] text-red-600">{notesSearch.error}</p>
-              ) : null}
               <ColumnDropZone
                 column="notes"
                 active={dropTarget === "notes" && dragging}

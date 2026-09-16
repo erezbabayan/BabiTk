@@ -731,9 +731,6 @@ function MainAppInner({
             userTags={userTags}
           />
         </View>
-        {boardSearch.error ? (
-          <Text style={styles.searchError}>{boardSearch.error}</Text>
-        ) : null}
       </View>
 
       <FlatList

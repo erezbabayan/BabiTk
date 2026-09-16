@@ -41,8 +41,10 @@
             .then(function (res) { return res.ok ? res.json() : null; })
             .then(function (data) {
               if (!data || !data.v) return;
+              var running = document.documentElement.getAttribute("data-build");
               var prev = localStorage.getItem("babitk:app-version");
-              if (prev && prev !== data.v && !sessionStorage.getItem("babitk:version-reload")) {
+              var stale = (running && running !== data.v) || (prev && prev !== data.v);
+              if (stale && !sessionStorage.getItem("babitk:version-reload")) {
                 sessionStorage.setItem("babitk:version-reload", "1");
                 localStorage.setItem("babitk:app-version", data.v);
                 var url = new URL(location.href);

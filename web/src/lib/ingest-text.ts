@@ -8,6 +8,9 @@ export function formatIngestError(error: unknown): string {
     if (error.message === "Failed to fetch") {
       return "לא ניתן להתחבר לשרת. נסה שוב או בדוק את החיבור.";
     }
+    if (/^API error (404|405|501|502|503)$/.test(error.message.trim())) {
+      return "";
+    }
     return error.message;
   }
   return "שגיאה בקליטה";
