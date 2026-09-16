@@ -27,6 +27,7 @@ import type { ItemEditInput } from "../components/ItemEditModal";
 import type { MindtaskerItem } from "../types";
 import {
   buildClearReminderPatch,
+  buildAfterReminderSentPatch,
   buildInferredReminderPatch,
   buildManualReminderPatch,
   buildTaskReminderUpdate,
@@ -290,6 +291,19 @@ function useItemsConvexOnline(
     [updateItem],
   );
 
+  const markReminderFired = useCallback(
+    async (item: MindtaskerItem, fireAt?: string) => {
+      const after = buildAfterReminderSentPatch(item, {
+        firedAt: fireAt ?? item.due_date ?? undefined,
+      });
+      await updateItem(item.id, {
+        ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+        metadata: after.metadata,
+      });
+    },
+    [updateItem],
+  );
+
   const restoreArchiveItem = useCallback(
     async (item: MindtaskerItem) => {
       await updateItem(item.id, resolveRestoreFromArchivePatch(item));
@@ -506,7 +520,7 @@ function useItemsConvexOnline(
     completeTask,
     snoozeTask,
     clearReminder,
-    markReminderFired: noopRefresh,
+    markReminderFired,
     restoreArchiveItem,
     archiveItem,
     deleteItem,

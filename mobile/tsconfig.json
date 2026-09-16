@@ -6,7 +6,8 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true
   },
   "include": ["**/*", "../convex/_generated/**/*", "../convex/lib/**/*"],
   "exclude": ["**/*.test.ts"],

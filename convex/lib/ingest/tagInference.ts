@@ -5,7 +5,7 @@
  * Special case: עבודה vs לימודים — "להגיש עבודה" in school context
  * must NOT become the job tag #עבודה.
  */
-import { DEFAULT_TAG_NAMES } from "./defaultTags";
+import { DEFAULT_TAG_NAMES } from "./defaultTags.ts";
 
 export type TagInferenceRule = {
   tag: string;

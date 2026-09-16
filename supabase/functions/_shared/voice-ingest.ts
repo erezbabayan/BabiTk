@@ -18,6 +18,7 @@ import {
   needsVoiceTranscription,
   VOICE_PENDING_TITLE,
 } from "./voice-text.ts";
+import { parseInboundText } from "./inbound-item.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -180,13 +181,43 @@ export async function applyVoiceTranscription(
     corrected_transcription: transcribed.content,
     voice_transcribe_started_at: null,
   };
+  let parsed:
+    | {
+        title: string;
+        content: string;
+        is_actionable: boolean;
+        tags: string[];
+        due_date: string | null;
+        analysis: unknown;
+      }
+    | null = null;
+  try {
+    const rows = parseInboundText(transcribed.content, {
+      sourceType: "whatsapp_voice",
+      fallbackTitle: transcribed.title,
+    });
+    parsed = rows[0] ?? null;
+  } catch (error) {
+    console.error("voice inbound parse failed, storing transcript only", error);
+  }
+
   const { error: itemError } = await supabase
     .from("mindtasker_items")
     .update({
-      title: transcribed.title,
-      content: transcribed.content,
+      title: parsed?.title || transcribed.title,
+      content: parsed?.content || transcribed.content,
+      ...(parsed
+        ? {
+            is_actionable: parsed.is_actionable,
+            tags: parsed.tags,
+            due_date: parsed.due_date,
+          }
+        : {}),
       last_interacted_at: new Date().toISOString(),
-      metadata,
+      metadata: {
+        ...metadata,
+        ...(parsed?.analysis ? { analysis: parsed.analysis } : {}),
+      },
     })
     .eq("id", row.id);
   if (itemError) {

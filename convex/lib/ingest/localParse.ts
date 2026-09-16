@@ -1,19 +1,19 @@
-import type { ParseInputOptions, ParseInputResponse } from "./types";
-import { enforceEntityRules, enforceIngestionRules } from "./entityRules";
-import { splitInputSegments } from "./inputSegmentation";
+import type { ParseInputOptions, ParseInputResponse } from "./types.ts";
+import { enforceEntityRules, enforceIngestionRules } from "./entityRules.ts";
+import { splitInputSegments } from "./inputSegmentation.ts";
 import {
   trySplitTopicActions,
   topicActionsToSegments,
-} from "./topicTaskSplit";
+} from "./topicTaskSplit.ts";
 import {
   deriveShortTaskTitle,
   deriveTaskContent,
-} from "./taskPresentation";
+} from "./taskPresentation.ts";
 import {
   extractTimeMention,
   hasTemporalHint,
   stripTemporalPhrases,
-} from "./hebrewDates";
+} from "./hebrewDates.ts";
 
 const NOTE_ONLY =
   /^(?:קוד|סיסמה|pin|מס(?:פר)?(?:\s|:|$)|הערה(?:\s|:|$)|רעיון(?:\s|$))/iu;

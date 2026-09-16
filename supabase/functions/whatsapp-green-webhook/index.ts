@@ -4,11 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
   instanceIdFromPayload,
-  isGroupWhatsAppChat,
-  isPersonalWhatsAppChat,
-  normalizeGroupChatId,
   parseGreenApiWebhook,
-  personalCaptureChatId,
   phoneLookupVariants,
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
@@ -19,6 +15,8 @@ import {
   transcribeVoiceMessage,
   type VoiceGatewayCredentials,
 } from "../_shared/voice-ingest.ts";
+import { evaluateCaptureGate } from "../_shared/capture-gate.ts";
+import { parseInboundText, type IngestSourceType } from "../_shared/inbound-item.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -85,68 +83,30 @@ async function gateCapture(
   chatId: string,
   chatName?: string,
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const incoming = normalizeGroupChatId(chatId);
-  const configured = user.whatsapp_capture_group_chat_id?.trim() ?? "";
-  const configuredName = user.whatsapp_capture_group_name?.trim() ?? "";
-  const personalId = personalCaptureChatId(user.phone);
-
-  if (configuredName && chatName?.trim() && configuredName === chatName.trim()) {
-    if (configured !== incoming) {
-      await supabase
-        .from("users")
-        .update({
-          whatsapp_capture_group_chat_id: incoming,
-          whatsapp_capture_group_name: configuredName,
-        })
-        .eq("id", user.id);
-    }
-    return { allowed: true };
+  const decision = evaluateCaptureGate(
+    {
+      phone: user.phone,
+      captureGroupChatId: user.whatsapp_capture_group_chat_id,
+      captureGroupName: user.whatsapp_capture_group_name,
+    },
+    chatId,
+    chatName,
+  );
+  if (!decision.allowed) {
+    return { allowed: false, reason: decision.reason };
   }
-
-  if (!configured) {
+  if (decision.bind) {
     await supabase
       .from("users")
       .update({
-        whatsapp_capture_group_chat_id: incoming,
-        whatsapp_capture_group_name: chatName?.trim() || configuredName || null,
+        whatsapp_capture_group_chat_id: decision.bind.chatId,
+        whatsapp_capture_group_name: decision.bind.name,
       })
       .eq("id", user.id);
-    return { allowed: true };
+    user.whatsapp_capture_group_chat_id = decision.bind.chatId;
+    user.whatsapp_capture_group_name = decision.bind.name;
   }
-
-  const configuredNorm = normalizeGroupChatId(configured);
-  if (configuredNorm === incoming) {
-    return { allowed: true };
-  }
-
-  if (
-    isGroupWhatsAppChat(configuredNorm) &&
-    personalId &&
-    normalizeGroupChatId(personalId) === incoming
-  ) {
-    return { allowed: true };
-  }
-
-  if (isPersonalWhatsAppChat(configuredNorm) && isGroupWhatsAppChat(incoming)) {
-    const name = configuredName;
-    const isDefaultPersonal =
-      !name ||
-      name.includes("הודעה לעצמי") ||
-      name.toLowerCase().includes("babitk") ||
-      name.toLowerCase().includes("message yourself");
-    if (isDefaultPersonal) {
-      await supabase
-        .from("users")
-        .update({
-          whatsapp_capture_group_chat_id: incoming,
-          whatsapp_capture_group_name: chatName?.trim() || "קבוצת קליטה",
-        })
-        .eq("id", user.id);
-      return { allowed: true };
-    }
-  }
-
-  return { allowed: false, reason: "wrong_capture_group" };
+  return { allowed: true };
 }
 
 async function alreadyIngested(
@@ -245,28 +205,62 @@ async function ingestMessage(
     throw new Error(sourceError.message);
   }
 
-  const { error: itemError } = await supabase.from("mindtasker_items").insert({
-    user_id: userId,
-    source_material_id: source?.id ?? null,
-    title: item.title,
-    content: item.content,
-    is_actionable: true,
-    status: "inbox",
-    tags: [],
-    metadata: {
-      source: item.sourceType,
-      whatsapp_message_id: message.messageId,
-      chat_id: message.chatId,
-      ...(message.type === "audio"
-        ? {
-            whisper_transcription: "rawText" in item ? item.rawText : item.content,
-            corrected_transcription: item.content,
-          }
-        : {}),
-    },
-    sort_order: now,
-    last_interacted_at: new Date(now).toISOString(),
-  });
+  const sourceType = item.sourceType as IngestSourceType;
+  let parsedRows = [] as ReturnType<typeof parseInboundText>;
+  try {
+    if (item.content.trim()) {
+      parsedRows = parseInboundText(item.content, {
+        sourceType,
+        fallbackTitle: item.title,
+      });
+    }
+  } catch (error) {
+    console.error("inbound parse failed, storing raw item", error);
+  }
+
+  const rows =
+    parsedRows.length > 0
+      ? parsedRows
+      : [
+          {
+            title: item.title,
+            content: item.content,
+            is_actionable: true,
+            tags: [] as string[],
+            due_date: null as string | null,
+            analysis: undefined as unknown,
+          },
+        ];
+
+  const voiceMeta =
+    message.type === "audio"
+      ? {
+          whisper_transcription: "rawText" in item ? item.rawText : item.content,
+          corrected_transcription: item.content,
+        }
+      : {};
+
+  const { error: itemError } = await supabase.from("mindtasker_items").insert(
+    rows.map((row, index) => ({
+      user_id: userId,
+      source_material_id: source?.id ?? null,
+      title: row.title,
+      content: row.content,
+      is_actionable: row.is_actionable,
+      status: "inbox",
+      tags: row.tags,
+      due_date: row.due_date,
+      metadata: {
+        source: sourceType,
+        analysis: row.analysis,
+        whatsapp_message_id: message.messageId,
+        chat_id: message.chatId,
+        ...voiceMeta,
+      },
+      sort_order: now + index,
+      last_interacted_at: new Date(now).toISOString(),
+    })),
+  );
   if (itemError) {
     throw new Error(itemError.message);
   }

@@ -15,6 +15,7 @@ import {
 } from "../offline/sync";
 import type { MindtaskerItem } from "../lib/supabase";
 import { isDemoMode, requireSupabase } from "../lib/supabase";
+import { getSessionUserId, subscribeUserItems } from "../lib/realtime-items";
 import { getDemoItems, updateDemoItem, removeDemoItem } from "../lib/demo-store";
 import { itemsInColumn } from "../lib/item-columns";
 import { useNetworkStatus } from "./useNetworkStatus";
@@ -47,7 +48,13 @@ export function useOfflineItems(kind: ListKind) {
   const cacheKey = cacheKeyForKind(kind);
   const [items, setItems] = useState<MindtaskerItem[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  const [userId, setUserId] = useState<string | null>(null);
   const { isOnline, isSyncing, setIsSyncing } = useNetworkStatus();
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    void getSessionUserId().then(setUserId);
+  }, []);
 
   const refreshFromServer = useCallback(async () => {
     if (isDemoMode) {
@@ -62,20 +69,22 @@ export function useOfflineItems(kind: ListKind) {
     if (cached.length > 0) setItems(cached);
 
     if (!isOnline) return;
+    const sessionUserId = userId ?? (await getSessionUserId());
+    if (!sessionUserId) return;
 
     try {
       const data =
         kind === "inbox"
-          ? await fetchInboxFromServer()
+          ? await fetchInboxFromServer(sessionUserId)
           : kind === "today"
-            ? await fetchTodayFromServer()
-            : await fetchNotesFromServer();
+            ? await fetchTodayFromServer(sessionUserId)
+            : await fetchNotesFromServer(sessionUserId);
       setItems(data);
       await writeCache(cacheKey, data);
     } catch (error) {
       console.warn("Failed to refresh from server, using cache", error);
     }
-  }, [cacheKey, isOnline, kind]);
+  }, [cacheKey, isOnline, kind, userId]);
 
   const syncQueue = useCallback(async () => {
     if (!isOnline) return;
@@ -105,22 +114,16 @@ export function useOfflineItems(kind: ListKind) {
   }, [refreshFromServer]);
 
   useEffect(() => {
-    if (!isOnline || isDemoMode) return;
+    if (!isOnline || isDemoMode || !userId) return;
 
     const supabase = requireSupabase();
-    const channel = supabase
-      .channel(`mobile-offline-${kind}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "mindtasker_items" },
-        () => void refreshFromServer(),
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [isOnline, kind, refreshFromServer]);
+    return subscribeUserItems(
+      supabase,
+      userId,
+      `mobile-offline-${kind}-${userId}`,
+      () => void refreshFromServer(),
+    );
+  }, [isOnline, kind, refreshFromServer, userId]);
 
   const mutate = useCallback(
     async (
