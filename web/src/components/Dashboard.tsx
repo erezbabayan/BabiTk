@@ -697,6 +697,23 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               titleClassName=""
               markTone="blue"
               notebookLayout
+              titleTrailing={
+                todayListView === "active" && taskLists.enabled ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                      setShowTaskLists(true);
+                    }}
+                    className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
+                    title="הרשימה"
+                    aria-label="הרשימה"
+                  >
+                    <ListBoardIcon className="h-3.5 w-3.5" />
+                    הרשימה
+                  </button>
+                ) : null
+              }
               dateSort={
                 <BoardDateSortButton
                   direction={todayDateSort}
@@ -716,23 +733,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   tone="blue"
                   loading={todaySearch.loading}
                 />
-              }
-              toolbarLeading={
-                todayListView === "active" && taskLists.enabled ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
-                      setShowTaskLists(true);
-                    }}
-                    className={`${boardToolbarButtonClass("blue")} gap-1 whitespace-nowrap px-2 font-medium hover:bg-blue-100/70`}
-                    title="רשימה"
-                    aria-label="רשימה"
-                  >
-                    <ListBoardIcon className="h-3 w-3" />
-                    רשימה
-                  </button>
-                ) : null
               }
               toolbarExtra={
                 todayListView === "active" && completedTasks.length > 0 ? (

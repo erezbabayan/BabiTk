@@ -663,6 +663,20 @@ function MainAppInner({
         <View style={styles.tabHeaderTitleRow}>
           <View style={styles.tabHeaderListActionsSpacer} />
           <View style={styles.boardTitleBlock}>
+            {tab === "today" && listView === "active" && taskLists.enabled ? (
+              <TouchableOpacity
+                style={[boardToolbarBtn, styles.listBoardTextBtn]}
+                onPress={() => {
+                  setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                  setShowTaskLists(true);
+                }}
+                accessibilityLabel="הרשימה"
+                accessibilityRole="button"
+              >
+                <ListBoardIcon size={14} color="#2563eb" />
+                <Text style={boardToolbarText("blue")}>הרשימה</Text>
+              </TouchableOpacity>
+            ) : null}
             <Text
               style={styles.columnTitle}
               numberOfLines={1}
@@ -675,20 +689,6 @@ function MainAppInner({
           </View>
         </View>
         <View style={styles.tabHeaderToolbar}>
-          {tab === "today" && listView === "active" && taskLists.enabled ? (
-            <TouchableOpacity
-              style={[boardToolbarBtn, styles.listBoardTextBtn]}
-              onPress={() => {
-                setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
-                setShowTaskLists(true);
-              }}
-              accessibilityLabel="רשימה"
-              accessibilityRole="button"
-            >
-              <ListBoardIcon size={14} color="#2563eb" />
-              <Text style={boardToolbarText("blue")}>רשימה</Text>
-            </TouchableOpacity>
-          ) : null}
           <ColumnSearchBar
             inline
             value={boardSearch.input}

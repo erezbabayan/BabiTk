@@ -11,7 +11,7 @@ export const COLUMN_SEARCH_WIDTH_CLASS = "w-[13rem] min-w-[5.5rem] max-w-full sh
 export const BOARD_HEADER_TITLE_ROW_CLASS =
   "board-notebook-chrome flex min-h-9 shrink-0 items-center justify-start gap-1";
 
-/** Toolbar row — packed to the inline end (left in RTL); leading sits on the title side. */
+/** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
   "board-notebook-chrome board-notebook-toolbar mt-1 flex min-h-6 shrink-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-1.5 overflow-visible lg:mt-1";
 
@@ -24,8 +24,6 @@ interface ColumnBoardHeaderProps {
   titleTrailing?: ReactNode;
   dateSort?: ReactNode;
   search?: ReactNode;
-  /** Sits in the empty RTL slot under the title, to the right of search. */
-  toolbarLeading?: ReactNode;
   toolbarExtra?: ReactNode;
   action?: ReactNode;
 }
@@ -37,28 +35,19 @@ export function ColumnBoardHeader({
   titleTrailing,
   dateSort,
   search,
-  toolbarLeading,
   toolbarExtra,
   action,
 }: ColumnBoardHeaderProps) {
-  const hasToolbar = Boolean(search || dateSort || toolbarLeading || toolbarExtra || action);
-  const rest = (
-    <>
-      {search ? <div className={COLUMN_SEARCH_WIDTH_CLASS}>{search}</div> : null}
-      {dateSort ? <div className="shrink-0">{dateSort}</div> : null}
-      {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </>
-  );
+  const hasToolbar = Boolean(search || dateSort || toolbarExtra || action);
 
   return (
-    <header data-no-drag-scroll className="pt-0.5">
+    <header data-no-drag-scroll className="overflow-visible pt-0.5">
       <div
-        className={BOARD_HEADER_TITLE_ROW_CLASS}
+        className={`${BOARD_HEADER_TITLE_ROW_CLASS} overflow-visible`}
         data-no-drag-scroll
         onWheel={blockHeaderWheel}
       >
-        <div className="inline-flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
           {/* First in RTL → sits to the right of the title */}
           <BoardBrushMark tone={markTone} />
           <h2
@@ -66,25 +55,21 @@ export function ColumnBoardHeader({
           >
             {title}
           </h2>
+          {titleTrailing ? (
+            <div className="relative z-[4] shrink-0">{titleTrailing}</div>
+          ) : null}
         </div>
-        {titleTrailing ? <div className="ms-auto shrink-0">{titleTrailing}</div> : null}
       </div>
       {hasToolbar ? (
         <div
           data-no-drag-scroll
           onWheel={blockHeaderWheel}
-          className={`${BOARD_HEADER_TOOLBAR_ROW_CLASS} relative z-[3] ${
-            toolbarLeading ? "!flex-nowrap !justify-start" : ""
-          }`}
+          className={`${BOARD_HEADER_TOOLBAR_ROW_CLASS} relative z-[3]`}
         >
-          {toolbarLeading ? <div className="shrink-0">{toolbarLeading}</div> : null}
-          {toolbarLeading ? (
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-1.5 gap-y-1.5">
-              {rest}
-            </div>
-          ) : (
-            rest
-          )}
+          {search ? <div className={COLUMN_SEARCH_WIDTH_CLASS}>{search}</div> : null}
+          {dateSort ? <div className="shrink-0">{dateSort}</div> : null}
+          {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}
+          {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       ) : null}
     </header>
