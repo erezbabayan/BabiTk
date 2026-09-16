@@ -26,6 +26,12 @@ client_id = "env(GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET)"
 skip_nonce_check = false
 
+[functions.whatsapp-green-webhook]
+verify_jwt = false
+
+[functions.whatsapp-green-connect]
+verify_jwt = true
+
 [realtime]
 enabled = true
 

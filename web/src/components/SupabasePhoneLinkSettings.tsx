@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
+import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import type { UsageSummary } from "../lib/api";
 import { normalizePhone, personalCaptureChatId } from "../lib/phone";
 import {
@@ -252,7 +253,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
-        שם הקבוצה נשמר בחשבון. קליטה חיה מוואטסאפ דורשת שרת וואטסאפ נפרד.
+        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור GREEN-API, הודעות מהקבוצה נכנסות ללוח.
       </p>
 
       {groupConnected ? (
@@ -307,10 +308,11 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
             {linkedPhone}
           </p>
           <p className="mt-2 text-xs text-emerald-700">
-            המספר והקבוצה שמורים בחשבון. שלחו הודעות לקבוצת הקליטה כששרת הוואטסאפ פעיל.
+            המספר והקבוצה שמורים בחשבון. חברו GREEN-API למטה כדי לקלוט הודעות חיות.
           </p>
         </div>
         {groupBlock}
+        <GreenApiConnectSettings />
         {digestBlock}
         {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -321,8 +323,9 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   return (
     <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
       <p className="text-sm text-slate-600" dir="rtl">
-        חברו מספר וואטסאפ — ואז שמרו קבוצה קיימת לקליטה.
+        חברו מספר וואטסאפ — ואז שמרו קבוצה קיימת וחברו GREEN-API לקליטה חיה.
       </p>
+      <GreenApiConnectSettings />
       {digestBlock}
       <form onSubmit={(event) => void handleLinkPhone(event)} className="space-y-3">
         <input
