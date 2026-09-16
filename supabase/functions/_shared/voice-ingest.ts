@@ -207,6 +207,24 @@ export async function applyVoiceTranscription(
     .eq("id", source.id);
 }
 
+export async function findVoiceItemByWhatsAppMessage(
+  supabase: AdminClient,
+  userId: string,
+  messageId: string,
+): Promise<VoiceItemRow | null> {
+  const { data, error } = await supabase
+    .from("mindtasker_items")
+    .select(
+      "id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
+    )
+    .eq("user_id", userId)
+    .filter("metadata->>whatsapp_message_id", "eq", messageId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as VoiceItemRow;
+}
+
 export async function transcribeStoredVoiceItem(
   supabase: AdminClient,
   row: VoiceItemRow,
@@ -263,6 +281,20 @@ export async function repairOnePlaceholderVoiceItem(
   } catch {
     return false;
   }
+}
+
+export function scheduleBackgroundWork(task: Promise<unknown>): void {
+  const runtime = (globalThis as {
+    EdgeRuntime?: { waitUntil: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+  const guarded = task.catch((error) => {
+    console.error("background voice task failed", error);
+  });
+  if (runtime?.waitUntil) {
+    runtime.waitUntil(guarded);
+    return;
+  }
+  void guarded;
 }
 
 export async function loadVoiceItemForUser(

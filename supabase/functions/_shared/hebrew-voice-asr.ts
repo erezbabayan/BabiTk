@@ -76,6 +76,13 @@ export function audioFileName(messageId: string, mimeType: string): string {
   return `${messageId}.ogg`;
 }
 
+const ASR_TIMEOUT_MS = 12_000;
+const DOWNLOAD_TIMEOUT_MS = 8_000;
+
+function timeoutSignal(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
+}
+
 async function transcribeWithProvider(
   url: string,
   apiKey: string,
@@ -93,6 +100,7 @@ async function transcribeWithProvider(
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
+    signal: timeoutSignal(ASR_TIMEOUT_MS),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
@@ -150,71 +158,18 @@ async function transcribeAudio(audio: Uint8Array, fileName: string, mimeType: st
   );
 }
 
-async function proofreadHebrew(text: string): Promise<string> {
-  const trimmed = applyHebrewAsrSpellingFixes(text.trim());
-  if (trimmed.length < 3) return trimmed;
-
-  const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
-  const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
-  const parseModel = Deno.env.get("OPENAI_PARSE_MODEL")?.trim() || "gpt-4o-mini";
-  const groqChatModel = Deno.env.get("GROQ_CHAT_MODEL")?.trim() || "llama-3.3-70b-versatile";
-
-  async function complete(url: string, apiKey: string, model: string): Promise<string | null> {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        messages: [
-          { role: "system", content: inboundHebrewProofreadPrompt },
-          { role: "user", content: trimmed },
-        ],
-      }),
-    });
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    return data.choices?.[0]?.message?.content?.trim() || null;
-  }
-
-  try {
-    if (openAiKey) {
-      const corrected = await complete(
-        "https://api.openai.com/v1/chat/completions",
-        openAiKey,
-        parseModel,
-      );
-      if (corrected) return applyHebrewAsrSpellingFixes(corrected);
-    }
-    if (groqKey) {
-      const corrected = await complete(
-        "https://api.groq.com/openai/v1/chat/completions",
-        groqKey,
-        groqChatModel,
-      );
-      if (corrected) return applyHebrewAsrSpellingFixes(corrected);
-    }
-  } catch {
-    // Keep the lexicon-fixed transcription if proofread is unavailable.
-  }
-  return trimmed;
-}
-
 export async function transcribeAndProofreadVoice(params: {
   audio: Uint8Array;
   mimeType: string;
   fileName: string;
 }): Promise<VoiceTranscription> {
+  // Skip LLM proofread on the hot path — Groq Whisper + lexicon fixes
+  // finish in a few seconds. A second chat-completion was hanging the webhook.
   const rawText = applyHebrewAsrSpellingFixes(
     await transcribeAudio(params.audio, params.fileName, params.mimeType),
   );
-  const correctedText = await proofreadHebrew(rawText);
-  if (!correctedText.trim()) {
+  const correctedText = rawText.trim();
+  if (!correctedText) {
     throw new Error("empty_transcription");
   }
   return {
@@ -228,7 +183,7 @@ export async function downloadAudioBytes(url: string): Promise<{
   bytes: Uint8Array;
   mimeType: string;
 }> {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: timeoutSignal(DOWNLOAD_TIMEOUT_MS) });
   if (!response.ok) {
     throw new Error(`audio_download_failed:${response.status}`);
   }

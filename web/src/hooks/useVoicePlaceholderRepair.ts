@@ -15,6 +15,7 @@ export function useVoicePlaceholderRepair(
   onRepaired: (id: string, patch: Pick<MindtaskerItem, "title" | "content">) => void,
 ): void {
   const failedIds = useRef(new Set<string>());
+  const attempts = useRef(new Map<string, number>());
   const inFlight = useRef(new Set<string>());
   const busyRef = useRef(false);
   const onRepairedRef = useRef(onRepaired);
@@ -38,7 +39,11 @@ export function useVoicePlaceholderRepair(
         onRepairedRef.current(next.id, { title: result.title, content: result.content });
       })
       .catch(() => {
-        failedIds.current.add(next.id);
+        const count = (attempts.current.get(next.id) ?? 0) + 1;
+        attempts.current.set(next.id, count);
+        if (count >= 2) {
+          failedIds.current.add(next.id);
+        }
       })
       .finally(() => {
         inFlight.current.delete(next.id);

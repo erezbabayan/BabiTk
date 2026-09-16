@@ -2,6 +2,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import {
+  loadVoiceItemForUser,
+  transcribeStoredVoiceItem,
+  type VoiceGatewayCredentials,
+} from "../_shared/voice-ingest.ts";
+import { needsVoiceTranscription } from "../_shared/voice-text.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const DEFAULT_GREEN_URL = "https://api.greenapi.com";
@@ -176,10 +183,14 @@ Deno.serve(async (req) => {
   const userId = userData.user.id;
 
   let action = "status";
+  let itemId = "";
   try {
-    const body = (await req.json()) as { action?: string };
+    const body = (await req.json()) as { action?: string; itemId?: string };
     if (typeof body.action === "string" && body.action.trim()) {
       action = body.action.trim();
+    }
+    if (typeof body.itemId === "string") {
+      itemId = body.itemId.trim();
     }
   } catch {
     action = "status";
@@ -191,6 +202,46 @@ Deno.serve(async (req) => {
     .eq("user_id", userId)
     .maybeSingle();
   const gateway = gatewayData as GatewayRow | null;
+
+  if (action === "transcribeItem") {
+    if (!itemId) {
+      return json({ error: "item_id_required" }, 400);
+    }
+    const row = await loadVoiceItemForUser(supabase, userId, itemId);
+    if (!row) {
+      return json({ error: "item_not_found" }, 404);
+    }
+    if (!needsVoiceTranscription(row.title, row.content)) {
+      return json({
+        ok: true,
+        itemId: row.id,
+        title: row.title,
+        content: row.content,
+        alreadyTranscribed: true,
+      });
+    }
+    try {
+      const transcribed = await transcribeStoredVoiceItem(
+        supabase,
+        row,
+        gateway as VoiceGatewayCredentials | null,
+      );
+      return json({
+        ok: true,
+        itemId: row.id,
+        title: transcribed.title,
+        content: transcribed.content,
+      });
+    } catch (error) {
+      return json(
+        {
+          error: "transcription_failed",
+          reason: error instanceof Error ? error.message : "unknown",
+        },
+        502,
+      );
+    }
+  }
 
   if (!gateway) {
     return json({

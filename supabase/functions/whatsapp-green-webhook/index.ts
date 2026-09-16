@@ -13,11 +13,14 @@ import {
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
 } from "../_shared/green-api.ts";
-import { titleFromInboundText } from "../_shared/voice-text.ts";
+import { titleFromInboundText, needsVoiceTranscription } from "../_shared/voice-text.ts";
 import {
+  findVoiceItemByWhatsAppMessage,
   pendingVoiceItem,
-  transcribeVoiceMessage,
+  scheduleBackgroundWork,
+  transcribeStoredVoiceItem,
   type VoiceGatewayCredentials,
+  type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -156,15 +159,12 @@ async function alreadyIngested(
   supabase: ReturnType<typeof adminClient>,
   userId: string,
   messageId: string,
+  gateway: GatewayRow | null,
 ): Promise<boolean> {
-  const { data } = await supabase
-    .from("mindtasker_items")
-    .select("id")
-    .eq("user_id", userId)
-    .filter("metadata->>whatsapp_message_id", "eq", messageId)
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
+  const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
+  if (!existing) return false;
+  queueVoiceTranscription(supabase, existing, gateway);
+  return true;
 }
 
 function itemFromMessage(message: ParsedGreenApiMessage): {
@@ -190,7 +190,6 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
 
 async function voiceItemFromMessage(
   message: ParsedGreenApiMessage,
-  gateway: GatewayRow | null,
 ): Promise<{
   sourceType: "whatsapp_voice";
   title: string;
@@ -198,12 +197,17 @@ async function voiceItemFromMessage(
   rawText: string;
   audioUrl: string | null;
 }> {
-  try {
-    return await transcribeVoiceMessage(message, gateway);
-  } catch (error) {
-    console.error("voice transcription failed, storing pending item", error);
-    return pendingVoiceItem(message.audioUrl ?? null);
-  }
+  // Never block Green-API on Whisper. Insert a pending row and transcribe after ACK.
+  return pendingVoiceItem(message.audioUrl ?? null);
+}
+
+function queueVoiceTranscription(
+  supabase: ReturnType<typeof adminClient>,
+  row: VoiceItemRow,
+  gateway: GatewayRow | null,
+): void {
+  if (!needsVoiceTranscription(row.title, row.content)) return;
+  scheduleBackgroundWork(transcribeStoredVoiceItem(supabase, row, gateway));
 }
 
 async function ingestMessage(
@@ -212,12 +216,12 @@ async function ingestMessage(
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
 ): Promise<void> {
-  if (await alreadyIngested(supabase, userId, message.messageId)) {
+  if (await alreadyIngested(supabase, userId, message.messageId, gateway)) {
     return;
   }
   const item =
     message.type === "audio"
-      ? await voiceItemFromMessage(message, gateway)
+      ? await voiceItemFromMessage(message)
       : itemFromMessage(message);
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
@@ -248,30 +252,60 @@ async function ingestMessage(
     throw new Error(sourceError.message);
   }
 
-  const { error: itemError } = await supabase.from("mindtasker_items").insert({
-    user_id: userId,
-    source_material_id: source?.id ?? null,
-    title: item.title,
-    content: item.content,
-    is_actionable: true,
-    status: "inbox",
-    tags: [],
-    metadata: {
-      source: item.sourceType,
-      whatsapp_message_id: message.messageId,
-      chat_id: message.chatId,
-      ...(message.type === "audio"
-        ? {
-            whisper_transcription: "rawText" in item ? item.rawText : item.content,
-            corrected_transcription: item.content,
-          }
-        : {}),
-    },
-    sort_order: now,
-    last_interacted_at: new Date(now).toISOString(),
-  });
-  if (itemError) {
-    throw new Error(itemError.message);
+  const { data: inserted, error: itemError } = await supabase
+    .from("mindtasker_items")
+    .insert({
+      user_id: userId,
+      source_material_id: source?.id ?? null,
+      title: item.title,
+      content: item.content,
+      is_actionable: true,
+      status: "inbox",
+      tags: [],
+      metadata: {
+        source: item.sourceType,
+        whatsapp_message_id: message.messageId,
+        chat_id: message.chatId,
+        ...(message.type === "audio"
+          ? {
+              whisper_transcription: "rawText" in item ? item.rawText : item.content,
+              corrected_transcription: item.content,
+            }
+          : {}),
+      },
+      sort_order: now,
+      last_interacted_at: new Date(now).toISOString(),
+    })
+    .select("id, title, content, metadata, source_material_id")
+    .single();
+  if (itemError || !inserted) {
+    throw new Error(itemError?.message ?? "item_insert_failed");
+  }
+
+  if (message.type === "audio") {
+    const storageUrl =
+      ("audioUrl" in item ? item.audioUrl : message.audioUrl) ?? null;
+    queueVoiceTranscription(
+      supabase,
+      {
+        id: inserted.id as string,
+        title: inserted.title as string,
+        content: inserted.content as string,
+        metadata: (inserted.metadata as Record<string, unknown> | null) ?? null,
+        source_material_id: source?.id ?? null,
+        source_materials: source?.id
+          ? {
+              id: source.id,
+              storage_url: storageUrl,
+              metadata: {
+                whatsapp_message_id: message.messageId,
+                chat_id: message.chatId,
+              },
+            }
+          : null,
+      },
+      gateway,
+    );
   }
 }
 

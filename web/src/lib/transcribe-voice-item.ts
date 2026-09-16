@@ -9,6 +9,44 @@ export interface TranscribeVoiceItemResult {
   alreadyTranscribed?: boolean;
 }
 
+function parseTranscribePayload(
+  data: unknown,
+  itemId: string,
+): TranscribeVoiceItemResult | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  if ("stateInstance" in record || "qrBase64" in record) return null;
+  if (typeof record.error === "string" && record.error.length > 0) {
+    throw new Error(record.error);
+  }
+  const title = typeof record.title === "string" ? record.title.trim() : "";
+  if (!title) return null;
+  return {
+    ok: true,
+    itemId: typeof record.itemId === "string" ? record.itemId : itemId,
+    title,
+    content: typeof record.content === "string" ? record.content : "",
+    alreadyTranscribed: record.alreadyTranscribed === true,
+  };
+}
+
+async function invokeWithTimeout<T>(
+  work: Promise<T>,
+  ms: number,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("transcription_timeout")), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function invokeTranscribeVoiceItem(
   itemId: string,
 ): Promise<TranscribeVoiceItemResult> {
@@ -17,26 +55,31 @@ export async function invokeTranscribeVoiceItem(
   if (!accessToken) {
     throw new Error("Not authenticated");
   }
-  const { data, error } = await supabase.functions.invoke("transcribe-voice-item", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: { itemId },
-  });
-  if (error) {
-    throw new Error(error.message || "תמלול ההודעה הקולית נכשל");
+  const headers = { Authorization: `Bearer ${accessToken}` };
+
+  const connect = await invokeWithTimeout(
+    supabase.functions.invoke("whatsapp-green-connect", {
+      headers,
+      body: { action: "transcribeItem", itemId },
+    }),
+    20_000,
+  );
+  if (!connect.error) {
+    const parsed = parseTranscribePayload(connect.data, itemId);
+    if (parsed) return parsed;
   }
-  if (data && typeof data === "object" && "error" in data) {
-    throw new Error(String((data as { error: string }).error));
+
+  const dedicated = await invokeWithTimeout(
+    supabase.functions.invoke("transcribe-voice-item", {
+      headers,
+      body: { itemId },
+    }),
+    20_000,
+  );
+  if (dedicated.error) {
+    throw new Error(dedicated.error.message || "תמלול ההודעה הקולית נכשל");
   }
-  const result = data as Partial<TranscribeVoiceItemResult> | null;
-  const title = typeof result?.title === "string" ? result.title.trim() : "";
-  if (!title) {
-    throw new Error("transcription_empty");
-  }
-  return {
-    ok: true,
-    itemId: result?.itemId || itemId,
-    title,
-    content: typeof result?.content === "string" ? result.content : "",
-    alreadyTranscribed: result?.alreadyTranscribed,
-  };
+  const parsed = parseTranscribePayload(dedicated.data, itemId);
+  if (parsed) return parsed;
+  throw new Error("transcription_empty");
 }

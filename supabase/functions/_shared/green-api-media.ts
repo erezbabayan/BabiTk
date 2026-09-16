@@ -31,6 +31,7 @@ export async function resolveGreenApiMediaUrl(params: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chatId, idMessage: messageId }),
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) {
       return existing && /^https?:\/\//i.test(existing) ? existing : null;
