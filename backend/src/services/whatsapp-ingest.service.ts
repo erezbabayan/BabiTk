@@ -4,7 +4,9 @@ import { findInboxUserByPhone, uploadSourceMedia } from "./items.service.js";
 import { env } from "../config/env.js";
 import { extractNluTaskFromTranscription } from "./nlu-extract.service.js";
 import { integrateNluTaskForWhatsAppSender } from "./nlu-task.service.js";
-import { processNotebookOCR, transcribeAudio } from "./openai.service.js";
+import { processNotebookOCR, proofreadHebrewInboundText, transcribeAudio } from "./openai.service.js";
+import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
+import { isVoicePlaceholderText } from "../lib/ingest/voice-text.js";
 import {
   assertAudioQuota,
   assertAiParseQuota,
@@ -115,20 +117,25 @@ export async function processWhatsAppMessage(
       mimeType,
     );
 
-    const textCheck = sanitizeInboundText(text);
-    if (!textCheck.accepted) {
+    const correctedText = applyHebrewAsrSpellingFixes(
+      await proofreadHebrewInboundText(text),
+    );
+    const textCheck = sanitizeInboundText(correctedText);
+    if (!textCheck.accepted || isVoicePlaceholderText(correctedText)) {
       await sendWhatsAppText(message.from, WHATSAPP_REJECTION_MESSAGE);
       return;
     }
 
     await incrementAudioUsage(user.id, durationSeconds);
 
-    const nluPayload = await extractNluTaskFromTranscription(text);
+    const nluPayload = await extractNluTaskFromTranscription(correctedText);
     const integration = await integrateNluTaskForWhatsAppSender(message.from, nluPayload, {
       storageUrl,
       metadata: {
         whatsapp_message_id: message.id,
         duration_seconds: durationSeconds,
+        whisper_transcription: text,
+        corrected_transcription: correctedText,
       },
     });
 
@@ -139,13 +146,15 @@ export async function processWhatsAppMessage(
 
     await saveToUserInbox({
       userId: user.id,
-      text,
+      text: correctedText,
       sourceType: "whatsapp_voice",
       rawText: text,
       storageUrl,
       metadata: {
         whatsapp_message_id: message.id,
         duration_seconds: durationSeconds,
+        whisper_transcription: text,
+        corrected_transcription: correctedText,
       },
     });
     return;
