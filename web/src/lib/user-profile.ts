@@ -182,7 +182,29 @@ export async function getCloudUserProfile(): Promise<CloudUserProfile> {
   if (!data) {
     throw new Error("פרופיל המשתמש לא נמצא");
   }
-  return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
+
+  const row = data as unknown as Record<string, unknown>;
+  const profile = mapProfile(row, auth.id, auth.email);
+  if (
+    isOwnerAccount({ email: profile.email, username: profile.username }) &&
+    row.tier !== "premium"
+  ) {
+    const { data: updated, error: updateError } = await supabase
+      .from("users")
+      .update({ tier: "premium" })
+      .eq("id", auth.id)
+      .select(PROFILE_SELECT)
+      .maybeSingle();
+    if (!updateError && updated) {
+      return mapProfile(
+        updated as unknown as Record<string, unknown>,
+        auth.id,
+        auth.email,
+      );
+    }
+  }
+
+  return profile;
 }
 
 export async function updateCloudUserProfile(
