@@ -9,5 +9,6 @@
     "skipLibCheck": true
   },
   "include": ["**/*", "../convex/_generated/**/*", "../convex/lib/**/*"],
+  "exclude": ["**/*.test.ts"],
   "extends": "expo/tsconfig.base"
 }

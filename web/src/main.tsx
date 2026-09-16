@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { SplashScreen } from "./components/SplashScreen";
 import { BoardItemViewProvider } from "./providers/BoardItemViewProvider";
 import { watchDeployVersion } from "./lib/stale-deploy";
+import { registerReminderServiceWorker } from "./lib/reminder-chime";
 import "./index.css";
 
 const CHUNK_RELOAD_KEY = "babitk:chunk-reload";
@@ -128,3 +129,4 @@ createRoot(document.getElementById("root")!).render(
 );
 
 watchDeployVersion();
+void registerReminderServiceWorker();

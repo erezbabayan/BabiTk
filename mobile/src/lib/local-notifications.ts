@@ -1,6 +1,13 @@
 import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 
+import {
+  formatReminderAlertBody,
+  reminderKindForItem,
+  resolveItemReminderFireAt,
+  type ReminderSourceItem,
+} from "./due-date-reminder";
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -11,8 +18,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-function reminderIdentifier(kind: "task" | "notebook" | "list", id: string): string {
+export function reminderIdentifier(kind: "task" | "notebook" | "list", id: string): string {
   return `reminder:${kind}:${id}`;
+}
+
+function isItemReminderIdentifier(identifier: string): boolean {
+  return identifier.startsWith("reminder:task:") || identifier.startsWith("reminder:notebook:");
 }
 
 export async function ensureNotificationPermissions(): Promise<boolean> {
@@ -46,6 +57,7 @@ export async function scheduleItemReminderNotification(options: {
   id: string;
   title: string;
   dueDateIso: string;
+  body?: string;
 }): Promise<string | null> {
   await ensureAndroidReminderChannel();
   const granted = await ensureNotificationPermissions();
@@ -85,10 +97,13 @@ export async function scheduleItemReminderNotification(options: {
     identifier,
     content: {
       title: `תזכורת: ${options.title}`,
-      body: "פתח את BabaiTk לפרטים.",
+      body: options.body ?? "פתח את BabiTk לפרטים.",
       data: {
         kind: options.kind,
         id: options.id,
+        itemId: options.id,
+        fireAt: options.dueDateIso,
+        source: "os_due",
       },
       sound: true,
     },
@@ -105,4 +120,52 @@ export async function cancelItemReminderNotification(
   await Notifications.cancelScheduledNotificationAsync(
     reminderIdentifier(kind, id),
   ).catch(() => undefined);
+}
+
+/**
+ * Keep Android/iOS local DATE triggers in sync with open due dates.
+ * Re-run on every board load / app open so schedules survive process death.
+ */
+export async function syncDueDateLocalNotifications(
+  items: ReminderSourceItem[],
+  now = Date.now(),
+): Promise<number> {
+  await ensureAndroidReminderChannel();
+  const granted = await ensureNotificationPermissions();
+  if (!granted) return 0;
+
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const existing = new Set(
+    scheduled.filter((entry) => isItemReminderIdentifier(entry.identifier)).map((entry) => entry.identifier),
+  );
+  const keep = new Set<string>();
+  let scheduledCount = 0;
+
+  for (const item of items) {
+    const fireAt = resolveItemReminderFireAt(item);
+    if (!fireAt) continue;
+    const ms = Date.parse(fireAt);
+    if (!Number.isFinite(ms) || ms <= now) continue;
+
+    const kind = reminderKindForItem(item);
+    keep.add(reminderIdentifier(kind, item.id));
+    const identifier = await scheduleItemReminderNotification({
+      kind,
+      id: item.id,
+      title: item.title || "תזכורת",
+      dueDateIso: fireAt,
+      body: formatReminderAlertBody(item, fireAt),
+    });
+    if (identifier) scheduledCount += 1;
+  }
+
+  await Promise.all(
+    [...existing]
+      .filter((identifier) => !keep.has(identifier))
+      .map((identifier) =>
+        Notifications.cancelScheduledNotificationAsync(identifier).catch(() => undefined),
+      ),
+  );
+
+  return scheduledCount;
 }
