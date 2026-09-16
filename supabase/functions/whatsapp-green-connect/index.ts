@@ -37,6 +37,19 @@ interface GatewayRow {
   last_state: string | null;
 }
 
+interface ConnectStatus {
+  configured: boolean;
+  authorized: boolean;
+  stateInstance: string | null;
+  qrBase64: string | null;
+  qrPageUrl: string | null;
+  instanceId: string | null;
+  webhookUrl: string;
+  webhookConfigured: boolean;
+  hint: string;
+  ok?: boolean;
+}
+
 async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   try {
@@ -44,6 +57,98 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return text;
   }
+}
+
+async function configureWebhook(
+  gateway: GatewayRow,
+  webhookUrl: string,
+): Promise<{ ok: boolean; saveSettings: unknown }> {
+  const url = greenUrl(
+    gateway.api_url,
+    gateway.instance_id,
+    "setSettings",
+    gateway.api_token,
+  );
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      webhookUrl,
+      incomingWebhook: "yes",
+      outgoingWebhook: "yes",
+      outgoingMessageWebhook: "yes",
+      enableMessagesHistory: "yes",
+      outgoingAPIMessageWebhook: "no",
+      stateWebhook: "yes",
+      keepOnlineStatus: "yes",
+      markIncomingMessagesReaded: "no",
+      markIncomingMessagesReadedOnReply: "no",
+    }),
+  });
+  const saveSettings = await readJson(response);
+  return { ok: response.ok, saveSettings };
+}
+
+async function readConnectStatus(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  gateway: GatewayRow,
+  webhookUrl: string,
+  webhookConfigured: boolean,
+): Promise<ConnectStatus> {
+  const qrPageUrl = `https://qr.green-api.com/waInstance${gateway.instance_id}/${gateway.api_token}`;
+  const stateRes = await fetch(
+    greenUrl(gateway.api_url, gateway.instance_id, "getStateInstance", gateway.api_token),
+  );
+  const stateJson = (await readJson(stateRes)) as { stateInstance?: string };
+  const stateInstance =
+    typeof stateJson.stateInstance === "string" ? stateJson.stateInstance : null;
+  const authorized = stateInstance === "authorized";
+
+  let qrBase64: string | null = null;
+  if (!authorized) {
+    const qrRes = await fetch(
+      greenUrl(gateway.api_url, gateway.instance_id, "qr", gateway.api_token),
+    );
+    const qrJson = (await readJson(qrRes)) as { type?: string; message?: string };
+    if (qrJson.type === "qrCode" && typeof qrJson.message === "string") {
+      qrBase64 = qrJson.message;
+    }
+  }
+
+  let instanceWid = gateway.instance_wid;
+  if (authorized && !instanceWid) {
+    const waRes = await fetch(
+      greenUrl(gateway.api_url, gateway.instance_id, "getWaSettings", gateway.api_token),
+    );
+    const waJson = (await readJson(waRes)) as { wid?: string; phone?: string };
+    instanceWid = waJson.wid ?? waJson.phone ?? null;
+  }
+
+  await supabase
+    .from("whatsapp_gateways")
+    .update({
+      last_state: stateInstance,
+      instance_wid: instanceWid,
+      connected_at: authorized ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("user_id", userId);
+
+  return {
+    configured: true,
+    authorized,
+    stateInstance,
+    qrBase64,
+    qrPageUrl,
+    instanceId: gateway.instance_id,
+    webhookUrl,
+    webhookConfigured,
+    hint: authorized
+      ? "הוואטסאפ מחובר. שלחו הודעה לקבוצת הקליטה או «הודעה לעצמי»."
+      : "סרקו את ה-QR עם וואטסאפ → מכשירים מקושרים.",
+    ok: true,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -96,101 +201,24 @@ Deno.serve(async (req) => {
       qrPageUrl: null,
       instanceId: null,
       webhookUrl: `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook`,
+      webhookConfigured: false,
       hint: "צרו instance חינמי ב-GREEN-API והדביקו כאן Instance ID ו-API Token.",
-    });
+    } satisfies ConnectStatus);
   }
 
-  const qrPageUrl = `https://qr.green-api.com/waInstance${gateway.instance_id}/${gateway.api_token}`;
-  const webhookUrl = webhookPublicUrl(
-    gateway.webhook_token || "missing",
-  );
-
+  const webhookUrl = webhookPublicUrl(gateway.webhook_token || "missing");
+  let webhookConfigured = action !== "configureWebhook";
   if (action === "configureWebhook") {
-    const url = greenUrl(
-      gateway.api_url,
-      gateway.instance_id,
-      "setSettings",
-      gateway.api_token,
-    );
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        webhookUrl,
-        incomingWebhook: "yes",
-        outgoingWebhook: "yes",
-        outgoingMessageWebhook: "yes",
-        enableMessagesHistory: "yes",
-        outgoingAPIMessageWebhook: "no",
-        stateWebhook: "yes",
-        keepOnlineStatus: "yes",
-        markIncomingMessagesReaded: "no",
-        markIncomingMessagesReadedOnReply: "no",
-      }),
-    });
-    const saveSettings = await readJson(response);
-    if (!response.ok) {
-      return json(
-        {
-          ok: false,
-          webhookUrl,
-          reason: "set_settings_failed",
-          saveSettings,
-        },
-        502,
-      );
-    }
-    return json({ ok: true, webhookUrl, saveSettings });
+    const result = await configureWebhook(gateway, webhookUrl);
+    webhookConfigured = result.ok;
   }
 
-  const stateRes = await fetch(
-    greenUrl(gateway.api_url, gateway.instance_id, "getStateInstance", gateway.api_token),
-  );
-  const stateJson = (await readJson(stateRes)) as { stateInstance?: string };
-  const stateInstance =
-    typeof stateJson.stateInstance === "string" ? stateJson.stateInstance : null;
-  const authorized = stateInstance === "authorized";
-
-  let qrBase64: string | null = null;
-  if (!authorized) {
-    const qrRes = await fetch(
-      greenUrl(gateway.api_url, gateway.instance_id, "qr", gateway.api_token),
-    );
-    const qrJson = (await readJson(qrRes)) as { type?: string; message?: string };
-    if (qrJson.type === "qrCode" && typeof qrJson.message === "string") {
-      qrBase64 = qrJson.message;
-    }
-  }
-
-  let instanceWid = gateway.instance_wid;
-  if (authorized && !instanceWid) {
-    const waRes = await fetch(
-      greenUrl(gateway.api_url, gateway.instance_id, "getWaSettings", gateway.api_token),
-    );
-    const waJson = (await readJson(waRes)) as { wid?: string; phone?: string };
-    instanceWid = waJson.wid ?? waJson.phone ?? null;
-  }
-
-  await supabase
-    .from("whatsapp_gateways")
-    .update({
-      last_state: stateInstance,
-      instance_wid: instanceWid,
-      connected_at: authorized ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("user_id", userId);
-
-  return json({
-    configured: true,
-    authorized,
-    stateInstance,
-    qrBase64,
-    qrPageUrl,
-    instanceId: gateway.instance_id,
+  const status = await readConnectStatus(
+    supabase,
+    userId,
+    gateway,
     webhookUrl,
-    hint: authorized
-      ? "הוואטסאפ מחובר. שלחו הודעה לקבוצת הקליטה או «הודעה לעצמי»."
-      : "סרקו את ה-QR עם וואטסאפ → מכשירים מקושרים.",
-  });
+    webhookConfigured,
+  );
+  return json(status);
 });

@@ -17,6 +17,7 @@ export interface GreenConnectStatus {
   qrPageUrl: string | null;
   instanceId: string | null;
   webhookUrl: string;
+  webhookConfigured?: boolean;
   hint: string;
   ok?: boolean;
 }
@@ -28,10 +29,41 @@ function newWebhookToken(): string {
   return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
 }
 
-export async function loadWhatsAppGateway(): Promise<WhatsAppGatewayRow | null> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function currentAccessToken(): Promise<string | null> {
+  const supabase = requireSupabase();
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session?.access_token) {
+      return sessionData.session.access_token;
+    }
+    await sleep(150);
+  }
+  return null;
+}
+
+export async function currentUserId(): Promise<string | null> {
   const supabase = requireSupabase();
   const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user.id;
+  if (sessionData.session?.user.id) {
+    return sessionData.session.user.id;
+  }
+  const { data, error } = await supabase.auth.getUser();
+  if (!error && data.user?.id) {
+    return data.user.id;
+  }
+  const token = await currentAccessToken();
+  if (!token) return null;
+  const { data: retry } = await supabase.auth.getSession();
+  return retry.session?.user.id ?? null;
+}
+
+export async function loadWhatsAppGateway(): Promise<WhatsAppGatewayRow | null> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
   if (!userId) return null;
   const { data, error } = await supabase
     .from("whatsapp_gateways")
@@ -48,8 +80,7 @@ export async function saveWhatsAppGateway(input: {
   apiUrl?: string;
 }): Promise<WhatsAppGatewayRow> {
   const supabase = requireSupabase();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user.id;
+  const userId = await currentUserId();
   if (!userId) throw new Error("Not authenticated");
 
   const instanceId = input.instanceId.trim();
@@ -62,13 +93,23 @@ export async function saveWhatsAppGateway(input: {
     throw new Error("API Token לא תקין");
   }
 
+  const { data: existing } = await supabase
+    .from("whatsapp_gateways")
+    .select("webhook_token")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const existingToken =
+    existing && typeof (existing as { webhook_token?: string }).webhook_token === "string"
+      ? (existing as { webhook_token: string }).webhook_token
+      : "";
+
   const row = {
     user_id: userId,
     provider: "green-api",
     instance_id: instanceId,
     api_token: apiToken,
     api_url: apiUrl,
-    webhook_token: newWebhookToken(),
+    webhook_token: existingToken || newWebhookToken(),
     updated_at: new Date().toISOString(),
   };
 
@@ -83,8 +124,7 @@ export async function saveWhatsAppGateway(input: {
 
 export async function clearWhatsAppGateway(): Promise<void> {
   const supabase = requireSupabase();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user.id;
+  const userId = await currentUserId();
   if (!userId) throw new Error("Not authenticated");
   const { error } = await supabase.from("whatsapp_gateways").delete().eq("user_id", userId);
   if (error) throw new Error(error.message);
@@ -94,11 +134,33 @@ export async function invokeGreenConnect(
   action: "status" | "configureWebhook",
 ): Promise<GreenConnectStatus> {
   const supabase = requireSupabase();
+  const accessToken = await currentAccessToken();
+  if (!accessToken) {
+    throw new Error("Not authenticated");
+  }
   const { data, error } = await supabase.functions.invoke("whatsapp-green-connect", {
+    headers: { Authorization: `Bearer ${accessToken}` },
     body: { action },
   });
   if (error) {
-    throw new Error(error.message || "קריאת סטטוס GREEN-API נכשלה");
+    let detail = error.message || "קריאת סטטוס GREEN-API נכשלה";
+    const context = (error as { context?: Response }).context;
+    if (context) {
+      try {
+        const body = (await context.clone().json()) as {
+          hint?: string;
+          error?: string;
+          reason?: string;
+        };
+        detail = body.hint || body.error || body.reason || detail;
+      } catch {
+        // keep detail
+      }
+    }
+    throw new Error(detail);
+  }
+  if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
+    throw new Error(String((data as { error: string }).error));
   }
   return data as GreenConnectStatus;
 }
