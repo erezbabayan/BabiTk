@@ -778,9 +778,6 @@ const styles = StyleSheet.create({
     color: "#475569",
   },
   overdueChipTextActive: { color: "#1d4ed8" },
-
-  premiumActive: { fontSize: 15, color: "#047857", textAlign: "right", marginBottom: 12 },
-
   usageText: { fontSize: 15, color: "#334155", textAlign: "right", marginBottom: 12 },
   planCard: {
     borderWidth: 1,
@@ -803,21 +800,6 @@ const styles = StyleSheet.create({
   planHintPremium: { fontSize: 12, color: "#047857", textAlign: "right", marginTop: 8, fontWeight: "600" },
   buttonDisabled: { opacity: 0.6 },
   tierError: { fontSize: 13, color: "#dc2626", textAlign: "right", marginBottom: 8 },
-  premiumActive: { fontSize: 15, color: "#047857", textAlign: "right", marginBottom: 12 },
-  premiumButton: {
-
-    backgroundColor: "#059669",
-
-    borderRadius: 10,
-
-    padding: 14,
-
-    alignItems: "center",
-
-  },
-
-  premiumButtonText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-
   subClose: { marginTop: 16, alignItems: "center" },
 
 });
