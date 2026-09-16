@@ -14,6 +14,7 @@ import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { isConvexConfigured } from "../lib/convex";
 import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
+import { SupabasePhoneLinkSettings } from "./SupabasePhoneLinkSettings";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -63,9 +64,17 @@ interface PhoneLinkSettingsProps {
   summary: UsageSummary | null;
 }
 
-export function PhoneLinkSettings({ summary }: PhoneLinkSettingsProps) {
+export function PhoneLinkSettings({ userId, summary }: PhoneLinkSettingsProps) {
   const useConvexPhone =
     shouldUseConvexAuthLogin() || (isDemoMode && isConvexConfigured);
+  if (!useConvexPhone && isSupabaseConfigured) {
+    return <SupabasePhoneLinkSettings summary={summary} />;
+  }
+  return <ConvexPhoneLinkSettings userId={userId} summary={summary} />;
+}
+
+function ConvexPhoneLinkSettings({ summary }: PhoneLinkSettingsProps) {
+  const useConvexPhone = true;
   const viewer = useQuery(
     api.users.viewer,
     useConvexPhone ? {} : "skip",

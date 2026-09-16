@@ -5,6 +5,7 @@ import {
 } from "./board-settings";
 import { isDemoMode, isSupabaseConfigured } from "./supabase";
 import { apiFetch } from "./api";
+import { getCloudUserProfile, updateCloudUserProfile } from "./user-profile";
 
 const DEMO_BOARD_SETTINGS_KEY = "mindtasker:demo:board-settings";
 
@@ -25,9 +26,19 @@ function writeLocalSettings(settings: BoardSettings): void {
   localStorage.setItem(DEMO_BOARD_SETTINGS_KEY, JSON.stringify(settings));
 }
 
-/** Fallback when Convex is unavailable (demo / local). */
+function toBoardSettings(hours: number | undefined): BoardSettings {
+  return {
+    inbox_archive_hours: (hours ?? DEFAULT_INBOX_ARCHIVE_HOURS) as InboxArchiveHours,
+  };
+}
+
+/** Board prefs live on the Supabase user row when cloud is configured. */
 export async function getBoardSettingsApi(): Promise<BoardSettings> {
-  if (isDemoMode || !isSupabaseConfigured) return readLocalSettings();
+  if (isDemoMode) return readLocalSettings();
+  if (isSupabaseConfigured) {
+    const profile = await getCloudUserProfile();
+    return toBoardSettings(profile.inbox_archive_hours);
+  }
   const data = await apiFetch<{ settings: BoardSettings }>("/api/board-settings");
   return data.settings;
 }
@@ -35,10 +46,19 @@ export async function getBoardSettingsApi(): Promise<BoardSettings> {
 export async function saveBoardSettingsApi(
   patch: Partial<BoardSettings>,
 ): Promise<BoardSettings> {
-  if (isDemoMode || !isSupabaseConfigured) {
+  if (isDemoMode) {
     const next = { ...readLocalSettings(), ...patch };
     writeLocalSettings(next);
     return next;
+  }
+  if (isSupabaseConfigured) {
+    if (patch.inbox_archive_hours === undefined) {
+      return getBoardSettingsApi();
+    }
+    const profile = await updateCloudUserProfile({
+      inbox_archive_hours: patch.inbox_archive_hours,
+    });
+    return toBoardSettings(profile.inbox_archive_hours);
   }
   const data = await apiFetch<{ settings: BoardSettings }>("/api/board-settings", {
     method: "PATCH",
