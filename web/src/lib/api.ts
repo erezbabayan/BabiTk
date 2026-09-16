@@ -244,6 +244,15 @@ export async function createCheckoutSessionApi(platform: "web" | "mobile" = "web
     return `${base}?billing=success`;
   }
 
+  if (isSupabaseConfigured) {
+    const profile = await getCloudUserProfile();
+    if (profile.tier === "premium") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("billing", "success");
+      return url.toString();
+    }
+  }
+
   const data = await apiFetch<{ url: string }>("/api/billing/checkout", {
     method: "POST",
     body: JSON.stringify({ platform }),

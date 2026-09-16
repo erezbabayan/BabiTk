@@ -1,3 +1,4 @@
+import { isOwnerAccount } from "./login-aliases";
 import { requireSupabase } from "./supabase";
 
 export type DigestDays = "weekdays" | "everyday";
@@ -73,7 +74,13 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
         : null,
     whatsapp_digest_hours: asHours(row.whatsapp_digest_hours),
     whatsapp_digest_days: asDigestDays(row.whatsapp_digest_days),
-    tier: row.tier === "premium" ? "premium" : "free",
+    tier:
+      (isOwnerAccount({
+        email: String(row.email ?? email),
+        username: typeof row.username === "string" ? row.username : null,
+      }) || row.tier === "premium")
+        ? "premium"
+        : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
     allocated_ai_parses: Number(row.allocated_ai_parses ?? 50),
@@ -175,7 +182,29 @@ export async function getCloudUserProfile(): Promise<CloudUserProfile> {
   if (!data) {
     throw new Error("פרופיל המשתמש לא נמצא");
   }
-  return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
+
+  const row = data as unknown as Record<string, unknown>;
+  const profile = mapProfile(row, auth.id, auth.email);
+  if (
+    isOwnerAccount({ email: profile.email, username: profile.username }) &&
+    row.tier !== "premium"
+  ) {
+    const { data: updated, error: updateError } = await supabase
+      .from("users")
+      .update({ tier: "premium" })
+      .eq("id", auth.id)
+      .select(PROFILE_SELECT)
+      .maybeSingle();
+    if (!updateError && updated) {
+      return mapProfile(
+        updated as unknown as Record<string, unknown>,
+        auth.id,
+        auth.email,
+      );
+    }
+  }
+
+  return profile;
 }
 
 export async function updateCloudUserProfile(

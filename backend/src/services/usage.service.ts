@@ -1,3 +1,4 @@
+import { isOwnerAccount } from "../lib/owner-account.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 
 export type UsageEventType = "audio" | "ai_parse" | "ocr";
@@ -26,12 +27,21 @@ export interface UsageSummary {
 }
 
 interface UserUsageRow {
+  email: string | null;
+  username: string | null;
   tier: "free" | "premium";
   allocated_audio_seconds: number;
   used_audio_seconds: number;
   allocated_ai_parses: number;
   used_ai_parses: number;
   usage_period_start: string;
+}
+
+const USAGE_SELECT =
+  "email, username, tier, allocated_audio_seconds, used_audio_seconds, allocated_ai_parses, used_ai_parses, usage_period_start";
+
+function isPremiumUser(user: Pick<UserUsageRow, "email" | "username" | "tier">): boolean {
+  return user.tier === "premium" || isOwnerAccount({ email: user.email, username: user.username });
 }
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
@@ -53,9 +63,7 @@ async function loadUserUsage(userId: string): Promise<UserUsageRow> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("users")
-    .select(
-      "tier, allocated_audio_seconds, used_audio_seconds, allocated_ai_parses, used_ai_parses, usage_period_start",
-    )
+    .select(USAGE_SELECT)
     .eq("id", userId)
     .single();
 
@@ -82,9 +90,7 @@ export async function resetUsagePeriodIfNeeded(userId: string): Promise<UserUsag
       usage_period_start: new Date().toISOString(),
     })
     .eq("id", userId)
-    .select(
-      "tier, allocated_audio_seconds, used_audio_seconds, allocated_ai_parses, used_ai_parses, usage_period_start",
-    )
+    .select(USAGE_SELECT)
     .single();
 
   if (error || !data) {
@@ -96,10 +102,10 @@ export async function resetUsagePeriodIfNeeded(userId: string): Promise<UserUsag
 
 export async function getUsageSummary(userId: string): Promise<UsageSummary> {
   const user = await resetUsagePeriodIfNeeded(userId);
-  const isPremium = user.tier === "premium";
+  const isPremium = isPremiumUser(user);
 
   return {
-    tier: user.tier,
+    tier: isPremium ? "premium" : user.tier,
     isPremium,
     periodStart: user.usage_period_start,
     audio: {
@@ -117,7 +123,7 @@ export async function getUsageSummary(userId: string): Promise<UsageSummary> {
 
 export async function assertAudioQuota(userId: string, audioSeconds: number): Promise<void> {
   const user = await resetUsagePeriodIfNeeded(userId);
-  if (user.tier === "premium") return;
+  if (isPremiumUser(user)) return;
 
   if (user.used_audio_seconds + audioSeconds > user.allocated_audio_seconds) {
     throw new UsageQuotaExceededError("audio_quota");
@@ -126,7 +132,7 @@ export async function assertAudioQuota(userId: string, audioSeconds: number): Pr
 
 export async function assertAiParseQuota(userId: string, units = 1): Promise<void> {
   const user = await resetUsagePeriodIfNeeded(userId);
-  if (user.tier === "premium") return;
+  if (isPremiumUser(user)) return;
 
   if (user.used_ai_parses + units > user.allocated_ai_parses) {
     throw new UsageQuotaExceededError("ai_parse_quota");
