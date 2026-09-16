@@ -33,14 +33,24 @@ jobs:
         env:
           VITE_BASE_PATH: "/BabiTk/"
           VITE_DEMO_MODE: "false"
-          VITE_USE_CONVEX: "false"
           VITE_SYNC_ENABLED: "false"
           VITE_SUPABASE_URL: "https://ghibfuinantybqidwadj.supabase.co"
           VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4"
         run: |
           npm ci
           npx vite build
-          cp dist/index.html dist/404.html
+          python3 - <<'PY'
+from pathlib import Path
+import os
+index = Path("dist/index.html")
+html = index.read_text(encoding="utf-8")
+sha = os.environ.get("GITHUB_SHA", "")[:12]
+stamp = f"<!-- babitk-deploy {sha} -->"
+if stamp not in html:
+    html = html.replace("<head>", f"<head>\n    {stamp}", 1)
+    index.write_text(html, encoding="utf-8")
+Path("dist/404.html").write_text(html, encoding="utf-8")
+PY
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

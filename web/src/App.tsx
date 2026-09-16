@@ -125,6 +125,7 @@ function DemoApp() {
             <SettingsPanel
               userId={userId}
               summary={summary}
+              cloudAccount={false}
               onOpenPaywall={() => {
                 setPaywallCode(null);
                 setPaywallOpen(true);
@@ -358,6 +359,7 @@ function ConfiguredApp() {
             <SettingsPanel
               userId={userId}
               summary={summary}
+              cloudAccount
               onOpenPaywall={() => {
                 setPaywallCode(null);
                 setPaywallOpen(true);

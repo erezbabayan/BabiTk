@@ -87,11 +87,79 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
 
 async function requireAuthUser(): Promise<{ id: string; email: string }> {
   const supabase = requireSupabase();
+  // Prefer the persisted session so opening Settings cannot invalidate a valid login.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const sessionUser = sessionData.session?.user;
+  if (sessionUser) {
+    return { id: sessionUser.id, email: sessionUser.email ?? "" };
+  }
+
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
     throw new Error("Not authenticated");
   }
   return { id: data.user.id, email: data.user.email ?? "" };
+}
+
+export interface AuthAccountView {
+  id: string;
+  email: string;
+  username: string | null;
+  displayName: string | null;
+}
+
+function metadataDisplayName(metadata: Record<string, unknown> | undefined): string | null {
+  if (!metadata) return null;
+  const first =
+    typeof metadata.first_name === "string" ? metadata.first_name.trim() : "";
+  const last =
+    typeof metadata.last_name === "string" ? metadata.last_name.trim() : "";
+  const combined = [first, last].filter(Boolean).join(" ");
+  if (combined) return combined;
+  const full =
+    typeof metadata.full_name === "string"
+      ? metadata.full_name.trim()
+      : typeof metadata.name === "string"
+        ? metadata.name.trim()
+        : "";
+  return full || null;
+}
+
+/** Session + profile for Settings, without a network auth check that can sign the user out. */
+export async function getAuthAccountView(): Promise<AuthAccountView | null> {
+  const supabase = requireSupabase();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData.session?.user;
+  if (!user) return null;
+
+  const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+  const view: AuthAccountView = {
+    id: user.id,
+    email: user.email ?? "",
+    username: typeof metadata.username === "string" ? metadata.username : null,
+    displayName: metadataDisplayName(metadata),
+  };
+
+  try {
+    const { data } = await supabase
+      .from("users")
+      .select("username,email")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (data && typeof data === "object") {
+      const row = data as Record<string, unknown>;
+      if (typeof row.username === "string" && row.username.trim()) {
+        view.username = row.username;
+      }
+      if (typeof row.email === "string" && row.email.trim()) {
+        view.email = row.email;
+      }
+    }
+  } catch {
+    // Keep session fields when the profile row is unavailable.
+  }
+
+  return view;
 }
 
 export async function getCloudUserProfile(): Promise<CloudUserProfile> {

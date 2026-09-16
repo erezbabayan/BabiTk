@@ -1,15 +1,29 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 const webDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(webDir, "..");
 
+function appVersionPlugin(): Plugin {
+  return {
+    name: "babitk-app-version",
+    generateBundle() {
+      const version = process.env.GITHUB_SHA || String(Date.now());
+      this.emitFile({
+        type: "asset",
+        fileName: "app-version.json",
+        source: JSON.stringify({ v: version }),
+      });
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), appVersionPlugin()],
     envDir: repoRoot,
     // GitHub Pages project site: https://erezbabayan.github.io/BabiTk/
     base: process.env.VITE_BASE_PATH || "/",
