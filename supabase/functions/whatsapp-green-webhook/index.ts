@@ -35,17 +35,14 @@ import {
   buildWhatsAppMenuText,
   builtInMenuQuestions,
   formatClockFromIso,
-  isSystemWhatsAppReply,
-  isWhatsAppMenuRequest,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
   parseWhatsAppCommand,
-  parseWhatsAppQuery,
   replyChatId,
   resolveCommandItemId,
+  resolveWhatsAppTextIntent,
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
-import { parseWhatsAppSystemQuestion } from "../_shared/whatsapp-system-question.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -149,23 +146,26 @@ async function findUserByCaptureGroup(
 ): Promise<UserRow | null> {
   const trimmed = chatId.trim();
   if (!trimmed.endsWith("@g.us") && !trimmed.endsWith("@c.us")) return null;
-  const full = await supabase
-    .from("users")
-    .select(USER_SELECT)
-    .eq("whatsapp_capture_group_chat_id", trimmed)
-    .eq("phone_verified", true)
-    .maybeSingle();
-  if (full.data) return full.data as UserRow;
-  if (!full.error || !isMissingSchemaError(full.error)) {
-    return (full.data as UserRow | null) ?? null;
+  const candidates = [...new Set([trimmed, normalizeGroupChatId(trimmed)])];
+  for (const candidate of candidates) {
+    const full = await supabase
+      .from("users")
+      .select(USER_SELECT)
+      .eq("whatsapp_capture_group_chat_id", candidate)
+      .eq("phone_verified", true)
+      .maybeSingle();
+    if (full.data) return full.data as UserRow;
+    if (full.error && isMissingSchemaError(full.error)) {
+      const core = await supabase
+        .from("users")
+        .select(USER_SELECT_CORE)
+        .eq("whatsapp_capture_group_chat_id", candidate)
+        .eq("phone_verified", true)
+        .maybeSingle();
+      if (core.data) return core.data as UserRow;
+    }
   }
-  const core = await supabase
-    .from("users")
-    .select(USER_SELECT_CORE)
-    .eq("whatsapp_capture_group_chat_id", trimmed)
-    .eq("phone_verified", true)
-    .maybeSingle();
-  return (core.data as UserRow | null) ?? null;
+  return null;
 }
 
 async function rememberLastItemIds(
@@ -182,6 +182,46 @@ async function rememberLastItemIds(
   }
 }
 
+type BoardItem = {
+  id: string;
+  title: string;
+  content: string | null;
+  due_date: string | null;
+  tags: string[] | null;
+  status: string | null;
+  is_actionable: boolean | null;
+};
+
+async function loadOpenBoardItems(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<BoardItem[]> {
+  const select = "id, title, content, due_date, tags, status, is_actionable";
+  const full = await supabase
+    .from("mindtasker_items")
+    .select(select)
+    .eq("user_id", userId)
+    .in("status", ["inbox", "pending"])
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false });
+  if (!full.error) return (full.data ?? []) as BoardItem[];
+  if (!isMissingSchemaError(full.error)) {
+    console.error("loadOpenBoardItems", full.error.message);
+    return [];
+  }
+  const fallback = await supabase
+    .from("mindtasker_items")
+    .select(select)
+    .eq("user_id", userId)
+    .in("status", ["inbox", "pending"])
+    .order("due_date", { ascending: true, nullsFirst: false });
+  if (fallback.error) {
+    console.error("loadOpenBoardItems fallback", fallback.error.message);
+    return [];
+  }
+  return (fallback.data ?? []) as BoardItem[];
+}
+
 async function handleGroupTextIntent(options: {
   supabase: ReturnType<typeof adminClient>;
   user: UserRow;
@@ -191,16 +231,15 @@ async function handleGroupTextIntent(options: {
   sourceType?: "whatsapp_text" | "whatsapp_voice";
 }): Promise<boolean> {
   const raw = options.text.trim();
-  if (!raw || isSystemWhatsAppReply(raw)) return true;
+  if (resolveWhatsAppTextIntent(raw).type === "skip") return true;
+
   const replyTo = replyChatId(options.message);
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
+  const resolved = resolveWhatsAppTextIntent(raw, allowedTags);
+  if (resolved.type === "ingest") return false;
   const menu = builtInMenuQuestions(allowedTags);
-  const systemQuestion = parseWhatsAppSystemQuestion(raw);
-  const intentText =
-    systemQuestion.kind === "question" ? systemQuestion.question : raw;
-  const prefixed = systemQuestion.kind !== "none";
 
-  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(intentText) || isWhatsAppMenuRequest(raw)) {
+  if (resolved.type === "menu") {
     await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
     const { error } = await options.supabase
       .from("users")
@@ -211,44 +250,56 @@ async function handleGroupTextIntent(options: {
     return true;
   }
 
-  const query = parseWhatsAppQuery(intentText, allowedTags);
-  if (query) {
-    const { data } = await options.supabase
-      .from("mindtasker_items")
-      .select("id, title, content, due_date, tags, status, is_actionable")
-      .eq("user_id", options.user.id)
-      .eq("is_actionable", true)
-      .in("status", ["inbox", "pending"])
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true, nullsFirst: false });
-    const matched = (data ?? []).filter(
+  if (resolved.type === "query") {
+    const items = await loadOpenBoardItems(options.supabase, options.user.id);
+    const tasks = items.filter((item) => item.is_actionable !== false);
+    const matched = tasks.filter(
       (item) =>
-        itemMatchesBriefingDay(item, query.day) && itemMatchesQueryTag(item, query.tag),
+        itemMatchesBriefingDay(item, resolved.query.day) &&
+        itemMatchesQueryTag(item, resolved.query.tag),
     );
+    if (matched.length === 0 && resolved.fallbackSearch) {
+      await replyWhatsAppSystemQuestion({
+        supabase: options.supabase,
+        userId: options.user.id,
+        chatId: replyTo,
+        messageId: options.message.messageId,
+        sourceType: options.sourceType ?? "whatsapp_text",
+        parsed: { kind: "question", question: resolved.fallbackSearch },
+        gateway: options.gateway,
+        rawText: raw,
+      });
+      return true;
+    }
     await rememberLastItemIds(
       options.supabase,
       options.user.id,
       matched.map((item) => String(item.id)),
     );
-    await sendGreenApiText(options.gateway, replyTo, buildTaskBriefing(matched, query));
+    const inboxCount = tasks.filter((item) => item.status === "inbox").length;
+    await sendGreenApiText(
+      options.gateway,
+      replyTo,
+      buildTaskBriefing(matched, resolved.query, { inboxCount }),
+    );
     return true;
   }
 
-  if (prefixed) {
+  if (resolved.type === "search") {
     await replyWhatsAppSystemQuestion({
       supabase: options.supabase,
       userId: options.user.id,
       chatId: replyTo,
       messageId: options.message.messageId,
       sourceType: options.sourceType ?? "whatsapp_text",
-      parsed: systemQuestion,
+      parsed: resolved.parsed,
       gateway: options.gateway,
       rawText: raw,
     });
     return true;
   }
 
-  const command = parseWhatsAppCommand(raw);
+  const command = resolved.type === "command" ? resolved.command : parseWhatsAppCommand(raw);
   if (!command) return false;
 
   const { data: fresh, error: lastIdsError } = await options.supabase
@@ -625,7 +676,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v3",
-      qa: "star-v1",
+      qa: "star-v2",
     });
   }
   if (req.method !== "POST") {
@@ -676,12 +727,16 @@ Deno.serve(async (req) => {
       instanceData?: { wid?: string };
       senderData?: { sender?: string };
     };
-    const user =
-      (await findVerifiedUser(supabase, [
-        message.senderPhone,
-        payload.instanceData?.wid ?? "",
-        payload.senderData?.sender ?? "",
-      ])) ?? (await findUserByCaptureGroup(supabase, message.chatId));
+    const phones = [
+      message.senderPhone,
+      payload.instanceData?.wid ?? "",
+      payload.senderData?.sender ?? "",
+    ];
+    const user = isGroupWhatsAppChat(message.chatId)
+      ? (await findUserByCaptureGroup(supabase, message.chatId)) ??
+        (await findVerifiedUser(supabase, phones))
+      : (await findVerifiedUser(supabase, phones)) ??
+        (await findUserByCaptureGroup(supabase, message.chatId));
     if (!user) {
       skipped.push({ messageId: message.messageId, reason: "not_linked" });
       continue;
@@ -721,6 +776,10 @@ Deno.serve(async (req) => {
           });
           continue;
         }
+      }
+      if (message.fromOwner === false) {
+        skipped.push({ messageId: message.messageId, reason: "not_owner_capture" });
+        continue;
       }
       const inserted = await ingestMessage(supabase, user, message, gateway);
       if (inserted === "answered") {

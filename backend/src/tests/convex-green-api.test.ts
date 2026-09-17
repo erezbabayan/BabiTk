@@ -106,7 +106,7 @@ describe("Convex Green-API parser", () => {
     assert.equal(messages[0]?.audioUrl, undefined);
   });
 
-  it("ignores group messages from other participants", () => {
+  it("parses group questions from other participants without ingesting them as owner capture", () => {
     const { messages } = parseGreenApiWebhook({
       typeWebhook: "incomingMessageReceived",
       idMessage: "g-peer",
@@ -117,10 +117,12 @@ describe("Convex Green-API parser", () => {
       },
       messageData: {
         typeMessage: "textMessage",
-        textMessageData: { textMessage: "מה קורה" },
+        textMessageData: { textMessage: "מה יש לי היום" },
       },
     });
-    assert.equal(messages.length, 0);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.text, "מה יש לי היום");
+    assert.equal(messages[0]?.fromOwner, false);
   });
 
   it("parses owner audio in capture group", () => {

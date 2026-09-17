@@ -23,6 +23,7 @@ export interface ParsedGreenApiMessage {
   mimeType?: string;
   caption?: string;
   chatName?: string;
+  fromOwner?: boolean;
 }
 
 export interface GreenApiWebhookPayload {
@@ -32,14 +33,21 @@ export interface GreenApiWebhookPayload {
   senderData?: {
     chatId?: string;
     sender?: string;
+    senderPn?: string;
     chatName?: string;
     senderName?: string;
   };
   messageData?: {
     typeMessage?: string;
+    textMessage?: string;
     textMessageData?: { textMessage?: string };
-    extendedTextMessageData?: { text?: string };
+    extendedTextMessageData?: { text?: string; textMessage?: string };
     quotedMessage?: { textMessage?: string };
+    editedMessage?: { typeMessage?: string; textMessage?: string; text?: string };
+    editedMessageData?: { textMessage?: string; text?: string };
+    buttonsResponseMessage?: { selectedButtonId?: string; selectedButtonText?: string };
+    templateButtonReplyMessage?: { selectedId?: string };
+    listResponseMessage?: { title?: string; selectedRowId?: string };
     fileMessageData?: {
       downloadUrl?: string;
       mimeType?: string;
@@ -55,6 +63,33 @@ const INGEST_WEBHOOKS = new Set([
   "outgoingMessageReceived",
   // Intentionally NOT outgoingAPIMessageReceived — avoids re-ingesting digests/API sends.
 ]);
+
+const TEXT_MESSAGE_TYPES = new Set([
+  "textMessage",
+  "extendedTextMessage",
+  "quotedMessage",
+  "editedMessage",
+  "buttonsResponseMessage",
+  "templateButtonReplyMessage",
+  "listResponseMessage",
+]);
+
+export function unwrapGreenApiWebhook(body: unknown): GreenApiWebhookPayload {
+  if (!body || typeof body !== "object") return {};
+  const record = body as Record<string, unknown>;
+  if (typeof record.typeWebhook === "string") {
+    return record as GreenApiWebhookPayload;
+  }
+  const nested = record.body;
+  if (
+    nested &&
+    typeof nested === "object" &&
+    typeof (nested as { typeWebhook?: unknown }).typeWebhook === "string"
+  ) {
+    return nested as GreenApiWebhookPayload;
+  }
+  return record as GreenApiWebhookPayload;
+}
 
 export { isGroupWhatsAppChat, normalizeGroupChatId };
 
@@ -129,6 +164,7 @@ function resolveIdentity(payload: GreenApiWebhookPayload): {
   senderPhone: string;
   direction: "incoming" | "outgoing";
   chatName?: string;
+  fromOwner: boolean;
 } | null {
   const typeWebhook = payload.typeWebhook ?? "";
   if (!INGEST_WEBHOOKS.has(typeWebhook)) return null;
@@ -143,33 +179,31 @@ function resolveIdentity(payload: GreenApiWebhookPayload): {
     typeWebhook === "outgoingMessageReceived" ? "outgoing" : "incoming";
 
   const senderRaw = payload.senderData?.sender?.trim() ?? "";
-
-  // Outgoing webhooks are always from our linked instance. Sender is often @lid
-  // (WhatsApp Linked ID) which cannot be digit-matched to the phone wid.
+  const senderPn = payload.senderData?.senderPn?.trim() ?? "";
   const outgoingFromInstance = direction === "outgoing";
   const chatIsGroup = isGroupWhatsAppChat(chatId);
+
+  let fromOwner = false;
   if (outgoingFromInstance) {
-    // accept
-  } else if (!senderRaw) {
+    fromOwner = true;
+  } else if (!senderRaw && !senderPn) {
     return null;
+  } else if (senderPn) {
+    fromOwner = isOwnerWhatsAppSender(senderPn, wid);
   } else if (isWhatsAppLidId(senderRaw)) {
-    // Linked-device posts into the capture group often arrive as incoming + @lid.
-    // Accept those in groups (instance owns the session); drop @lid in 1:1 chats.
-    if (!chatIsGroup) {
-      return null;
-    }
-  } else if (!isOwnerWhatsAppSender(senderRaw, wid)) {
-    return null;
+    if (!chatIsGroup) return null;
+    fromOwner = true;
+  } else {
+    fromOwner = isOwnerWhatsAppSender(senderRaw, wid);
   }
 
   const effectiveSender =
-    !senderRaw || isWhatsAppLidId(senderRaw) ? wid : senderRaw;
+    !senderRaw || isWhatsAppLidId(senderRaw) ? senderPn || wid : senderRaw;
 
   const isGroup = chatIsGroup;
   const isSelfChat =
     isDirectWhatsAppChat(chatId) && isOwnerWhatsAppSender(chatId, wid);
 
-  // Groups always; self-chat only for outgoing (user typed into Message Yourself).
   if (!isGroup && !(isSelfChat && outgoingFromInstance)) {
     return null;
   }
@@ -179,6 +213,7 @@ function resolveIdentity(payload: GreenApiWebhookPayload): {
     senderId: senderIdFromWhatsAppChatId(effectiveSender),
     senderPhone: phoneFromWhatsAppId(effectiveSender),
     direction,
+    fromOwner,
     chatName:
       payload.senderData?.chatName?.trim() ||
       (isSelfChat ? "הודעה לעצמי" : undefined),
@@ -190,6 +225,17 @@ function extractText(payload: GreenApiWebhookPayload): string | undefined {
   const candidates = [
     messageData?.textMessageData?.textMessage,
     messageData?.extendedTextMessageData?.text,
+    messageData?.extendedTextMessageData?.textMessage,
+    typeof messageData?.textMessage === "string" ? messageData.textMessage : undefined,
+    messageData?.editedMessage?.textMessage,
+    messageData?.editedMessage?.text,
+    messageData?.editedMessageData?.textMessage,
+    messageData?.editedMessageData?.text,
+    messageData?.buttonsResponseMessage?.selectedButtonText,
+    messageData?.buttonsResponseMessage?.selectedButtonId,
+    messageData?.templateButtonReplyMessage?.selectedId,
+    messageData?.listResponseMessage?.selectedRowId,
+    messageData?.listResponseMessage?.title,
     messageData?.fileMessageData?.caption,
   ];
   for (const raw of candidates) {
@@ -216,6 +262,7 @@ function parseTextMessage(
     type: "text",
     text,
     chatName: id.chatName,
+    fromOwner: id.fromOwner,
   };
 }
 
@@ -239,6 +286,7 @@ function parseFileMessage(
     caption,
     text: caption,
     chatName: id.chatName,
+    fromOwner: id.fromOwner,
   };
 
   if (mediaType === "audio") {
@@ -272,7 +320,7 @@ export function parseGreenApiWebhook(body: unknown): {
   reason?: "not_inbound" | "not_capture_chat" | "no_sender";
   messages: ParsedGreenApiMessage[];
 } {
-  const payload = body as GreenApiWebhookPayload;
+  const payload = unwrapGreenApiWebhook(body);
   const typeWebhook = payload.typeWebhook ?? "";
 
   if (!INGEST_WEBHOOKS.has(typeWebhook)) {
@@ -290,7 +338,12 @@ export function parseGreenApiWebhook(body: unknown): {
 
   const typeMessage = payload.messageData?.typeMessage;
 
-  if (typeMessage === "textMessage" || typeMessage === "extendedTextMessage" || typeMessage === "quotedMessage") {
+  if (
+    (TEXT_MESSAGE_TYPES.has(typeMessage ?? "") || extractText(payload)) &&
+    typeMessage !== "audioMessage" &&
+    typeMessage !== "pttMessage" &&
+    typeMessage !== "imageMessage"
+  ) {
     const message = parseTextMessage(payload);
     return message
       ? { ignored: false, messages: [message] }

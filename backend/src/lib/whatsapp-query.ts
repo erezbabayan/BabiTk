@@ -16,7 +16,9 @@ export type MenuQuestion = {
 };
 
 const QUERY_HINT =
-  /(?:מה|משימ|יש לי|יש לנו|רשימ|תיב(?:ה|ת)|inbox|תזכור|agenda|today|tomorrow)/iu;
+  /(?:מה\s+(?:יש|המשימ|לעשות)|משימ(?:ה|ות)|יש לנו|רשימ(?:ה|ת)|תיב(?:ה|ת)|בתיבה|\binbox\b|תזכור(?:ת|ות)|agenda|\btoday\b|\btomorrow\b|^מה\b)/iu;
+const SHORT_MENU_ALIASES = new Set(["היום", "מחר"]);
+const COMMAND_PREFIX_RE = /^(?:בוצע|סיימתי|דחה|snooze|done|מחר)(?:\s|$)/iu;
 
 const MENU_REQUEST_RE =
   /^(?:תפריט|עזרה|help|\?|מה אפשר(?:\s+לשאול)?|שאלות(?:\s+מובנות)?|שאלה|menu|אפשרויות|מה את(?:ה|ם) יודע(?:ים)?|מה המערכת יכולה)$/iu;
@@ -102,9 +104,11 @@ export function parseMenuSelection(
     return hit?.query ?? null;
   }
 
-  const byLabel = menu.find(
-    (row) => row.label === text || row.label.replace(/^מה יש לי /, "") === text,
-  );
+  const byLabel = menu.find((row) => {
+    if (row.label === text) return true;
+    const stripped = row.label.replace(/^מה יש לי /, "");
+    return stripped === text && !SHORT_MENU_ALIASES.has(text);
+  });
   return byLabel?.query ?? null;
 }
 
@@ -130,8 +134,8 @@ export function parseWhatsAppQuery(
     return { type: "query", day: "plan", tag: extractQueryTag(text, allowedTags) };
   }
   if (!QUERY_HINT.test(text)) return null;
-  // Capture commands like "בוצע" / "דחה שעתיים" are not questions.
-  if (/^(?:בוצע|סיימתי|דחה|snooze|done)\b/iu.test(text)) return null;
+  // Capture commands like "בוצע" / "דחה שעתיים" / "מחר" are not questions.
+  if (COMMAND_PREFIX_RE.test(text)) return null;
 
   let day: BriefingDay = "today";
   if (DAY_PLAN.test(text)) day = "plan";
@@ -204,6 +208,13 @@ export function itemMatchesBriefingDay(
   if (day === "inbox") {
     return item.status === "inbox";
   }
+  if (day === "plan") {
+    if (item.status === "inbox") return true;
+    const planTs = item.due_date ? Date.parse(item.due_date) : NaN;
+    if (!Number.isFinite(planTs)) return false;
+    const todayEnd = Date.parse(addZonedDays(timezone, now, 1, 0, 0));
+    return planTs < todayEnd;
+  }
   const ts = item.due_date ? Date.parse(item.due_date) : NaN;
   if (!Number.isFinite(ts)) return false;
   if (day === "overdue") {
@@ -248,11 +259,16 @@ export function buildTaskBriefing(
   items: Array<{ title: string; due_date?: string | null; tags?: string[] | null }>,
   query: WhatsAppQuery,
   timezone = "Asia/Jerusalem",
+  extra: { inboxCount?: number } = {},
 ): string {
   const scope = DAY_LABEL[query.day];
   const tagBit = query.tag ? ` ב«${query.tag}»` : "";
   if (items.length === 0) {
-    return `אין משימות ${scope}${tagBit}.${BRIEFING_FOOTER}`;
+    const inboxHint =
+      extra.inboxCount && extra.inboxCount > 0 && query.day !== "inbox"
+        ? `\nבתיבה יש ${extra.inboxCount} פריטים — שלחו «מה בתיבה» או «4».`
+        : "";
+    return `אין משימות ${scope}${tagBit}.${inboxHint}${BRIEFING_FOOTER}`;
   }
 
   const lines = items.slice(0, 20).map((item, index) => {
@@ -261,14 +277,14 @@ export function buildTaskBriefing(
       item.tags && item.tags.length > 0 ? ` · ${item.tags.slice(0, 2).join(", ")}` : "";
     return `${index + 1}. ${item.title}${time ? ` (${time})` : ""}${tags}`;
   });
-  const extra =
+  const more =
     items.length > 20 ? `\n…ועוד ${items.length - 20}` : "";
   const noun = items.length === 1 ? "משימה" : "משימות";
   const heading =
     query.day === "plan"
       ? `🗓 תכנון ליום${tagBit} — ${items.length} ${noun}:`
       : `📋 ${items.length} ${noun} ${scope}${tagBit}:`;
-  return `${heading}\n${lines.join("\n")}${extra}${BRIEFING_FOOTER}`;
+  return `${heading}\n${lines.join("\n")}${more}${BRIEFING_FOOTER}`;
 }
 
 function formatDueClock(dueDate: string | null | undefined, timezone: string): string | null {

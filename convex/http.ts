@@ -145,6 +145,15 @@ http.route({
         continue;
       }
 
+      if (message.fromOwner === false) {
+        skipped.push({
+          messageId: message.messageId,
+          reason: "not_owner_capture",
+          chatId: message.chatId,
+        });
+        continue;
+      }
+
       if (
         resolution.resolved &&
         resolution.userId &&
