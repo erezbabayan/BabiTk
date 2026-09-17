@@ -25,6 +25,7 @@ import {
 import type { MindtaskerItem } from "../lib/supabase";
 import type { ItemEditInput } from "./useBoardItems";
 import {
+  buildAfterReminderSentPatch,
   buildClearReminderPatch,
   buildInferredReminderPatch,
   buildManualReminderPatch,
@@ -428,5 +429,16 @@ export function useBoardItemsConvex(
     togglePriority: (item: MindtaskerItem, priority: boolean) =>
       patchItem(item, buildPriorityTogglePatch(item, priority)),
     addCapturedItem: async (_item: MindtaskerItem) => {},
+    markReminderFired: async (item: MindtaskerItem, fireAt?: string) => {
+      const after = buildAfterReminderSentPatch(item, {
+        firedAt: fireAt ?? item.due_date ?? undefined,
+      });
+      await patchItem(item, {
+        ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+        metadata: after.metadata,
+      });
+      const nextDue = after.due_date ?? null;
+      await syncLocalReminder(item, nextDue);
+    },
   };
 }

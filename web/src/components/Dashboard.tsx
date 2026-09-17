@@ -128,7 +128,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const dueReminders = useDueDateReminderAlerts(
     reminderItems,
     true,
-    (item, fireAt) => markReminderFired(item as MindtaskerItem, fireAt),
+    (item, fireAt) => markReminderFired(item, fireAt),
   );
 
   useEffect(() => {

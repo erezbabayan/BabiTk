@@ -10,8 +10,11 @@ import {
   type ReminderSourceItem,
 } from "../lib/due-date-reminder";
 import {
+  ensureBrowserNotificationPermission,
   playReminderChime,
+  registerReminderServiceWorker,
   showBrowserReminderNotification,
+  unlockReminderAudio,
 } from "../lib/reminder-chime";
 
 const POLL_MS = 15_000;
@@ -23,11 +26,15 @@ export type DueDateReminderItem = ReminderSourceItem;
  * Watch open tasks and fire an in-app reminder (popup + chime + browser
  * notification) when the due date arrives. Used on the GitHub Pages /
  * Supabase path where Convex reminder cron is not running.
+ *
+ * On mobile browsers the tab is frozen while backgrounded, so we also scan
+ * on visibility, pageshow (bfcache), focus, and online — i.e. when the user
+ * opens the site again on the phone.
  */
-export function useDueDateReminderAlerts(
-  items: DueDateReminderItem[],
+export function useDueDateReminderAlerts<T extends DueDateReminderItem>(
+  items: T[],
   enabled: boolean,
-  onFired?: (item: DueDateReminderItem, fireAt: string) => void | Promise<void>,
+  onFired?: (item: T, fireAt: string) => void | Promise<void>,
 ) {
   const [alert, setAlert] = useState<ReminderAlertItem | null>(null);
   const queueRef = useRef<ReminderAlertItem[]>([]);
@@ -97,6 +104,11 @@ export function useDueDateReminderAlerts(
   }
 
   useEffect(() => {
+    if (!enabled) return;
+    void registerReminderServiceWorker();
+  }, [enabled]);
+
+  useEffect(() => {
     if (!enabled) {
       queueRef.current = [];
       showingRef.current = false;
@@ -108,10 +120,15 @@ export function useDueDateReminderAlerts(
 
     const interval = window.setInterval(scan, POLL_MS);
 
-    function onVisibility() {
-      if (!document.hidden) scan();
+    function onForeground() {
+      if (typeof document !== "undefined" && document.hidden) return;
+      scan();
     }
-    document.addEventListener("visibilitychange", onVisibility);
+
+    document.addEventListener("visibilitychange", onForeground);
+    window.addEventListener("pageshow", onForeground);
+    window.addEventListener("focus", onForeground);
+    window.addEventListener("online", onForeground);
 
     const upcoming = nextUpcomingReminderDelayMs(itemsRef.current);
     let timeout: number | undefined;
@@ -122,9 +139,30 @@ export function useDueDateReminderAlerts(
     return () => {
       window.clearInterval(interval);
       if (timeout !== undefined) window.clearTimeout(timeout);
-      document.removeEventListener("visibilitychange", onVisibility);
+      document.removeEventListener("visibilitychange", onForeground);
+      window.removeEventListener("pageshow", onForeground);
+      window.removeEventListener("focus", onForeground);
+      window.removeEventListener("online", onForeground);
     };
   }, [enabled, itemKey]);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    function onFirstGesture() {
+      unlockReminderAudio();
+      void ensureBrowserNotificationPermission();
+      if (typeof document !== "undefined" && document.hidden) return;
+      scan();
+    }
+
+    window.addEventListener("pointerdown", onFirstGesture, { once: true, passive: true });
+    window.addEventListener("keydown", onFirstGesture, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+    };
+  }, [enabled]);
 
   function dismiss() {
     showingRef.current = false;
