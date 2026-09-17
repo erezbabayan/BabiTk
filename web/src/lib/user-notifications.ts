@@ -1,3 +1,4 @@
+import { isMissingSchemaError } from "./schema-compat";
 import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
 
 export type UserNotification = {
@@ -32,7 +33,10 @@ export async function listUserNotifications(limit = 40): Promise<UserNotificatio
     .select(SELECT)
     .order("fire_at", { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) {
+    if (isMissingSchemaError(error)) return [];
+    throw error;
+  }
   return (data ?? []).map((row) => mapRow(row as Record<string, unknown>));
 }
 
@@ -42,7 +46,10 @@ export async function unreadNotificationCount(): Promise<number> {
     .from("user_notifications")
     .select("id", { count: "exact", head: true })
     .eq("read", false);
-  if (error) throw error;
+  if (error) {
+    if (isMissingSchemaError(error)) return 0;
+    throw error;
+  }
   return count ?? 0;
 }
 
@@ -52,7 +59,7 @@ export async function markNotificationRead(id: string): Promise<void> {
     .from("user_notifications")
     .update({ read: true })
     .eq("id", id);
-  if (error) throw error;
+  if (error && !isMissingSchemaError(error)) throw error;
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
@@ -61,7 +68,7 @@ export async function markAllNotificationsRead(): Promise<void> {
     .from("user_notifications")
     .update({ read: true })
     .eq("read", false);
-  if (error) throw error;
+  if (error && !isMissingSchemaError(error)) throw error;
 }
 
 export async function insertUserNotification(params: {
@@ -85,7 +92,10 @@ export async function insertUserNotification(params: {
     })
     .select(SELECT)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw error;
+  }
   return data ? mapRow(data as Record<string, unknown>) : null;
 }
 

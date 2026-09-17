@@ -75,8 +75,21 @@ interface UserRow {
   onboarding_completed_at?: string | null;
 }
 
-const USER_SELECT =
-  "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_last_item_ids,onboarding_completed_at";
+const USER_SELECT_CORE =
+  "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name";
+const USER_SELECT = `${USER_SELECT_CORE},whatsapp_last_item_ids,onboarding_completed_at`;
+
+function isMissingSchemaError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const message = error.message ?? "";
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    error.code === "PGRST205" ||
+    /does not exist/i.test(message) ||
+    /Could not find the (?:table|column)/i.test(message)
+  );
+}
 
 interface GatewayRow extends VoiceGatewayCredentials {
   user_id: string;
@@ -99,15 +112,24 @@ async function findVerifiedUser(
     }
   }
   for (const candidate of variants) {
-    const { data } = await supabase
+    const full = await supabase
       .from("users")
-      .select(
-        "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_last_item_ids,onboarding_completed_at",
-      )
+      .select(USER_SELECT)
       .eq("phone", candidate)
       .maybeSingle();
-    if (data && (data as UserRow).phone_verified) {
-      return data as UserRow;
+    const row =
+      full.data ??
+      (full.error && isMissingSchemaError(full.error)
+        ? (
+            await supabase
+              .from("users")
+              .select(USER_SELECT_CORE)
+              .eq("phone", candidate)
+              .maybeSingle()
+          ).data
+        : null);
+    if (row && (row as UserRow).phone_verified) {
+      return row as UserRow;
     }
   }
   return null;
@@ -119,13 +141,23 @@ async function findUserByCaptureGroup(
 ): Promise<UserRow | null> {
   const trimmed = chatId.trim();
   if (!trimmed.endsWith("@g.us") && !trimmed.endsWith("@c.us")) return null;
-  const { data } = await supabase
+  const full = await supabase
     .from("users")
     .select(USER_SELECT)
     .eq("whatsapp_capture_group_chat_id", trimmed)
     .eq("phone_verified", true)
     .maybeSingle();
-  return (data as UserRow | null) ?? null;
+  if (full.data) return full.data as UserRow;
+  if (!full.error || !isMissingSchemaError(full.error)) {
+    return (full.data as UserRow | null) ?? null;
+  }
+  const core = await supabase
+    .from("users")
+    .select(USER_SELECT_CORE)
+    .eq("whatsapp_capture_group_chat_id", trimmed)
+    .eq("phone_verified", true)
+    .maybeSingle();
+  return (core.data as UserRow | null) ?? null;
 }
 
 async function rememberLastItemIds(
@@ -133,10 +165,13 @@ async function rememberLastItemIds(
   userId: string,
   itemIds: string[],
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from("users")
     .update({ whatsapp_last_item_ids: itemIds.slice(0, 12) })
     .eq("id", userId);
+  if (error && !isMissingSchemaError(error)) {
+    throw error;
+  }
 }
 
 async function handleGroupTextIntent(options: {
@@ -154,11 +189,12 @@ async function handleGroupTextIntent(options: {
 
   if (isWhatsAppMenuRequest(raw)) {
     await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
-    await options.supabase
+    const { error } = await options.supabase
       .from("users")
       .update({ onboarding_completed_at: new Date().toISOString() })
       .eq("id", options.user.id)
       .is("onboarding_completed_at", null);
+    if (error && !isMissingSchemaError(error)) throw error;
     return true;
   }
 
@@ -188,11 +224,12 @@ async function handleGroupTextIntent(options: {
   const command = parseWhatsAppCommand(raw);
   if (!command) return false;
 
-  const { data: fresh } = await options.supabase
+  const { data: fresh, error: lastIdsError } = await options.supabase
     .from("users")
     .select("whatsapp_last_item_ids")
     .eq("id", options.user.id)
     .maybeSingle();
+  if (lastIdsError && !isMissingSchemaError(lastIdsError)) throw lastIdsError;
   const lastIds = Array.isArray(fresh?.whatsapp_last_item_ids)
     ? fresh.whatsapp_last_item_ids.map(String)
     : Array.isArray(options.user.whatsapp_last_item_ids)
@@ -257,11 +294,12 @@ async function maybeSendGroupMenu(options: {
   chatId: string;
 }): Promise<void> {
   if (!options.chatId.endsWith("@g.us")) return;
-  const { data } = await options.supabase
+  const { data, error } = await options.supabase
     .from("users")
     .select("onboarding_completed_at")
     .eq("id", options.user.id)
     .maybeSingle();
+  if (error && isMissingSchemaError(error)) return;
   if (data?.onboarding_completed_at) return;
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
   await sendGreenApiText(
@@ -269,11 +307,12 @@ async function maybeSendGroupMenu(options: {
     options.chatId,
     `בקבוצה הזו אפשר לשאול שאלות מובנות — בחרו מספר או כתבו «תפריט» שוב בכל עת.\n\n${buildWhatsAppMenuText(builtInMenuQuestions(allowedTags))}`,
   );
-  await options.supabase
+  const { error: onboardError } = await options.supabase
     .from("users")
     .update({ onboarding_completed_at: new Date().toISOString() })
     .eq("id", options.user.id)
     .is("onboarding_completed_at", null);
+  if (onboardError && !isMissingSchemaError(onboardError)) throw onboardError;
 }
 
 async function gateCapture(

@@ -1,3 +1,4 @@
+import { isMissingSchemaError } from "./schema-compat";
 import { requireSupabase } from "./supabase";
 
 export type DigestDays = "weekdays" | "everyday";
@@ -30,7 +31,7 @@ export interface CloudUserProfile {
   usage_period_start: string;
 }
 
-const PROFILE_SELECT = [
+const PROFILE_SELECT_CORE = [
   "id",
   "email",
   "username",
@@ -42,6 +43,16 @@ const PROFILE_SELECT = [
   "whatsapp_capture_group_name",
   "whatsapp_digest_hours",
   "whatsapp_digest_days",
+  "tier",
+  "allocated_audio_seconds",
+  "used_audio_seconds",
+  "allocated_ai_parses",
+  "used_ai_parses",
+  "usage_period_start",
+].join(",");
+
+const PROFILE_SELECT = [
+  PROFILE_SELECT_CORE,
   "notify_in_app",
   "notify_browser",
   "notify_whatsapp",
@@ -50,13 +61,18 @@ const PROFILE_SELECT = [
   "overdue_first_hours",
   "overdue_repeat_hours",
   "onboarding_completed_at",
-  "tier",
-  "allocated_audio_seconds",
-  "used_audio_seconds",
-  "allocated_ai_parses",
-  "used_ai_parses",
-  "usage_period_start",
 ].join(",");
+
+const OPTIONAL_PROFILE_PATCH_KEYS = [
+  "notify_in_app",
+  "notify_browser",
+  "notify_whatsapp",
+  "notify_whatsapp_group",
+  "notify_overdue_reminders",
+  "overdue_first_hours",
+  "overdue_repeat_hours",
+  "onboarding_completed_at",
+] as const;
 
 function asDigestDays(value: unknown): DigestDays {
   return value === "weekdays" ? "weekdays" : "everyday";
@@ -187,20 +203,37 @@ export async function getAuthAccountView(): Promise<AuthAccountView | null> {
   return view;
 }
 
-export async function getCloudUserProfile(): Promise<CloudUserProfile> {
+async function loadUserProfileRow(
+  userId: string,
+): Promise<Record<string, unknown>> {
   const supabase = requireSupabase();
-  const auth = await requireAuthUser();
-  const { data, error } = await supabase
+  const full = await supabase
     .from("users")
     .select(PROFILE_SELECT)
-    .eq("id", auth.id)
+    .eq("id", userId)
     .maybeSingle();
-
-  if (error) throw error;
-  if (!data) {
+  if (!full.error && full.data) {
+    return full.data as unknown as Record<string, unknown>;
+  }
+  if (full.error && !isMissingSchemaError(full.error)) {
+    throw full.error;
+  }
+  const core = await supabase
+    .from("users")
+    .select(PROFILE_SELECT_CORE)
+    .eq("id", userId)
+    .maybeSingle();
+  if (core.error) throw core.error;
+  if (!core.data) {
     throw new Error("פרופיל המשתמש לא נמצא");
   }
-  return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
+  return core.data as unknown as Record<string, unknown>;
+}
+
+export async function getCloudUserProfile(): Promise<CloudUserProfile> {
+  const auth = await requireAuthUser();
+  const row = await loadUserProfileRow(auth.id);
+  return mapProfile(row, auth.id, auth.email);
 }
 
 export async function updateCloudUserProfile(
@@ -229,15 +262,39 @@ export async function updateCloudUserProfile(
 ): Promise<CloudUserProfile> {
   const supabase = requireSupabase();
   const auth = await requireAuthUser();
-  const { data, error } = await supabase
+  const full = await supabase
     .from("users")
     .update(patch)
     .eq("id", auth.id)
     .select(PROFILE_SELECT)
     .single();
-
-  if (error) throw error;
-  return mapProfile(data as unknown as Record<string, unknown>, auth.id, auth.email);
+  if (!full.error && full.data) {
+    return mapProfile(full.data as unknown as Record<string, unknown>, auth.id, auth.email);
+  }
+  if (full.error && !isMissingSchemaError(full.error)) {
+    throw full.error;
+  }
+  const corePatch: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    if (
+      (OPTIONAL_PROFILE_PATCH_KEYS as readonly string[]).includes(key) ||
+      value === undefined
+    ) {
+      continue;
+    }
+    corePatch[key] = value;
+  }
+  if (Object.keys(corePatch).length === 0) {
+    return getCloudUserProfile();
+  }
+  const core = await supabase
+    .from("users")
+    .update(corePatch)
+    .eq("id", auth.id)
+    .select(PROFILE_SELECT_CORE)
+    .single();
+  if (core.error) throw core.error;
+  return mapProfile(core.data as unknown as Record<string, unknown>, auth.id, auth.email);
 }
 
 export async function setCloudUserTier(
