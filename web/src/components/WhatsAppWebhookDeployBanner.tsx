@@ -26,7 +26,7 @@ export function WhatsAppWebhookDeployBanner() {
     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" dir="rtl">
       <p className="font-semibold">שאלות בקבוצה עדיין לא פעילות בשרת החי</p>
       <p className="mt-1 text-xs leading-5 text-amber-900">
-        הקוד כבר בגיטהאב, אבל פונקציית הוואטסאפ לא עלתה כי חסר טוקן פריסה. בלי זה `*` / `?` / «כוכבית»
+        הקוד כבר בגיטהאב, אבל פונקציית הוואטסאפ לא עלתה כי חסר טוקן פריסה. בלי זה `*` / `?` / «בבי»
         נכנסים כפריט במקום לקבל מענה בקבוצה.
       </p>
       <ol className="mt-2 list-decimal space-y-1 pr-4 text-xs leading-5 text-amber-950">

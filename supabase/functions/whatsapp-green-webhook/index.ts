@@ -626,7 +626,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v3",
-      qa: "voice-v1",
+      qa: "babi-v1",
     });
   }
   if (req.method !== "POST") {
