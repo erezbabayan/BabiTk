@@ -1,9 +1,99 @@
 import { clientTimezone, uploadNotebookOcrApi } from "./api";
-import { isDemoMode, requireSupabase } from "./supabase";
+import { currentAccessToken } from "./whatsapp-gateway";
+import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
 
-async function getAccessToken(): Promise<string | null> {
-  const { data } = await requireSupabase().auth.getSession();
-  return data.session?.access_token ?? null;
+const INGEST_TIMEOUT_MS = 20_000;
+
+async function blobToBase64(blob: Blob): Promise<string> {
+  const buffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function invokeWithTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("transcription_timeout")), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function ingestVoiceViaEdge(
+  blob: Blob,
+  mimeType: string,
+  durationSeconds?: number,
+): Promise<void> {
+  const supabase = requireSupabase();
+  const accessToken = await currentAccessToken();
+  if (!accessToken) {
+    throw new Error("יש להתחבר כדי לקלוט הקלטה");
+  }
+  const audioBase64 = await blobToBase64(blob);
+  const { data, error } = await invokeWithTimeout(
+    supabase.functions.invoke("ingest-voice", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: {
+        audioBase64,
+        mimeType,
+        fileName: `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`,
+        durationSeconds,
+      },
+    }),
+    INGEST_TIMEOUT_MS,
+  );
+  if (error) {
+    throw new Error(error.message || "תמלול ההקלטה נכשל");
+  }
+  if (data && typeof data === "object" && "error" in data) {
+    throw new Error(String((data as { error: string }).error));
+  }
+  const title =
+    data && typeof data === "object" && typeof (data as { title?: unknown }).title === "string"
+      ? (data as { title: string }).title.trim()
+      : "";
+  if (!title) {
+    throw new Error("transcription_empty");
+  }
+}
+
+async function ingestVoiceViaExpress(
+  blob: Blob,
+  mimeType: string,
+  durationSeconds?: number,
+): Promise<void> {
+  const token = await currentAccessToken();
+  if (!token) throw new Error("יש להתחבר כדי לקלוט הקלטה");
+
+  const form = new FormData();
+  const extension = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
+  form.append("file", blob, `recording.${extension}`);
+  form.append("timezone", clientTimezone());
+  form.append("locale", "he-IL");
+  if (durationSeconds != null) {
+    form.append("durationSeconds", String(durationSeconds));
+  }
+
+  const response = await fetch("/api/ai/voice-ingest", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? "קליטת ההקלטה נכשלה — נדרש שרת AI");
+  }
 }
 
 export async function ingestVoiceBlobForUser(
@@ -20,28 +110,20 @@ export async function ingestVoiceBlobForUser(
     throw new Error("ההקלטה ריקה");
   }
 
-  const token = await getAccessToken();
-  if (!token) throw new Error("יש להתחבר כדי לקלוט הקלטה");
-
-  const form = new FormData();
-  const extension = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
-  form.append("file", blob, `recording.${extension}`);
-  form.append("timezone", clientTimezone());
-  form.append("locale", "he-IL");
-  if (options?.durationSeconds != null) {
-    form.append("durationSeconds", String(options.durationSeconds));
+  if (isSupabaseConfigured) {
+    try {
+      await ingestVoiceViaEdge(blob, mimeType, options?.durationSeconds);
+      return;
+    } catch (error) {
+      if (import.meta.env.VITE_API_URL?.trim()) {
+        await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
+        return;
+      }
+      throw error;
+    }
   }
 
-  const response = await fetch("/api/ai/voice-ingest", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: form,
-  });
-
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? "קליטת ההקלטה נכשלה — נדרש שרת AI");
-  }
+  await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
 }
 
 export async function ingestImageBlobForUser(

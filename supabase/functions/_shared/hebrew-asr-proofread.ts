@@ -11,7 +11,7 @@
  * replacer, modeled on Hspell/HebMorph prefix handling (ב/ל/מ/ה/ו/ש/כ).
  *
  * Keep in sync with:
- *   supabase/functions/_shared/hebrew-asr-proofread.ts
+ *   backend/src/lib/ingest/hebrewAsrSpelling.ts
  *   convex/lib/ingest/hebrewAsrSpelling.ts
  */
 
@@ -22,6 +22,10 @@ export const HEBREW_ASR_WHISPER_PROMPT =
   "זמנים: מחר, מחרתיים, בצהריים, אחה״צ, סופ״ש. " +
   "שמות: רועי, נועם, אורי, גיא, עידו, עידן, מיכל, שירה, יעל, דנה, מאיה, הילה, אסף, ליאור, יונתן, דניאל, תום, רן, ניר, עומר, איתי, אביה, תמר, נועה, אביגיל, יובל, נועה.";
 
+/**
+ * Multi-word ASR splits. Longest phrases first.
+ * Whisper tokenizes clitics as separate words: "ל קנות", "ב שעה".
+ */
 const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]> = [
   ["אחר ה צהריים", "אחר הצהריים"],
   ["אחרי ה צהריים", "אחרי הצהריים"],
@@ -53,7 +57,12 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["יא אללה", "יאללה"],
 ];
 
+/**
+ * Single-token fixes. Applied with Hspell-style clitics: לרואי → לרועי.
+ * Only high-confidence confusions where the wrong form is rarely intended.
+ */
 const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]> = [
+  // Names
   ["רואי", "רועי"],
   ["רועיי", "רועי"],
   ["גיי", "גיא"],
@@ -79,6 +88,8 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["יונתןן", "יונתן"],
   ["דניאלל", "דניאל"],
   ["מאיהה", "מאיה"],
+
+  // Everyday verbs / nouns Whisper often misspells
   ["תזכרת", "תזכורת"],
   ["תזכורתת", "תזכורת"],
   ["תזכוראת", "תזכורת"],
@@ -111,6 +122,8 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["בחצותת", "בחצות"],
   ["בסדרר", "בסדר"],
   ["בסדררר", "בסדר"],
+
+  // Israeli slang (spoken WhatsApp / street Hebrew)
   ["יאלה", "יאללה"],
   ["יאללא", "יאללה"],
   ["יאללהה", "יאללה"],
@@ -145,6 +158,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Hspell/HebMorph clitics: up to two of ב/ל/מ/ה/ו/ש/כ before the token. */
 const CLITIC_PREFIX = "([לבכושה]{0,2})";
 
 function replaceTokenForm(text: string, wrong: string, right: string): string {
@@ -175,7 +189,7 @@ function normalizeWhitespaceAndMarks(text: string): string {
 
 /**
  * Apply safe Hebrew ASR spelling corrections (names, slang, ktiv male,
- * clitic splits, clear homophones). Idempotent; safe to run before and after AI proofread.
+ * clitic splits, clear homophones). Idempotent.
  */
 export function applyHebrewAsrSpellingFixes(text: string): string {
   if (!text.trim()) return text;
@@ -188,3 +202,5 @@ export function applyHebrewAsrSpellingFixes(text: string): string {
   }
   return normalizeWhitespaceAndMarks(out);
 }
+
+export { HEBREW_PHRASE_FIXES, HEBREW_TOKEN_FIXES };

@@ -503,12 +503,41 @@ export async function uploadNotebookOcr(
 export async function uploadVoiceNote(
   uri: string,
   _legacyUserId?: string,
-  _options?: { durationSeconds?: number },
+  options?: { durationSeconds?: number },
 ): Promise<void> {
   if (isDemoMode) {
     const { ingestVoiceSync } = await import("./sync-client");
     await ingestVoiceSync(uri, "audio/m4a", "recording.m4a");
     return;
+  }
+
+  if (isSupabaseConfigured) {
+    const token = await getAccessToken();
+    if (!token) throw new Error("Not authenticated");
+    const { readLocalAudioAsBase64 } = await import("./voice-upload");
+    const audio = await readLocalAudioAsBase64(uri);
+    const { data, error } = await supabase.functions.invoke("ingest-voice", {
+      headers: { Authorization: `Bearer ${token}` },
+      body: {
+        audioBase64: audio.base64,
+        mimeType: audio.mimeType,
+        fileName: "recording.m4a",
+        durationSeconds: options?.durationSeconds,
+      },
+    });
+    if (!error) {
+      if (data && typeof data === "object" && "error" in data) {
+        throw new Error(String((data as { error: string }).error));
+      }
+      const title =
+        data && typeof data === "object" && typeof (data as { title?: unknown }).title === "string"
+          ? (data as { title: string }).title.trim()
+          : "";
+      if (title) return;
+    }
+    if (!API_BASE) {
+      throw new Error(error?.message || "תמלול ההקלטה נכשל");
+    }
   }
 
   await uploadMultipart("/api/ai/voice-ingest", uri, "audio/m4a", "recording.m4a");

@@ -11,6 +11,8 @@ import { resolveGreenApiMediaUrl, type GreenApiMediaCredentials } from "./green-
 import {
   audioFileName,
   downloadAudioBytes,
+  isHttpUrl,
+  isStorageObjectPath,
   transcribeAndProofreadVoice,
 } from "./hebrew-voice-asr.ts";
 import {
@@ -70,15 +72,40 @@ function metadataString(metadata: Record<string, unknown> | null, key: string): 
   return typeof value === "string" ? value : "";
 }
 
+async function downloadFromStorage(
+  supabase: AdminClient,
+  path: string,
+  mimeTypeHint?: string | null,
+): Promise<{ bytes: Uint8Array; mimeType: string; audioUrl: string }> {
+  const { data, error } = await supabase.storage.from("source-materials").download(path);
+  if (error || !data) {
+    throw new Error(error?.message ?? "storage_download_failed");
+  }
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  if (bytes.byteLength < 64) {
+    throw new Error("audio_too_short");
+  }
+  return {
+    bytes,
+    mimeType: mimeTypeHint || data.type || "audio/webm",
+    audioUrl: path,
+  };
+}
+
 async function downloadVoiceAudio(params: {
+  supabase?: AdminClient;
   downloadUrl?: string | null;
   chatId?: string | null;
   messageId?: string | null;
   credentials: GreenApiMediaCredentials | null;
   mimeType?: string | null;
 }): Promise<{ bytes: Uint8Array; mimeType: string; audioUrl: string }> {
+  if (params.supabase && isStorageObjectPath(params.downloadUrl)) {
+    return downloadFromStorage(params.supabase, params.downloadUrl!.trim(), params.mimeType);
+  }
+
   let audioUrl = await resolveGreenApiMediaUrl({
-    downloadUrl: params.downloadUrl,
+    downloadUrl: isHttpUrl(params.downloadUrl) ? params.downloadUrl : null,
     chatId: params.chatId,
     messageId: params.messageId,
     credentials: params.credentials,
@@ -115,6 +142,7 @@ async function downloadVoiceAudio(params: {
 export async function transcribeVoiceMessage(
   message: ParsedGreenApiMessage,
   gateway: VoiceGatewayCredentials | null,
+  supabase?: AdminClient,
 ): Promise<{
   sourceType: "whatsapp_voice";
   title: string;
@@ -123,6 +151,7 @@ export async function transcribeVoiceMessage(
   audioUrl: string | null;
 }> {
   const downloaded = await downloadVoiceAudio({
+    supabase,
     downloadUrl: message.audioUrl,
     chatId: message.chatId,
     messageId: message.messageId,
@@ -173,9 +202,13 @@ export async function applyVoiceTranscription(
   },
 ): Promise<void> {
   const source = firstSourceMaterial(row);
+  const previousSource =
+    typeof row.metadata?.source === "string" && row.metadata.source.trim()
+      ? row.metadata.source
+      : "whatsapp_voice";
   const metadata = {
     ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
-    source: "whatsapp_voice",
+    source: previousSource,
     whisper_transcription: transcribed.rawText,
     corrected_transcription: transcribed.content,
     voice_transcribe_started_at: null,
@@ -252,6 +285,7 @@ export async function transcribeStoredVoiceItem(
       audioUrl: source?.storage_url || undefined,
     },
     gateway,
+    supabase,
   );
   await applyVoiceTranscription(supabase, row, transcribed);
   return transcribed;
@@ -313,4 +347,92 @@ export async function loadVoiceItemForUser(
     .maybeSingle();
   if (error || !data) return null;
   return data as VoiceItemRow;
+}
+
+export async function ingestRecordedAudio(
+  supabase: AdminClient,
+  userId: string,
+  params: {
+    bytes: Uint8Array;
+    mimeType: string;
+    fileName: string;
+    durationSeconds?: number;
+  },
+): Promise<{ itemId: string; title: string; content: string; rawText: string }> {
+  const transcribed = await transcribeAndProofreadVoice({
+    audio: params.bytes,
+    mimeType: params.mimeType,
+    fileName: params.fileName,
+  });
+  if (isVoicePlaceholderText(transcribed.correctedText)) {
+    throw new Error("voice_placeholder_rejected");
+  }
+
+  const storagePath = `${userId}/${Date.now()}-${params.fileName}`;
+  let storedPath: string | null = storagePath;
+  const { error: uploadError } = await supabase.storage
+    .from("source-materials")
+    .upload(storagePath, new Blob([params.bytes], { type: params.mimeType }), {
+      contentType: params.mimeType,
+      upsert: false,
+    });
+  if (uploadError) {
+    console.error("voice storage upload failed", uploadError.message);
+    storedPath = null;
+  }
+
+  const now = Date.now();
+  const { data: source, error: sourceError } = await supabase
+    .from("source_materials")
+    .insert({
+      user_id: userId,
+      source_type: "whatsapp_voice",
+      raw_text: transcribed.rawText,
+      storage_url: storedPath,
+      metadata: {
+        channel: "app",
+        duration_seconds: params.durationSeconds ?? null,
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+      },
+    })
+    .select("id")
+    .single();
+  if (sourceError) {
+    throw new Error(sourceError.message);
+  }
+
+  const { data: inserted, error: itemError } = await supabase
+    .from("mindtasker_items")
+    .insert({
+      user_id: userId,
+      source_material_id: source?.id ?? null,
+      title: transcribed.title,
+      content: transcribed.correctedText,
+      is_actionable: true,
+      status: "inbox",
+      tags: [],
+      metadata: {
+        source: "app_voice",
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+        duration_seconds: params.durationSeconds ?? null,
+      },
+      sort_order: now,
+      last_interacted_at: new Date(now).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (itemError || !inserted) {
+    throw new Error(itemError?.message ?? "item_insert_failed");
+  }
+
+  return {
+    itemId: inserted.id as string,
+    title: transcribed.title,
+    content: transcribed.correctedText,
+    rawText: transcribed.rawText,
+  };
 }
