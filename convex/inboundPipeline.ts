@@ -10,6 +10,7 @@ import { applyHebrewAsrSpellingFixes } from "./lib/ingest/hebrewAsrSpelling";
 import { enrichParsedItemsWithAnalysis } from "./lib/ingest/itemAnalysis";
 import { parseInputLocally } from "./lib/ingest/localParse";
 import { markSenderMessageRead } from "./lib/replyToSender";
+import { replyIfWhatsAppSystemQuestion } from "./lib/whatsappSystemQuestionReply";
 import { resolveGreenApiMediaUrl } from "./lib/greenApiDownload";
 import type { SourceType } from "./validators";
 import { parseInputForIngest, sanitizeInboundText } from "./openaiPipeline";
@@ -72,9 +73,21 @@ async function ingestExtractedText(
     senderPhone?: string;
     chatId?: string;
   },
-): Promise<{ createdCount: number }> {
+): Promise<{ createdCount: number; answeredQuestion?: boolean }> {
   const timezone = DEFAULT_TIMEZONE;
   const referenceDate = new Date();
+
+  if (
+    await replyIfWhatsAppSystemQuestion(ctx, {
+      userId: params.userId,
+      messageId: params.messageId,
+      text: params.text,
+      senderPhone: params.senderPhone,
+      chatId: params.chatId,
+    })
+  ) {
+    return { createdCount: 0, answeredQuestion: true };
+  }
 
   const sanitized = sanitizeInboundText(params.text);
   if (!sanitized.accepted) {
@@ -257,7 +270,7 @@ export const processGreenApiMessage = internalAction({
 
         return {
           ok: true,
-          reason: "ingested",
+          reason: result.answeredQuestion ? "system_question_answered" : "ingested",
           sourceType: "whatsapp_text",
           createdCount: result.createdCount,
         };

@@ -45,6 +45,11 @@ import {
   resolveCommandItemId,
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
+import { parseWhatsAppSystemQuestion } from "../_shared/whatsapp-system-question.ts";
+import {
+  findSystemQuestionReceipt,
+  replyWhatsAppSystemQuestion,
+} from "../_shared/whatsapp-system-question-reply.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -180,14 +185,19 @@ async function handleGroupTextIntent(options: {
   gateway: GatewayRow | null;
   message: ParsedGreenApiMessage;
   text: string;
+  sourceType?: "whatsapp_text" | "whatsapp_voice";
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw || isSystemWhatsAppReply(raw)) return true;
   const replyTo = replyChatId(options.message);
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
+  const systemQuestion = parseWhatsAppSystemQuestion(raw);
+  const intentText =
+    systemQuestion.kind === "question" ? systemQuestion.question : raw;
+  const prefixed = systemQuestion.kind !== "none";
 
-  if (isWhatsAppMenuRequest(raw)) {
+  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(intentText) || isWhatsAppMenuRequest(raw)) {
     await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
     const { error } = await options.supabase
       .from("users")
@@ -198,7 +208,7 @@ async function handleGroupTextIntent(options: {
     return true;
   }
 
-  const query = parseWhatsAppQuery(raw, allowedTags);
+  const query = parseWhatsAppQuery(intentText, allowedTags);
   if (query) {
     const { data } = await options.supabase
       .from("mindtasker_items")
@@ -218,6 +228,20 @@ async function handleGroupTextIntent(options: {
       matched.map((item) => String(item.id)),
     );
     await sendGreenApiText(options.gateway, replyTo, buildTaskBriefing(matched, query));
+    return true;
+  }
+
+  if (prefixed) {
+    await replyWhatsAppSystemQuestion({
+      supabase: options.supabase,
+      userId: options.user.id,
+      chatId: replyTo,
+      messageId: options.message.messageId,
+      sourceType: options.sourceType ?? "whatsapp_text",
+      parsed: systemQuestion,
+      gateway: options.gateway,
+      rawText: raw,
+    });
     return true;
   }
 
@@ -398,6 +422,9 @@ async function alreadyIngested(
   messageId: string,
   gateway: GatewayRow | null,
 ): Promise<boolean> {
+  if (await findSystemQuestionReceipt(supabase, userId, messageId)) {
+    return true;
+  }
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
   if (!existing) return false;
   queueVoiceTranscription(supabase, existing, gateway);
@@ -458,22 +485,37 @@ function queueVoiceTranscription(
 
 async function ingestMessage(
   supabase: ReturnType<typeof adminClient>,
-  userId: string,
+  user: UserRow,
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
-): Promise<{ id: string; title: string } | null> {
-  if (await alreadyIngested(supabase, userId, message.messageId, gateway)) {
+): Promise<{ id: string; title: string } | "answered" | null> {
+  if (await alreadyIngested(supabase, user.id, message.messageId, gateway)) {
     return null;
   }
   const item =
     message.type === "audio"
       ? await voiceItemFromMessage(message, gateway, supabase)
       : itemFromMessage(message);
+  const questionText = item.content || ("rawText" in item ? item.rawText : "");
+  if (
+    !needsVoiceTranscription(item.title, item.content) &&
+    questionText.trim() &&
+    (await handleGroupTextIntent({
+      supabase,
+      user,
+      gateway,
+      message,
+      text: questionText,
+      sourceType: message.type === "audio" ? "whatsapp_voice" : "whatsapp_text",
+    }))
+  ) {
+    return "answered";
+  }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
     .insert({
-      user_id: userId,
+      user_id: user.id,
       source_type: item.sourceType,
       raw_text: "rawText" in item ? item.rawText : item.content,
       storage_url:
@@ -498,14 +540,14 @@ async function ingestMessage(
     throw new Error(sourceError.message);
   }
 
-  const allowedTags = await loadAllowedTagNames(supabase, userId);
+  const allowedTags = await loadAllowedTagNames(supabase, user.id);
   const skipParse = needsVoiceTranscription(item.title, item.content);
   const parsed = skipParse ? undefined : parseIncomingMessage(item.content, allowedTags)[0];
 
   const { data: inserted, error: itemError } = await supabase
     .from("mindtasker_items")
     .insert({
-      user_id: userId,
+      user_id: user.id,
       source_material_id: source?.id ?? null,
       title: parsed?.title || item.title,
       content: parsed?.content || item.content,
@@ -540,6 +582,7 @@ async function ingestMessage(
       supabase,
       {
         id: inserted.id as string,
+        user_id: user.id,
         title: inserted.title as string,
         content: inserted.content as string,
         metadata: (inserted.metadata as Record<string, unknown> | null) ?? null,
@@ -611,6 +654,7 @@ Deno.serve(async (req) => {
   }
 
   const scheduled: Array<{ messageId: string; userId: string }> = [];
+  const answered: Array<{ messageId: string; userId: string }> = [];
   const skipped: Array<{ messageId: string; reason: string }> = [];
 
   for (const message of parsed.messages) {
@@ -654,7 +698,7 @@ Deno.serve(async (req) => {
           text: message.text,
         });
         if (handled) {
-          skipped.push({ messageId: message.messageId, reason: "intent_handled" });
+          answered.push({ messageId: message.messageId, userId: user.id });
           await maybeSendGroupMenu({
             supabase,
             user,
@@ -664,8 +708,10 @@ Deno.serve(async (req) => {
           continue;
         }
       }
-      const inserted = await ingestMessage(supabase, user.id, message, gateway);
-      if (inserted) {
+      const inserted = await ingestMessage(supabase, user, message, gateway);
+      if (inserted === "answered") {
+        answered.push({ messageId: message.messageId, userId: user.id });
+      } else if (inserted) {
         await rememberLastItemIds(supabase, user.id, [inserted.id]);
         await sendGreenApiText(
           gateway,
@@ -678,11 +724,11 @@ Deno.serve(async (req) => {
           gateway,
           chatId: message.chatId,
         });
+        scheduled.push({
+          messageId: message.messageId,
+          userId: user.id,
+        });
       }
-      scheduled.push({
-        messageId: message.messageId,
-        userId: user.id,
-      });
     } catch (error) {
       skipped.push({
         messageId: message.messageId,
@@ -695,6 +741,7 @@ Deno.serve(async (req) => {
     received: true,
     provider: "green-api",
     scheduled,
+    answered,
     skipped,
   });
 });

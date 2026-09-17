@@ -69,6 +69,8 @@ import type * as lib_userDisplayName from "../lib/userDisplayName.js";
 import type * as lib_whatsappCaptureGroup from "../lib/whatsappCaptureGroup.js";
 import type * as lib_whatsappIngestReceipt from "../lib/whatsappIngestReceipt.js";
 import type * as lib_whatsappOutbound from "../lib/whatsappOutbound.js";
+import type * as lib_whatsappSystemQuestion from "../lib/whatsappSystemQuestion.js";
+import type * as lib_whatsappSystemQuestionReply from "../lib/whatsappSystemQuestionReply.js";
 import type * as notebooks from "../notebooks.js";
 import type * as notifications from "../notifications.js";
 import type * as openaiPipeline from "../openaiPipeline.js";
@@ -164,6 +166,8 @@ declare const fullApi: ApiFromModules<{
   "lib/whatsappCaptureGroup": typeof lib_whatsappCaptureGroup;
   "lib/whatsappIngestReceipt": typeof lib_whatsappIngestReceipt;
   "lib/whatsappOutbound": typeof lib_whatsappOutbound;
+  "lib/whatsappSystemQuestion": typeof lib_whatsappSystemQuestion;
+  "lib/whatsappSystemQuestionReply": typeof lib_whatsappSystemQuestionReply;
   notebooks: typeof notebooks;
   notifications: typeof notifications;
   openaiPipeline: typeof openaiPipeline;

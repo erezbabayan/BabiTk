@@ -35,7 +35,7 @@ export const CHANNELS: Record<string, ChannelInfo> = {
     id: "whatsapp",
     icon: "whatsapp",
     title: "וואטסאפ",
-    description: "קליטת משימות מקבוצת וואטסאפ קיימת ותזכורות יומיות.",
+    description: "קליטת משימות מקבוצת וואטסאפ קיימת, שאלות למערכת בקבוצה, ותזכורות.",
     platforms: "וואטסאפ",
     limits: [
       { label: "סוגי הודעות", value: "טקסט, קול, תמונה" },
