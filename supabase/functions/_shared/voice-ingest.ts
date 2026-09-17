@@ -20,6 +20,7 @@ import {
   needsVoiceTranscription,
   VOICE_PENDING_TITLE,
 } from "./voice-text.ts";
+import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -31,6 +32,7 @@ export interface VoiceGatewayCredentials {
 
 export interface VoiceItemRow {
   id: string;
+  user_id?: string;
   title: string;
   content: string;
   metadata: Record<string, unknown> | null;
@@ -213,11 +215,21 @@ export async function applyVoiceTranscription(
     corrected_transcription: transcribed.content,
     voice_transcribe_started_at: null,
   };
+  const allowedTags = await loadAllowedTagNames(
+    supabase,
+    row.user_id ?? "",
+  );
+  const parsed = row.user_id
+    ? parseIncomingMessage(transcribed.content, allowedTags)[0]
+    : undefined;
   const { error: itemError } = await supabase
     .from("mindtasker_items")
     .update({
-      title: transcribed.title,
-      content: transcribed.content,
+      title: parsed?.title || transcribed.title,
+      content: parsed?.content || transcribed.content,
+      is_actionable: parsed?.is_actionable ?? true,
+      due_date: parsed?.due_date ?? null,
+      tags: parsed?.tags ?? [],
       last_interacted_at: new Date().toISOString(),
       metadata,
     })
@@ -248,7 +260,7 @@ export async function findVoiceItemByWhatsAppMessage(
   const { data, error } = await supabase
     .from("mindtasker_items")
     .select(
-      "id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
+      "id, user_id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
     )
     .eq("user_id", userId)
     .filter("metadata->>whatsapp_message_id", "eq", messageId)
@@ -300,7 +312,7 @@ export async function repairOnePlaceholderVoiceItem(
   const { data, error } = await supabase
     .from("mindtasker_items")
     .select(
-      "id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
+      "id, user_id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
     )
     .eq("user_id", userId)
     .is("deleted_at", null)
@@ -339,7 +351,7 @@ export async function loadVoiceItemForUser(
   const { data, error } = await supabase
     .from("mindtasker_items")
     .select(
-      "id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
+      "id, user_id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
     )
     .eq("id", itemId)
     .eq("user_id", userId)
@@ -381,6 +393,8 @@ export async function ingestRecordedAudio(
     storedPath = null;
   }
 
+  const allowedTags = await loadAllowedTagNames(supabase, userId);
+  const parsed = parseIncomingMessage(transcribed.correctedText, allowedTags)[0];
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -408,11 +422,12 @@ export async function ingestRecordedAudio(
     .insert({
       user_id: userId,
       source_material_id: source?.id ?? null,
-      title: transcribed.title,
-      content: transcribed.correctedText,
-      is_actionable: true,
+      title: parsed?.title || transcribed.title,
+      content: parsed?.content || transcribed.correctedText,
+      is_actionable: parsed?.is_actionable ?? true,
       status: "inbox",
-      tags: [],
+      due_date: parsed?.due_date ?? null,
+      tags: parsed?.tags ?? [],
       metadata: {
         source: "app_voice",
         whisper_transcription: transcribed.rawText,

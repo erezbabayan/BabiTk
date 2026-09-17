@@ -40,9 +40,10 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { resyncAllItemsToConvex } from "../lib/convex-mirror";
 import { useConvexUserId } from "./useConvexUserId";
 import { useBoardItemsConvex, type BoardSecondaryLoad } from "./useBoardItemsConvex";
+import { useIncomingContextParse } from "./useIncomingContextParse";
 
 const ITEM_SELECT = `
-  id, title, content, is_actionable, status, due_date, tags, source_material_id, sort_order, created_at,
+  id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id, sort_order, created_at,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
 
@@ -279,6 +280,17 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       await refresh();
     },
     [enabled, refresh, setIsSyncing],
+  );
+
+  useIncomingContextParse(
+    items,
+    userId,
+    enabled && Boolean(userId),
+    async (id, patch) => {
+      const item = items.find((entry) => entry.id === id);
+      if (!item) return;
+      await patchItem(item, patch as Partial<MindtaskerItem>);
+    },
   );
 
   const inbox = useMemo(

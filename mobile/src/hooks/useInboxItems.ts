@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase, normalizeMindtaskerRows, type MindtaskerItem } from "../lib/supabase";
 
 const ITEM_SELECT = `
-  id, title, content, is_actionable, status, due_date, tags, source_material_id,
+  id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
 

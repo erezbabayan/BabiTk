@@ -49,6 +49,7 @@ import { useConvexBackend } from "../lib/data-backend";
 import { useConvexUserId } from "./useConvexUserId";
 import { useItemsConvex, type BoardSecondaryLoad } from "./useItemsConvex";
 import { useVoicePlaceholderRepair } from "./useVoicePlaceholderRepair";
+import { useIncomingContextParse } from "./useIncomingContextParse";
 
 import type { MindtaskerItem } from "../types";
 import { buildPriorityTogglePatch } from "../lib/item-priority";
@@ -327,6 +328,13 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     [enabled, refresh],
 
+  );
+
+  useIncomingContextParse(
+    items,
+    userId,
+    enabled && Boolean(userId),
+    updateItem,
   );
 
 

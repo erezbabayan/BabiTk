@@ -5,6 +5,11 @@ import {
   transcribeHebrewAudioUrl,
 } from "../../../convex/lib/ingest/hebrewAsrPublicClient";
 import { titleFromInboundText } from "./voice-text";
+import {
+  parseIncomingMessage,
+  parsedItemInsertFields,
+  resolveAllowedTagNames,
+} from "./parse-incoming-message";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 
 export interface TranscribeVoiceItemResult {
@@ -71,6 +76,22 @@ function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value);
 }
 
+async function loadAllowedTagNamesForUser(userId: string): Promise<string[]> {
+  try {
+    const supabase = requireSupabase();
+    const { data } = await supabase
+      .from("user_tags")
+      .select("name")
+      .eq("user_id", userId)
+      .order("sort_order", { ascending: true });
+    return resolveAllowedTagNames(
+      (data ?? []).map((row) => (typeof row.name === "string" ? row.name : "")),
+    );
+  } catch {
+    return resolveAllowedTagNames([]);
+  }
+}
+
 async function resolveAudioUrl(item: VoiceRepairItem): Promise<string | null> {
   const source = firstSource(item);
   const stored = source?.storage_url?.trim() ?? "";
@@ -89,20 +110,31 @@ async function persistClientTranscript(
   title: string,
   content: string,
   engine: string,
-): Promise<void> {
+): Promise<{ title: string; content: string }> {
   const supabase = requireSupabase();
-  const metadata = {
+  const userId = await currentUserId();
+  const allowedTags = userId
+    ? await loadAllowedTagNamesForUser(userId)
+    : resolveAllowedTagNames([]);
+  const parsed = parseIncomingMessage(content, { allowedTags })[0];
+  const extraMeta = {
     ...(typeof item.metadata === "object" && item.metadata ? item.metadata : {}),
     whisper_transcription: content,
     corrected_transcription: content,
     asr_engine: engine,
   };
+  const fields = parsed ? parsedItemInsertFields(parsed, extraMeta) : null;
+  const nextTitle = fields?.title || title;
+  const nextContent = fields?.content || content;
   const { error } = await supabase
     .from("mindtasker_items")
     .update({
-      title,
-      content,
-      metadata,
+      title: nextTitle,
+      content: nextContent,
+      is_actionable: fields?.is_actionable ?? true,
+      due_date: fields?.due_date ?? null,
+      tags: fields?.tags ?? [],
+      metadata: fields?.metadata ?? extraMeta,
       last_interacted_at: new Date().toISOString(),
     })
     .eq("id", item.id);
@@ -110,7 +142,7 @@ async function persistClientTranscript(
     throw new Error(error.message || "שמירת התמלול נכשלה");
   }
   const source = firstSource(item);
-  if (!source?.id) return;
+  if (!source?.id) return { title: nextTitle, content: nextContent };
   const sourceMeta =
     source.metadata && typeof source.metadata === "object"
       ? (source.metadata as Record<string, unknown>)
@@ -127,6 +159,7 @@ async function persistClientTranscript(
       },
     })
     .eq("id", source.id);
+  return { title: nextTitle, content: nextContent };
 }
 
 async function transcribeViaPublicAsr(
@@ -148,7 +181,7 @@ async function transcribeViaPublicAsr(
     transcribed = await transcribeHebrewAudioBlob(blob, "whatsapp-voice.ogg");
   }
   const title = transcribed.title || titleFromInboundText(transcribed.correctedText);
-  await persistClientTranscript(
+  const saved = await persistClientTranscript(
     item,
     title,
     transcribed.correctedText,
@@ -157,8 +190,8 @@ async function transcribeViaPublicAsr(
   return {
     ok: true,
     itemId: item.id,
-    title,
-    content: transcribed.correctedText,
+    title: saved.title,
+    content: saved.content,
   };
 }
 
@@ -213,6 +246,17 @@ export async function persistRecordedVoiceTranscript(params: {
   if (!userId) throw new Error("Not authenticated");
   const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
   const supabase = requireSupabase();
+  const allowedTags = await loadAllowedTagNamesForUser(userId);
+  const parsed = parseIncomingMessage(transcribed.correctedText, { allowedTags })[0];
+  const fields = parsed
+    ? parsedItemInsertFields(parsed, {
+        source: "app_voice",
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+        duration_seconds: params.durationSeconds ?? null,
+      })
+    : null;
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -239,12 +283,13 @@ export async function persistRecordedVoiceTranscript(params: {
     .insert({
       user_id: userId,
       source_material_id: source?.id ?? null,
-      title: transcribed.title,
-      content: transcribed.correctedText,
-      is_actionable: true,
+      title: fields?.title ?? transcribed.title,
+      content: fields?.content ?? transcribed.correctedText,
+      is_actionable: fields?.is_actionable ?? true,
       status: "inbox",
-      tags: [],
-      metadata: {
+      due_date: fields?.due_date ?? null,
+      tags: fields?.tags ?? [],
+      metadata: fields?.metadata ?? {
         source: "app_voice",
         whisper_transcription: transcribed.rawText,
         corrected_transcription: transcribed.correctedText,
@@ -262,7 +307,7 @@ export async function persistRecordedVoiceTranscript(params: {
   return {
     ok: true,
     itemId: inserted.id as string,
-    title: transcribed.title,
-    content: transcribed.correctedText,
+    title: fields?.title ?? transcribed.title,
+    content: fields?.content ?? transcribed.correctedText,
   };
 }

@@ -523,9 +523,37 @@ export async function uploadVoiceNote(
       const blobRes = await fetch(`data:${audio.mimeType};base64,${audio.base64}`);
       const blob = await blobRes.blob();
       const transcribed = await transcribeHebrewAudioBlob(blob, "recording.m4a");
+      const { parseIncomingMessage, parsedItemInsertFields } = await import(
+        "../../../convex/lib/ingest/parseIncomingMessage"
+      );
+      const { DEFAULT_TAG_NAMES } = await import("../../../convex/lib/ingest/defaultTags");
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error("Not authenticated");
+      let allowedTags: string[] = [];
+      try {
+        const { data: tagRows } = await supabase
+          .from("user_tags")
+          .select("name")
+          .eq("user_id", userId)
+          .order("sort_order", { ascending: true });
+        allowedTags = (tagRows ?? [])
+          .map((row) => (typeof row.name === "string" ? row.name : ""))
+          .filter(Boolean);
+        if (allowedTags.length === 0) allowedTags = [...DEFAULT_TAG_NAMES];
+      } catch {
+        allowedTags = [...DEFAULT_TAG_NAMES];
+      }
+      const parsed = parseIncomingMessage(transcribed.correctedText, { allowedTags })[0];
+      const fields = parsed
+        ? parsedItemInsertFields(parsed, {
+            source: "app_voice",
+            whisper_transcription: transcribed.rawText,
+            corrected_transcription: transcribed.correctedText,
+            asr_engine: transcribed.engine,
+            duration_seconds: options?.durationSeconds ?? null,
+          })
+        : null;
       const now = Date.now();
       const { data: source, error: sourceError } = await supabase
         .from("source_materials")
@@ -548,12 +576,13 @@ export async function uploadVoiceNote(
       const { error: itemError } = await supabase.from("mindtasker_items").insert({
         user_id: userId,
         source_material_id: source?.id ?? null,
-        title: transcribed.title,
-        content: transcribed.correctedText,
-        is_actionable: true,
+        title: fields?.title ?? transcribed.title,
+        content: fields?.content ?? transcribed.correctedText,
+        is_actionable: fields?.is_actionable ?? true,
         status: "inbox",
-        tags: [],
-        metadata: {
+        due_date: fields?.due_date ?? null,
+        tags: fields?.tags ?? [],
+        metadata: fields?.metadata ?? {
           source: "app_voice",
           whisper_transcription: transcribed.rawText,
           corrected_transcription: transcribed.correctedText,

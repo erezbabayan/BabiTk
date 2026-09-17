@@ -15,6 +15,10 @@ import {
 } from "../_shared/green-api.ts";
 import { titleFromInboundText, needsVoiceTranscription } from "../_shared/voice-text.ts";
 import {
+  loadAllowedTagNames,
+  parseIncomingMessage,
+} from "../_shared/parse-incoming-message.ts";
+import {
   findVoiceItemByWhatsAppMessage,
   pendingVoiceItem,
   scheduleBackgroundWork,
@@ -262,16 +266,21 @@ async function ingestMessage(
     throw new Error(sourceError.message);
   }
 
+  const allowedTags = await loadAllowedTagNames(supabase, userId);
+  const skipParse = needsVoiceTranscription(item.title, item.content);
+  const parsed = skipParse ? undefined : parseIncomingMessage(item.content, allowedTags)[0];
+
   const { data: inserted, error: itemError } = await supabase
     .from("mindtasker_items")
     .insert({
       user_id: userId,
       source_material_id: source?.id ?? null,
-      title: item.title,
-      content: item.content,
-      is_actionable: true,
+      title: parsed?.title || item.title,
+      content: parsed?.content || item.content,
+      is_actionable: parsed?.is_actionable ?? true,
       status: "inbox",
-      tags: [],
+      due_date: parsed?.due_date ?? null,
+      tags: parsed?.tags ?? [],
       metadata: {
         source: item.sourceType,
         whatsapp_message_id: message.messageId,
@@ -286,7 +295,7 @@ async function ingestMessage(
       sort_order: now,
       last_interacted_at: new Date(now).toISOString(),
     })
-    .select("id, title, content, metadata, source_material_id")
+    .select("id, user_id, title, content, metadata, source_material_id")
     .single();
   if (itemError || !inserted) {
     throw new Error(itemError?.message ?? "item_insert_failed");
