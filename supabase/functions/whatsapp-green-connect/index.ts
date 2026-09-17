@@ -6,8 +6,10 @@ import {
   loadVoiceItemForUser,
   transcribeStoredVoiceItem,
   ingestRecordedAudio,
+  interceptVoiceItemQuestion,
   type VoiceGatewayCredentials,
 } from "../_shared/voice-ingest.ts";
+import { interceptRecordedWhatsAppTranscript } from "../_shared/whatsapp-system-question-reply.ts";
 import { needsVoiceTranscription } from "../_shared/voice-text.ts";
 import { decodeAudioBase64, audioFileName } from "../_shared/hebrew-voice-asr.ts";
 import {
@@ -433,6 +435,7 @@ Deno.serve(async (req) => {
   let fileName = "";
   let durationSeconds: number | undefined;
   let phone = "";
+  let transcript = "";
   try {
     const body = (await req.json()) as {
       action?: string;
@@ -442,6 +445,8 @@ Deno.serve(async (req) => {
       fileName?: string;
       durationSeconds?: number;
       phone?: string;
+      transcript?: string;
+      text?: string;
     };
     if (typeof body.action === "string" && body.action.trim()) {
       action = body.action.trim();
@@ -464,11 +469,70 @@ Deno.serve(async (req) => {
     if (typeof body.phone === "string") {
       phone = body.phone.trim();
     }
+    if (typeof body.transcript === "string") {
+      transcript = body.transcript.trim();
+    } else if (typeof body.text === "string") {
+      transcript = body.text.trim();
+    }
   } catch {
     action = "status";
   }
 
   let gateway = await loadGateway(supabase, userId);
+
+  if (action === "replyVoiceQuestion") {
+    if (!transcript) {
+      return json({ error: "transcript_required" }, 400);
+    }
+    if (!SERVICE_ROLE) {
+      return json({ error: "missing_supabase_env" }, 500);
+    }
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const adminGateway =
+      (gateway as VoiceGatewayCredentials | null) ??
+      ((
+        await admin
+          .from("whatsapp_gateways")
+          .select("instance_id,api_token,api_url")
+          .eq("user_id", userId)
+          .maybeSingle()
+      ).data as VoiceGatewayCredentials | null);
+    if (itemId) {
+      const row = await loadVoiceItemForUser(admin, userId, itemId);
+      if (row) {
+        const handled = await interceptVoiceItemQuestion(
+          admin,
+          row,
+          { title: transcript, content: transcript, rawText: transcript },
+          adminGateway,
+        );
+        return json({
+          ok: true,
+          answered: handled,
+          itemId: handled ? undefined : row.id,
+          title: transcript,
+          content: transcript,
+        });
+      }
+    }
+    const handled = await interceptRecordedWhatsAppTranscript({
+      supabase: admin,
+      userId,
+      chatId: "",
+      messageId: `app-voice-${Date.now()}`,
+      sourceType: "whatsapp_voice",
+      gateway: adminGateway,
+      rawText: transcript,
+    });
+    return json({
+      ok: true,
+      answered: handled,
+      title: transcript,
+      content: transcript,
+    });
+  }
 
   if (action === "ingestVoice") {
     if (!audioBase64) {
@@ -498,6 +562,7 @@ Deno.serve(async (req) => {
       });
       return json({
         ok: true,
+        answered: result.answered === true,
         itemId: result.itemId,
         title: result.title,
         content: result.content,
@@ -528,7 +593,29 @@ Deno.serve(async (req) => {
     if (!row) {
       return json({ error: "item_not_found" }, 404);
     }
+    const { data: adminGateway } = await admin
+      .from("whatsapp_gateways")
+      .select("instance_id,api_token,api_url")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const resolvedGateway =
+      (adminGateway as VoiceGatewayCredentials | null) ??
+      (gateway as VoiceGatewayCredentials | null);
     if (!needsVoiceTranscription(row.title, row.content)) {
+      const handled = await interceptVoiceItemQuestion(
+        admin,
+        row,
+        { title: row.title, content: row.content, rawText: row.content },
+        resolvedGateway,
+      );
+      if (handled) {
+        return json({
+          ok: true,
+          answered: true,
+          title: row.title,
+          content: row.content,
+        });
+      }
       return json({
         ok: true,
         itemId: row.id,
@@ -537,11 +624,6 @@ Deno.serve(async (req) => {
         alreadyTranscribed: true,
       });
     }
-    const { data: adminGateway } = await admin
-      .from("whatsapp_gateways")
-      .select("instance_id,api_token,api_url")
-      .eq("user_id", userId)
-      .maybeSingle();
     try {
       const transcribed = await transcribeStoredVoiceItem(
         admin,
@@ -551,7 +633,8 @@ Deno.serve(async (req) => {
       );
       return json({
         ok: true,
-        itemId: row.id,
+        answered: transcribed.answered === true,
+        itemId: transcribed.answered ? undefined : row.id,
         title: transcribed.title,
         content: transcribed.content,
       });

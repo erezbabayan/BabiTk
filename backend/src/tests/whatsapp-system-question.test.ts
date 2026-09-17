@@ -5,6 +5,7 @@ import {
   answerWhatsAppSystemQuestion,
   isWhatsAppSystemQuestion,
   parseWhatsAppSystemQuestion,
+  parseWhatsAppVoiceQuestion,
   type SystemQuestionItem,
 } from "../lib/whatsapp-system-question.js";
 import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
@@ -112,6 +113,44 @@ describe("parseWhatsAppSystemQuestion", () => {
   });
 });
 
+describe("parseWhatsAppVoiceQuestion", () => {
+  it("treats a recorded כוכבית as a system question, including fillers", () => {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אה כוכבית מה יש לי היום"), {
+      kind: "question",
+      question: "מה יש לי היום",
+    });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אוקיי, כוכבית חלב"), {
+      kind: "question",
+      question: "חלב",
+    });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("תגידי כוכבית איפה הקוד"), {
+      kind: "question",
+      question: "איפה הקוד",
+    });
+  });
+
+  it("joins Whisper splits and near-miss spellings of כוכבית", () => {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אה כוכב ית מה יש לי היום"), {
+      kind: "question",
+      question: "מה יש לי היום",
+    });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("כוכבת לקנות חלב"), {
+      kind: "question",
+      question: "לקנות חלב",
+    });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("kokhavit מה המשימות"), {
+      kind: "question",
+      question: "מה המשימות",
+    });
+  });
+
+  it("does not treat a spoken task as a question", () => {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("לקנות חלב מחר"), { kind: "none" });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("לקנות חלב?"), { kind: "none" });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אה לקנות חלב"), { kind: "none" });
+  });
+});
+
 describe("answerWhatsAppSystemQuestion", () => {
   it("answers without implying a new item was created", () => {
     const reply = answerWhatsAppSystemQuestion(
@@ -165,5 +204,6 @@ describe("hebrew ASR כוכבית", () => {
   it("joins Whisper splits of כוכבית", () => {
     assert.equal(applyHebrewAsrSpellingFixes("כוכב ית מה יש לי היום"), "כוכבית מה יש לי היום");
     assert.equal(applyHebrewAsrSpellingFixes("כוחבית חלב"), "כוכבית חלב");
+    assert.equal(applyHebrewAsrSpellingFixes("כוכבת מה המשימות"), "כוכבית מה המשימות");
   });
 });

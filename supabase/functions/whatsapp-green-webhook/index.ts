@@ -45,7 +45,7 @@ import {
   resolveCommandItemId,
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
-import { parseWhatsAppSystemQuestion } from "../_shared/whatsapp-system-question.ts";
+import { parseWhatsAppVoiceQuestion, normalizeSpokenWhatsAppQuestion } from "../_shared/whatsapp-system-question.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -195,9 +195,10 @@ async function handleGroupTextIntent(options: {
   const replyTo = replyChatId(options.message);
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
-  const systemQuestion = parseWhatsAppSystemQuestion(raw);
+  const systemQuestion = parseWhatsAppVoiceQuestion(raw);
+  const spoken = normalizeSpokenWhatsAppQuestion(raw);
   const intentText =
-    systemQuestion.kind === "question" ? systemQuestion.question : raw;
+    systemQuestion.kind === "question" ? systemQuestion.question : spoken || raw;
   const prefixed = systemQuestion.kind !== "none";
 
   if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(intentText) || isWhatsAppMenuRequest(raw)) {
@@ -625,7 +626,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v3",
-      qa: "star-v1",
+      qa: "voice-v1",
     });
   }
   if (req.method !== "POST") {

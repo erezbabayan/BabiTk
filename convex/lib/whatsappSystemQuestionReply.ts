@@ -4,7 +4,7 @@ import type { ActionCtx } from "../_generated/server";
 import { replyToSender, markSenderMessageRead } from "./replyToSender";
 import {
   answerWhatsAppSystemQuestion,
-  parseWhatsAppSystemQuestion,
+  parseWhatsAppVoiceQuestion,
 } from "./whatsappSystemQuestion";
 
 /**
@@ -21,7 +21,7 @@ export async function replyIfWhatsAppSystemQuestion(
     chatId?: string;
   },
 ): Promise<boolean> {
-  const parsed = parseWhatsAppSystemQuestion(params.text);
+  const parsed = parseWhatsAppVoiceQuestion(params.text);
   if (parsed.kind === "none") return false;
 
   const items = await ctx.runQuery(internal.items.listOpenForSystemQuestion, {
