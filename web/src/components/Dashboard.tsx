@@ -10,7 +10,7 @@ import { ItemCard, ITEM_DRAG_MIME } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import { TagFilter } from "./TagFilter";
 import { PriorityFilter } from "./PriorityFilter";
-import { TodayFilter } from "./TodayFilter";
+import { BoardDateFilters } from "./BoardDateFilters";
 import { TagWheelPicker } from "./TagWheelPicker";
 import { TaskListsModal, type TaskListsModalMode } from "./TaskListsModal";
 import { ListBoardIcon } from "./ListBoardIcon";
@@ -23,7 +23,7 @@ import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useTaskLists } from "../hooks/useTaskLists";
 import { useUserTags } from "../hooks/useUserTags";
 import { deleteItemConfirmMessage } from "../lib/confirm-copy";
-import { applyBoardItemFilters } from "../lib/filter-items";
+import { applyBoardItemFilters, type BoardDateFilter } from "../lib/filter-items";
 import { isPriorityItem } from "../lib/item-priority";
 import { mergeSearchResults } from "../lib/unified-search";
 import { undoTaskListItem } from "../lib/task-list-actions";
@@ -112,7 +112,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [mobileTab, setMobileTab] = useState<BoardTab>("inbox");
   const [boardTag, setBoardTag] = useState<string | null>(null);
   const [boardPriorityOnly, setBoardPriorityOnly] = useState(false);
-  const [boardTodayOnly, setBoardTodayOnly] = useState(false);
+  const [boardDateFilter, setBoardDateFilter] = useState<BoardDateFilter>("all");
   const inboxSearch = useBoardSearch("inbox");
   const todaySearch = useBoardSearch("today");
   const notesSearch = useBoardSearch("notes");
@@ -138,10 +138,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inbox, inboxSearch.activeQuery, inboxSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         inboxDateSort,
       ),
-    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, inboxDateSort],
+    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
   );
   const filteredInboxArchive = useMemo(
     () =>
@@ -150,10 +151,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         inboxDateSort,
       ),
-    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, inboxDateSort],
+    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
   );
   const filteredTodayTasks = useMemo(
     () =>
@@ -162,7 +164,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           boardTag,
           boardPriorityOnly,
-          boardTodayOnly,
+          boardDateFilter,
         ),
         todayDateSort,
       ),
@@ -172,7 +174,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       boardTag,
       boardPriorityOnly,
-      boardTodayOnly,
+      boardDateFilter,
       todayDateSort,
     ],
   );
@@ -183,7 +185,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
           boardTag,
           boardPriorityOnly,
-          boardTodayOnly,
+          boardDateFilter,
         ),
         todayDateSort,
       ),
@@ -193,7 +195,28 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       boardTag,
       boardPriorityOnly,
-      boardTodayOnly,
+      boardDateFilter,
+      todayDateSort,
+    ],
+  );
+  const filteredCompletedTasks = useMemo(
+    () =>
+      applyBoardDateSort(
+        applyBoardItemFilters(
+          mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
+          boardTag,
+          boardPriorityOnly,
+          boardDateFilter,
+        ),
+        todayDateSort,
+      ),
+    [
+      completedTasks,
+      todaySearch.activeQuery,
+      todaySearch.semanticHits,
+      boardTag,
+      boardPriorityOnly,
+      boardDateFilter,
       todayDateSort,
     ],
   );
@@ -204,10 +227,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notes, notesSearch.activeQuery, notesSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         notesDateSort,
       ),
-    [notes, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, notesDateSort],
+    [notes, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
   );
   const filteredNotesArchive = useMemo(
     () =>
@@ -216,22 +240,28 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notesArchive, notesSearch.activeQuery, notesSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         notesDateSort,
       ),
-    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, notesDateSort],
+    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
   );
 
   const filterTags = useBoardFilterTags();
+  const boardFiltersActive = Boolean(
+    boardTag || boardPriorityOnly || boardDateFilter !== "all",
+  );
 
-  function renderBoardFilters(options?: { showToday?: boolean }) {
+  function hasListFilters(query: string) {
+    return Boolean(query.trim() || boardFiltersActive);
+  }
+
+  function renderBoardFilters() {
     return (
-      <div className="board-notebook-chrome flex gap-2">
-        {options?.showToday ? (
-          <TodayFilter active={boardTodayOnly} onToggle={setBoardTodayOnly} />
-        ) : null}
+      <div className="board-notebook-chrome flex flex-wrap items-center gap-2">
+        <BoardDateFilters value={boardDateFilter} onChange={setBoardDateFilter} />
         <PriorityFilter active={boardPriorityOnly} onToggle={setBoardPriorityOnly} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[7rem] flex-1">
           <TagFilter
             tags={filterTags}
             selected={boardTag}
@@ -294,13 +324,13 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   }
 
   const inboxReorderDisabled = Boolean(
-    inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || inboxDateSort,
+    inboxSearch.activeQuery.trim() || boardFiltersActive || inboxDateSort,
   );
   const todayReorderDisabled = Boolean(
-    todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || todayDateSort,
+    todaySearch.activeQuery.trim() || boardFiltersActive || todayDateSort,
   );
   const notesReorderDisabled = Boolean(
-    notesSearch.activeQuery.trim() || boardTag || boardPriorityOnly || notesDateSort,
+    notesSearch.activeQuery.trim() || boardFiltersActive || notesDateSort,
   );
 
   function clearDragState() {
@@ -319,7 +349,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setMobileTab("inbox");
     setBoardTag(null);
     setBoardPriorityOnly(false);
-    setBoardTodayOnly(false);
+    setBoardDateFilter("all");
     setInboxDateSort(null);
     setTodayDateSort(null);
     setNotesDateSort(null);
@@ -698,6 +728,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    emptyMessage={
+                      hasListFilters(inboxSearch.activeQuery) ? "אין תוצאות לסינון" : undefined
+                    }
                   />
                 </MouseDragScroll>
               </ColumnDropZone>
@@ -761,7 +794,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={inboxReorderDisabled}
                     emptyMessage={
                       <p className="text-sm text-slate-400">
-                        {inboxSearch.activeQuery.trim() || boardTag
+                        {hasListFilters(inboxSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברה למחברת"
@@ -873,7 +906,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 )
               }
             />
-            {renderBoardFilters({ showToday: true })}
+            {renderBoardFilters()}
             <ColumnDropZone
               column="today"
               active={dropTarget === "today" && dragging && todayListView === "active"}
@@ -900,15 +933,21 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    emptyMessage={
+                      hasListFilters(todaySearch.activeQuery) ? "אין תוצאות לסינון" : undefined
+                    }
                   />
                 </MouseDragScroll>
               ) : showCompletedTasks ? (
                 <MouseDragScroll>
                   <CompletedPanel
-                    items={completedTasks}
+                    items={filteredCompletedTasks}
                     onRestore={(item) => void restoreCompletedTask(item)}
                     onDelete={confirmDelete}
                     onEdit={(item, patch) => editItem(item, patch)}
+                    emptyMessage={
+                      hasListFilters(todaySearch.activeQuery) ? "אין תוצאות לסינון" : undefined
+                    }
                   />
                 </MouseDragScroll>
               ) : (
@@ -921,7 +960,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={todayReorderDisabled}
                     emptyMessage={
                       <p className="text-sm text-blue-400/80">
-                        {todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardTodayOnly
+                        {hasListFilters(todaySearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברת משימה"
@@ -1012,6 +1051,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    emptyMessage={
+                      hasListFilters(notesSearch.activeQuery) ? "אין תוצאות לסינון" : undefined
+                    }
                   />
                 </MouseDragScroll>
               </ColumnDropZone>
@@ -1067,7 +1109,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 className="flex min-h-0 flex-1 flex-col"
               >
                 <MouseDragScroll>
-                  {dragging && filteredNotes.length === 0 && !notesSearch.activeQuery.trim() && !boardTag ? (
+                  {dragging && filteredNotes.length === 0 && !hasListFilters(notesSearch.activeQuery) ? (
                     <p className="mb-2 text-sm text-orange-500">שחרר כאן להעברת הערה</p>
                   ) : null}
                   <DraggableItemList
@@ -1078,7 +1120,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={notesReorderDisabled}
                     emptyMessage={
                       <p className="text-sm text-orange-400/80">
-                        {notesSearch.activeQuery.trim() || boardTag
+                        {hasListFilters(notesSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : "אין הערות שמורות"}
                       </p>

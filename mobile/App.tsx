@@ -29,7 +29,7 @@ import { LoginScreen } from "./src/components/LoginScreen";
 import { BoardBrushMark, MindTaskerLogo, type BoardMarkTone } from "./src/components/MindTaskerLogo";
 import { TagFilterBar } from "./src/components/TagFilterBar";
 import { PriorityFilterBar } from "./src/components/PriorityFilterBar";
-import { TodayFilterBar } from "./src/components/TodayFilterBar";
+import { BoardDateFilterBar } from "./src/components/BoardDateFilterBar";
 import { TagWheelPicker } from "./src/components/TagWheelPicker";
 import { TaskListsModal, type TaskListsModalMode } from "./src/components/TaskListsModal";
 import { ListBoardIcon } from "./src/components/ListBoardIcon";
@@ -64,7 +64,7 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
-import { applyBoardItemFilters } from "./src/lib/filter-items";
+import { applyBoardItemFilters, type BoardDateFilter } from "./src/lib/filter-items";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
 import { boardTasksForListSync } from "./src/lib/task-list-items";
@@ -174,7 +174,7 @@ function MainAppInner({
   const clearNotesSearch = notesSearch.clear;
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [priorityOnly, setPriorityOnly] = useState(false);
-  const [todayOnly, setTodayOnly] = useState(false);
+  const [dateFilter, setDateFilter] = useState<BoardDateFilter>("all");
   const [dateSortByTab, setDateSortByTab] = useState<Record<Tab, BoardDateSortDirection>>({
     inbox: "desc",
     today: "asc",
@@ -240,7 +240,7 @@ function MainAppInner({
       merged,
       selectedTag,
       priorityOnly,
-      tab === "today" && todayOnly,
+      dateFilter,
     );
     return applyBoardDateSort(filtered, dateSortByTab[tab]);
   }, [
@@ -249,7 +249,7 @@ function MainAppInner({
     boardSearch.semanticHits,
     selectedTag,
     priorityOnly,
-    todayOnly,
+    dateFilter,
     dateSortByTab,
     tab,
   ]);
@@ -720,9 +720,7 @@ function MainAppInner({
         ]}
       >
         <View style={styles.boardFilterRow}>
-          {tab === "today" ? (
-            <TodayFilterBar active={todayOnly} onToggle={setTodayOnly} />
-          ) : null}
+          <BoardDateFilterBar value={dateFilter} onChange={setDateFilter} />
           <PriorityFilterBar active={priorityOnly} onToggle={setPriorityOnly} />
           <TagFilterBar
             tags={filterTags}
@@ -758,7 +756,7 @@ function MainAppInner({
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {boardSearch.activeQuery.trim() || selectedTag || priorityOnly || todayOnly
+            {boardSearch.activeQuery.trim() || selectedTag || priorityOnly || dateFilter !== "all"
               ? "אין תוצאות לסינון"
               : emptyListMessage(tab, listView)}
           </Text>
@@ -1301,6 +1299,7 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "flex-start",
     gap: 8,
+    flexWrap: "wrap",
   },
   boardChromeSlate: {
     borderBottomColor: "rgba(203, 213, 225, 0.9)",
