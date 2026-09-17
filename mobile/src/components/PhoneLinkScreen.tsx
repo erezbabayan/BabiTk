@@ -15,8 +15,6 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
   getProfile,
-  requestPhoneVerification,
-  verifyPhoneCode,
   type UsageSummary,
   type UserProfile,
 } from "../lib/api";
@@ -24,6 +22,7 @@ import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { isConvexConfigured } from "../lib/convex";
 import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoView } from "./ChannelInfoView";
+import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -69,8 +68,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"idle" | "verify">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -224,36 +221,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     }
   }
 
-  async function handleRequest() {
-    setLoading(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await requestPhoneVerification(phone);
-      setStep("verify");
-      setMessage(result.devCode ? `${result.message}: ${result.devCode}` : result.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerify() {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await verifyPhoneCode(code);
-      setProfile(result.profile);
-      setStep("idle");
-      setMessage(result.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   async function handleBindExistingGroup() {
     const name = groupSearch.trim() || viewerDisplayName(viewer);
     if (!name) {
@@ -330,6 +297,15 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>וואטסאפ</Text>
             <ChannelInfoView channelId="whatsapp" summary={summary} compact>
+              {!useConvexPhone && isSupabaseConfigured && visible ? (
+                <GreenApiConnectSettings
+                  onLinked={() => {
+                    void getProfile()
+                      .then(setProfile)
+                      .catch(() => undefined);
+                  }}
+                />
+              ) : null}
               {linkedPhone ? (
                 <Text style={styles.ok}>מחובר: {linkedPhone}</Text>
               ) : useConvexPhone ? (
@@ -356,31 +332,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     )}
                   </Pressable>
                 </>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+972501234567"
-                    placeholderTextColor="#94a3b8"
-                    value={step === "idle" ? phone : code}
-                    onChangeText={step === "idle" ? setPhone : setCode}
-                    keyboardType={step === "idle" ? "phone-pad" : "number-pad"}
-                  />
-                  <Pressable
-                    style={[styles.button, loading && styles.buttonDisabled]}
-                    onPress={() => void (step === "idle" ? handleRequest() : handleVerify())}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>
-                        {step === "idle" ? "שלח קוד" : "אמת קוד"}
-                      </Text>
-                    )}
-                  </Pressable>
-                </>
-              )}
+              ) : null}
 
               {linkedPhone && useConvexPhone ? (
                 <View style={styles.captureBox}>

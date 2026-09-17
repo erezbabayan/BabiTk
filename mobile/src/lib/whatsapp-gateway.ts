@@ -156,21 +156,7 @@ export async function invokeGreenConnect(
     body: { action, phone: extra?.phone },
   });
   if (error) {
-    let detail = error.message || "קריאת סטטוס GREEN-API נכשלה";
-    const context = (error as { context?: Response }).context;
-    if (context) {
-      try {
-        const body = (await context.clone().json()) as {
-          hint?: string;
-          error?: string;
-          reason?: string;
-        };
-        detail = body.hint || body.error || body.reason || detail;
-      } catch {
-        // keep detail
-      }
-    }
-    throw new Error(detail);
+    throw new Error(error.message || "קריאת סטטוס GREEN-API נכשלה");
   }
   if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
     throw new Error(String((data as { error: string }).error));

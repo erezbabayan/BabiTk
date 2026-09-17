@@ -240,7 +240,7 @@ export function SettingsScreen({
             ) : null}
             <SettingsMenuRow
               icon="whatsapp"
-              label="וואטסאפ — בחירת קבוצה"
+              label="וואטסאפ — חיבור"
               onPress={() => setPhoneVisible(true)}
             />
             <SettingsMenuRow icon="mic" label="הקלטה קולית" onPress={() => setVoiceVisible(true)} />

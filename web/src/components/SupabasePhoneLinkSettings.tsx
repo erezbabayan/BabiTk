@@ -253,7 +253,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
-        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור GREEN-API, הודעות מהקבוצה נכנסות ללוח.
+        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעות מהקבוצה נכנסות ללוח.
       </p>
 
       {groupConnected ? (
@@ -299,52 +299,43 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     </div>
   ) : null;
 
-  if (linkedPhone) {
-    return (
-      <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
+  return (
+    <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
+      <GreenApiConnectSettings onLinked={() => void refresh().catch(() => undefined)} />
+
+      {linkedPhone ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm" dir="rtl">
-          <p className="font-medium text-emerald-900">מחובר</p>
+          <p className="font-medium text-emerald-900">מספר שמור בחשבון</p>
           <p className="mt-1 text-emerald-800" dir="ltr">
             {linkedPhone}
           </p>
-          <p className="mt-2 text-xs text-emerald-700">
-            המספר והקבוצה שמורים בחשבון. חברו GREEN-API למטה כדי לקלוט הודעות חיות.
-          </p>
         </div>
-        {groupBlock}
-        <GreenApiConnectSettings />
-        {digestBlock}
-        {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      </ChannelInfoPanel>
-    );
-  }
+      ) : (
+        <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm" dir="rtl">
+          <summary className="cursor-pointer text-xs text-slate-500">שמירת מספר בלי חיבור וואטסאפ</summary>
+          <form onSubmit={(event) => void handleLinkPhone(event)} className="mt-3 space-y-3">
+            <input
+              type="tel"
+              placeholder="0501234567"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              dir="ltr"
+              required
+            />
+            <button
+              type="submit"
+              disabled={savingPhone}
+              className="w-full rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {savingPhone ? "שומר..." : "שמור מספר"}
+            </button>
+          </form>
+        </details>
+      )}
 
-  return (
-    <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
-      <p className="text-sm text-slate-600" dir="rtl">
-        חברו מספר וואטסאפ — ואז שמרו קבוצה קיימת וחברו GREEN-API לקליטה חיה.
-      </p>
-      <GreenApiConnectSettings />
+      {groupBlock}
       {digestBlock}
-      <form onSubmit={(event) => void handleLinkPhone(event)} className="space-y-3">
-        <input
-          type="tel"
-          placeholder="+972501234567"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2"
-          dir="ltr"
-          required
-        />
-        <button
-          type="submit"
-          disabled={savingPhone}
-          className="w-full rounded-lg bg-blue-600 px-3 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {savingPhone ? "שומר..." : "חבר מספר"}
-        </button>
-      </form>
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </ChannelInfoPanel>
