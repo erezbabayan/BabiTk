@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ItemCard } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
@@ -11,6 +12,7 @@ interface CompletedPanelProps {
   onRestore: (item: MindtaskerItem) => void;
   onDelete: (item: MindtaskerItem) => void;
   onEdit?: (item: MindtaskerItem, patch: ItemEditInput) => void;
+  emptyMessage?: ReactNode;
 }
 
 export function CompletedPanel({
@@ -18,13 +20,14 @@ export function CompletedPanel({
   onRestore,
   onDelete,
   onEdit,
+  emptyMessage,
 }: CompletedPanelProps) {
   const { view } = useBoardItemViewOptional();
 
   if (items.length === 0) {
     return (
       <p className="text-sm text-blue-500/80">
-        אין משימות שהושלמו. סמן את העיגול או החלק לסימון כבוצע.
+        {emptyMessage ?? "אין משימות שהושלמו. סמן את העיגול או החלק לסימון כבוצע."}
       </p>
     );
   }

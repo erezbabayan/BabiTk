@@ -3,6 +3,8 @@ import type { UserTag } from "./tags";
 import { normalizeTagName } from "./tags";
 import { filterItemsByPriority } from "./item-priority";
 
+export type BoardDateFilter = "all" | "today" | "overdue" | "undated";
+
 export function filterItemsByQuery(
   items: MindtaskerItem[],
   query: string,
@@ -30,24 +32,49 @@ export function applyBoardItemFilters(
   items: MindtaskerItem[],
   tag: string | null,
   priorityOnly: boolean,
-  todayOnly = false,
+  dateFilter: BoardDateFilter | boolean = "all",
+  now = new Date(),
 ): MindtaskerItem[] {
-  return filterItemsDueToday(
+  const resolved: BoardDateFilter =
+    dateFilter === true ? "today" : dateFilter === false ? "all" : dateFilter;
+  return filterItemsByDateFilter(
     filterItemsByPriority(filterItemsByTag(items, tag), priorityOnly),
-    todayOnly,
+    resolved,
+    now,
   );
 }
 
-/** True when the item's due date falls on the local calendar day of `now`. */
-export function isItemDueToday(item: MindtaskerItem, now = new Date()): boolean {
-  if (!item.due_date) return false;
+export function parseItemDueDate(item: Pick<MindtaskerItem, "due_date">): Date | null {
+  if (!item.due_date) return null;
   const due = new Date(item.due_date);
-  if (Number.isNaN(due.getTime())) return false;
+  return Number.isNaN(due.getTime()) ? null : due;
+}
+
+export function isItemUndated(item: Pick<MindtaskerItem, "due_date">): boolean {
+  return parseItemDueDate(item) === null;
+}
+
+/** True when the item's due date falls on the local calendar day of `now`. */
+export function isItemDueToday(
+  item: Pick<MindtaskerItem, "due_date">,
+  now = new Date(),
+): boolean {
+  const due = parseItemDueDate(item);
+  if (!due) return false;
   return (
     due.getFullYear() === now.getFullYear() &&
     due.getMonth() === now.getMonth() &&
     due.getDate() === now.getDate()
   );
+}
+
+export function isItemDateOverdue(
+  item: Pick<MindtaskerItem, "due_date">,
+  now = new Date(),
+): boolean {
+  const due = parseItemDueDate(item);
+  if (!due) return false;
+  return due.getTime() < now.getTime();
 }
 
 export function filterItemsDueToday(
@@ -59,13 +86,23 @@ export function filterItemsDueToday(
   return items.filter((item) => isItemDueToday(item, now));
 }
 
+export function filterItemsByDateFilter(
+  items: MindtaskerItem[],
+  dateFilter: BoardDateFilter,
+  now = new Date(),
+): MindtaskerItem[] {
+  if (dateFilter === "all") return items;
+  if (dateFilter === "today") return items.filter((item) => isItemDueToday(item, now));
+  if (dateFilter === "overdue") return items.filter((item) => isItemDateOverdue(item, now));
+  return items.filter((item) => isItemUndated(item));
+}
+
 export function collectTags(items: MindtaskerItem[]): string[] {
   const set = new Set<string>();
   items.forEach((item) => item.tags.forEach((tag) => set.add(tag)));
   return [...set].sort();
 }
 
-/** Board filter / picker list — always mirrors user tag settings (single source of truth). */
 export function unifiedFilterTags(userTags: UserTag[]): string[] {
   return [...userTags]
     .sort((a, b) => a.sort_order - b.sort_order)

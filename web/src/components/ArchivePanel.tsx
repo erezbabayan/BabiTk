@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ItemCard } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import type { ItemEditInput } from "./ItemEditModal";
@@ -19,6 +20,7 @@ interface ArchivePanelProps {
   tagPickerOpenId?: string | null;
   tagsOverrideForItem?: (item: MindtaskerItem) => string[] | undefined;
   userTags?: UserTag[];
+  emptyMessage?: ReactNode;
 }
 
 const EMPTY_MESSAGES: Record<ArchivePanelProps["variant"], string> = {
@@ -38,11 +40,16 @@ export function ArchivePanel({
   tagPickerOpenId,
   tagsOverrideForItem,
   userTags = [],
+  emptyMessage,
 }: ArchivePanelProps) {
   const { view } = useBoardItemViewOptional();
 
   if (items.length === 0) {
-    return <p className="text-sm text-slate-500">{EMPTY_MESSAGES[variant]}</p>;
+    return (
+      <p className="text-sm text-slate-500">
+        {emptyMessage ?? EMPTY_MESSAGES[variant]}
+      </p>
+    );
   }
 
   return (
