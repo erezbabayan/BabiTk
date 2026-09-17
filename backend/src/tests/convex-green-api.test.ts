@@ -6,6 +6,7 @@ import {
   extractGreenApiSenderId,
   isDirectWhatsAppChat,
   isGroupWhatsAppChat,
+  isSystemWhatsAppReply,
   parseGreenApiWebhook,
   phoneLookupVariants,
   verifyGreenApiWebhookAuth,
@@ -157,6 +158,28 @@ describe("Convex Green-API parser", () => {
 
   it("extracts sender_id from group payload", () => {
     assert.equal(extractGreenApiSenderId(ownerGroupPayload()), "972526448067");
+  });
+
+  it("captures quoted replies using the new text, not the quoted original", () => {
+    const { ignored, messages } = parseGreenApiWebhook(
+      ownerGroupPayload({
+        idMessage: "q1",
+        messageData: {
+          typeMessage: "quotedMessage",
+          extendedTextMessageData: { text: "* חלב" },
+          quotedMessage: { textMessage: "תזכורת ישנה" },
+        },
+      }),
+    );
+    assert.equal(ignored, false);
+    assert.equal(messages[0]?.text, "* חלב");
+  });
+
+  it("does not re-ingest BabiTk system answers", () => {
+    assert.equal(
+      isSystemWhatsAppReply("BabiTk · תשובה (לא נרשם פריט)\n\nשאלה: חלב"),
+      true,
+    );
   });
 
   it("accepts bearer webhook token", () => {

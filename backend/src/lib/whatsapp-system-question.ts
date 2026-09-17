@@ -24,11 +24,16 @@ export type SystemQuestionItem = {
 };
 
 const BIDI_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const INVISIBLE = /[\u200b\u200c\u200d\u2060\ufeff]/g;
 
 const STAR_PREFIX = /^(?:[*＊✳️])\s*/u;
+const STAR_WRAP = /^(?:[*＊✳️])\s*(.*?)\s*(?:[*＊✳️])$/su;
+const STAR_SUFFIX = /^(.*\S)\s+[*＊✳️]$/u;
 const QMARK_PREFIX = /^[?؟]\s*/u;
 const KOKHAVIT_PREFIX =
   /^(?:כוכבית|כוכביית|כוחבית|כוכב\s*ית|kokhavit)(?:\s*[:.,;!?؟\-–—])?\s*/iu;
+const KOKHAVIT_SUFFIX =
+  /^(.*\S)\s+(?:כוכבית|כוכביית|כוחבית|כוכב\s*ית|kokhavit)$/iu;
 const EXPLICIT_PREFIX = /^(?:שאלה\s+למערכת)(?:\s*[:.,;!?؟\-–—])?\s*/iu;
 
 const STOPWORDS = new Set([
@@ -84,27 +89,46 @@ const STOPWORDS = new Set([
 ]);
 
 export function normalizeWhatsAppQuestionSource(text: string): string {
-  return text.replace(BIDI_MARKS, "").replace(/^\s+|\s+$/g, "");
+  return text.replace(BIDI_MARKS, "").replace(INVISIBLE, "").replace(/^\s+|\s+$/g, "");
+}
+
+function restOrHelp(rest: string): SystemQuestionParse {
+  return rest ? { kind: "question", question: rest } : { kind: "help" };
+}
+
+function stripKnownPrefix(text: string): string | null {
+  if (STAR_PREFIX.test(text)) return text.replace(STAR_PREFIX, "").trim();
+  if (QMARK_PREFIX.test(text)) return text.replace(QMARK_PREFIX, "").trim();
+  if (KOKHAVIT_PREFIX.test(text)) return text.replace(KOKHAVIT_PREFIX, "").trim();
+  if (EXPLICIT_PREFIX.test(text)) return text.replace(EXPLICIT_PREFIX, "").trim();
+  return null;
 }
 
 export function parseWhatsAppSystemQuestion(text: string): SystemQuestionParse {
   const trimmed = normalizeWhatsAppQuestionSource(text);
   if (!trimmed) return { kind: "none" };
 
-  let rest: string | null = null;
-  if (STAR_PREFIX.test(trimmed)) {
-    rest = trimmed.replace(STAR_PREFIX, "").trim();
-  } else if (QMARK_PREFIX.test(trimmed)) {
-    rest = trimmed.replace(QMARK_PREFIX, "").trim();
-  } else if (KOKHAVIT_PREFIX.test(trimmed)) {
-    rest = trimmed.replace(KOKHAVIT_PREFIX, "").trim();
-  } else if (EXPLICIT_PREFIX.test(trimmed)) {
-    rest = trimmed.replace(EXPLICIT_PREFIX, "").trim();
+  const wrapped = trimmed.match(STAR_WRAP);
+  if (wrapped) {
+    const inner = wrapped[1]?.trim() ?? "";
+    const innerPrefixed = stripKnownPrefix(inner);
+    if (innerPrefixed !== null) return restOrHelp(innerPrefixed);
+    return restOrHelp(inner);
   }
 
-  if (rest === null) return { kind: "none" };
-  if (!rest) return { kind: "help" };
-  return { kind: "question", question: rest };
+  const prefixed = stripKnownPrefix(trimmed);
+  if (prefixed !== null) return restOrHelp(prefixed);
+
+  const suffixStar = trimmed.match(STAR_SUFFIX);
+  if (suffixStar && !/[*＊✳️]/.test(suffixStar[1] ?? "")) {
+    return restOrHelp(suffixStar[1]?.trim() ?? "");
+  }
+  const suffixKokhavit = trimmed.match(KOKHAVIT_SUFFIX);
+  if (suffixKokhavit) {
+    return restOrHelp(suffixKokhavit[1]?.trim() ?? "");
+  }
+
+  return { kind: "none" };
 }
 
 export function isWhatsAppSystemQuestion(text: string): boolean {

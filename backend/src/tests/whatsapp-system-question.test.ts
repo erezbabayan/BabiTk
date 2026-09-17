@@ -88,6 +88,28 @@ describe("parseWhatsAppSystemQuestion", () => {
     assert.deepEqual(parseWhatsAppSystemQuestion("הערה: קוד wifi"), { kind: "none" });
     assert.equal(isWhatsAppSystemQuestion("לקנות *חלב* בסופר"), false);
   });
+
+  it("treats WhatsApp bold wrap *שאלה* as a system question", () => {
+    assert.deepEqual(parseWhatsAppSystemQuestion("*חלב*"), {
+      kind: "question",
+      question: "חלב",
+    });
+    assert.deepEqual(parseWhatsAppSystemQuestion("*מה יש לי היום*"), {
+      kind: "question",
+      question: "מה יש לי היום",
+    });
+  });
+
+  it("treats a trailing asterisk or כוכבית as RTL question markup", () => {
+    assert.deepEqual(parseWhatsAppSystemQuestion("חלב *"), {
+      kind: "question",
+      question: "חלב",
+    });
+    assert.deepEqual(parseWhatsAppSystemQuestion("מה יש לי היום כוכבית"), {
+      kind: "question",
+      question: "מה יש לי היום",
+    });
+  });
 });
 
 describe("answerWhatsAppSystemQuestion", () => {

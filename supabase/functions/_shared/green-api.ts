@@ -31,6 +31,7 @@ export interface GreenApiWebhookPayload {
     typeMessage?: string;
     textMessageData?: { textMessage?: string };
     extendedTextMessageData?: { text?: string };
+    quotedMessage?: { textMessage?: string };
     fileMessageData?: {
       downloadUrl?: string;
       mimeType?: string;
@@ -119,20 +120,38 @@ export function isOwnerWhatsAppSender(senderPhoneOrId: string, instanceWid: stri
   return sender.length >= 10 && owner.length >= 10 && sender === owner;
 }
 
+/** Outbound system replies we must not re-ingest as new capture. */
 export function isSystemWhatsAppReply(text: string): boolean {
   const t = text.trim();
   return (
+    t.startsWith("BabiTk") ||
     t.startsWith("מידע חדש נכנס למערכת") ||
     t.includes("נכנסו למערכת BabaiTk") ||
     t.startsWith("נקלט פריט") ||
     t.startsWith("נקלטו ") ||
+    t.startsWith("נפתחו ") ||
+    t.startsWith("קלטתי") ||
     t.startsWith("לא הצלחתי לזהות") ||
     t.startsWith("חרגת ממכסת") ||
+    t.startsWith("הגעת למכסת") ||
     t.startsWith("מספר הטלפון שלך לא מקושר") ||
     t.startsWith("הודעה יומית") ||
     t.startsWith("מספר שולח נוסף") ||
     t.startsWith("✓ בדיקת") ||
-    t.startsWith("📋 תזכורות")
+    t.startsWith("📋") ||
+    t.startsWith("⏰ תזכורת") ||
+    t.startsWith("🗓") ||
+    t.startsWith("בוקר טוב") ||
+    t.startsWith("אין משימות") ||
+    t.startsWith("סומן כבוצע") ||
+    t.startsWith("נדחה ל-") ||
+    t.startsWith("עודכן ל-") ||
+    t.startsWith("אפשר לשאול אותי") ||
+    t.startsWith("בקבוצה הזו אפשר") ||
+    t.startsWith("לא מצאתי פריט") ||
+    t.startsWith("הפריט כבר לא") ||
+    t.includes("השב:") ||
+    t.includes("לא נרשם פריט")
   );
 }
 
@@ -188,14 +207,17 @@ function resolveIdentity(payload: GreenApiWebhookPayload): {
 }
 
 function extractText(payload: GreenApiWebhookPayload): string | undefined {
-  const typeMessage = payload.messageData?.typeMessage;
-  if (typeMessage === "textMessage") {
-    return payload.messageData?.textMessageData?.textMessage?.trim();
+  const messageData = payload.messageData;
+  const candidates = [
+    messageData?.textMessageData?.textMessage,
+    messageData?.extendedTextMessageData?.text,
+    messageData?.fileMessageData?.caption,
+  ];
+  for (const raw of candidates) {
+    const text = raw?.trim();
+    if (text) return text;
   }
-  if (typeMessage === "extendedTextMessage") {
-    return payload.messageData?.extendedTextMessageData?.text?.trim();
-  }
-  return payload.messageData?.fileMessageData?.caption?.trim() || undefined;
+  return undefined;
 }
 
 function parseTextMessage(payload: GreenApiWebhookPayload): ParsedGreenApiMessage | null {
@@ -268,7 +290,11 @@ export function parseGreenApiWebhook(body: unknown): {
     return { ignored: true, reason: "not_inbound", messages: [] };
   }
   const typeMessage = payload.messageData?.typeMessage;
-  if (typeMessage === "textMessage" || typeMessage === "extendedTextMessage") {
+  if (
+    typeMessage === "textMessage" ||
+    typeMessage === "extendedTextMessage" ||
+    typeMessage === "quotedMessage"
+  ) {
     const message = parseTextMessage(payload);
     return message
       ? { ignored: false, messages: [message] }
