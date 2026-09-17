@@ -57,7 +57,6 @@ import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
-import { planMyDayFocus, planMyDayOrder } from "../lib/plan-my-day";
 import { ItemEditModal } from "./ItemEditModal";
 import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
@@ -174,8 +173,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
-  const [planMyDay, setPlanMyDay] = useState(false);
-
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
@@ -241,8 +238,8 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
   );
   const filteredTodayTasks = useMemo(
-    () => {
-      const filtered = applyBoardDateSort(
+    () =>
+      applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
@@ -250,10 +247,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           dateFilterByBoard.today,
         ),
         todayDateSort,
-      );
-      if (!planMyDay) return filtered;
-      return planMyDayOrder(planMyDayFocus(filtered));
-    },
+      ),
     [
       todayTasks,
       todaySearch.activeQuery,
@@ -262,7 +256,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       priorityOnlyByBoard.today,
       dateFilterByBoard.today,
       todayDateSort,
-      planMyDay,
     ],
   );
   const filteredTasksArchive = useMemo(
@@ -337,7 +330,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const filterTags = useBoardFilterTags();
 
   function renderBoardFilters(board: DashboardColumn) {
-    const showPlanMyDay = board === "today" && !showTasksArchive && !showCompletedTasks;
     return (
       <div
         className="board-notebook-chrome flex min-h-8 flex-nowrap items-center gap-2 overflow-x-auto"
@@ -363,22 +355,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             userTags={userTags}
           />
         </div>
-        {showPlanMyDay ? (
-          <button
-            type="button"
-            data-no-drag-scroll
-            onClick={() => setPlanMyDay((value) => !value)}
-            className={`flex h-8 shrink-0 items-center rounded-lg border px-2.5 text-xs font-medium shadow-sm transition hover:bg-white ${
-              planMyDay
-                ? "border-blue-400/90 bg-blue-50 font-semibold text-blue-800"
-                : "border-slate-200/80 bg-white/80 text-slate-600"
-            }`}
-            aria-pressed={planMyDay}
-            title="סדר את משימות היום: עבר, היום, ואז עדיפות"
-          >
-            תכנן לי את היום
-          </button>
-        ) : null}
       </div>
     );
   }
@@ -465,8 +441,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       tagByBoard.today ||
       priorityOnlyByBoard.today ||
       dateFilterByBoard.today !== "all" ||
-      todayDateSort ||
-      planMyDay,
+      todayDateSort,
   );
   const notesReorderDisabled = Boolean(
     notesSearch.activeQuery.trim() ||
@@ -493,7 +468,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setTagByBoard({ inbox: null, today: null, notes: null });
     setPriorityOnlyByBoard({ inbox: false, today: false, notes: false });
     setDateFilterByBoard({ inbox: "all", today: "all", notes: "all" });
-    setPlanMyDay(false);
     setInboxDateSort(null);
     setTodayDateSort(null);
     setNotesDateSort(null);
