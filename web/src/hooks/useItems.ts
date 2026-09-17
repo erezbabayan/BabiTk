@@ -44,6 +44,7 @@ import {
 
 import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { completeItemApi } from "../lib/api";
+import { buildNextOccurrenceInsert } from "../lib/recurring-task";
 
 import { useConvexBackend } from "../lib/data-backend";
 
@@ -442,10 +443,32 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       }
 
       await updateItem(item.id, buildCompleteTaskPatch());
+      if (!isDemoMode && userId) {
+        const next = buildNextOccurrenceInsert({
+          title: item.title,
+          content: item.content,
+          is_actionable: item.is_actionable,
+          due_date: item.due_date,
+          tags: item.tags,
+          metadata: item.metadata,
+          source_material_id: item.source_material_id,
+        });
+        if (next) {
+          const supabase = requireSupabase();
+          const { error } = await supabase.from("mindtasker_items").insert({
+            user_id: userId,
+            ...next,
+            last_interacted_at: new Date().toISOString(),
+          });
+          if (error) {
+            console.warn("recurring spawn failed", error.message);
+          }
+        }
+      }
 
     },
 
-    [enabled, refresh, updateItem],
+    [enabled, refresh, updateItem, userId],
 
   );
 
