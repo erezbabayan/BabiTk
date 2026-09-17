@@ -10,6 +10,7 @@ import {
   parsedItemInsertFields,
   resolveAllowedTagNames,
 } from "./parse-incoming-message";
+import { parseWhatsAppVoiceQuestion } from "../../../convex/lib/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 
 export interface TranscribeVoiceItemResult {
@@ -18,6 +19,7 @@ export interface TranscribeVoiceItemResult {
   title: string;
   content: string;
   alreadyTranscribed?: boolean;
+  answered?: boolean;
 }
 
 export type VoiceRepairItem = Pick<
@@ -105,6 +107,56 @@ async function resolveAudioUrl(item: VoiceRepairItem): Promise<string | null> {
   return data.signedUrl;
 }
 
+async function tryReplyRecordedQuestion(params: {
+  transcript: string;
+  itemId?: string;
+}): Promise<boolean> {
+  const parsed = parseWhatsAppVoiceQuestion(params.transcript);
+  if (!params.itemId && parsed.kind === "none") return false;
+  try {
+    const supabase = requireSupabase();
+    const accessToken = await currentAccessToken();
+    if (!accessToken) return parsed.kind !== "none";
+    const invoked = await invokeWithTimeout(
+      supabase.functions.invoke("whatsapp-green-connect", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: {
+          action: "replyVoiceQuestion",
+          itemId: params.itemId,
+          transcript: params.transcript,
+        },
+      }),
+      8_000,
+    );
+    const data =
+      invoked.data && typeof invoked.data === "object"
+        ? (invoked.data as { answered?: unknown })
+        : null;
+    if (!invoked.error && data?.answered === true) return true;
+  } catch {
+    // Live connect may still be the old function.
+  }
+  return parsed.kind !== "none";
+}
+
+async function softDeleteQuestionItem(item: VoiceRepairItem, content: string): Promise<void> {
+  const supabase = requireSupabase();
+  const extraMeta = {
+    ...(typeof item.metadata === "object" && item.metadata ? item.metadata : {}),
+    whisper_transcription: content,
+    corrected_transcription: content,
+    system_question: true,
+  };
+  await supabase
+    .from("mindtasker_items")
+    .update({
+      deleted_at: new Date().toISOString(),
+      metadata: extraMeta,
+      last_interacted_at: new Date().toISOString(),
+    })
+    .eq("id", item.id);
+}
+
 async function persistClientTranscript(
   item: VoiceRepairItem,
   title: string,
@@ -181,6 +233,16 @@ async function transcribeViaPublicAsr(
     transcribed = await transcribeHebrewAudioBlob(blob, "whatsapp-voice.ogg");
   }
   const title = transcribed.title || titleFromInboundText(transcribed.correctedText);
+  if (await tryReplyRecordedQuestion({ transcript: transcribed.correctedText, itemId: item.id })) {
+    await softDeleteQuestionItem(item, transcribed.correctedText);
+    return {
+      ok: true,
+      answered: true,
+      itemId: item.id,
+      title,
+      content: transcribed.correctedText,
+    };
+  }
   const saved = await persistClientTranscript(
     item,
     title,
@@ -245,6 +307,15 @@ export async function persistRecordedVoiceTranscript(params: {
   const userId = await currentUserId();
   if (!userId) throw new Error("Not authenticated");
   const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
+  if (await tryReplyRecordedQuestion({ transcript: transcribed.correctedText })) {
+    return {
+      ok: true,
+      answered: true,
+      itemId: "",
+      title: transcribed.title,
+      content: transcribed.correctedText,
+    };
+  }
   const supabase = requireSupabase();
   const allowedTags = await loadAllowedTagNamesForUser(userId);
   const parsed = parseIncomingMessage(transcribed.correctedText, { allowedTags })[0];

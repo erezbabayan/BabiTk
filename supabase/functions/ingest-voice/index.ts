@@ -103,6 +103,7 @@ Deno.serve(async (req) => {
     });
     return json({
       ok: true,
+      answered: result.answered === true,
       itemId: result.itemId,
       title: result.title,
       content: result.content,

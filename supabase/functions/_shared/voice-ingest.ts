@@ -21,8 +21,12 @@ import {
   VOICE_PENDING_TITLE,
 } from "./voice-text.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
-import { parseWhatsAppSystemQuestion } from "./whatsapp-system-question.ts";
-import { replyWhatsAppSystemQuestion } from "./whatsapp-system-question-reply.ts";
+import { parseWhatsAppVoiceQuestion } from "./whatsapp-system-question.ts";
+import {
+  interceptRecordedWhatsAppTranscript,
+  replyWhatsAppSystemQuestion,
+  resolveCaptureChatId,
+} from "./whatsapp-system-question-reply.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -272,11 +276,81 @@ export async function findVoiceItemByWhatsAppMessage(
   return data as VoiceItemRow;
 }
 
+async function loadUserGateway(
+  supabase: AdminClient,
+  userId: string,
+): Promise<VoiceGatewayCredentials | null> {
+  const { data } = await supabase
+    .from("whatsapp_gateways")
+    .select("instance_id, api_token, api_url")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!data) return null;
+  return data as VoiceGatewayCredentials;
+}
+
+async function softDeleteVoiceItemAsQuestion(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+  transcribed: { rawText: string; content: string },
+): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from("mindtasker_items")
+    .update({
+      deleted_at: new Date().toISOString(),
+      metadata: {
+        ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
+        source: metadataString(row.metadata, "source") || "whatsapp_voice",
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.content,
+        system_question: true,
+        voice_transcribe_started_at: null,
+      },
+    })
+    .eq("id", row.id);
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+}
+
+export async function interceptVoiceItemQuestion(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+  transcribed: { title: string; content: string; rawText: string },
+  gateway: VoiceGatewayCredentials | null,
+): Promise<boolean> {
+  if (!row.user_id) return false;
+  const chatId = metadataString(row.metadata, "chat_id");
+  const messageId = metadataString(row.metadata, "whatsapp_message_id") || row.id;
+  const handled = await interceptRecordedWhatsAppTranscript({
+    supabase,
+    userId: row.user_id,
+    chatId,
+    messageId,
+    sourceType: "whatsapp_voice",
+    gateway: gateway ?? (await loadUserGateway(supabase, row.user_id)),
+    rawText: transcribed.content || transcribed.rawText,
+  });
+  if (!handled) return false;
+  try {
+    await softDeleteVoiceItemAsQuestion(supabase, row, transcribed);
+  } catch (error) {
+    console.error("voice question placeholder delete failed", error);
+  }
+  return true;
+}
+
 export async function transcribeStoredVoiceItem(
   supabase: AdminClient,
   row: VoiceItemRow,
   gateway: VoiceGatewayCredentials | null,
-): Promise<{ title: string; content: string; rawText: string; audioUrl: string | null }> {
+): Promise<{
+  title: string;
+  content: string;
+  rawText: string;
+  audioUrl: string | null;
+  answered?: boolean;
+}> {
   if (!needsVoiceTranscription(row.title, row.content)) {
     return {
       rawText: row.content,
@@ -301,40 +375,12 @@ export async function transcribeStoredVoiceItem(
     gateway,
     supabase,
   );
-  const question = parseWhatsAppSystemQuestion(transcribed.content);
-  if (question.kind !== "none" && row.user_id) {
-    const { error: deleteError } = await supabase
-      .from("mindtasker_items")
-      .update({
-        deleted_at: new Date().toISOString(),
-        metadata: {
-          ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
-          source: "whatsapp_voice",
-          whisper_transcription: transcribed.rawText,
-          corrected_transcription: transcribed.content,
-          system_question: true,
-          voice_transcribe_started_at: null,
-        },
-      })
-      .eq("id", row.id);
-    if (deleteError) {
-      throw new Error(deleteError.message);
+  try {
+    if (await interceptVoiceItemQuestion(supabase, row, transcribed, gateway)) {
+      return { ...transcribed, answered: true };
     }
-    try {
-      await replyWhatsAppSystemQuestion({
-        supabase,
-        userId: row.user_id,
-        chatId,
-        messageId,
-        sourceType: "whatsapp_voice",
-        parsed: question,
-        gateway,
-        rawText: transcribed.content,
-      });
-    } catch (error) {
-      console.error("voice system question reply failed", error);
-    }
-    return transcribed;
+  } catch (error) {
+    console.error("voice system question reply failed", error);
   }
   await applyVoiceTranscription(supabase, row, transcribed);
   return transcribed;
@@ -398,6 +444,14 @@ export async function loadVoiceItemForUser(
   return data as VoiceItemRow;
 }
 
+export type IngestRecordedAudioResult = {
+  itemId?: string;
+  answered?: boolean;
+  title: string;
+  content: string;
+  rawText: string;
+};
+
 export async function ingestRecordedAudio(
   supabase: AdminClient,
   userId: string,
@@ -407,7 +461,7 @@ export async function ingestRecordedAudio(
     fileName: string;
     durationSeconds?: number;
   },
-): Promise<{ itemId: string; title: string; content: string; rawText: string }> {
+): Promise<IngestRecordedAudioResult> {
   const transcribed = await transcribeAndProofreadVoice({
     audio: params.bytes,
     mimeType: params.mimeType,
@@ -415,6 +469,28 @@ export async function ingestRecordedAudio(
   });
   if (isVoicePlaceholderText(transcribed.correctedText)) {
     throw new Error("voice_placeholder_rejected");
+  }
+
+  const gateway = await loadUserGateway(supabase, userId);
+  const question = parseWhatsAppVoiceQuestion(transcribed.correctedText);
+  if (question.kind !== "none") {
+    const chatId = await resolveCaptureChatId(supabase, userId);
+    await replyWhatsAppSystemQuestion({
+      supabase,
+      userId,
+      chatId,
+      messageId: `app-voice-${Date.now()}`,
+      sourceType: "whatsapp_voice",
+      parsed: question,
+      gateway,
+      rawText: transcribed.correctedText,
+    });
+    return {
+      answered: true,
+      title: transcribed.title,
+      content: transcribed.correctedText,
+      rawText: transcribed.rawText,
+    };
   }
 
   const storagePath = `${userId}/${Date.now()}-${params.fileName}`;

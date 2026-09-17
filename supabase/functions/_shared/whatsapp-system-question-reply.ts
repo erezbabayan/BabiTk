@@ -2,11 +2,19 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
   answerWhatsAppSystemQuestion,
-  parseWhatsAppSystemQuestion,
+  normalizeSpokenWhatsAppQuestion,
+  parseWhatsAppVoiceQuestion,
   type SystemQuestionItem,
   type SystemQuestionParse,
 } from "./whatsapp-system-question.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
+import {
+  buildWhatsAppMenuText,
+  builtInMenuQuestions,
+  isWhatsAppMenuRequest,
+  parseWhatsAppQuery,
+} from "./whatsapp-intents.ts";
+import { loadAllowedTagNames } from "./parse-incoming-message.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -106,5 +114,80 @@ export async function replyWhatsAppSystemQuestion(params: {
 }
 
 export function parseIfSystemQuestion(text: string): SystemQuestionParse {
-  return parseWhatsAppSystemQuestion(text);
+  return parseWhatsAppVoiceQuestion(text);
+}
+
+export async function resolveCaptureChatId(
+  supabase: AdminClient,
+  userId: string,
+  fallbackChatId = "",
+): Promise<string> {
+  if (fallbackChatId.trim()) return fallbackChatId.trim();
+  const { data } = await supabase
+    .from("users")
+    .select("whatsapp_capture_group_chat_id")
+    .eq("id", userId)
+    .maybeSingle();
+  return typeof data?.whatsapp_capture_group_chat_id === "string"
+    ? data.whatsapp_capture_group_chat_id
+    : "";
+}
+
+/**
+ * After ASR, a recorded question must be answered in the capture group and
+ * must not stay as a task/note. Canned group queries («מה יש לי היום») match
+ * the typed WhatsApp path.
+ */
+export async function interceptRecordedWhatsAppTranscript(params: {
+  supabase: AdminClient;
+  userId: string;
+  chatId: string;
+  messageId: string;
+  sourceType: "whatsapp_text" | "whatsapp_voice";
+  gateway: SystemQuestionGateway | null;
+  rawText: string;
+}): Promise<boolean> {
+  const raw = params.rawText.trim();
+  if (!raw) return false;
+  const spoken = normalizeSpokenWhatsAppQuestion(raw);
+  const allowedTags = await loadAllowedTagNames(params.supabase, params.userId);
+  let parsed = parseWhatsAppVoiceQuestion(raw);
+  if (parsed.kind === "none" && spoken && isWhatsAppMenuRequest(spoken)) {
+    parsed = { kind: "help" };
+  }
+  if (parsed.kind === "none" && spoken && parseWhatsAppQuery(spoken, allowedTags)) {
+    parsed = { kind: "question", question: spoken };
+  }
+  if (parsed.kind === "none") return false;
+
+  const chatId = await resolveCaptureChatId(params.supabase, params.userId, params.chatId);
+  if (parsed.kind === "help" && spoken && isWhatsAppMenuRequest(spoken)) {
+    const sent = await sendGreenApiText(
+      params.gateway,
+      chatId,
+      buildWhatsAppMenuText(builtInMenuQuestions(allowedTags)),
+    );
+    if (sent) {
+      await recordSystemQuestionReceipt(params.supabase, {
+        userId: params.userId,
+        messageId: params.messageId,
+        chatId,
+        text: raw,
+        sourceType: params.sourceType,
+      });
+    }
+    return true;
+  }
+
+  await replyWhatsAppSystemQuestion({
+    supabase: params.supabase,
+    userId: params.userId,
+    chatId,
+    messageId: params.messageId,
+    sourceType: params.sourceType,
+    parsed,
+    gateway: params.gateway,
+    rawText: raw,
+  });
+  return true;
 }

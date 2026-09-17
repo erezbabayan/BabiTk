@@ -30,11 +30,15 @@ const STAR_PREFIX = /^(?:[*＊✳️])\s*/u;
 const STAR_WRAP = /^(?:[*＊✳️])\s*(.*?)\s*(?:[*＊✳️])$/su;
 const STAR_SUFFIX = /^(.*\S)\s+[*＊✳️]$/u;
 const QMARK_PREFIX = /^[?؟]\s*/u;
-const KOKHAVIT_PREFIX =
-  /^(?:כוכבית|כוכביית|כוחבית|כוכב\s*ית|kokhavit)(?:\s*[:.,;!?؟\-–—])?\s*/iu;
-const KOKHAVIT_SUFFIX =
-  /^(.*\S)\s+(?:כוכבית|כוכביית|כוחבית|כוכב\s*ית|kokhavit)$/iu;
+const KOKHAVIT_WORD =
+  "(?:כוכבית|כוכביית|כוחבית|כוכב\\s*י?\\s*ת+|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)";
+const KOKHAVIT_PREFIX = new RegExp(`^${KOKHAVIT_WORD}(?:\\s*[:.,;!?؟\\-–—])?\\s*`, "iu");
+const KOKHAVIT_SUFFIX = new RegExp(`^(.*\\S)\\s+${KOKHAVIT_WORD}$`, "iu");
+const KOKHAVIT_HEAD_TOKEN =
+  /^(?:כוכבית|כוכביית|כוחבית|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)$/iu;
 const EXPLICIT_PREFIX = /^(?:שאלה\s+למערכת)(?:\s*[:.,;!?؟\-–—])?\s*/iu;
+const VOICE_FILLER_PREFIX =
+  /^(?:(?:אה+|אמ+|המ+|אם+|אוקיי?|יאללה|סבבה|וואלה|טוב|כן|אז|זה|בבקשה|רגע|או+|em+|um+|uh+|hmm+)[.,!?،]?\s+)+/iu;
 
 const STOPWORDS = new Set([
   "מה",
@@ -133,6 +137,51 @@ export function parseWhatsAppSystemQuestion(text: string): SystemQuestionParse {
 
 export function isWhatsAppSystemQuestion(text: string): boolean {
   return parseWhatsAppSystemQuestion(text).kind !== "none";
+}
+
+function joinAsrKokhavit(text: string): string {
+  return text
+    .replace(/כוכב\s+י\s*ת+/giu, "כוכבית")
+    .replace(/כוכב\s+ית+/giu, "כוכבית")
+    .replace(
+      /\b(?:כוחבית|כוכביית|כוכביתת|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)\b/giu,
+      "כוכבית",
+    );
+}
+
+/** Strip spoken fillers and ASR splits so a recorded «כוכבית» still parses. */
+export function normalizeSpokenWhatsAppQuestion(text: string): string {
+  const joined = joinAsrKokhavit(normalizeWhatsAppQuestionSource(text));
+  return joined.replace(VOICE_FILLER_PREFIX, "").trim();
+}
+
+function kokhavitInHead(text: string): SystemQuestionParse {
+  const words = text.split(/\s+/).filter(Boolean);
+  const headLimit = Math.min(words.length, 3);
+  for (let index = 0; index < headLimit; index += 1) {
+    const token = (words[index] ?? "").replace(/[:.,;!?؟\-–—]+$/u, "");
+    if (!KOKHAVIT_HEAD_TOKEN.test(token)) continue;
+    const rest = [...words.slice(0, index), ...words.slice(index + 1)].join(" ").trim();
+    return restOrHelp(rest);
+  }
+  return { kind: "none" };
+}
+
+/**
+ * Recorded questions: leading fillers («אה כוכבית…») and Whisper splits of
+ * «כוכבית» still count as a system question. A trailing ? alone is not enough
+ * («לקנות חלב?» stays a task).
+ */
+export function parseWhatsAppVoiceQuestion(text: string): SystemQuestionParse {
+  const spoken = normalizeSpokenWhatsAppQuestion(text);
+  if (!spoken) return { kind: "none" };
+  const parsed = parseWhatsAppSystemQuestion(spoken);
+  if (parsed.kind !== "none") return parsed;
+  return kokhavitInHead(spoken);
+}
+
+export function isWhatsAppVoiceQuestion(text: string): boolean {
+  return parseWhatsAppVoiceQuestion(text).kind !== "none";
 }
 
 export function buildWhatsAppSystemQuestionHelp(): string {

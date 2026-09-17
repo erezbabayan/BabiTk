@@ -57,6 +57,8 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["יא אללה", "יאללה"],
   ["כוכב ית", "כוכבית"],
   ["כוכב  ית", "כוכבית"],
+  ["כוכב י ת", "כוכבית"],
+  ["כוכבי ית", "כוכבית"],
 ];
 
 /**
@@ -157,6 +159,12 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["כוחבית", "כוכבית"],
   ["כוכביית", "כוכבית"],
   ["כוכביתת", "כוכבית"],
+  ["כוכבת", "כוכבית"],
+  ["כוכביה", "כוכבית"],
+  ["כוכביות", "כוכבית"],
+  ["kokhavit", "כוכבית"],
+  ["kochavit", "כוכבית"],
+  ["cochavit", "כוכבית"],
 ];
 
 function escapeRegExp(value: string): string {
