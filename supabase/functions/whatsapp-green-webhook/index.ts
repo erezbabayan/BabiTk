@@ -27,6 +27,24 @@ import {
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
+import { sendGreenApiText } from "../_shared/green-api-send.ts";
+import {
+  addHoursIso,
+  buildCaptureConfirmation,
+  buildTaskBriefing,
+  buildWhatsAppMenuText,
+  builtInMenuQuestions,
+  formatClockFromIso,
+  isSystemWhatsAppReply,
+  isWhatsAppMenuRequest,
+  itemMatchesBriefingDay,
+  itemMatchesQueryTag,
+  parseWhatsAppCommand,
+  parseWhatsAppQuery,
+  replyChatId,
+  resolveCommandItemId,
+  tomorrowAtHourIso,
+} from "../_shared/whatsapp-intents.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -53,7 +71,12 @@ interface UserRow {
   phone_verified: boolean;
   whatsapp_capture_group_chat_id: string | null;
   whatsapp_capture_group_name: string | null;
+  whatsapp_last_item_ids?: string[] | null;
+  onboarding_completed_at?: string | null;
 }
+
+const USER_SELECT =
+  "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_last_item_ids,onboarding_completed_at";
 
 interface GatewayRow extends VoiceGatewayCredentials {
   user_id: string;
@@ -79,7 +102,7 @@ async function findVerifiedUser(
     const { data } = await supabase
       .from("users")
       .select(
-        "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name",
+        "id,phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_last_item_ids,onboarding_completed_at",
       )
       .eq("phone", candidate)
       .maybeSingle();
@@ -88,6 +111,169 @@ async function findVerifiedUser(
     }
   }
   return null;
+}
+
+async function findUserByCaptureGroup(
+  supabase: ReturnType<typeof adminClient>,
+  chatId: string,
+): Promise<UserRow | null> {
+  const trimmed = chatId.trim();
+  if (!trimmed.endsWith("@g.us") && !trimmed.endsWith("@c.us")) return null;
+  const { data } = await supabase
+    .from("users")
+    .select(USER_SELECT)
+    .eq("whatsapp_capture_group_chat_id", trimmed)
+    .eq("phone_verified", true)
+    .maybeSingle();
+  return (data as UserRow | null) ?? null;
+}
+
+async function rememberLastItemIds(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+  itemIds: string[],
+): Promise<void> {
+  await supabase
+    .from("users")
+    .update({ whatsapp_last_item_ids: itemIds.slice(0, 12) })
+    .eq("id", userId);
+}
+
+async function handleGroupTextIntent(options: {
+  supabase: ReturnType<typeof adminClient>;
+  user: UserRow;
+  gateway: GatewayRow | null;
+  message: ParsedGreenApiMessage;
+  text: string;
+}): Promise<boolean> {
+  const raw = options.text.trim();
+  if (!raw || isSystemWhatsAppReply(raw)) return true;
+  const replyTo = replyChatId(options.message);
+  const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
+  const menu = builtInMenuQuestions(allowedTags);
+
+  if (isWhatsAppMenuRequest(raw)) {
+    await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
+    await options.supabase
+      .from("users")
+      .update({ onboarding_completed_at: new Date().toISOString() })
+      .eq("id", options.user.id)
+      .is("onboarding_completed_at", null);
+    return true;
+  }
+
+  const query = parseWhatsAppQuery(raw, allowedTags);
+  if (query) {
+    const { data } = await options.supabase
+      .from("mindtasker_items")
+      .select("id, title, content, due_date, tags, status, is_actionable")
+      .eq("user_id", options.user.id)
+      .eq("is_actionable", true)
+      .in("status", ["inbox", "pending"])
+      .is("deleted_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false });
+    const matched = (data ?? []).filter(
+      (item) =>
+        itemMatchesBriefingDay(item, query.day) && itemMatchesQueryTag(item, query.tag),
+    );
+    await rememberLastItemIds(
+      options.supabase,
+      options.user.id,
+      matched.map((item) => String(item.id)),
+    );
+    await sendGreenApiText(options.gateway, replyTo, buildTaskBriefing(matched, query));
+    return true;
+  }
+
+  const command = parseWhatsAppCommand(raw);
+  if (!command) return false;
+
+  const { data: fresh } = await options.supabase
+    .from("users")
+    .select("whatsapp_last_item_ids")
+    .eq("id", options.user.id)
+    .maybeSingle();
+  const lastIds = Array.isArray(fresh?.whatsapp_last_item_ids)
+    ? fresh.whatsapp_last_item_ids.map(String)
+    : Array.isArray(options.user.whatsapp_last_item_ids)
+      ? options.user.whatsapp_last_item_ids.map(String)
+      : [];
+  const itemId = resolveCommandItemId(command, lastIds);
+  if (!itemId) {
+    await sendGreenApiText(
+      options.gateway,
+      replyTo,
+      "לא מצאתי פריט אחרון. כתבו «תפריט» או בחרו מספר אחרי הקליטה.",
+    );
+    return true;
+  }
+
+  const { data: item } = await options.supabase
+    .from("mindtasker_items")
+    .select("id, title, due_date, metadata")
+    .eq("id", itemId)
+    .eq("user_id", options.user.id)
+    .maybeSingle();
+  if (!item) {
+    await sendGreenApiText(options.gateway, replyTo, "הפריט כבר לא זמין. כתבו «תפריט».");
+    return true;
+  }
+
+  if (command.type === "complete") {
+    await options.supabase
+      .from("mindtasker_items")
+      .update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        last_interacted_at: new Date().toISOString(),
+      })
+      .eq("id", itemId)
+      .eq("user_id", options.user.id);
+    await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}`);
+    return true;
+  }
+
+  const due =
+    command.type === "snooze"
+      ? addHoursIso(command.hours)
+      : tomorrowAtHourIso(command.hour);
+  await options.supabase
+    .from("mindtasker_items")
+    .update({ due_date: due, last_interacted_at: new Date().toISOString() })
+    .eq("id", itemId)
+    .eq("user_id", options.user.id);
+  const label =
+    command.type === "snooze"
+      ? `נדחה ל-${formatClockFromIso(due)}`
+      : `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00`;
+  await sendGreenApiText(options.gateway, replyTo, `${label}: ${item.title}`);
+  return true;
+}
+
+async function maybeSendGroupMenu(options: {
+  supabase: ReturnType<typeof adminClient>;
+  user: UserRow;
+  gateway: GatewayRow | null;
+  chatId: string;
+}): Promise<void> {
+  if (!options.chatId.endsWith("@g.us")) return;
+  const { data } = await options.supabase
+    .from("users")
+    .select("onboarding_completed_at")
+    .eq("id", options.user.id)
+    .maybeSingle();
+  if (data?.onboarding_completed_at) return;
+  const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
+  await sendGreenApiText(
+    options.gateway,
+    options.chatId,
+    `בקבוצה הזו אפשר לשאול שאלות מובנות — בחרו מספר או כתבו «תפריט» שוב בכל עת.\n\n${buildWhatsAppMenuText(builtInMenuQuestions(allowedTags))}`,
+  );
+  await options.supabase
+    .from("users")
+    .update({ onboarding_completed_at: new Date().toISOString() })
+    .eq("id", options.user.id)
+    .is("onboarding_completed_at", null);
 }
 
 async function gateCapture(
@@ -236,9 +422,9 @@ async function ingestMessage(
   userId: string,
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
-): Promise<void> {
+): Promise<{ id: string; title: string } | null> {
   if (await alreadyIngested(supabase, userId, message.messageId, gateway)) {
-    return;
+    return null;
   }
   const item =
     message.type === "audio"
@@ -333,6 +519,7 @@ async function ingestMessage(
       gateway,
     );
   }
+  return { id: inserted.id as string, title: inserted.title as string };
 }
 
 Deno.serve(async (req) => {
@@ -392,11 +579,12 @@ Deno.serve(async (req) => {
       instanceData?: { wid?: string };
       senderData?: { sender?: string };
     };
-    const user = await findVerifiedUser(supabase, [
-      message.senderPhone,
-      payload.instanceData?.wid ?? "",
-      payload.senderData?.sender ?? "",
-    ]);
+    const user =
+      (await findVerifiedUser(supabase, [
+        message.senderPhone,
+        payload.instanceData?.wid ?? "",
+        payload.senderData?.sender ?? "",
+      ])) ?? (await findUserByCaptureGroup(supabase, message.chatId));
     if (!user) {
       skipped.push({ messageId: message.messageId, reason: "not_linked" });
       continue;
@@ -418,7 +606,40 @@ Deno.serve(async (req) => {
       continue;
     }
     try {
-      await ingestMessage(supabase, user.id, message, gateway);
+      if (message.type === "text" && message.text) {
+        const handled = await handleGroupTextIntent({
+          supabase,
+          user,
+          gateway,
+          message,
+          text: message.text,
+        });
+        if (handled) {
+          skipped.push({ messageId: message.messageId, reason: "intent_handled" });
+          await maybeSendGroupMenu({
+            supabase,
+            user,
+            gateway,
+            chatId: message.chatId,
+          });
+          continue;
+        }
+      }
+      const inserted = await ingestMessage(supabase, user.id, message, gateway);
+      if (inserted) {
+        await rememberLastItemIds(supabase, user.id, [inserted.id]);
+        await sendGreenApiText(
+          gateway,
+          replyChatId(message),
+          buildCaptureConfirmation([{ title: inserted.title }]),
+        );
+        await maybeSendGroupMenu({
+          supabase,
+          user,
+          gateway,
+          chatId: message.chatId,
+        });
+      }
       scheduled.push({
         messageId: message.messageId,
         userId: user.id,
