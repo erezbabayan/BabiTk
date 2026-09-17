@@ -5,6 +5,7 @@ import {
   applyBoardItemFilters,
   boardFiltersActive,
   isItemDueToday,
+  isItemDueTomorrow,
   isItemOverdue,
   isItemUndated,
   type BoardDateFilter,
@@ -36,13 +37,16 @@ describe("date board filters", () => {
   const now = Date.parse("2026-09-17T12:00:00.000Z");
   const today = new Date(now);
 
-  it("classifies today, overdue, and undated items", () => {
+  it("classifies today, tomorrow, overdue, and undated items", () => {
     const dueToday = item({ due_date: "2026-09-17T18:00:00.000Z" });
+    const dueTomorrow = item({ due_date: "2026-09-18T09:00:00.000Z" });
     const overdue = item({ due_date: "2026-09-16T09:00:00.000Z" });
     const undated = item({ due_date: null });
 
     assert.equal(isItemDueToday(dueToday, today), true);
     assert.equal(isItemDueToday(overdue, today), false);
+    assert.equal(isItemDueTomorrow(dueTomorrow, today), true);
+    assert.equal(isItemDueTomorrow(dueToday, today), false);
     assert.equal(isItemOverdue(overdue, now), true);
     assert.equal(isItemOverdue(dueToday, now), false);
     assert.equal(isItemUndated(undated), true);
@@ -52,6 +56,7 @@ describe("date board filters", () => {
   it("filters a mixed list by date scope", () => {
     const items = [
       item({ id: "today", due_date: "2026-09-17T18:00:00.000Z" }),
+      item({ id: "tomorrow", due_date: "2026-09-18T09:00:00.000Z" }),
       item({ id: "past", due_date: "2026-09-10T09:00:00.000Z" }),
       item({ id: "none", due_date: null }),
     ];
@@ -67,6 +72,10 @@ describe("date board filters", () => {
     assert.deepEqual(
       applyBoardItemFilters(items, null, false, "today", now).map((entry) => entry.id),
       ["today"],
+    );
+    assert.deepEqual(
+      applyBoardItemFilters(items, null, false, "tomorrow", now).map((entry) => entry.id),
+      ["tomorrow"],
     );
   });
 
@@ -84,6 +93,7 @@ describe("boardFiltersActive", () => {
   it("is active for date chips, tags, and priority", () => {
     assert.equal(boardFiltersActive({ dateFilter: "all" }), false);
     assert.equal(boardFiltersActive({ dateFilter: "overdue" as BoardDateFilter }), true);
+    assert.equal(boardFiltersActive({ dateFilter: "tomorrow" as BoardDateFilter }), true);
     assert.equal(boardFiltersActive({ tag: "בית" }), true);
     assert.equal(boardFiltersActive({ priorityOnly: true }), true);
     assert.equal(boardFiltersActive({ query: "  " }), false);

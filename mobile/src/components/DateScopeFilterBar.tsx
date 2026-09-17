@@ -5,8 +5,6 @@ import type { BoardDateFilter } from "../lib/filter-items";
 interface DateScopeFilterBarProps {
   value: BoardDateFilter;
   onChange: (value: BoardDateFilter) => void;
-  planMyDay?: boolean;
-  onPlanMyDayChange?: (active: boolean) => void;
 }
 
 const CHIPS: Array<{
@@ -15,16 +13,12 @@ const CHIPS: Array<{
   accessibilityLabel: string;
 }> = [
   { id: "today", label: "היום", accessibilityLabel: "סינון להיום" },
+  { id: "tomorrow", label: "מחר", accessibilityLabel: "סינון למחר" },
   { id: "overdue", label: "עבר", accessibilityLabel: "סינון לתאריך שעבר" },
   { id: "undated", label: "ללא תאריך", accessibilityLabel: "סינון בלי תאריך" },
 ];
 
-export function DateScopeFilterBar({
-  value,
-  onChange,
-  planMyDay = false,
-  onPlanMyDayChange,
-}: DateScopeFilterBarProps) {
+export function DateScopeFilterBar({ value, onChange }: DateScopeFilterBarProps) {
   return (
     <View style={styles.row}>
       {CHIPS.map((chip) => {
@@ -42,19 +36,6 @@ export function DateScopeFilterBar({
           </Pressable>
         );
       })}
-      {onPlanMyDayChange ? (
-        <Pressable
-          style={[styles.chip, planMyDay && styles.chipActive]}
-          onPress={() => onPlanMyDayChange(!planMyDay)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: planMyDay }}
-          accessibilityLabel="תכנן לי את היום"
-        >
-          <Text style={[styles.chipText, planMyDay && styles.chipTextActive]}>
-            תכנן לי את היום
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }

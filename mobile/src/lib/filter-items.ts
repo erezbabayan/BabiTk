@@ -3,7 +3,15 @@ import type { UserTag } from "./tags";
 import { normalizeTagName } from "./tags";
 import { filterItemsByPriority } from "./item-priority";
 
-export type BoardDateFilter = "all" | "today" | "overdue" | "undated";
+export type BoardDateFilter = "all" | "today" | "tomorrow" | "overdue" | "undated";
+
+function isSameLocalDay(left: Date, right: Date): boolean {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  );
+}
 
 export function filterItemsByQuery(
   items: MindtaskerItem[],
@@ -37,12 +45,15 @@ export function itemDueTimestamp(item: { due_date: string | null }): number | nu
 export function isItemDueToday(item: { due_date: string | null }, now = new Date()): boolean {
   const ts = itemDueTimestamp(item);
   if (ts === null) return false;
-  const due = new Date(ts);
-  return (
-    due.getFullYear() === now.getFullYear() &&
-    due.getMonth() === now.getMonth() &&
-    due.getDate() === now.getDate()
-  );
+  return isSameLocalDay(new Date(ts), now);
+}
+
+export function isItemDueTomorrow(item: { due_date: string | null }, now = new Date()): boolean {
+  const ts = itemDueTimestamp(item);
+  if (ts === null) return false;
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return isSameLocalDay(new Date(ts), tomorrow);
 }
 
 export function isItemOverdue(item: { due_date: string | null }, now = Date.now()): boolean {
@@ -72,6 +83,10 @@ export function filterItemsByDate(
   if (dateFilter === "today") {
     const today = new Date(now);
     return items.filter((item) => isItemDueToday(item, today));
+  }
+  if (dateFilter === "tomorrow") {
+    const today = new Date(now);
+    return items.filter((item) => isItemDueTomorrow(item, today));
   }
   if (dateFilter === "overdue") {
     return items.filter((item) => isItemOverdue(item, now));

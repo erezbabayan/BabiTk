@@ -150,9 +150,21 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
 
   const [taskListsMode, setTaskListsMode] = useState<TaskListsModalMode>("create");
   const [mobileTab, setMobileTab] = useState<BoardTab>("inbox");
-  const [boardTag, setBoardTag] = useState<string | null>(null);
-  const [boardPriorityOnly, setBoardPriorityOnly] = useState(false);
-  const [boardDateFilter, setBoardDateFilter] = useState<BoardDateFilter>("all");
+  const [tagByBoard, setTagByBoard] = useState<Record<DashboardColumn, string | null>>({
+    inbox: null,
+    today: null,
+    notes: null,
+  });
+  const [priorityOnlyByBoard, setPriorityOnlyByBoard] = useState<Record<DashboardColumn, boolean>>({
+    inbox: false,
+    today: false,
+    notes: false,
+  });
+  const [dateFilterByBoard, setDateFilterByBoard] = useState<Record<DashboardColumn, BoardDateFilter>>({
+    inbox: "all",
+    today: "all",
+    notes: "all",
+  });
   const inboxSearch = useBoardSearch("inbox");
   const todaySearch = useBoardSearch("today");
   const notesSearch = useBoardSearch("notes");
@@ -207,35 +219,35 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(inbox, inboxSearch.activeQuery, inboxSearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.inbox,
+          priorityOnlyByBoard.inbox,
+          dateFilterByBoard.inbox,
         ),
         inboxDateSort,
       ),
-    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
+    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
   );
   const filteredInboxArchive = useMemo(
     () =>
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.inbox,
+          priorityOnlyByBoard.inbox,
+          dateFilterByBoard.inbox,
         ),
         inboxDateSort,
       ),
-    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
+    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
   );
   const filteredTodayTasks = useMemo(
     () => {
       const filtered = applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.today,
+          priorityOnlyByBoard.today,
+          dateFilterByBoard.today,
         ),
         todayDateSort,
       );
@@ -246,9 +258,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todayTasks,
       todaySearch.activeQuery,
       todaySearch.semanticHits,
-      boardTag,
-      boardPriorityOnly,
-      boardDateFilter,
+      tagByBoard.today,
+      priorityOnlyByBoard.today,
+      dateFilterByBoard.today,
       todayDateSort,
       planMyDay,
     ],
@@ -258,9 +270,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.today,
+          priorityOnlyByBoard.today,
+          dateFilterByBoard.today,
         ),
         todayDateSort,
       ),
@@ -268,9 +280,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       inboxArchive,
       todaySearch.activeQuery,
       todaySearch.semanticHits,
-      boardTag,
-      boardPriorityOnly,
-      boardDateFilter,
+      tagByBoard.today,
+      priorityOnlyByBoard.today,
+      dateFilterByBoard.today,
       todayDateSort,
     ],
   );
@@ -279,9 +291,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.today,
+          priorityOnlyByBoard.today,
+          dateFilterByBoard.today,
         ),
         todayDateSort,
       ),
@@ -289,9 +301,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       completedTasks,
       todaySearch.activeQuery,
       todaySearch.semanticHits,
-      boardTag,
-      boardPriorityOnly,
-      boardDateFilter,
+      tagByBoard.today,
+      priorityOnlyByBoard.today,
+      dateFilterByBoard.today,
       todayDateSort,
     ],
   );
@@ -300,61 +312,100 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(notes, notesSearch.activeQuery, notesSearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.notes,
+          priorityOnlyByBoard.notes,
+          dateFilterByBoard.notes,
         ),
         notesDateSort,
       ),
-    [notes, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
+    [notes, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
   );
   const filteredNotesArchive = useMemo(
     () =>
       applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(notesArchive, notesSearch.activeQuery, notesSearch.semanticHits),
-          boardTag,
-          boardPriorityOnly,
-          boardDateFilter,
+          tagByBoard.notes,
+          priorityOnlyByBoard.notes,
+          dateFilterByBoard.notes,
         ),
         notesDateSort,
       ),
-    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
+    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
   );
 
   const filterTags = useBoardFilterTags();
 
-  function renderBoardFilters() {
+  function renderBoardFilters(board: DashboardColumn) {
+    const showPlanMyDay = board === "today" && !showTasksArchive && !showCompletedTasks;
     return (
-      <div className="board-notebook-chrome flex flex-wrap items-center gap-2">
-        <DateScopeFilter value={boardDateFilter} onChange={setBoardDateFilter} />
-        <PriorityFilter active={boardPriorityOnly} onToggle={setBoardPriorityOnly} />
+      <div
+        className="board-notebook-chrome flex min-h-8 flex-nowrap items-center gap-2 overflow-x-auto"
+        data-board-filters={board}
+      >
+        <DateScopeFilter
+          value={dateFilterByBoard[board]}
+          onChange={(value) =>
+            setDateFilterByBoard((current) => ({ ...current, [board]: value }))
+          }
+        />
+        <PriorityFilter
+          active={priorityOnlyByBoard[board]}
+          onToggle={(active) =>
+            setPriorityOnlyByBoard((current) => ({ ...current, [board]: active }))
+          }
+        />
         <div className="min-w-0 flex-1">
           <TagFilter
             tags={filterTags}
-            selected={boardTag}
-            onSelect={setBoardTag}
+            selected={tagByBoard[board]}
+            onSelect={(tag) => setTagByBoard((current) => ({ ...current, [board]: tag }))}
             userTags={userTags}
           />
         </div>
+        {showPlanMyDay ? (
+          <button
+            type="button"
+            data-no-drag-scroll
+            onClick={() => setPlanMyDay((value) => !value)}
+            className={`flex h-8 shrink-0 items-center rounded-lg border px-2.5 text-xs font-medium shadow-sm transition hover:bg-white ${
+              planMyDay
+                ? "border-blue-400/90 bg-blue-50 font-semibold text-blue-800"
+                : "border-slate-200/80 bg-white/80 text-slate-600"
+            }`}
+            aria-pressed={planMyDay}
+            title="סדר את משימות היום: עבר, היום, ואז עדיפות"
+          >
+            תכנן לי את היום
+          </button>
+        ) : null}
       </div>
     );
   }
 
-  function boardListFiltered(query: string) {
+  function boardListFiltered(board: DashboardColumn, query: string) {
     return boardFiltersActive({
       query,
-      tag: boardTag,
-      priorityOnly: boardPriorityOnly,
-      dateFilter: boardDateFilter,
+      tag: tagByBoard[board],
+      priorityOnly: priorityOnlyByBoard[board],
+      dateFilter: dateFilterByBoard[board],
     });
   }
 
   useEffect(() => {
-    if (boardTag && !filterTags.includes(boardTag)) {
-      setBoardTag(null);
-    }
-  }, [boardTag, filterTags]);
+    setTagByBoard((current) => {
+      let changed = false;
+      const next = { ...current };
+      (Object.keys(next) as DashboardColumn[]).forEach((board) => {
+        const selected = next[board];
+        if (selected && !filterTags.includes(selected)) {
+          next[board] = null;
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [filterTags]);
 
   const activeTaskListsCount = useMemo(
     () => taskLists.lists.filter((list) => list.status === "active").length,
@@ -403,18 +454,26 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   }
 
   const inboxReorderDisabled = Boolean(
-    inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || inboxDateSort,
+    inboxSearch.activeQuery.trim() ||
+      tagByBoard.inbox ||
+      priorityOnlyByBoard.inbox ||
+      dateFilterByBoard.inbox !== "all" ||
+      inboxDateSort,
   );
   const todayReorderDisabled = Boolean(
     todaySearch.activeQuery.trim() ||
-      boardTag ||
-      boardPriorityOnly ||
-      boardDateFilter !== "all" ||
+      tagByBoard.today ||
+      priorityOnlyByBoard.today ||
+      dateFilterByBoard.today !== "all" ||
       todayDateSort ||
       planMyDay,
   );
   const notesReorderDisabled = Boolean(
-    notesSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || notesDateSort,
+    notesSearch.activeQuery.trim() ||
+      tagByBoard.notes ||
+      priorityOnlyByBoard.notes ||
+      dateFilterByBoard.notes !== "all" ||
+      notesDateSort,
   );
 
   function clearDragState() {
@@ -431,9 +490,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setShowTaskLists(false);
     setTaskListsMode("create");
     setMobileTab("inbox");
-    setBoardTag(null);
-    setBoardPriorityOnly(false);
-    setBoardDateFilter("all");
+    setTagByBoard({ inbox: null, today: null, notes: null });
+    setPriorityOnlyByBoard({ inbox: false, today: false, notes: false });
+    setDateFilterByBoard({ inbox: "all", today: "all", notes: "all" });
     setPlanMyDay(false);
     setInboxDateSort(null);
     setTodayDateSort(null);
@@ -900,7 +959,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   </button>
                 }
               />
-              {renderBoardFilters()}
+              {renderBoardFilters("inbox")}
               {renderBulkBar("inbox-archive", filteredInboxArchive, "slate")}
               <ColumnDropZone
                 column="inbox"
@@ -976,7 +1035,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   </button>
                 }
               />
-              {renderBoardFilters()}
+              {renderBoardFilters("inbox")}
               {renderBulkBar("inbox-active", filteredInbox, "slate")}
               <ColumnDropZone
                 column="inbox"
@@ -996,7 +1055,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={inboxReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-slate-400">
-                        {boardListFiltered(inboxSearch.activeQuery)
+                        {boardListFiltered("inbox", inboxSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברה למחברת"
@@ -1063,21 +1122,47 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   loading={todaySearch.loading}
                 />
               }
-              toolbarExtra={
-                <div className="flex shrink-0 flex-wrap items-center gap-1">
-                  {todayListView === "active" ? (
+              toolbarExtra={selectToggleButton(
+                todayListView === "archive"
+                  ? "today-archive"
+                  : todayListView === "completed"
+                    ? "today-completed"
+                    : "today-active",
+                "blue",
+              )}
+              action={
+                <>
+                  {showCompletedTasks ? (
                     <button
                       type="button"
-                      onClick={() => setPlanMyDay((value) => !value)}
-                      className={`${boardToolbarButtonClass("blue")} ${
-                        planMyDay ? "border-blue-400 bg-blue-50 font-semibold" : ""
-                      }`}
-                      aria-pressed={planMyDay}
-                      title="סדר את משימות היום: עבר, היום, ואז עדיפות"
+                      onClick={() => {
+                        exitSelect();
+                        setShowCompletedTasks(false);
+                      }}
+                      className={boardToolbarButtonClass("blue")}
                     >
-                      תכנן לי את היום
+                      חזור
                     </button>
-                  ) : null}
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (showTasksArchive) {
+                          setShowTasksArchive(false);
+                          exitSelect();
+                        } else {
+                          setShowTasksArchive(true);
+                          setShowArchive(false);
+                          setShowNotesArchive(false);
+                          setShowCompletedTasks(false);
+                          exitSelect();
+                        }
+                      }}
+                      className={boardToolbarButtonClass("blue")}
+                    >
+                      {showTasksArchive ? "חזור" : `ארכיון (${inboxArchive.length})`}
+                    </button>
+                  )}
                   {todayListView === "active" && completedTasks.length > 0 ? (
                     <button
                       type="button"
@@ -1091,51 +1176,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       הושלמו ({completedTasks.length})
                     </button>
                   ) : null}
-                  {selectToggleButton(
-                    todayListView === "archive"
-                      ? "today-archive"
-                      : todayListView === "completed"
-                        ? "today-completed"
-                        : "today-active",
-                    "blue",
-                  )}
-                </div>
-              }
-              action={
-                showCompletedTasks ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      exitSelect();
-                      setShowCompletedTasks(false);
-                    }}
-                    className={boardToolbarButtonClass("blue")}
-                  >
-                    חזור
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (showTasksArchive) {
-                        setShowTasksArchive(false);
-                        exitSelect();
-                      } else {
-                        setShowTasksArchive(true);
-                        setShowArchive(false);
-                        setShowNotesArchive(false);
-                        setShowCompletedTasks(false);
-                        exitSelect();
-                      }
-                    }}
-                    className={boardToolbarButtonClass("blue")}
-                  >
-                    {showTasksArchive ? "חזור" : `ארכיון (${inboxArchive.length})`}
-                  </button>
-                )
+                </>
               }
             />
-            {renderBoardFilters()}
+            {renderBoardFilters("today")}
             {renderBulkBar(
               todayListView === "archive"
                 ? "today-archive"
@@ -1202,7 +1246,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={todayReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-blue-400/80">
-                        {boardListFiltered(todaySearch.activeQuery)
+                        {boardListFiltered("today", todaySearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברת משימה"
@@ -1271,7 +1315,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   </button>
                 }
               />
-              {renderBoardFilters()}
+              {renderBoardFilters("notes")}
               {renderBulkBar("notes-archive", filteredNotesArchive, "orange")}
               <ColumnDropZone
                 column="notes"
@@ -1347,7 +1391,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   </button>
                 }
               />
-              {renderBoardFilters()}
+              {renderBoardFilters("notes")}
               {renderBulkBar("notes-active", filteredNotes, "orange")}
               <ColumnDropZone
                 column="notes"
@@ -1359,7 +1403,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 className="flex min-h-0 flex-1 flex-col"
               >
                 <MouseDragScroll>
-                  {dragging && filteredNotes.length === 0 && !boardListFiltered(notesSearch.activeQuery) ? (
+                  {dragging && filteredNotes.length === 0 && !boardListFiltered("notes", notesSearch.activeQuery) ? (
                     <p className="mb-2 text-sm text-orange-500">שחרר כאן להעברת הערה</p>
                   ) : null}
                   <DraggableItemList
@@ -1370,7 +1414,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     disabled={notesReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-orange-400/80">
-                        {boardListFiltered(notesSearch.activeQuery)
+                        {boardListFiltered("notes", notesSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : "אין הערות שמורות"}
                       </p>

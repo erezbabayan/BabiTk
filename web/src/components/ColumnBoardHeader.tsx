@@ -13,7 +13,7 @@ export const BOARD_HEADER_TITLE_ROW_CLASS =
 
 /** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
-  "board-notebook-chrome board-notebook-toolbar mt-1 flex min-h-6 shrink-0 flex-wrap items-center justify-end gap-x-1.5 gap-y-1.5 overflow-visible lg:mt-1";
+  "board-notebook-chrome board-notebook-toolbar mt-1 flex min-h-6 shrink-0 flex-nowrap items-center justify-end gap-x-1.5 overflow-x-auto overflow-y-visible lg:mt-1";
 
 interface ColumnBoardHeaderProps {
   title: string;
@@ -69,7 +69,9 @@ export function ColumnBoardHeader({
           {search ? <div className={COLUMN_SEARCH_WIDTH_CLASS}>{search}</div> : null}
           {dateSort ? <div className="shrink-0">{dateSort}</div> : null}
           {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}
-          {action ? <div className="shrink-0">{action}</div> : null}
+          {action ? (
+            <div className="flex shrink-0 items-center gap-1">{action}</div>
+          ) : null}
         </div>
       ) : null}
     </header>
