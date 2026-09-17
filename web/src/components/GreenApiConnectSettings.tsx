@@ -70,13 +70,13 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
           next = await refreshStatus("ensureInstance");
           if (cancelled) return;
         }
-        if (!row && !next?.configured) {
-          setShowKeys(true);
+        if (!row && !next?.configured && !next?.canAutoProvision) {
+          setShowKeys(false);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "טעינת חיבור הוואטסאפ נכשלה");
-          setShowKeys(true);
+          setShowKeys(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -158,7 +158,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
       setInstanceId("");
       setApiToken("");
       setPairingCode(null);
-      setShowKeys(true);
+      setShowKeys(false);
       setMessage("חיבור הוואטסאפ נותק.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "ניתוק נכשל");
@@ -334,8 +334,11 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
 
       {needsKeys || showKeys ? (
-        <form onSubmit={(event) => void handleSaveKeys(event)} className="space-y-3 rounded-xl border border-slate-200 p-4">
-          <p className="text-sm font-medium text-slate-900">הגדרה חד-פעמית</p>
+        <details className="rounded-xl border border-slate-200 p-4">
+          <summary className="cursor-pointer text-xs text-slate-500">
+            הגדרה טכנית מוסתרת
+          </summary>
+          <form onSubmit={(event) => void handleSaveKeys(event)} className="mt-3 space-y-3">
           <p className="text-xs leading-5 text-slate-600">
             פעם אחת: צרו instance חינמי ב-
             <a className="underline" href={GREEN_CONSOLE} target="_blank" rel="noreferrer">
@@ -373,14 +376,15 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
           >
             {saving ? "שומר…" : "שמור והמשך לחיבור"}
           </button>
-        </form>
+          </form>
+        </details>
       ) : (
         <button
           type="button"
           className="text-xs text-slate-500 underline"
           onClick={() => setShowKeys((open) => !open)}
         >
-          הגדרה מתקדמת (מפתחות GREEN-API)
+          הגדרה טכנית מוסתרת
         </button>
       )}
     </div>

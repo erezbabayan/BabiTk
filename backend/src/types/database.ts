@@ -13,6 +13,9 @@ export interface DbUser {
   email: string;
   phone: string | null;
   phone_verified: boolean;
+  notify_whatsapp_group?: boolean;
+  whatsapp_capture_group_chat_id?: string | null;
+  whatsapp_capture_group_name?: string | null;
   tier: "free" | "premium";
   allocated_audio_seconds: number;
   used_audio_seconds: number;

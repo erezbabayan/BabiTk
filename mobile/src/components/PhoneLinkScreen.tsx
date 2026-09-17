@@ -23,6 +23,10 @@ import { isConvexConfigured } from "../lib/convex";
 import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoView } from "./ChannelInfoView";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
+import {
+  loadWhatsAppNotifyPrefs,
+  saveNotifyWhatsAppGroup,
+} from "../lib/whatsapp-gateway";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -81,6 +85,10 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   );
   const [groupSearch, setGroupSearch] = useState("");
   const [awaitingGroupMessage, setAwaitingGroupMessage] = useState(false);
+  const [notifyWhatsAppGroup, setNotifyWhatsAppGroup] = useState(false);
+  const [captureGroupName, setCaptureGroupName] = useState<string | null>(null);
+  const [captureGroupChatId, setCaptureGroupChatId] = useState<string | null>(null);
+  const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
 
   useEffect(() => {
     if (!visible || !useConvexPhone || !viewer) return;
@@ -102,6 +110,13 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     void getProfile()
       .then(setProfile)
       .catch(() => setProfile(null));
+    void loadWhatsAppNotifyPrefs()
+      .then((prefs) => {
+        setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
+        setCaptureGroupChatId(prefs.captureGroupChatId);
+        setCaptureGroupName(prefs.captureGroupName);
+      })
+      .catch(() => undefined);
   }, [visible, useConvexPhone]);
 
   useEffect(() => {
@@ -158,6 +173,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     : profile?.phone_verified
       ? profile.phone
       : null;
+  const captureIsGroup = (captureGroupChatId ?? "").toLowerCase().endsWith("@g.us");
 
   async function handleDigestDaysChange(next: "weekdays" | "everyday") {
     if (next === digestDays) return;
@@ -218,6 +234,29 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
       setError(err instanceof Error ? err.message : "שגיאה");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleNotifyGroupToggle(enabled: boolean) {
+    if (!captureIsGroup) {
+      setError("קודם חברו קבוצת קליטה, ואז אפשר לקבל אליה תזכורות.");
+      return;
+    }
+    setSavingNotifyGroup(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await saveNotifyWhatsAppGroup(enabled);
+      setNotifyWhatsAppGroup(enabled);
+      setMessage(
+        enabled
+          ? "תזכורות פעילות יישלחו כהודעה לקבוצת הוואטסאפ שהוגדרה."
+          : "תזכורות לקבוצה כובו.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
+    } finally {
+      setSavingNotifyGroup(false);
     }
   }
 
@@ -303,8 +342,41 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     void getProfile()
                       .then(setProfile)
                       .catch(() => undefined);
+                    void loadWhatsAppNotifyPrefs()
+                      .then((prefs) => {
+                        setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
+                        setCaptureGroupChatId(prefs.captureGroupChatId);
+                        setCaptureGroupName(prefs.captureGroupName);
+                      })
+                      .catch(() => undefined);
                   }}
                 />
+              ) : null}
+              {!useConvexPhone && isSupabaseConfigured ? (
+                <View style={styles.captureBox}>
+                  <Text style={styles.captureTitle}>תזכורות פעילות לקבוצה</Text>
+                  <Text style={styles.hint}>
+                    {captureIsGroup
+                      ? `כשמגיע מועד תזכורת — הודעה לקבוצה «${captureGroupName?.trim() || "קבוצת הקליטה"}»`
+                      : "דורש קבוצת וואטסאפ שהוגדרה (לא הודעה אישית)"}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      (!captureIsGroup || savingNotifyGroup) && styles.buttonDisabled,
+                    ]}
+                    disabled={!captureIsGroup || savingNotifyGroup}
+                    onPress={() => void handleNotifyGroupToggle(!notifyWhatsAppGroup)}
+                  >
+                    {savingNotifyGroup ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.buttonText}>
+                        {notifyWhatsAppGroup ? "כבה תזכורות לקבוצה" : "קבל תזכורות כהודעה בקבוצה"}
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
               ) : null}
               {linkedPhone ? (
                 <Text style={styles.ok}>מחובר: {linkedPhone}</Text>

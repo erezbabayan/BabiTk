@@ -142,6 +142,49 @@ export async function clearWhatsAppGateway(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function loadWhatsAppNotifyPrefs(): Promise<{
+  notifyWhatsAppGroup: boolean;
+  captureGroupChatId: string | null;
+  captureGroupName: string | null;
+}> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) {
+    return { notifyWhatsAppGroup: false, captureGroupChatId: null, captureGroupName: null };
+  }
+  const { data, error } = await supabase
+    .from("users")
+    .select("notify_whatsapp_group,whatsapp_capture_group_chat_id,whatsapp_capture_group_name")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const row = (data ?? null) as {
+    notify_whatsapp_group?: boolean;
+    whatsapp_capture_group_chat_id?: string | null;
+    whatsapp_capture_group_name?: string | null;
+  } | null;
+  return {
+    notifyWhatsAppGroup: row?.notify_whatsapp_group === true,
+    captureGroupChatId:
+      typeof row?.whatsapp_capture_group_chat_id === "string"
+        ? row.whatsapp_capture_group_chat_id
+        : null,
+    captureGroupName:
+      typeof row?.whatsapp_capture_group_name === "string" ? row.whatsapp_capture_group_name : null,
+  };
+}
+
+export async function saveNotifyWhatsAppGroup(enabled: boolean): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ notify_whatsapp_group: enabled })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
 export async function invokeGreenConnect(
   action: GreenConnectAction,
   extra?: { phone?: string },

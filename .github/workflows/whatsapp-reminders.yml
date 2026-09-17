@@ -1,0 +1,24 @@
+name: WhatsApp reminder dispatch
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Invoke WhatsApp reminder function
+        env:
+          FUNCTION_URL: https://ghibfuinantybqidwadj.supabase.co/functions/v1/whatsapp-send-reminders
+          SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -z "$SERVICE_ROLE" ]; then
+            echo "Skipping — add GitHub secret SUPABASE_SERVICE_ROLE_KEY to dispatch group reminders from CI."
+            exit 0
+          fi
+          curl -fsS -X POST "$FUNCTION_URL" \
+            -H "Authorization: Bearer $SERVICE_ROLE" \
+            -H "Content-Type: application/json" \
+            -d '{}'

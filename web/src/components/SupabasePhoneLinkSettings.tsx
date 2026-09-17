@@ -33,6 +33,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
   const [savingDigestHours, setSavingDigestHours] = useState(false);
   const [savingDigestDays, setSavingDigestDays] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -65,9 +66,10 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const groupConnected = Boolean(profile?.whatsapp_capture_group_name?.trim());
   const digestHours = profile?.whatsapp_digest_hours ?? [9];
   const digestDays: DigestDays = profile?.whatsapp_digest_days ?? "everyday";
-  const captureIsPersonal = Boolean(
-    profile?.whatsapp_capture_group_chat_id?.trim().toLowerCase().endsWith("@c.us"),
-  );
+  const captureChatId = profile?.whatsapp_capture_group_chat_id?.trim() ?? "";
+  const notifyWhatsAppGroup = profile?.notify_whatsapp_group === true;
+  const captureIsPersonal = Boolean(captureChatId.toLowerCase().endsWith("@c.us"));
+  const captureIsGroup = captureChatId.toLowerCase().endsWith("@g.us");
 
   async function handleLinkPhone(event: FormEvent) {
     event.preventDefault();
@@ -128,12 +130,35 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       const next = await updateCloudUserProfile({
         whatsapp_capture_group_chat_id: null,
         whatsapp_capture_group_name: null,
+        notify_whatsapp_group: false,
       });
       setProfile(next);
       setGroupName("");
       setMessage("נותקת מהקבוצה. אפשר לחבר שוב למטה.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בניתוק");
+    }
+  }
+
+  async function handleNotifyGroupToggle(enabled: boolean) {
+    if (!captureIsGroup) {
+      setError("קודם חברו קבוצת קליטה, ואז אפשר לקבל אליה תזכורות.");
+      return;
+    }
+    setSavingNotifyGroup(true);
+    setError(null);
+    try {
+      const next = await updateCloudUserProfile({ notify_whatsapp_group: enabled });
+      setProfile(next);
+      setMessage(
+        enabled
+          ? "תזכורות פעילות יישלחו כהודעה לקבוצת הוואטסאפ שהוגדרה."
+          : "תזכורות לקבוצה כובו.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
+    } finally {
+      setSavingNotifyGroup(false);
     }
   }
 
@@ -249,7 +274,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     </div>
   );
 
-  const groupBlock = linkedPhone ? (
+  const groupBlock = (
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
@@ -279,6 +304,26 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         </p>
       )}
 
+      <label className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-sky-200 bg-white px-3 py-3">
+        <span className="text-right">
+          <span className="block text-sm font-medium text-sky-950">
+            תזכורות פעילות לקבוצה
+          </span>
+          <span className="mt-0.5 block text-xs text-sky-800">
+            {captureIsGroup
+              ? `כשמגיע מועד תזכורת — הודעה לקבוצה «${profile?.whatsapp_capture_group_name?.trim() || "קבוצת הקליטה"}»`
+              : "דורש קבוצת וואטסאפ שהוגדרה למעלה (לא הודעה אישית)"}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4"
+          checked={notifyWhatsAppGroup}
+          disabled={!captureIsGroup || savingNotifyGroup}
+          onChange={(event) => void handleNotifyGroupToggle(event.target.checked)}
+        />
+      </label>
+
       <form onSubmit={(event) => void handleSaveGroup(event)} className="mt-4 space-y-3">
         <label className="block text-xs font-medium text-sky-900">שם קבוצה קיימת</label>
         <input
@@ -297,7 +342,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         </button>
       </form>
     </div>
-  ) : null;
+  );
 
   return (
     <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>

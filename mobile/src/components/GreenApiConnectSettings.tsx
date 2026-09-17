@@ -70,13 +70,13 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
           next = await refreshStatus("ensureInstance");
           if (cancelled) return;
         }
-        if (!row && !next?.configured) {
-          setShowKeys(true);
+        if (!row && !next?.configured && !next?.canAutoProvision) {
+          setShowKeys(false);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "טעינת חיבור הוואטסאפ נכשלה");
-          setShowKeys(true);
+          setShowKeys(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -138,7 +138,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
       await clearWhatsAppGateway();
       setStatus(null);
       setPairingCode(null);
-      setShowKeys(true);
+      setShowKeys(false);
       setMessage("חיבור הוואטסאפ נותק.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "ניתוק נכשל");
@@ -152,7 +152,6 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
   }
 
   const connected = Boolean(status?.authorized);
-  const needsKeys = !status?.configured && !status?.canAutoProvision;
   const showConnect = !connected;
 
   return (
@@ -252,11 +251,11 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {message ? <Text style={styles.message}>{message}</Text> : null}
 
-      {needsKeys || showKeys ? (
+      {showKeys ? (
         <View style={styles.keysBox}>
-          <Text style={styles.waitTitle}>הגדרה חד-פעמית</Text>
+          <Text style={styles.waitTitle}>הגדרה טכנית מוסתרת</Text>
           <Text style={styles.hint}>
-            פעם אחת: צרו instance חינמי ב-GREEN-API והדביקו את המפתחות.
+            נדרש רק אם החיבור הפשוט לא זמין. המפתחות לא מוצגים במסלול הרגיל.
           </Text>
           <Pressable onPress={() => void Linking.openURL(GREEN_CONSOLE)}>
             <Text style={styles.link}>פתחו את GREEN-API</Text>
@@ -291,8 +290,8 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
           </Pressable>
         </View>
       ) : (
-        <Pressable onPress={() => setShowKeys((open) => !open)}>
-          <Text style={styles.link}>הגדרה מתקדמת (מפתחות)</Text>
+        <Pressable onPress={() => setShowKeys(true)}>
+          <Text style={styles.link}>הגדרה טכנית מוסתרת</Text>
         </Pressable>
       )}
     </View>
