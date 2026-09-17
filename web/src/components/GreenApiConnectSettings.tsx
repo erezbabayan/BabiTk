@@ -138,6 +138,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
         setMessage("הוואטסאפ כבר מחובר.");
       } else {
         setError(next?.hint || "לא הצלחנו להפיק קוד. נסו סריקת QR במחשב.");
+        if (!next?.configured) setShowKeys(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "בקשת קוד החיבור נכשלה");
@@ -226,7 +227,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
         </div>
       ) : null}
 
-      {waiting || (!connected && status?.configured) || (!connected && status?.canAutoProvision) ? (
+      {waiting || !connected ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex gap-2">
             <button
@@ -262,7 +263,9 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
               ) : status?.configured ? (
                 <p className="mt-3 text-xs">טוען QR...</p>
               ) : (
-                <p className="mt-3 text-xs">מכינים חיבור...</p>
+                <p className="mt-3 text-xs">
+                  אם ה-QR לא מופיע, השלימו קודם את ההגדרה החד-פעמית למטה — ואז הסריקה תופיע כאן.
+                </p>
               )}
               {status?.qrPageUrl ? (
                 <a

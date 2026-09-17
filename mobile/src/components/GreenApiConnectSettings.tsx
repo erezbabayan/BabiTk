@@ -122,6 +122,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
         setMessage("הזינו את הקוד בוואטסאפ. אחרי החיבור תתקבל הודעת אישור.");
       } else if (!next?.authorized) {
         setError(next?.hint || "לא הצלחנו להפיק קוד.");
+        if (!next?.configured) setShowKeys(true);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "בקשת קוד החיבור נכשלה");
@@ -151,9 +152,8 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
   }
 
   const connected = Boolean(status?.authorized);
-  const waiting = Boolean(status?.configured && !status.authorized);
   const needsKeys = !status?.configured && !status?.canAutoProvision;
-  const showConnect = waiting || (!connected && (status?.configured || status?.canAutoProvision));
+  const showConnect = !connected;
 
   return (
     <View style={styles.wrap}>
@@ -238,7 +238,11 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
                   style={styles.qr}
                 />
               ) : (
-                <Text style={styles.hint}>טוען QR...</Text>
+                <Text style={styles.hint}>
+                  {status?.configured
+                    ? "טוען QR..."
+                    : "אם אין QR, השלימו קודם את ההגדרה החד-פעמית למטה."}
+                </Text>
               )}
             </>
           )}
