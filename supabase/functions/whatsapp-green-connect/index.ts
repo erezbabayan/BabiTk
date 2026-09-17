@@ -436,6 +436,7 @@ Deno.serve(async (req) => {
   let durationSeconds: number | undefined;
   let phone = "";
   let transcript = "";
+  let promptHint = "";
   try {
     const body = (await req.json()) as {
       action?: string;
@@ -447,6 +448,7 @@ Deno.serve(async (req) => {
       phone?: string;
       transcript?: string;
       text?: string;
+      promptHint?: string;
     };
     if (typeof body.action === "string" && body.action.trim()) {
       action = body.action.trim();
@@ -473,6 +475,9 @@ Deno.serve(async (req) => {
       transcript = body.transcript.trim();
     } else if (typeof body.text === "string") {
       transcript = body.text.trim();
+    }
+    if (typeof body.promptHint === "string") {
+      promptHint = body.promptHint.trim();
     }
   } catch {
     action = "status";
@@ -559,6 +564,7 @@ Deno.serve(async (req) => {
         mimeType,
         fileName: fileName || audioFileName(`rec-${Date.now()}`, mimeType),
         durationSeconds,
+        promptHint: promptHint || undefined,
       });
       return json({
         ok: true,

@@ -1,9 +1,9 @@
 /**
- * Browser/mobile Hebrew ASR fallback when Supabase Edge Functions are stale.
+ * Last-resort browser/mobile Hebrew ASR when Groq Edge is unreachable.
  *
- * Uses the same Whisper large-v3 family as Eliezer/ivrit.ai (public HF Spaces),
- * then the deterministic lexicon in hebrewAsrSpelling.ts. This does NOT wrap
- * the public eliezer.ivrit.ai WhatsApp bot.
+ * Uses public Hugging Face Whisper Spaces (cold start, slow). Prefer
+ * `ingest-voice` / Groq whisper-large-v3-turbo on the hot path.
+ * Deterministic lexicon in hebrewAsrSpelling.ts. Does NOT wrap eliezer.ivrit.ai.
  */
 
 import { applyHebrewAsrSpellingFixes } from "./hebrewAsrSpelling";
@@ -23,7 +23,8 @@ export interface PublicVoiceTranscription {
 
 const HF_AUDIO_SPACE = "https://hf-audio-whisper-large-v3.hf.space";
 const IVRIT_SPACE = "https://ortalhanuna-speech2text-hebrew.hf.space";
-const GRADIO_TIMEOUT_MS = 45_000;
+const GRADIO_TIMEOUT_MS = 16_000;
+const GRADIO_SPACE_TIMEOUT_MS = 12_000;
 
 const STATUS_LINES = /^(done!?|splitting audio.*|transcribing .*|chunk \d+\/\d+ done)$/i;
 
@@ -180,14 +181,14 @@ export async function transcribeHebrewAudioUrl(audioUrl: string): Promise<Public
   return withTimeout(
     (async () => {
       try {
-        const text = await transcribeWithHfAudio(url);
+        const text = await withTimeout(transcribeWithHfAudio(url), GRADIO_SPACE_TIMEOUT_MS);
         if (hasHebrewLetters(text) || text.split(/\s+/).length >= 2) {
           return toResult(text, "hf-whisper-large-v3");
         }
       } catch {
         // fall through to the Hebrew-tuned space
       }
-      const hebrew = await transcribeWithIvritSpace(url);
+      const hebrew = await withTimeout(transcribeWithIvritSpace(url), GRADIO_SPACE_TIMEOUT_MS);
       return toResult(hebrew, "hf-ivrit-whisper");
     })(),
     GRADIO_TIMEOUT_MS,
@@ -202,24 +203,36 @@ export async function transcribeHebrewAudioBlob(
   return withTimeout(
     (async () => {
       try {
-        const uploaded = await gradioUpload(HF_AUDIO_SPACE, blob, fileName);
-        const text = await transcribeWithHfAudio({
-          path: uploaded,
-          orig_name: fileName,
-          meta: { _type: "gradio.FileData" },
-        });
+        const uploaded = await withTimeout(
+          gradioUpload(HF_AUDIO_SPACE, blob, fileName),
+          GRADIO_SPACE_TIMEOUT_MS,
+        );
+        const text = await withTimeout(
+          transcribeWithHfAudio({
+            path: uploaded,
+            orig_name: fileName,
+            meta: { _type: "gradio.FileData" },
+          }),
+          GRADIO_SPACE_TIMEOUT_MS,
+        );
         if (hasHebrewLetters(text) || text.split(/\s+/).length >= 2) {
           return toResult(text, "hf-whisper-large-v3");
         }
       } catch {
         // fall through
       }
-      const uploadedIvrit = await gradioUpload(IVRIT_SPACE, blob, fileName);
-      const hebrew = await transcribeWithIvritSpace({
-        path: uploadedIvrit,
-        orig_name: fileName,
-        meta: { _type: "gradio.FileData" },
-      });
+      const uploadedIvrit = await withTimeout(
+        gradioUpload(IVRIT_SPACE, blob, fileName),
+        GRADIO_SPACE_TIMEOUT_MS,
+      );
+      const hebrew = await withTimeout(
+        transcribeWithIvritSpace({
+          path: uploadedIvrit,
+          orig_name: fileName,
+          meta: { _type: "gradio.FileData" },
+        }),
+        GRADIO_SPACE_TIMEOUT_MS,
+      );
       return toResult(hebrew, "hf-ivrit-whisper");
     })(),
     GRADIO_TIMEOUT_MS,

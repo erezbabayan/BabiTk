@@ -58,12 +58,14 @@ Deno.serve(async (req) => {
   let mimeType = "audio/webm";
   let fileName = "";
   let durationSeconds: number | undefined;
+  let promptHint = "";
   try {
     const body = (await req.json()) as {
       audioBase64?: unknown;
       mimeType?: unknown;
       fileName?: unknown;
       durationSeconds?: unknown;
+      promptHint?: unknown;
     };
     audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64 : "";
     if (typeof body.mimeType === "string" && body.mimeType.trim()) {
@@ -74,6 +76,9 @@ Deno.serve(async (req) => {
     }
     if (typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)) {
       durationSeconds = Math.max(1, Math.round(body.durationSeconds));
+    }
+    if (typeof body.promptHint === "string") {
+      promptHint = body.promptHint.trim();
     }
   } catch {
     return json({ error: "invalid_json" }, 400);
@@ -100,6 +105,7 @@ Deno.serve(async (req) => {
       mimeType,
       fileName: resolvedName,
       durationSeconds,
+      promptHint: promptHint || undefined,
     });
     return json({
       ok: true,
