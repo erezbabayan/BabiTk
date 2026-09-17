@@ -129,6 +129,12 @@ export function UserSettings() {
           </button>
         </div>
       </div>
+
+      {import.meta.env.VITE_DEPLOY_SHA ? (
+        <p className="text-[11px] text-slate-400" dir="ltr" title={import.meta.env.VITE_DEPLOY_SHA}>
+          גרסת האתר {import.meta.env.VITE_DEPLOY_SHA.slice(0, 7)}
+        </p>
+      ) : null}
     </div>
   );
 }
