@@ -7,6 +7,7 @@ import {
   buildInferredReminderPatch,
   buildManualReminderPatch,
   getReminderRecurrence,
+  nextActiveDueDate,
 } from "../../../convex/lib/resolveItemReminder.js";
 import * as backendCopy from "../lib/reminderRecurrence.js";
 
@@ -42,6 +43,18 @@ describe("backend reminder recurrence copy stays in sync with convex", () => {
     assert.deepEqual(
       backendCopy.buildAfterReminderSentPatch({ due_date: from, metadata: {} }),
       buildAfterReminderSentPatch({ due_date: from, metadata: {} }),
+    );
+  });
+
+  it("rolls nextActiveDueDate identically", () => {
+    const item = {
+      due_date: "2026-09-10T09:00:00+03:00",
+      metadata: { reminder_recurrence: "weekly" as const },
+    };
+    const now = new Date("2026-09-17T12:00:00+03:00");
+    assert.equal(
+      backendCopy.nextActiveDueDate(item, now, TZ),
+      nextActiveDueDate(item, now, TZ),
     );
   });
 });
@@ -130,5 +143,63 @@ describe("reminder recurrence", () => {
     const analysis = patch.metadata.analysis as Record<string, unknown>;
     assert.equal(patch.due_date, "2026-07-13T09:00:00+03:00");
     assert.equal(analysis.notify_at, patch.due_date);
+  });
+});
+
+describe("nextActiveDueDate", () => {
+  const now = new Date("2026-09-17T12:00:00+03:00");
+
+  it("returns the stored date when the item is not recurring", () => {
+    assert.equal(
+      nextActiveDueDate({ due_date: "2026-09-10T09:00:00+03:00" }, now, TZ),
+      "2026-09-10T09:00:00+03:00",
+    );
+  });
+
+  it("keeps a daily task from yesterday on today even after the clock time", () => {
+    assert.equal(
+      nextActiveDueDate(
+        {
+          due_date: "2026-09-16T09:00:00+03:00",
+          metadata: { reminder_recurrence: "daily" },
+        },
+        now,
+        TZ,
+      ),
+      "2026-09-17T09:00:00+03:00",
+    );
+  });
+
+  it("rolls a weekly task from last Monday to next Monday, not overdue", () => {
+    // 2026-09-10 is Thursday last week; +7 until >= 2026-09-17 Thursday → today
+    assert.equal(
+      nextActiveDueDate(
+        {
+          due_date: "2026-09-10T09:00:00+03:00",
+          metadata: { reminder_recurrence: "weekly" },
+        },
+        now,
+        TZ,
+      ),
+      "2026-09-17T09:00:00+03:00",
+    );
+    assert.equal(
+      nextActiveDueDate(
+        {
+          due_date: "2026-09-14T09:00:00+03:00",
+          metadata: { reminder_recurrence: "weekly" },
+        },
+        now,
+        TZ,
+      ),
+      "2026-09-21T09:00:00+03:00",
+    );
+  });
+
+  it("returns null without a due date", () => {
+    assert.equal(
+      nextActiveDueDate({ due_date: null, metadata: { reminder_recurrence: "daily" } }, now, TZ),
+      null,
+    );
   });
 });

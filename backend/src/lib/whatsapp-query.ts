@@ -1,4 +1,8 @@
 import { addZonedDays, getZonedParts, zonedLocalToIso } from "../utils/timezone.js";
+import {
+  getReminderRecurrence,
+  nextActiveDueDate,
+} from "./reminderRecurrence.js";
 
 export type BriefingDay = "today" | "tomorrow" | "overdue" | "inbox" | "week" | "plan";
 
@@ -197,7 +201,7 @@ export function calendarDayBounds(
 }
 
 export function itemMatchesBriefingDay(
-  item: { due_date: string | null; status?: string },
+  item: { due_date: string | null; status?: string; metadata?: unknown },
   day: BriefingDay,
   now = new Date(),
   timezone = "Asia/Jerusalem",
@@ -205,9 +209,11 @@ export function itemMatchesBriefingDay(
   if (day === "inbox") {
     return item.status === "inbox";
   }
-  const ts = item.due_date ? Date.parse(item.due_date) : NaN;
+  const dueIso = nextActiveDueDate(item, now, timezone);
+  const ts = dueIso ? Date.parse(dueIso) : NaN;
   if (!Number.isFinite(ts)) return false;
   if (day === "overdue") {
+    if (getReminderRecurrence(item.metadata)) return false;
     const todayStart = Date.parse(addZonedDays(timezone, now, 0, 0, 0));
     return ts < todayStart;
   }
@@ -246,7 +252,12 @@ const DAY_LABEL: Record<BriefingDay, string> = {
 const BRIEFING_FOOTER = `\n\nהשב «בוצע 1» לסימון · «תפריט» לשאלות מובנות`;
 
 export function buildTaskBriefing(
-  items: Array<{ title: string; due_date?: string | null; tags?: string[] | null }>,
+  items: Array<{
+    title: string;
+    due_date?: string | null;
+    tags?: string[] | null;
+    metadata?: unknown;
+  }>,
   query: WhatsAppQuery,
   timezone = "Asia/Jerusalem",
 ): string {
@@ -256,8 +267,15 @@ export function buildTaskBriefing(
     return `אין משימות ${scope}${tagBit}.${BRIEFING_FOOTER}`;
   }
 
+  const now = new Date();
   const lines = items.slice(0, 20).map((item, index) => {
-    const time = formatDueClock(item.due_date, timezone);
+    const dueIso =
+      nextActiveDueDate(
+        { due_date: item.due_date ?? null, metadata: item.metadata },
+        now,
+        timezone,
+      ) ?? item.due_date;
+    const time = formatDueClock(dueIso, timezone);
     const tags =
       item.tags && item.tags.length > 0 ? ` · ${item.tags.slice(0, 2).join(", ")}` : "";
     return `${index + 1}. ${item.title}${time ? ` (${time})` : ""}${tags}`;

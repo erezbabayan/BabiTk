@@ -34,7 +34,7 @@ export async function loadOpenItemsForSystemQuestion(
 ): Promise<SystemQuestionItem[]> {
   const { data, error } = await supabase
     .from("mindtasker_items")
-    .select("title, content, is_actionable, due_date, tags, status")
+    .select("title, content, is_actionable, due_date, tags, status, metadata")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .in("status", ["inbox", "pending"])
@@ -50,6 +50,10 @@ export async function loadOpenItemsForSystemQuestion(
       ? row.tags.filter((tag: unknown): tag is string => typeof tag === "string")
       : [],
     status: typeof row.status === "string" ? row.status : "pending",
+    metadata:
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : undefined,
   }));
 }
 

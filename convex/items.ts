@@ -288,6 +288,7 @@ const systemQuestionItemValidator = v.object({
   dueDate: v.union(v.string(), v.null()),
   tags: v.array(v.string()),
   status: v.string(),
+  metadata: v.optional(v.any()),
 });
 
 /** Open tasks/notes for WhatsApp system-question answers (no board write). */
@@ -331,6 +332,7 @@ export const listOpenForSystemQuestion = internalQuery({
         dueDate: row.dueDate ?? null,
         tags: row.tags,
         status: row.status,
+        metadata: row.metadata ?? undefined,
       })),
       ...notes.map((row) => ({
         title: row.title,
@@ -339,6 +341,7 @@ export const listOpenForSystemQuestion = internalQuery({
         dueDate: row.dueDate ?? null,
         tags: row.tags,
         status: row.status,
+        metadata: row.metadata ?? undefined,
       })),
     ];
   },

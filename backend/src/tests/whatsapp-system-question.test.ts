@@ -229,6 +229,35 @@ describe("answerWhatsAppSystemQuestion", () => {
     assert.doesNotMatch(reply, /לקנות חלב/);
     assert.doesNotMatch(reply, /לא מצאתי/);
   });
+
+  it("does not list a recurring task with a stale due date as overdue", () => {
+    const items: SystemQuestionItem[] = [
+      ...ITEMS,
+      {
+        title: "סנאט מילואים",
+        content: "",
+        isActionable: true,
+        dueDate: "2026-09-10T09:00:00+03:00",
+        tags: ["צבא"],
+        status: "pending",
+        metadata: { reminder_recurrence: "weekly" },
+      },
+    ];
+    const overdueReply = answerWhatsAppSystemQuestion(
+      { kind: "question", question: "משימות שהתאריך שלהן עבר" },
+      items,
+      NOW,
+    );
+    assert.match(overdueReply, /לשלם חשבון/);
+    assert.doesNotMatch(overdueReply, /סנאט מילואים/);
+
+    const todayReply = answerWhatsAppSystemQuestion(
+      { kind: "question", question: "מה יש לי היום" },
+      items,
+      NOW,
+    );
+    assert.match(todayReply, /סנאט מילואים/);
+  });
 });
 
 describe("spoken overdue questions", () => {

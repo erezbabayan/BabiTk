@@ -10,6 +10,7 @@ export {
   formatReminderRecurrenceLabel,
   getReminderFlags,
   getReminderRecurrence,
+  nextActiveDueDate,
   patchReminderMetadata,
   resolveItemReminder,
   REMINDER_RECURRENCE_LABELS,

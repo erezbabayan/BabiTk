@@ -117,6 +117,53 @@ export function advanceReminderDueDate(
   }
 }
 
+const MAX_ACTIVE_DUE_STEPS = 400;
+
+function zonedDateKey(date: Date, timezone: string): string {
+  const parts = getZonedParts(date, timezone);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+/**
+ * Next occurrence that is still active. Keep in sync with
+ * convex/lib/resolveItemReminder.ts `nextActiveDueDate`.
+ */
+export function nextActiveDueDate(
+  item: {
+    due_date?: string | null;
+    metadata?: unknown;
+    recurrence?: ReminderRecurrence | null;
+  },
+  now: Date | number = new Date(),
+  timezone = DEFAULT_TIMEZONE,
+): string | null {
+  const dueDate =
+    typeof item.due_date === "string" && item.due_date.length > 0
+      ? item.due_date
+      : null;
+  if (!dueDate) return null;
+  if (!Number.isFinite(Date.parse(dueDate))) return null;
+
+  const recurrence = item.recurrence ?? getReminderRecurrence(item.metadata);
+  if (!recurrence) return dueDate;
+
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const todayKey = zonedDateKey(nowDate, timezone);
+
+  let candidate = dueDate;
+  for (let step = 0; step < MAX_ACTIVE_DUE_STEPS; step++) {
+    const candidateMs = Date.parse(candidate);
+    if (!Number.isFinite(candidateMs)) return dueDate;
+    if (zonedDateKey(new Date(candidateMs), timezone) >= todayKey) {
+      return candidate;
+    }
+    const next = advanceReminderDueDate(candidate, recurrence, timezone);
+    if (next === candidate) return candidate;
+    candidate = next;
+  }
+  return candidate;
+}
+
 /**
  * Patch to apply once a reminder fired: mark one-shot reminders as sent, or
  * roll a recurring reminder forward to its next occurrence.

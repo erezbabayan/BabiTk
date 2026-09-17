@@ -1,4 +1,5 @@
 import type { MindtaskerItem } from "../types";
+import { nextActiveDueDate } from "./resolve-item-reminder";
 
 export type BoardDateSortDirection = "asc" | "desc" | null;
 
@@ -16,10 +17,10 @@ function parseItemDate(value: string | null | undefined): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-/** Prefer due date, then last update/interaction, then created. */
-function itemSortTimestamp(item: MindtaskerItem): number | null {
+/** Prefer next active due date, then last update/interaction, then created. */
+function itemSortTimestamp(item: MindtaskerItem, now = Date.now()): number | null {
   return (
-    parseItemDate(item.due_date) ??
+    parseItemDate(nextActiveDueDate(item, now)) ??
     parseItemDate(item.last_interacted_at) ??
     parseItemDate(item.updated_at) ??
     parseItemDate(item.created_at)

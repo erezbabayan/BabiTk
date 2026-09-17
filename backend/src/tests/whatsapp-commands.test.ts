@@ -151,6 +151,16 @@ describe("WhatsApp structured menu and queries", () => {
     assert.equal(itemMatchesBriefingDay(today, "overdue", now), false);
     assert.equal(itemMatchesQueryTag(today, "עבודה"), true);
     assert.equal(itemMatchesQueryTag(today, "לימודים"), false);
+
+    const recurringStale = {
+      title: "סנאט מילואים",
+      due_date: "2026-09-10T09:00:00+03:00",
+      tags: ["צבא"],
+      status: "pending",
+      metadata: { reminder_recurrence: "weekly" },
+    };
+    assert.equal(itemMatchesBriefingDay(recurringStale, "overdue", now), false);
+    assert.equal(itemMatchesBriefingDay(recurringStale, "today", now), true);
   });
 
   it("formats a single concentrated briefing", () => {

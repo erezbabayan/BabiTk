@@ -6,6 +6,8 @@
  * and must not create a board item.
  */
 
+import { nextActiveDueDate } from "./reminderRecurrence.js";
+
 export const WHATSAPP_SYSTEM_QUESTION_TIMEZONE = "Asia/Jerusalem";
 export const WHATSAPP_SYSTEM_QUESTION_ITEM_CAP = 8;
 
@@ -21,6 +23,7 @@ export type SystemQuestionItem = {
   dueDate: string | null;
   tags?: string[] | null;
   status?: string | null;
+  metadata?: unknown;
 };
 
 const BIDI_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
@@ -231,6 +234,14 @@ export function isOverdueOnLocalDay(
   return localDateKey(new Date(ms), timeZone) < localDateKey(now, timeZone);
 }
 
+function systemQuestionDueIso(item: SystemQuestionItem, now: Date): string | null {
+  return nextActiveDueDate(
+    { due_date: item.dueDate, metadata: item.metadata },
+    now,
+    WHATSAPP_SYSTEM_QUESTION_TIMEZONE,
+  );
+}
+
 const ASKS_OVERDUE =
   /ב?איחור|overdue|פג(?:ה|ו)\s*המועד|שעבר(?:ו)?\s*זמנ|(?:ש)?(?:ה)?תארי[ךכל]\s+של(?:הם|הן|ה|ו)?\s+עבר|(?:ש)?(?:ה)?תארי[ךכל].{0,32}עבר|עבר(?:ו)?\s*(?:ה)?תארי[ךכל]/u;
 
@@ -266,10 +277,10 @@ function formatDueLabel(dueDate: string | null | undefined): string | null {
   });
 }
 
-function formatItemLine(item: SystemQuestionItem): string {
+function formatItemLine(item: SystemQuestionItem, now = new Date()): string {
   const kind = item.isActionable ? "משימה" : "הערה";
   const title = item.title.trim() || item.content.trim().slice(0, 80) || "פריט";
-  const due = formatDueLabel(item.dueDate);
+  const due = formatDueLabel(systemQuestionDueIso(item, now) ?? item.dueDate);
   return due ? `• ${title} (${kind}, ${due})` : `• ${title} (${kind})`;
 }
 
@@ -316,14 +327,15 @@ export function answerWhatsAppSystemQuestion(
 
   if (asksOverdue) {
     matched = open.filter(
-      (item) => item.isActionable && isOverdueOnLocalDay(item.dueDate, now),
+      (item) =>
+        item.isActionable && isOverdueOnLocalDay(systemQuestionDueIso(item, now), now),
     );
     heading = "משימות באיחור:";
   } else if (asksNotes) {
     matched = open.filter((item) => !item.isActionable);
     heading = "הערות פתוחות:";
   } else if (asksToday) {
-    matched = open.filter((item) => isDueOnLocalDay(item.dueDate, now));
+    matched = open.filter((item) => isDueOnLocalDay(systemQuestionDueIso(item, now), now));
     heading = "להיום:";
     if (tokens.length > 0) {
       matched = matched.filter((item) => matchesQuery(item, tokens));

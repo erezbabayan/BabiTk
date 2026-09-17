@@ -7,6 +7,7 @@ import {
   formatReminderRecurrenceLabel,
   getReminderFlags,
   getReminderRecurrence,
+  nextActiveDueDate,
 } from "./resolve-item-reminder";
 import { resolveVoiceDisplayText } from "./voice-text";
 
@@ -141,12 +142,13 @@ export function formatItemReminder(iso: string | null | undefined): string | nul
 function resolveScheduleIso(
   item: ItemDisplaySource,
   analysis: StoredItemAnalysis | null,
+  now: Date | number = Date.now(),
 ): string | null {
-  const manualDue = effectiveTaskDueDate(item);
-  if (!item.is_actionable) {
-    return manualDue;
-  }
-  return manualDue ?? analysis?.target_at ?? null;
+  const storedDue = effectiveTaskDueDate(item);
+  const sourceIso = item.is_actionable
+    ? storedDue ?? analysis?.target_at ?? analysis?.notify_at ?? null
+    : storedDue;
+  return nextActiveDueDate({ due_date: sourceIso, metadata: item.metadata }, now) ?? sourceIso;
 }
 
 /** True when the item has a scheduled reminder (snooze / due date / notify). */
@@ -158,7 +160,10 @@ export function isReminderActive(item: ItemDisplaySource): boolean {
   return Boolean(analysis?.notify_at);
 }
 
-export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFields {
+export function buildItemDisplayFields(
+  item: ItemDisplaySource,
+  now: Date | number = Date.now(),
+): ItemDisplayFields {
   const voiceText = resolveVoiceDisplayText(item);
   const displayItem = {
     ...item,
@@ -167,7 +172,7 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
   };
   const analysis = getItemAnalysis(item.metadata);
   const body = itemBodyText(displayItem);
-  const scheduleIso = resolveScheduleIso(item, analysis);
+  const scheduleIso = resolveScheduleIso(item, analysis, now);
   const fullHeadline = resolveFullHeadline(displayItem);
   const headlineTruncated = isHeadlineTruncated(displayItem);
   const bodyExpandable = isBodyExpandable(body);
@@ -184,7 +189,7 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
     dateLabel: formatItemDate(scheduleIso),
     timeLabel: formatItemTime(scheduleIso),
     reminderLabel: (() => {
-      const fireAt = analysis?.notify_at ?? effectiveTaskDueDate(item);
+      const fireAt = resolveScheduleIso(item, analysis, now);
       const base = formatItemReminder(fireAt);
       if (!base) return recurrenceLabel ? `חוזרת · ${recurrenceLabel}` : null;
       if (!recurrenceLabel) return base;

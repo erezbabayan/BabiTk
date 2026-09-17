@@ -2,6 +2,9 @@ import type { MindtaskerItem } from "../types";
 import type { UserTag } from "./tags";
 import { normalizeTagName } from "./tags";
 import { filterItemsByPriority } from "./item-priority";
+import { getReminderRecurrence, nextActiveDueDate } from "./resolve-item-reminder";
+
+type DatedItem = { due_date: string | null; metadata?: unknown };
 
 export type BoardDateFilter = "all" | "today" | "tomorrow" | "overdue" | "undated";
 
@@ -36,33 +39,38 @@ export function filterItemsByTag(
   return items.filter((item) => (item.tags ?? []).includes(tag));
 }
 
-export function itemDueTimestamp(item: { due_date: string | null }): number | null {
-  if (!item.due_date) return null;
-  const ms = Date.parse(item.due_date);
+export function itemDueTimestamp(
+  item: DatedItem,
+  now: Date | number = Date.now(),
+): number | null {
+  const iso = nextActiveDueDate(item, now);
+  if (!iso) return null;
+  const ms = Date.parse(iso);
   return Number.isFinite(ms) ? ms : null;
 }
 
 /** True when the item's due date falls on the local calendar day of `now`. */
-export function isItemDueToday(item: { due_date: string | null }, now = new Date()): boolean {
-  const ts = itemDueTimestamp(item);
+export function isItemDueToday(item: DatedItem, now = new Date()): boolean {
+  const ts = itemDueTimestamp(item, now);
   if (ts === null) return false;
   return isSameLocalDay(new Date(ts), now);
 }
 
-export function isItemDueTomorrow(item: { due_date: string | null }, now = new Date()): boolean {
-  const ts = itemDueTimestamp(item);
+export function isItemDueTomorrow(item: DatedItem, now = new Date()): boolean {
+  const ts = itemDueTimestamp(item, now);
   if (ts === null) return false;
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   return isSameLocalDay(new Date(ts), tomorrow);
 }
 
-export function isItemOverdue(item: { due_date: string | null }, now = Date.now()): boolean {
-  const ts = itemDueTimestamp(item);
+export function isItemOverdue(item: DatedItem, now = Date.now()): boolean {
+  if (getReminderRecurrence(item.metadata)) return false;
+  const ts = itemDueTimestamp(item, now);
   return ts !== null && ts < now;
 }
 
-export function isItemUndated(item: { due_date: string | null }): boolean {
+export function isItemUndated(item: DatedItem): boolean {
   return itemDueTimestamp(item) === null;
 }
 

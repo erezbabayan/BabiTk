@@ -79,6 +79,42 @@ describe("date board filters", () => {
     );
   });
 
+  it("does not treat recurring tasks with a stale due date as overdue", () => {
+    const daily = item({
+      id: "daily",
+      due_date: "2026-09-16T09:00:00+03:00",
+      metadata: { reminder_recurrence: "daily" },
+    });
+    const weekly = item({
+      id: "weekly",
+      due_date: "2026-09-10T09:00:00+03:00",
+      metadata: { reminder_recurrence: "weekly" },
+    });
+    const oneShot = item({
+      id: "past",
+      due_date: "2026-09-10T09:00:00+03:00",
+    });
+
+    assert.equal(isItemOverdue(daily, now), false);
+    assert.equal(isItemOverdue(weekly, now), false);
+    assert.equal(isItemOverdue(oneShot, now), true);
+    assert.equal(isItemDueToday(daily, today), true);
+    assert.equal(isItemDueToday(weekly, today), true);
+
+    assert.deepEqual(
+      applyBoardItemFilters([daily, weekly, oneShot], null, false, "overdue", now).map(
+        (entry) => entry.id,
+      ),
+      ["past"],
+    );
+    assert.deepEqual(
+      applyBoardItemFilters([daily, weekly, oneShot], null, false, "today", now).map(
+        (entry) => entry.id,
+      ),
+      ["daily", "weekly"],
+    );
+  });
+
   it("treats boolean todayOnly as the today date filter", () => {
     const items = [
       item({ id: "today", due_date: "2026-09-17T18:00:00.000Z" }),

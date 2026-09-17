@@ -51,4 +51,19 @@ describe("plan my day", () => {
       ["today", "star"],
     );
   });
+
+  it("treats a recurring task with a stale due date as today, not overdue", () => {
+    const recurring = item({
+      id: "repeat",
+      due_date: "2026-09-10T09:00:00+03:00",
+      metadata: { reminder_recurrence: "weekly" },
+    });
+    const overdue = item({ id: "past", due_date: "2026-09-16T09:00:00.000Z" });
+    const ordered = planMyDayOrder([recurring, overdue], now).map((entry) => entry.id);
+    assert.deepEqual(ordered, ["past", "repeat"]);
+    assert.deepEqual(
+      planMyDayFocus([recurring], now).map((entry) => entry.id),
+      ["repeat"],
+    );
+  });
 });

@@ -234,18 +234,84 @@ function addCalendarDays(ymd: string, days: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+function reminderRecurrence(
+  metadata: unknown,
+): "daily" | "weekly" | "monthly" | "weekdays" | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).reminder_recurrence;
+  if (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "weekdays"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function advanceDueIso(
+  iso: string,
+  recurrence: "daily" | "weekly" | "monthly" | "weekdays",
+): string {
+  const next = new Date(iso);
+  if (Number.isNaN(next.getTime())) return iso;
+  if (recurrence === "weekly") {
+    next.setUTCDate(next.getUTCDate() + 7);
+  } else if (recurrence === "monthly") {
+    next.setUTCMonth(next.getUTCMonth() + 1);
+  } else if (recurrence === "weekdays") {
+    do {
+      next.setUTCDate(next.getUTCDate() + 1);
+    } while (next.getUTCDay() === 5 || next.getUTCDay() === 6);
+  } else {
+    next.setUTCDate(next.getUTCDate() + 1);
+  }
+  return next.toISOString();
+}
+
+/** Roll a recurring due date until its Jerusalem day is today or later. */
+export function nextActiveDueDate(
+  item: { due_date?: string | null; metadata?: unknown },
+  now = new Date(),
+): string | null {
+  const dueDate =
+    typeof item.due_date === "string" && item.due_date.length > 0
+      ? item.due_date
+      : null;
+  if (!dueDate) return null;
+  if (!Number.isFinite(Date.parse(dueDate))) return null;
+  const recurrence = reminderRecurrence(item.metadata);
+  if (!recurrence) return dueDate;
+  const today = jerusalemYmd(now);
+  let candidate = dueDate;
+  for (let step = 0; step < 400; step++) {
+    const due = new Date(candidate);
+    if (Number.isNaN(due.getTime())) return dueDate;
+    if (jerusalemYmd(due) >= today) return candidate;
+    const next = advanceDueIso(candidate, recurrence);
+    if (next === candidate) return candidate;
+    candidate = next;
+  }
+  return candidate;
+}
+
 export function itemMatchesBriefingDay(
-  item: { due_date: string | null; status?: string },
+  item: { due_date: string | null; status?: string; metadata?: unknown },
   day: BriefingDay,
   now = new Date(),
 ): boolean {
   if (day === "inbox") return item.status === "inbox";
-  if (!item.due_date) return false;
-  const due = new Date(item.due_date);
+  const dueIso = nextActiveDueDate(item, now);
+  if (!dueIso) return false;
+  const due = new Date(dueIso);
   if (Number.isNaN(due.getTime())) return false;
   const today = jerusalemYmd(now);
   const dueDay = jerusalemYmd(due);
-  if (day === "overdue") return dueDay < today;
+  if (day === "overdue") {
+    if (reminderRecurrence(item.metadata)) return false;
+    return dueDay < today;
+  }
   if (day === "week") {
     const end = addCalendarDays(today, 7);
     return dueDay >= today && dueDay < end;
@@ -294,14 +360,25 @@ const DAY_LABEL: Record<BriefingDay, string> = {
 const BRIEFING_FOOTER = `\n\nהשב «בוצע 1» לסימון · «תפריט» לשאלות מובנות`;
 
 export function buildTaskBriefing(
-  items: Array<{ title: string; due_date?: string | null; tags?: string[] | null }>,
+  items: Array<{
+    title: string;
+    due_date?: string | null;
+    tags?: string[] | null;
+    metadata?: unknown;
+  }>,
   query: WhatsAppQuery,
 ): string {
   const scope = DAY_LABEL[query.day];
   const tagBit = query.tag ? ` ב«${query.tag}»` : "";
   if (items.length === 0) return `אין משימות ${scope}${tagBit}.${BRIEFING_FOOTER}`;
+  const now = new Date();
   const lines = items.slice(0, 20).map((item, index) => {
-    const time = formatDueClock(item.due_date);
+    const dueIso =
+      nextActiveDueDate(
+        { due_date: item.due_date ?? null, metadata: item.metadata },
+        now,
+      ) ?? item.due_date;
+    const time = formatDueClock(dueIso);
     const tags =
       item.tags && item.tags.length > 0 ? ` · ${item.tags.slice(0, 2).join(", ")}` : "";
     return `${index + 1}. ${item.title}${time ? ` (${time})` : ""}${tags}`;

@@ -37,6 +37,23 @@ describe("buildItemDisplayFields voice placeholders", () => {
 
     assert.equal(display.dateLabel, "18/09/2026");
   });
+
+  it("shows the next occurrence for a recurring task with a stale due date", () => {
+    const display = buildItemDisplayFields(
+      {
+        title: "סנאט מילואים",
+        content: "",
+        tags: [],
+        is_actionable: true,
+        due_date: "2026-09-10T09:00:00+03:00",
+        metadata: { reminder_recurrence: "weekly" },
+      },
+      Date.parse("2026-09-17T12:00:00+03:00"),
+    );
+
+    assert.equal(display.dateLabel, "17/09/2026");
+    assert.match(display.reminderLabel ?? "", /שבועי/);
+  });
 });
 
 describe("subtask count on board cards", () => {
