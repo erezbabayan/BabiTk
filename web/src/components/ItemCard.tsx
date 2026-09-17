@@ -403,6 +403,17 @@ export function ItemCard({
                 </div>
               ) : null}
 
+              {display.activeLineCountLabel ? (
+                <p
+                  dir="rtl"
+                  className={`w-full text-right font-medium text-amber-700 ${
+                    dense || isSquares ? "mt-0.5 text-[9px] leading-none" : "mt-1 text-[10px] leading-tight"
+                  }`}
+                >
+                  {display.activeLineCountLabel}
+                </p>
+              ) : null}
+
               {display.isItemExpandable && !isSquares && !dense ? (
                 <button
                   type="button"
@@ -421,15 +432,15 @@ export function ItemCard({
               ) : null}
 
               {showChecklist ? (
-                <ul className={`${dense ? "mt-0.5" : "mt-1"} space-y-0.5 text-right`}>
+                <ul className={`${dense ? "mt-0.5" : "mt-1"} w-full space-y-0.5`} dir="rtl">
                   {checklist.map((entry) => (
-                    <li key={entry.id}>
+                    <li key={entry.id} className="w-full">
                       <label
-                        className="flex items-start justify-end gap-1.5"
+                        className="flex w-full flex-row items-start justify-start gap-1.5"
                         onClick={(event) => event.stopPropagation()}
                       >
                         <span
-                          className={`min-w-0 text-[11px] leading-snug ${
+                          className={`min-w-0 flex-1 text-start text-[11px] leading-snug ${
                             entry.done ? "text-slate-400 line-through" : "text-slate-700"
                           }`}
                         >
@@ -474,7 +485,7 @@ export function ItemCard({
                 <div
                   className={`w-full ${
                     isSquares
-                      ? "mt-auto flex shrink-0 flex-col pb-0 pt-0.5"
+                      ? "mt-0.5 flex shrink-0 flex-col pb-0 pt-0.5"
                       : scheduleLine
                         ? "mt-1 flex flex-col gap-1 border-t border-slate-100/80 pt-1"
                         : `flex items-center gap-1 ${

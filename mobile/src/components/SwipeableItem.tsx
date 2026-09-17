@@ -284,6 +284,16 @@ export function SwipeableItem({
                     {display.body}
                   </Text>
                 ) : null}
+                {display.activeLineCountLabel ? (
+                  <Text
+                    style={[
+                      styles.activeLineCount,
+                      dense || isSquares ? styles.activeLineCountDense : null,
+                    ]}
+                  >
+                    {display.activeLineCountLabel}
+                  </Text>
+                ) : null}
                 {!dense && !isSquares && display.isItemExpandable ? (
                   <TouchableOpacity
                     onPress={() => setItemExpanded((value) => !value)}
@@ -562,12 +572,32 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     textAlign: "right",
   },
+  activeLineCount: {
+    marginTop: 4,
+    width: "100%",
+    fontSize: 10,
+    fontWeight: "600",
+    lineHeight: 13,
+    color: "#b45309",
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  activeLineCountDense: {
+    marginTop: 2,
+    fontSize: 9,
+    lineHeight: 11,
+  },
   checkRow: {
     marginTop: 2,
     alignSelf: "stretch",
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "flex-start",
   },
   checkText: {
+    flex: 1,
     textAlign: "right",
+    writingDirection: "rtl",
     fontSize: 12,
     lineHeight: 16,
     color: "#334155",
@@ -605,7 +635,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   cardFooterSquares: {
-    marginTop: "auto",
+    marginTop: 2,
     paddingBottom: 2,
   },
   cardFooterActionsOnly: {
