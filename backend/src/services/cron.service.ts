@@ -162,7 +162,7 @@ export async function sendDailyDigests(): Promise<number> {
       continue;
     }
 
-    const message = `${buildWhatsAppDigestMessage(digestItems, digestDate)}\nכתבו «תפריט» לשאלות מובנות (היום / מחר / עבודה).`;
+    const message = buildWhatsAppDigestMessage(digestItems, digestDate);
     try {
       const delivered = await deliverWhatsAppReminder(
         {
@@ -216,7 +216,7 @@ type ReminderUserRow = {
   phone: string | null;
   phone_verified: boolean;
   notify_whatsapp_group: boolean | null;
-  notify_in_app: boolean | null;
+  notify_in_app?: boolean | null;
   whatsapp_capture_group_chat_id: string | null;
 };
 

@@ -154,5 +154,5 @@ export function buildWhatsAppDigestMessage(items: DigestItem[], digestDate: stri
     unique.length > DIGEST_ITEM_CAP
       ? `\n…ועוד ${unique.length - DIGEST_ITEM_CAP} תזכורות`
       : "";
-  return `${header}\n\n${lines.join("\n")}${extra}\n\nכל תזכורת נשלחת גם בזמן שמוגדר לה.`;
+  return `${header}\n\n${lines.join("\n")}${extra}\n\nכל תזכורת נשלחת גם בזמן שמוגדר לה.\nכתבו «תפריט» לשאלות מובנות (היום / מחר / עבודה).`;
 }

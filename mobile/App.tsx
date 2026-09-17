@@ -70,6 +70,7 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
+import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
 import { planMyDayFocus, planMyDayOrder } from "./src/lib/plan-my-day";
 import { parseChecklist, toggleChecklistEntry } from "./src/lib/checklist";
 import { isPriorityItem } from "./src/lib/item-priority";

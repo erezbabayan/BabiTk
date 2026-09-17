@@ -54,6 +54,7 @@ describe("WhatsApp digest copy", () => {
     assert.match(message, /לקנות חלב/);
     assert.match(message, /סידורים/);
     assert.match(message, /כל תזכורת נשלחת גם בזמן שמוגדר לה/);
+    assert.match(message, /תפריט/);
   });
 });
 
