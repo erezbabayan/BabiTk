@@ -17,9 +17,12 @@ import {
 } from "../_shared/whatsapp-digest.ts";
 import {
   buildWhatsAppReminderMessage,
+  patchAfterReminderSent,
   resolveItemNotifyAt,
   resolveReminderDestination,
   sendGreenApiChatMessage,
+  stampWhatsAppReminderFireAt,
+  whatsappReminderFireStamp,
 } from "../_shared/whatsapp-reminders.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -38,13 +41,28 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function isAuthorized(req: Request): boolean {
+function bearerToken(req: Request): string {
   const auth = req.headers.get("Authorization") ?? "";
-  const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+  return auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+}
+
+function isCronAuth(req: Request): boolean {
+  const token = bearerToken(req);
   const queryToken = new URL(req.url).searchParams.get("token") ?? "";
   if (SERVICE_ROLE && token === SERVICE_ROLE) return true;
   if (CRON_SECRET && (token === CRON_SECRET || queryToken === CRON_SECRET)) return true;
   return false;
+}
+
+async function userIdFromJwt(
+  req: Request,
+  admin: ReturnType<typeof createClient>,
+): Promise<string | null> {
+  const token = bearerToken(req);
+  if (!token) return null;
+  const { data, error } = await admin.auth.getUser(token);
+  if (error || !data.user) return null;
+  return data.user.id;
 }
 
 type ReminderUserRow = {
@@ -65,9 +83,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST" && req.method !== "GET") {
     return json({ error: "method_not_allowed" }, 405);
   }
-  if (!isAuthorized(req)) {
-    return json({ error: "not_authenticated" }, 401);
-  }
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     return json({ error: "missing_supabase_env" }, 500);
   }
@@ -75,6 +90,24 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const cron = isCronAuth(req);
+  const scopedUserId = cron ? null : await userIdFromJwt(req, admin);
+  if (!cron && !scopedUserId) {
+    return json({ error: "not_authenticated" }, 401);
+  }
+
+  let body: { test?: boolean; itemId?: string; fireAt?: string } = {};
+  if (req.method === "POST") {
+    try {
+      const parsed: unknown = await req.json();
+      if (parsed && typeof parsed === "object") {
+        body = parsed as { test?: boolean; itemId?: string; fireAt?: string };
+      }
+    } catch {
+      body = {};
+    }
+  }
+
   const now = new Date();
   const nowIso = now.toISOString();
   let sent = 0;
@@ -121,11 +154,91 @@ Deno.serve(async (req) => {
     return true;
   }
 
-  const { data: items, error: itemsError } = await admin
+  if (body.test === true && scopedUserId) {
+    const context = await contextFor(scopedUserId);
+    if (!context) return json({ error: "user_not_found" }, 404);
+    const destination = resolveReminderDestination(context.user);
+    if (destination.kind === "none") {
+      return json({ error: "no_whatsapp_destination", sent: 0 }, 409);
+    }
+    try {
+      const delivered = await deliver(
+        context,
+        "בדיקת תזכורת מ-BabiTk\n\nאם ההודעה הזו הגיעה — התזכורות לקבוצה/לוואטסאפ עובדות.",
+      );
+      return json({ ok: delivered, sent: delivered ? 1 : 0, test: true, destination: destination.kind });
+    } catch (error) {
+      console.error("test reminder send failed", error);
+      return json(
+        { error: error instanceof Error ? error.message : "send_failed", sent: 0 },
+        502,
+      );
+    }
+  }
+
+  if (body.itemId && scopedUserId) {
+    const { data: item, error: itemError } = await admin
+      .from("mindtasker_items")
+      .select("id, user_id, title, metadata, due_date, is_actionable")
+      .eq("id", body.itemId)
+      .eq("user_id", scopedUserId)
+      .maybeSingle();
+    if (itemError) return json({ error: itemError.message }, 500);
+    if (!item) return json({ error: "item_not_found", sent: 0 }, 404);
+    const metadata = (item.metadata ?? {}) as Record<string, unknown>;
+    const fireAt =
+      (typeof body.fireAt === "string" && body.fireAt.trim()) ||
+      resolveItemNotifyAt(item) ||
+      item.due_date;
+    if (!fireAt) return json({ error: "no_notify_at", sent: 0 }, 409);
+    if (whatsappReminderFireStamp(metadata) === fireAt) {
+      return json({ ok: true, sent: 0, already: true });
+    }
+    const context = await contextFor(scopedUserId);
+    if (!context) return json({ error: "user_not_found", sent: 0 }, 404);
+    try {
+      const delivered = await deliver(
+        context,
+        buildWhatsAppReminderMessage(
+          item.title,
+          item.due_date ?? fireAt,
+          item.is_actionable ? "task" : "note",
+        ),
+      );
+      if (!delivered) {
+        return json({ error: "no_whatsapp_destination", sent: 0 }, 409);
+      }
+      const { data: fresh } = await admin
+        .from("mindtasker_items")
+        .select("metadata")
+        .eq("id", item.id)
+        .maybeSingle();
+      const latest =
+        fresh?.metadata && typeof fresh.metadata === "object"
+          ? (fresh.metadata as Record<string, unknown>)
+          : metadata;
+      await admin
+        .from("mindtasker_items")
+        .update({ metadata: stampWhatsAppReminderFireAt(latest, fireAt) })
+        .eq("id", item.id);
+      return json({ ok: true, sent: 1 });
+    } catch (error) {
+      console.error("reminder item send failed", error);
+      return json(
+        { error: error instanceof Error ? error.message : "send_failed", sent: 0 },
+        502,
+      );
+    }
+  }
+
+  let itemsQuery = admin
     .from("mindtasker_items")
     .select("id, user_id, title, metadata, due_date, is_actionable")
     .in("status", ["inbox", "pending"])
     .is("deleted_at", null);
+  if (scopedUserId) itemsQuery = itemsQuery.eq("user_id", scopedUserId);
+
+  const { data: items, error: itemsError } = await itemsQuery;
   if (itemsError) {
     return json({ error: itemsError.message }, 500);
   }
@@ -133,11 +246,9 @@ Deno.serve(async (req) => {
   for (const item of items ?? []) {
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
     if (metadata.reminder_sent === true) continue;
-    if (typeof metadata.reminder_recurrence === "string" && metadata.reminder_recurrence) {
-      continue;
-    }
     const notifyAt = resolveItemNotifyAt(item);
     if (!notifyAt || notifyAt > nowIso) continue;
+    if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
     const context = await contextFor(item.user_id);
     if (!context) continue;
     try {
@@ -150,10 +261,15 @@ Deno.serve(async (req) => {
         ),
       );
       if (!delivered) continue;
+      const after = patchAfterReminderSent(
+        { due_date: item.due_date, metadata },
+        notifyAt,
+      );
       await admin
         .from("mindtasker_items")
         .update({
-          metadata: { ...metadata, reminder_sent: true },
+          ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
+          metadata: stampWhatsAppReminderFireAt(after.metadata, notifyAt),
         })
         .eq("id", item.id);
       sent += 1;
@@ -162,13 +278,15 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { data: lists, error: listsError } = await admin
+  let listsQuery = admin
     .from("task_lists")
     .select("id, user_id, name, reminder_at")
     .eq("status", "active")
     .is("deleted_at", null)
     .not("reminder_at", "is", null)
     .lte("reminder_at", nowIso);
+  if (scopedUserId) listsQuery = listsQuery.eq("user_id", scopedUserId);
+  const { data: lists, error: listsError } = await listsQuery;
   if (listsError) {
     return json({ error: listsError.message, sent }, 500);
   }
@@ -190,6 +308,10 @@ Deno.serve(async (req) => {
     } catch (error) {
       console.error("reminder list send failed", error);
     }
+  }
+
+  if (!cron) {
+    return json({ ok: true, sent, digests: 0 });
   }
 
   const hour = localHour(now);

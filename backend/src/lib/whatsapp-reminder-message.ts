@@ -16,7 +16,9 @@ export function resolveReminderDestination(user: {
   phone_verified?: boolean | null;
 }): ReminderDestination {
   const groupId = user.whatsapp_capture_group_chat_id?.trim() ?? "";
-  if (user.notify_whatsapp_group === true && isWhatsAppGroupChatId(groupId)) {
+  // A connected WhatsApp group is the reminder inbox. Do not require the
+  // settings checkbox — it defaulted to false and blocked every send.
+  if (isWhatsAppGroupChatId(groupId)) {
     return { kind: "group", chatId: groupId };
   }
   const phone = user.phone?.trim() ?? "";
@@ -71,10 +73,21 @@ export function resolveItemNotifyAt(item: {
     }
     return item.due_date ?? null;
   }
-  if (metadata.reminder_manual === true && item.due_date) {
-    return item.due_date;
-  }
+  if (item.due_date) return item.due_date;
   return null;
+}
+
+export function whatsappReminderFireStamp(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).whatsapp_reminder_fire_at;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function stampWhatsAppReminderFireAt(
+  metadata: Record<string, unknown>,
+  fireAt: string,
+): Record<string, unknown> {
+  return { ...metadata, whatsapp_reminder_fire_at: fireAt };
 }
 
 export function resolveGreenApiChatId(toPhoneOrChatId: string): string {

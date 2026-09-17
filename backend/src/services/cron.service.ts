@@ -16,6 +16,8 @@ import {
   buildWhatsAppReminderMessage,
   resolveItemNotifyAt,
   resolveReminderDestination,
+  stampWhatsAppReminderFireAt,
+  whatsappReminderFireStamp,
 } from "../lib/whatsapp-reminder-message.js";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
@@ -298,6 +300,7 @@ export async function sendTaskReminders(): Promise<number> {
     if (metadata.reminder_sent === true) continue;
     const notifyAt = resolveItemNotifyAt(item);
     if (!notifyAt || notifyAt > now) continue;
+    if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
 
     const context = await contextFor(item.user_id);
     if (!context) continue;
@@ -319,7 +322,7 @@ export async function sendTaskReminders(): Promise<number> {
         .from("mindtasker_items")
         .update({
           ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),
-          metadata: after.metadata,
+          metadata: stampWhatsAppReminderFireAt(after.metadata, notifyAt),
         })
         .eq("id", item.id);
       sent++;

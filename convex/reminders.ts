@@ -396,7 +396,9 @@ export const collectDueCandidates = internalQuery({
       userNotifyCache.set(userId, {
         notifyInApp: user.notifyInApp !== false,
         notifyWhatsApp: user.notifyWhatsApp !== false,
-        notifyWhatsAppGroup: user.notifyWhatsAppGroup === true,
+        notifyWhatsAppGroup:
+          user.notifyWhatsAppGroup === true ||
+          (user.whatsappCaptureGroupChatId ?? "").toLowerCase().endsWith("@g.us"),
       });
       return (
         user.notifyInApp !== false ||
@@ -516,12 +518,13 @@ export const getUserNotifyContext = internalQuery({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .take(20);
     const captureGroupChatId = user.whatsappCaptureGroupChatId?.trim() || null;
+    const captureIsGroup = (captureGroupChatId ?? "").toLowerCase().endsWith("@g.us");
     return {
       phone: user.phone ?? null,
       phoneVerified: user.phoneVerified === true,
       notifyInApp: user.notifyInApp !== false,
       notifyWhatsApp: user.notifyWhatsApp !== false,
-      notifyWhatsAppGroup: user.notifyWhatsAppGroup === true,
+      notifyWhatsAppGroup: user.notifyWhatsAppGroup === true || captureIsGroup,
       captureGroupChatId,
       hasCallMeBotKey: Boolean(user.callMeBotApiKey?.trim()),
       pushTokens: tokens.map((t) => t.token),

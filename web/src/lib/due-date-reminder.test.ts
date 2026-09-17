@@ -50,15 +50,13 @@ describe("resolveItemReminderFireAt", () => {
     );
   });
 
-  it("notes only fire when a manual reminder is set", () => {
+  it("notes fire when they have a due date, even without reminder_manual", () => {
     assert.equal(
-      resolveItemReminderFireAt(item({ is_actionable: false })),
+      resolveItemReminderFireAt(item({ is_actionable: false, due_date: null })),
       null,
     );
     assert.equal(
-      resolveItemReminderFireAt(
-        item({ is_actionable: false, metadata: { reminder_manual: true } }),
-      ),
+      resolveItemReminderFireAt(item({ is_actionable: false })),
       "2026-09-16T12:00:00.000Z",
     );
   });

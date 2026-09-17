@@ -125,6 +125,7 @@ export const gateCaptureMessage = internalMutation({
       await ctx.db.patch(userId, {
         whatsappCaptureGroupChatId: incoming,
         whatsappCaptureGroupName: chatName?.trim() || undefined,
+        ...(isGroupWhatsAppChat(incoming) ? { notifyWhatsAppGroup: true } : {}),
         updatedAt: Date.now(),
       });
       return { allowed: true, captureGroupChatId: incoming };
@@ -157,6 +158,7 @@ export const gateCaptureMessage = internalMutation({
         await ctx.db.patch(userId, {
           whatsappCaptureGroupChatId: incoming,
           whatsappCaptureGroupName: chatName?.trim() || "קבוצת קליטה",
+          notifyWhatsAppGroup: true,
           updatedAt: Date.now(),
         });
         return { allowed: true, reason: "auto_upgraded_to_group", captureGroupChatId: incoming };

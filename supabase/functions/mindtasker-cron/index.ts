@@ -33,5 +33,9 @@ Deno.serve(async (req) => {
     return trigger("/api/cron/daily-digest");
   }
 
+  if (job === "reminders") {
+    return trigger("/api/cron/task-reminders");
+  }
+
   return trigger("/api/cron/archive-inbox");
 });

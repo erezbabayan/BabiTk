@@ -45,10 +45,7 @@ export function resolveItemReminderFireAt(item: ReminderSourceItem): string | nu
     return readNotifyAt(item.metadata) ?? item.due_date ?? null;
   }
 
-  if (flags.manual) {
-    return item.due_date ?? readNotifyAt(item.metadata);
-  }
-  return null;
+  return item.due_date ?? readNotifyAt(item.metadata);
 }
 
 export function isItemDueForReminder(

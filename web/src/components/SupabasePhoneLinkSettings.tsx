@@ -10,6 +10,7 @@ import {
   type CloudUserProfile,
   type DigestDays,
 } from "../lib/user-profile";
+import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -36,6 +37,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
   const [savingDigestHours, setSavingDigestHours] = useState(false);
   const [savingDigestDays, setSavingDigestDays] = useState(false);
+  const [testingReminder, setTestingReminder] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +72,19 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const notifyWhatsAppGroup = profile?.notify_whatsapp_group === true;
   const captureIsPersonal = Boolean(captureChatId.toLowerCase().endsWith("@c.us"));
   const captureIsGroup = captureChatId.toLowerCase().endsWith("@g.us");
+
+  useEffect(() => {
+    if (!profile || !captureIsGroup || notifyWhatsAppGroup) return;
+    let cancelled = false;
+    void updateCloudUserProfile({ notify_whatsapp_group: true })
+      .then((next) => {
+        if (!cancelled) setProfile(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, captureIsGroup, notifyWhatsAppGroup]);
 
   async function handleLinkPhone(event: FormEvent) {
     event.preventDefault();
@@ -113,6 +128,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       const next = await updateCloudUserProfile({
         whatsapp_capture_group_name: name,
         whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null,
+        notify_whatsapp_group: true,
       });
       setProfile(next);
       setMessage(`הקבוצה «${name}» נשמרה בחשבון.`);
@@ -159,6 +175,24 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
     } finally {
       setSavingNotifyGroup(false);
+    }
+  }
+
+  async function handleTestReminder() {
+    setTestingReminder(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await sendWhatsAppReminderTest();
+      setMessage(
+        result.sent
+          ? "נשלחה הודעת בדיקה לקבוצת הוואטסאפ. בדקו שההודעה הגיעה."
+          : "אין יעד לשליחה — חברו קבוצה או וואטסאפ.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שליחת הבדיקה נכשלה");
+    } finally {
+      setTestingReminder(false);
     }
   }
 
@@ -311,18 +345,29 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
           </span>
           <span className="mt-0.5 block text-xs text-sky-800">
             {captureIsGroup
-              ? `כשמגיע מועד תזכורת — הודעה לקבוצה «${profile?.whatsapp_capture_group_name?.trim() || "קבוצת הקליטה"}»`
+              ? `כל תזכורת של משימה או הערה נשלחת לקבוצה «${profile?.whatsapp_capture_group_name?.trim() || "קבוצת הקליטה"}» בזמן שמוגדר לה.`
               : "דורש קבוצת וואטסאפ שהוגדרה למעלה (לא הודעה אישית)"}
           </span>
         </span>
         <input
           type="checkbox"
           className="mt-1 h-4 w-4"
-          checked={notifyWhatsAppGroup}
+          checked={notifyWhatsAppGroup || captureIsGroup}
           disabled={!captureIsGroup || savingNotifyGroup}
           onChange={(event) => void handleNotifyGroupToggle(event.target.checked)}
         />
       </label>
+
+      {captureIsGroup ? (
+        <button
+          type="button"
+          disabled={testingReminder}
+          onClick={() => void handleTestReminder()}
+          className="mt-3 w-full rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+        >
+          {testingReminder ? "שולח בדיקה…" : "שלחו הודעת בדיקה לקבוצה"}
+        </button>
+      ) : null}
 
       <form onSubmit={(event) => void handleSaveGroup(event)} className="mt-4 space-y-3">
         <label className="block text-xs font-medium text-sky-900">שם קבוצה קיימת</label>

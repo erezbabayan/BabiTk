@@ -29,6 +29,7 @@ import {
   saveWhatsAppDigestDays,
   saveWhatsAppDigestHours,
 } from "../lib/whatsapp-gateway";
+import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -91,6 +92,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   const [captureGroupName, setCaptureGroupName] = useState<string | null>(null);
   const [captureGroupChatId, setCaptureGroupChatId] = useState<string | null>(null);
   const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
+  const [testingReminder, setTestingReminder] = useState(false);
   const [cloudDigestHours, setCloudDigestHours] = useState<number[]>([9]);
   const [cloudDigestDays, setCloudDigestDays] = useState<"weekdays" | "everyday">("everyday");
 
@@ -182,6 +184,19 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
       ? profile.phone
       : null;
   const captureIsGroup = (captureGroupChatId ?? "").toLowerCase().endsWith("@g.us");
+
+  useEffect(() => {
+    if (!visible || useConvexPhone || !captureIsGroup || notifyWhatsAppGroup) return;
+    let cancelled = false;
+    void saveNotifyWhatsAppGroup(true)
+      .then(() => {
+        if (!cancelled) setNotifyWhatsAppGroup(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, useConvexPhone, captureIsGroup, notifyWhatsAppGroup]);
 
   async function handleDigestDaysChange(next: "weekdays" | "everyday") {
     if (next === digestDays) return;
@@ -275,6 +290,24 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
       setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
     } finally {
       setSavingNotifyGroup(false);
+    }
+  }
+
+  async function handleTestReminder() {
+    setTestingReminder(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await sendWhatsAppReminderTest();
+      setMessage(
+        result.sent
+          ? "נשלחה הודעת בדיקה לקבוצת הוואטסאפ. בדקו שההודעה הגיעה."
+          : "אין יעד לשליחה — חברו קבוצה או וואטסאפ.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שליחת הבדיקה נכשלה");
+    } finally {
+      setTestingReminder(false);
     }
   }
 
@@ -377,7 +410,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                   <Text style={styles.captureTitle}>תזכורות פעילות לקבוצה</Text>
                   <Text style={styles.hint}>
                     {captureIsGroup
-                      ? `כשמגיע מועד תזכורת — הודעה לקבוצה «${captureGroupName?.trim() || "קבוצת הקליטה"}»`
+                      ? `כל תזכורת של משימה או הערה נשלחת לקבוצה «${captureGroupName?.trim() || "קבוצת הקליטה"}» בזמן שמוגדר לה.`
                       : "דורש קבוצת וואטסאפ שהוגדרה (לא הודעה אישית)"}
                   </Text>
                   <Pressable
@@ -392,10 +425,25 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.buttonText}>
-                        {notifyWhatsAppGroup ? "כבה תזכורות לקבוצה" : "קבל תזכורות כהודעה בקבוצה"}
+                        {notifyWhatsAppGroup || captureIsGroup
+                          ? "תזכורות לקבוצה פעילות"
+                          : "קבל תזכורות כהודעה בקבוצה"}
                       </Text>
                     )}
                   </Pressable>
+                  {captureIsGroup ? (
+                    <Pressable
+                      style={[styles.button, testingReminder && styles.buttonDisabled]}
+                      disabled={testingReminder}
+                      onPress={() => void handleTestReminder()}
+                    >
+                      {testingReminder ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.buttonText}>שלחו הודעת בדיקה לקבוצה</Text>
+                      )}
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
               {linkedPhone ? (

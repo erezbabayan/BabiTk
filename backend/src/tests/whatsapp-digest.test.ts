@@ -69,14 +69,14 @@ describe("item notify time", () => {
     );
   });
 
-  it("ignores notes without a manual reminder", () => {
+  it("fires notes when they have a due date", () => {
     assert.equal(
       resolveItemNotifyAt({
         is_actionable: false,
         due_date: "2026-09-17T12:00:00.000Z",
         metadata: {},
       }),
-      null,
+      "2026-09-17T12:00:00.000Z",
     );
   });
 });

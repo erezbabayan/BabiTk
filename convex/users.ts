@@ -133,7 +133,9 @@ export const viewer = query({
       phoneVerified: user.phoneVerified === true,
       notifyInApp: user.notifyInApp !== false,
       notifyWhatsApp: user.notifyWhatsApp !== false,
-      notifyWhatsAppGroup: user.notifyWhatsAppGroup === true,
+      notifyWhatsAppGroup:
+        user.notifyWhatsAppGroup === true ||
+        (user.whatsappCaptureGroupChatId ?? "").toLowerCase().endsWith("@g.us"),
       notifyOverdueReminders: user.notifyOverdueReminders !== false,
       overdueFirstHours:
         typeof user.overdueFirstHours === "number" &&
@@ -294,6 +296,7 @@ export const saveWhatsAppCaptureGroup = mutation({
       whatsappCaptureGroupChatId: normalizeGroupChatId(trimmed),
       whatsappCaptureGroupName:
         name?.trim() || (isPersonal ? "הודעה לעצמי (BabiTk)" : "BabiTk"),
+      ...(isGroup ? { notifyWhatsAppGroup: true } : {}),
       updatedAt: Date.now(),
     });
     return null;
@@ -308,6 +311,7 @@ export const clearWhatsAppCaptureGroup = mutation({
     await ctx.db.patch(userId, {
       whatsappCaptureGroupChatId: undefined,
       whatsappCaptureGroupName: undefined,
+      notifyWhatsAppGroup: false,
       updatedAt: Date.now(),
     });
     return null;
@@ -411,6 +415,7 @@ export const bindCaptureGroupInternal = internalMutation({
       whatsappCaptureGroupChatId: normalizeGroupChatId(trimmed),
       whatsappCaptureGroupName:
         name?.trim() || (isPersonal ? "הודעה לעצמי (BabiTk)" : BABITK_GROUP_NAME_FALLBACK),
+      ...(isGroup ? { notifyWhatsAppGroup: true } : {}),
       updatedAt: Date.now(),
     });
     return null;
@@ -446,6 +451,7 @@ export const setCaptureGroupByEmail = internalMutation({
       whatsappCaptureGroupName:
         args.name?.trim() ||
         (isPersonal ? "הודעה לעצמי (BabiTk)" : user.whatsappCaptureGroupName),
+      ...(isGroup ? { notifyWhatsAppGroup: true } : {}),
       updatedAt: Date.now(),
     });
     return { ok: true, userId: user._id, chatId: normalized };

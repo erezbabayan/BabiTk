@@ -16,7 +16,9 @@ export function resolveReminderDestination(user: {
   phone_verified?: boolean | null;
 }): ReminderDestination {
   const groupId = user.whatsapp_capture_group_chat_id?.trim() ?? "";
-  if (user.notify_whatsapp_group === true && isWhatsAppGroupChatId(groupId)) {
+  // A connected WhatsApp group is the reminder inbox. Do not require the
+  // settings checkbox — it defaulted to false and blocked every send.
+  if (isWhatsAppGroupChatId(groupId)) {
     return { kind: "group", chatId: groupId };
   }
   const phone = user.phone?.trim() ?? "";
@@ -71,10 +73,21 @@ export function resolveItemNotifyAt(item: {
     }
     return item.due_date ?? null;
   }
-  if (metadata.reminder_manual === true && item.due_date) {
-    return item.due_date;
-  }
+  if (item.due_date) return item.due_date;
   return null;
+}
+
+export function whatsappReminderFireStamp(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).whatsapp_reminder_fire_at;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+export function stampWhatsAppReminderFireAt(
+  metadata: Record<string, unknown>,
+  fireAt: string,
+): Record<string, unknown> {
+  return { ...metadata, whatsapp_reminder_fire_at: fireAt };
 }
 
 export function resolveGreenApiChatId(toPhoneOrChatId: string): string {
@@ -106,4 +119,67 @@ export async function sendGreenApiChatMessage(
     const detail = await response.text().catch(() => "");
     throw new Error(`Green-API send failed: ${response.status} ${detail}`.trim());
   }
+}
+
+export type AfterReminderSentPatch = {
+  due_date?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+/** Mark a one-shot reminder sent, or roll a recurring reminder forward. */
+export function patchAfterReminderSent(
+  item: { due_date?: string | null; metadata?: unknown },
+  firedAt: string,
+): AfterReminderSentPatch {
+  const metadata =
+    item.metadata && typeof item.metadata === "object"
+      ? { ...(item.metadata as Record<string, unknown>) }
+      : {};
+  const recurrence = metadata.reminder_recurrence;
+  const fromIso =
+    (typeof item.due_date === "string" && item.due_date) || firedAt;
+  if (
+    recurrence !== "daily" &&
+    recurrence !== "weekly" &&
+    recurrence !== "monthly" &&
+    recurrence !== "weekdays"
+  ) {
+    return { metadata: { ...metadata, reminder_sent: true } };
+  }
+
+  const from = new Date(fromIso);
+  if (Number.isNaN(from.getTime())) {
+    return { metadata: { ...metadata, reminder_sent: true } };
+  }
+  const next = new Date(from);
+  if (recurrence === "weekly") {
+    next.setUTCDate(next.getUTCDate() + 7);
+  } else if (recurrence === "monthly") {
+    next.setUTCMonth(next.getUTCMonth() + 1);
+  } else if (recurrence === "weekdays") {
+    do {
+      next.setUTCDate(next.getUTCDate() + 1);
+    } while (next.getUTCDay() === 5 || next.getUTCDay() === 6);
+  } else {
+    next.setUTCDate(next.getUTCDate() + 1);
+  }
+  const nextIso = next.toISOString();
+  const analysisRaw = metadata.analysis;
+  const analysis =
+    analysisRaw && typeof analysisRaw === "object"
+      ? { ...(analysisRaw as Record<string, unknown>) }
+      : {};
+  analysis.target_at = nextIso;
+  analysis.notify_at = nextIso;
+  return {
+    due_date: nextIso,
+    metadata: {
+      ...metadata,
+      analysis,
+      reminder_sent: false,
+      reminder_disabled: false,
+      reminder_manual: true,
+      reminder_recurrence: recurrence,
+    },
+  };
 }
