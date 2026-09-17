@@ -21,6 +21,8 @@ import {
   VOICE_PENDING_TITLE,
 } from "./voice-text.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
+import { parseWhatsAppSystemQuestion } from "./whatsapp-system-question.ts";
+import { replyWhatsAppSystemQuestion } from "./whatsapp-system-question-reply.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -299,6 +301,41 @@ export async function transcribeStoredVoiceItem(
     gateway,
     supabase,
   );
+  const question = parseWhatsAppSystemQuestion(transcribed.content);
+  if (question.kind !== "none" && row.user_id) {
+    const { error: deleteError } = await supabase
+      .from("mindtasker_items")
+      .update({
+        deleted_at: new Date().toISOString(),
+        metadata: {
+          ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
+          source: "whatsapp_voice",
+          whisper_transcription: transcribed.rawText,
+          corrected_transcription: transcribed.content,
+          system_question: true,
+          voice_transcribe_started_at: null,
+        },
+      })
+      .eq("id", row.id);
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+    try {
+      await replyWhatsAppSystemQuestion({
+        supabase,
+        userId: row.user_id,
+        chatId,
+        messageId,
+        sourceType: "whatsapp_voice",
+        parsed: question,
+        gateway,
+        rawText: transcribed.content,
+      });
+    } catch (error) {
+      console.error("voice system question reply failed", error);
+    }
+    return transcribed;
+  }
   await applyVoiceTranscription(supabase, row, transcribed);
   return transcribed;
 }

@@ -46,7 +46,7 @@ export function formatPairingCode(code: string): string {
 }
 
 export const WHATSAPP_WELCOME_MESSAGE =
-  "BabiTk מחובר לוואטסאפ שלך. אפשר לשלוח הודעות לקבוצת הקליטה או «הודעה לעצמי» — והן ייכנסו ללוח.";
+  "BabiTk מחובר לוואטסאפ שלך. הודעה רגילה לקבוצת הקליטה נכנסת כמשימה או הערה. שאלה למערכת: התחילו ב-* או אמרו «כוכבית» — המענה יישאר בקבוצה בלי ליצור פריט.";
 
 export function preferPhonePairingOnThisDevice(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {

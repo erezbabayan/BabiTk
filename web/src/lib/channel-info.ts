@@ -34,7 +34,17 @@ export const CHANNELS: Record<string, ChannelInfo> = {
     id: "whatsapp",
     icon: "💬",
     title: "וואטסאפ",
-    description: "קליטת משימות מקבוצת וואטסאפ קיימת ותזכורות יומיות.",
+    description: "קליטת משימות מקבוצת וואטסאפ קיימת, שאלות למערכת בקבוצה, ותזכורות.",
+    platforms: "וואטסאפ",
+    limits: [
+      { label: "סוגי הודעות", value: "טקסט, קול, תמונה" },
+      { label: "תמלול קולי", value: `עד ${FREE_TIER_DEFAULTS.audioMinutesPerMonth} דק׳/חודש (חינמי)` },
+      { label: "עיבוד AI", value: `עד ${FREE_TIER_DEFAULTS.aiParsesPerMonth} פעולות/חודש (חינמי)` },
+      { label: "איפוס מכסה", value: `כל ${FREE_TIER_DEFAULTS.periodDays} יום` },
+    ],
+    notes: [
+      "הודעה רגילה נכנסת כמשימה או הערה. שאלה למערכת מתחילה ב-* או ב-?, ובהקלטה אומרים «כוכבית» — המענה חוזר לקבוצה בלי ליצור פריט.",
+    ],
     platforms: "וואטסאפ",
     limits: [
       { label: "סוגי הודעות", value: "טקסט, קול, תמונה" },

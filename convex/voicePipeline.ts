@@ -10,6 +10,7 @@ import { applyHebrewAsrSpellingFixes } from "./lib/ingest/hebrewAsrSpelling";
 import { parseInputLocally } from "./lib/ingest/localParse";
 import { storeMediaBuffer } from "./lib/mediaStorage";
 import { markSenderMessageRead } from "./lib/replyToSender";
+import { replyIfWhatsAppSystemQuestion } from "./lib/whatsappSystemQuestionReply";
 import type { ParseInputResponse } from "./lib/ingest/types";
 import {
   downloadMedia,
@@ -76,6 +77,28 @@ export const processVoiceMessage = internalAction({
     }
 
     const correctedText = applyHebrewAsrSpellingFixes(sanitized.text);
+
+    if (
+      await replyIfWhatsAppSystemQuestion(ctx, {
+        userId: args.userId as Id<"users">,
+        messageId: args.messageId,
+        text: correctedText,
+        senderPhone: args.senderPhone,
+        chatId: args.chatId,
+      })
+    ) {
+      await ctx.runMutation(internal.users.recordAudioUsage, {
+        userId: args.userId as Id<"users">,
+        seconds: transcribed.durationSeconds,
+      });
+      return {
+        ok: true,
+        reason: "system_question_answered",
+        transcription: correctedText,
+        durationSeconds: transcribed.durationSeconds,
+        createdCount: 0,
+      };
+    }
 
     await ctx.runMutation(internal.userTagDefinitions.ensureDefaults, {
       userId: args.userId as Id<"users">,

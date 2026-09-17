@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { requireScopedUserId } from "./lib/requireAuth";
 import { getReminderFlags } from "./lib/resolveItemReminder";
 import { computeNotifyAt, notifyAtPatchValue } from "./lib/notifyAt";
@@ -278,6 +278,69 @@ export const listActive = query({
     ]);
 
     return mergeUnifiedSorted(tasks, notebooks);
+  },
+});
+
+const systemQuestionItemValidator = v.object({
+  title: v.string(),
+  content: v.string(),
+  isActionable: v.boolean(),
+  dueDate: v.union(v.string(), v.null()),
+  tags: v.array(v.string()),
+  status: v.string(),
+});
+
+/** Open tasks/notes for WhatsApp system-question answers (no board write). */
+export const listOpenForSystemQuestion = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.array(systemQuestionItemValidator),
+  handler: async (ctx, { userId }) => {
+    const [inboxTasks, pendingTasks, inboxNotes, pendingNotes] = await Promise.all([
+      ctx.db
+        .query("tasks")
+        .withIndex("by_user_status", (q) =>
+          q.eq("userId", userId).eq("status", "inbox"),
+        )
+        .take(80),
+      ctx.db
+        .query("tasks")
+        .withIndex("by_user_status", (q) =>
+          q.eq("userId", userId).eq("status", "pending"),
+        )
+        .take(80),
+      ctx.db
+        .query("notebooks")
+        .withIndex("by_user_status", (q) =>
+          q.eq("userId", userId).eq("status", "inbox"),
+        )
+        .take(80),
+      ctx.db
+        .query("notebooks")
+        .withIndex("by_user_status", (q) =>
+          q.eq("userId", userId).eq("status", "pending"),
+        )
+        .take(80),
+    ]);
+    const tasks = [...inboxTasks, ...pendingTasks].filter((row) => row.deletedAt === null);
+    const notes = [...inboxNotes, ...pendingNotes].filter((row) => row.deletedAt === null);
+    return [
+      ...tasks.map((row) => ({
+        title: row.title,
+        content: row.content,
+        isActionable: true,
+        dueDate: row.dueDate ?? null,
+        tags: row.tags,
+        status: row.status,
+      })),
+      ...notes.map((row) => ({
+        title: row.title,
+        content: row.content,
+        isActionable: false,
+        dueDate: row.dueDate ?? null,
+        tags: row.tags,
+        status: row.status,
+      })),
+    ];
   },
 });
 

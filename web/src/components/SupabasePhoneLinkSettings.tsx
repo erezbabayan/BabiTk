@@ -312,7 +312,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
-        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעות מהקבוצה נכנסות ללוח.
+        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעה רגילה נכנסת ללוח כמשימה או הערה. שאלה למערכת מתחילה ב-* (או ב-?), ובהקלטה אומרים «כוכבית» ואז שואלים — המענה חוזר לקבוצה בלי ליצור פריט.
       </p>
       <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-sky-950">
         <p className="font-semibold">שאלות מובנות בקבוצה</p>
