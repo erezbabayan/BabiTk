@@ -19,6 +19,7 @@ import {
   pendingVoiceItem,
   scheduleBackgroundWork,
   transcribeStoredVoiceItem,
+  transcribeVoiceMessage,
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
@@ -190,6 +191,8 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
 
 async function voiceItemFromMessage(
   message: ParsedGreenApiMessage,
+  gateway: GatewayRow | null,
+  supabase: ReturnType<typeof adminClient>,
 ): Promise<{
   sourceType: "whatsapp_voice";
   title: string;
@@ -197,7 +200,14 @@ async function voiceItemFromMessage(
   rawText: string;
   audioUrl: string | null;
 }> {
-  // Never block Green-API on Whisper. Insert a pending row and transcribe after ACK.
+  try {
+    const transcribed = await transcribeVoiceMessage(message, gateway, supabase);
+    if (!needsVoiceTranscription(transcribed.title, transcribed.content)) {
+      return transcribed;
+    }
+  } catch (error) {
+    console.error("inline whatsapp asr failed", error);
+  }
   return pendingVoiceItem(message.audioUrl ?? null);
 }
 
@@ -221,7 +231,7 @@ async function ingestMessage(
   }
   const item =
     message.type === "audio"
-      ? await voiceItemFromMessage(message)
+      ? await voiceItemFromMessage(message, gateway, supabase)
       : itemFromMessage(message);
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
@@ -316,6 +326,7 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
+      asr: "inline-whisper-v3",
     });
   }
   if (req.method !== "POST") {

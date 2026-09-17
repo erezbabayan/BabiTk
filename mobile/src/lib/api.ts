@@ -516,27 +516,91 @@ export async function uploadVoiceNote(
     if (!token) throw new Error("Not authenticated");
     const { readLocalAudioAsBase64 } = await import("./voice-upload");
     const audio = await readLocalAudioAsBase64(uri);
-    const { data, error } = await supabase.functions.invoke("ingest-voice", {
-      headers: { Authorization: `Bearer ${token}` },
-      body: {
-        audioBase64: audio.base64,
-        mimeType: audio.mimeType,
-        fileName: "recording.m4a",
-        durationSeconds: options?.durationSeconds,
-      },
-    });
-    if (!error) {
-      if (data && typeof data === "object" && "error" in data) {
-        throw new Error(String((data as { error: string }).error));
+    const headers = { Authorization: `Bearer ${token}` };
+    const payload = {
+      audioBase64: audio.base64,
+      mimeType: audio.mimeType,
+      fileName: "recording.m4a",
+      durationSeconds: options?.durationSeconds,
+    };
+
+    const ingestTitle = (data: unknown): string => {
+      if (!data || typeof data !== "object") return "";
+      const record = data as Record<string, unknown>;
+      if ("stateInstance" in record || "qrBase64" in record) return "";
+      if (typeof record.error === "string" && record.error.length > 0) {
+        throw new Error(record.error);
       }
-      const title =
-        data && typeof data === "object" && typeof (data as { title?: unknown }).title === "string"
-          ? (data as { title: string }).title.trim()
-          : "";
-      if (title) return;
-    }
-    if (!API_BASE) {
-      throw new Error(error?.message || "תמלול ההקלטה נכשל");
+      return typeof record.title === "string" ? record.title.trim() : "";
+    };
+
+    const connect = await supabase.functions.invoke("whatsapp-green-connect", {
+      headers,
+      body: { action: "ingestVoice", ...payload },
+    });
+    if (!connect.error && ingestTitle(connect.data)) return;
+
+    const { data, error } = await supabase.functions.invoke("ingest-voice", {
+      headers,
+      body: payload,
+    });
+    if (!error && ingestTitle(data)) return;
+
+    try {
+      const { transcribeHebrewAudioBlob } = await import(
+        "../../../convex/lib/ingest/hebrewAsrPublicClient"
+      );
+      const blobRes = await fetch(`data:${audio.mimeType};base64,${audio.base64}`);
+      const blob = await blobRes.blob();
+      const transcribed = await transcribeHebrewAudioBlob(blob, "recording.m4a");
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData.user?.id;
+      if (!userId) throw new Error("Not authenticated");
+      const now = Date.now();
+      const { data: source, error: sourceError } = await supabase
+        .from("source_materials")
+        .insert({
+          user_id: userId,
+          source_type: "whatsapp_voice",
+          raw_text: transcribed.rawText,
+          storage_url: null,
+          metadata: {
+            channel: "app",
+            duration_seconds: options?.durationSeconds ?? null,
+            whisper_transcription: transcribed.rawText,
+            corrected_transcription: transcribed.correctedText,
+            asr_engine: transcribed.engine,
+          },
+        })
+        .select("id")
+        .single();
+      if (sourceError) throw new Error(sourceError.message);
+      const { error: itemError } = await supabase.from("mindtasker_items").insert({
+        user_id: userId,
+        source_material_id: source?.id ?? null,
+        title: transcribed.title,
+        content: transcribed.correctedText,
+        is_actionable: true,
+        status: "inbox",
+        tags: [],
+        metadata: {
+          source: "app_voice",
+          whisper_transcription: transcribed.rawText,
+          corrected_transcription: transcribed.correctedText,
+          asr_engine: transcribed.engine,
+          duration_seconds: options?.durationSeconds ?? null,
+        },
+        sort_order: now,
+        last_interacted_at: new Date(now).toISOString(),
+      });
+      if (itemError) throw new Error(itemError.message);
+      return;
+    } catch (fallbackError) {
+      if (!API_BASE) {
+        throw fallbackError instanceof Error
+          ? fallbackError
+          : new Error(error?.message || "תמלול ההקלטה נכשל");
+      }
     }
   }
 

@@ -136,12 +136,24 @@ export async function ingestVoiceBlobForUser(
     try {
       await ingestVoiceViaEdge(blob, mimeType, options?.durationSeconds);
       return;
-    } catch (error) {
-      if (import.meta.env.VITE_API_URL?.trim()) {
-        await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
+    } catch {
+      try {
+        const { persistRecordedVoiceTranscript } = await import("./transcribe-voice-item");
+        const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
+        await persistRecordedVoiceTranscript({
+          blob,
+          mimeType,
+          fileName,
+          durationSeconds: options?.durationSeconds,
+        });
         return;
+      } catch (fallbackError) {
+        if (import.meta.env.VITE_API_URL?.trim()) {
+          await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
+          return;
+        }
+        throw fallbackError;
       }
-      throw error;
     }
   }
 

@@ -34,14 +34,14 @@ export function useVoicePlaceholderRepair(
 
     busyRef.current = true;
     inFlight.current.add(next.id);
-    void invokeTranscribeVoiceItem(next.id)
+    void invokeTranscribeVoiceItem(next)
       .then((result) => {
         onRepairedRef.current(next.id, { title: result.title, content: result.content });
       })
       .catch(() => {
         const count = (attempts.current.get(next.id) ?? 0) + 1;
         attempts.current.set(next.id, count);
-        if (count >= 2) {
+        if (count >= 3) {
           failedIds.current.add(next.id);
         }
       })

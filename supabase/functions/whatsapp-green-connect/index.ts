@@ -277,7 +277,13 @@ Deno.serve(async (req) => {
     if (!itemId) {
       return json({ error: "item_id_required" }, 400);
     }
-    const row = await loadVoiceItemForUser(supabase, userId, itemId);
+    if (!SERVICE_ROLE) {
+      return json({ error: "missing_supabase_env" }, 500);
+    }
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const row = await loadVoiceItemForUser(admin, userId, itemId);
     if (!row) {
       return json({ error: "item_not_found" }, 404);
     }
@@ -290,11 +296,17 @@ Deno.serve(async (req) => {
         alreadyTranscribed: true,
       });
     }
+    const { data: adminGateway } = await admin
+      .from("whatsapp_gateways")
+      .select("instance_id,api_token,api_url")
+      .eq("user_id", userId)
+      .maybeSingle();
     try {
       const transcribed = await transcribeStoredVoiceItem(
-        supabase,
+        admin,
         row,
-        gateway as VoiceGatewayCredentials | null,
+        (adminGateway as VoiceGatewayCredentials | null) ??
+          (gateway as VoiceGatewayCredentials | null),
       );
       return json({
         ok: true,
