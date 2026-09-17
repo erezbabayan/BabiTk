@@ -2,6 +2,20 @@ import type { MindtaskerItem } from "../types";
 import type { UserTag } from "./tags";
 import { normalizeTagName } from "./tags";
 import { filterItemsByPriority } from "./item-priority";
+import { getItemAnalysis } from "./item-analysis";
+
+type BoardDateItem = Pick<MindtaskerItem, "due_date" | "metadata">;
+
+/**
+ * Stored schedule used by date chips: due_date, then analysis target/notify.
+ * Does not infer a default reminder — that would hide every undated task.
+ */
+export function itemBoardScheduleIso(item: BoardDateItem): string | null {
+  if (item.due_date && item.due_date.trim()) return item.due_date;
+  const analysis = getItemAnalysis(item.metadata);
+  const fromAnalysis = analysis?.target_at || analysis?.notify_at;
+  return fromAnalysis && fromAnalysis.trim() ? fromAnalysis : null;
+}
 
 export type BoardDateFilter = "all" | "today" | "overdue" | "undated";
 
@@ -44,21 +58,19 @@ export function applyBoardItemFilters(
   );
 }
 
-export function parseItemDueDate(item: Pick<MindtaskerItem, "due_date">): Date | null {
-  if (!item.due_date) return null;
-  const due = new Date(item.due_date);
+export function parseItemDueDate(item: BoardDateItem): Date | null {
+  const iso = itemBoardScheduleIso(item);
+  if (!iso) return null;
+  const due = new Date(iso);
   return Number.isNaN(due.getTime()) ? null : due;
 }
 
-export function isItemUndated(item: Pick<MindtaskerItem, "due_date">): boolean {
+export function isItemUndated(item: BoardDateItem): boolean {
   return parseItemDueDate(item) === null;
 }
 
 /** True when the item's due date falls on the local calendar day of `now`. */
-export function isItemDueToday(
-  item: Pick<MindtaskerItem, "due_date">,
-  now = new Date(),
-): boolean {
+export function isItemDueToday(item: BoardDateItem, now = new Date()): boolean {
   const due = parseItemDueDate(item);
   if (!due) return false;
   return (
@@ -69,10 +81,7 @@ export function isItemDueToday(
 }
 
 /** True when the item has a due date earlier than `now`. */
-export function isItemDateOverdue(
-  item: Pick<MindtaskerItem, "due_date">,
-  now = new Date(),
-): boolean {
+export function isItemDateOverdue(item: BoardDateItem, now = new Date()): boolean {
   const due = parseItemDueDate(item);
   if (!due) return false;
   return due.getTime() < now.getTime();

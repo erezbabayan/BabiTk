@@ -77,4 +77,34 @@ describe("board date filters", () => {
       ["today", "past", "none", "future"],
     );
   });
+
+  it("treats analysis.target_at as the card date when due_date is empty", () => {
+    const scheduled = item({
+      id: "target",
+      due_date: null,
+      metadata: {
+        analysis: {
+          goal: "",
+          source: "",
+          data_points: "",
+          task: "",
+          urgency: "חסר",
+          time_mention: "",
+          target_at: "2026-09-10T09:00:00+03:00",
+          notify_at: null,
+          formatted: "",
+        },
+      },
+    });
+    assert.equal(isItemUndated(scheduled), false);
+    assert.equal(isItemDateOverdue(scheduled, now), true);
+    assert.deepEqual(
+      applyBoardItemFilters([scheduled], null, false, "undated", now).map((row) => row.id),
+      [],
+    );
+    assert.deepEqual(
+      applyBoardItemFilters([scheduled], null, false, "overdue", now).map((row) => row.id),
+      ["target"],
+    );
+  });
 });
