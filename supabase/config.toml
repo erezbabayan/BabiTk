@@ -41,6 +41,9 @@ verify_jwt = true
 [functions.ingest-voice]
 verify_jwt = true
 
+[functions.github-oidc-mint]
+verify_jwt = false
+
 [realtime]
 enabled = true
 
