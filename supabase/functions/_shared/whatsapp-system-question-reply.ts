@@ -52,9 +52,8 @@ export async function findSystemQuestionReceipt(
     .eq("user_id", userId)
     .filter("metadata->>whatsapp_message_id", "eq", messageId)
     .filter("metadata->>system_question", "eq", "true")
-    .limit(1)
-    .maybeSingle();
-  return Boolean(data);
+    .limit(1);
+  return Array.isArray(data) ? data.length > 0 : Boolean(data);
 }
 
 export async function recordSystemQuestionReceipt(
