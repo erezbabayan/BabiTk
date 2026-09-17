@@ -17,6 +17,12 @@ export async function sendGreenApiText(
   message: string,
 ): Promise<boolean> {
   if (!gateway?.instance_id || !gateway.api_token || !chatId.trim() || !message.trim()) {
+    console.error("green-api send skipped", {
+      hasInstance: Boolean(gateway?.instance_id),
+      hasToken: Boolean(gateway?.api_token),
+      hasChatId: Boolean(chatId.trim()),
+      hasMessage: Boolean(message.trim()),
+    });
     return false;
   }
   const response = await fetch(greenUrl(gateway, "sendMessage"), {

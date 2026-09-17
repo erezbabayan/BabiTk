@@ -57,7 +57,10 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }
 
@@ -605,6 +608,16 @@ async function ingestMessage(
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type, authorization, x-webhook-token",
+      },
+    });
+  }
   if (req.method === "GET") {
     return json({
       ok: true,
@@ -612,6 +625,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v3",
+      qa: "star-v1",
     });
   }
   if (req.method !== "POST") {

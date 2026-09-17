@@ -216,25 +216,7 @@ export function buildCaptureConfirmation(items: Array<{ title: string }>): strin
   );
 }
 
-export function isSystemWhatsAppReply(text: string): boolean {
-  const t = text.trim();
-  return (
-    t.startsWith("נפתחו ") ||
-    t.startsWith("קלטתי") ||
-    t.startsWith("📋 ") ||
-    t.startsWith("⏰ תזכורת") ||
-    t.startsWith("בוקר טוב") ||
-    t.startsWith("אין משימות") ||
-    t.startsWith("סומן כבוצע") ||
-    t.startsWith("נדחה ל-") ||
-    t.startsWith("עודכן ל-") ||
-    t.includes("השב:") ||
-    t.startsWith("הגעת למכסת") ||
-    t.startsWith("אפשר לשאול אותי") ||
-    t.startsWith("בקבוצה הזו אפשר") ||
-    t.startsWith("🗓 ")
-  );
-}
+export { isSystemWhatsAppReply } from "./green-api.ts";
 
 function jerusalemYmd(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {

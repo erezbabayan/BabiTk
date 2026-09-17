@@ -283,10 +283,12 @@ function formatDueClock(dueDate: string | null | undefined, timezone: string): s
 export function isSystemWhatsAppReply(text: string): boolean {
   const t = text.trim();
   return (
+    t.startsWith("BabiTk") ||
     t.startsWith("נפתחו ") ||
     t.startsWith("קלטתי") ||
-    t.startsWith("📋 ") ||
+    t.startsWith("📋") ||
     t.startsWith("⏰ תזכורת") ||
+    t.startsWith("🗓") ||
     t.startsWith("בוקר טוב") ||
     t.startsWith("אין משימות") ||
     t.startsWith("סומן כבוצע") ||
@@ -296,7 +298,7 @@ export function isSystemWhatsAppReply(text: string): boolean {
     t.startsWith("הגעת למכסת") ||
     t.startsWith("אפשר לשאול אותי") ||
     t.startsWith("בקבוצה הזו אפשר") ||
-    t.startsWith("🗓 ")
+    t.includes("לא נרשם פריט")
   );
 }
 
