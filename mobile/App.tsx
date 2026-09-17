@@ -190,10 +190,25 @@ function MainAppInner({
   const clearInboxSearch = inboxSearch.clear;
   const clearTodaySearch = todaySearch.clear;
   const clearNotesSearch = notesSearch.clear;
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [priorityOnly, setPriorityOnly] = useState(false);
-  const [dateFilter, setDateFilter] = useState<BoardDateFilter>("all");
+  const [tagByTab, setTagByTab] = useState<Record<Tab, string | null>>({
+    inbox: null,
+    today: null,
+    notes: null,
+  });
+  const [priorityOnlyByTab, setPriorityOnlyByTab] = useState<Record<Tab, boolean>>({
+    inbox: false,
+    today: false,
+    notes: false,
+  });
+  const [dateFilterByTab, setDateFilterByTab] = useState<Record<Tab, BoardDateFilter>>({
+    inbox: "all",
+    today: "all",
+    notes: "all",
+  });
   const [planMyDay, setPlanMyDay] = useState(false);
+  const selectedTag = tagByTab[tab];
+  const priorityOnly = priorityOnlyByTab[tab];
+  const dateFilter = dateFilterByTab[tab];
   const [dateSortByTab, setDateSortByTab] = useState<Record<Tab, BoardDateSortDirection>>({
     inbox: "desc",
     today: "asc",
@@ -222,10 +237,19 @@ function MainAppInner({
   }, []);
 
   useEffect(() => {
-    if (selectedTag && !filterTags.includes(selectedTag)) {
-      setSelectedTag(null);
-    }
-  }, [selectedTag, filterTags]);
+    setTagByTab((current) => {
+      let changed = false;
+      const next = { ...current };
+      (Object.keys(next) as Tab[]).forEach((board) => {
+        const selected = next[board];
+        if (selected && !filterTags.includes(selected)) {
+          next[board] = null;
+          changed = true;
+        }
+      });
+      return changed ? next : current;
+    });
+  }, [filterTags]);
 
   const boardTasksForLists = useMemo(
     () =>
@@ -525,7 +549,10 @@ function MainAppInner({
     setListView("active");
     setShowTaskLists(false);
     setTaskListsMode("create");
-    setSelectedTag(null);
+    setTagByTab({ inbox: null, today: null, notes: null });
+    setPriorityOnlyByTab({ inbox: false, today: false, notes: false });
+    setDateFilterByTab({ inbox: "all", today: "all", notes: "all" });
+    setPlanMyDay(false);
     clearInboxSearch();
     clearTodaySearch();
     clearNotesSearch();
@@ -824,19 +851,35 @@ function MainAppInner({
         <View style={styles.boardFilterRow}>
           <DateScopeFilterBar
             value={dateFilter}
-            onChange={setDateFilter}
-            planMyDay={planMyDay}
-            onPlanMyDayChange={
-              tab === "today" && listView === "active" ? setPlanMyDay : undefined
+            onChange={(value) =>
+              setDateFilterByTab((current) => ({ ...current, [tab]: value }))
             }
           />
-          <PriorityFilterBar active={priorityOnly} onToggle={setPriorityOnly} />
+          <PriorityFilterBar
+            active={priorityOnly}
+            onToggle={(active) =>
+              setPriorityOnlyByTab((current) => ({ ...current, [tab]: active }))
+            }
+          />
           <TagFilterBar
             tags={filterTags}
             selected={selectedTag}
-            onSelect={setSelectedTag}
+            onSelect={(tag) => setTagByTab((current) => ({ ...current, [tab]: tag }))}
             userTags={userTags}
           />
+          {tab === "today" && listView === "active" ? (
+            <TouchableOpacity
+              style={[styles.planChip, planMyDay && styles.planChipActive]}
+              onPress={() => setPlanMyDay((value) => !value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: planMyDay }}
+              accessibilityLabel="תכנן לי את היום"
+            >
+              <Text style={[styles.planChipText, planMyDay && styles.planChipTextActive]}>
+                תכנן לי את היום
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         {selecting ? (
           <BoardBulkBar
@@ -1429,9 +1472,31 @@ const styles = StyleSheet.create({
   },
   boardFilterRow: {
     flexDirection: "row-reverse",
-    alignItems: "flex-start",
+    alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
+  },
+  planChip: {
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#e2e8f0",
+    backgroundColor: "rgba(255,255,255,0.85)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexShrink: 0,
+  },
+  planChipActive: {
+    borderColor: "#60a5fa",
+    backgroundColor: "#eff6ff",
+  },
+  planChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748b",
+  },
+  planChipTextActive: {
+    fontWeight: "700",
+    color: "#1e40af",
   },
   boardChromeSlate: {
     borderBottomColor: "rgba(203, 213, 225, 0.9)",

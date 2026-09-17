@@ -18,6 +18,12 @@ const CHIPS: Array<{
     activeClass: "border-blue-300/90 bg-blue-50 text-blue-800",
   },
   {
+    id: "tomorrow",
+    label: "מחר",
+    title: "הצג פריטים עם תאריך למחר",
+    activeClass: "border-sky-300/90 bg-sky-50 text-sky-800",
+  },
+  {
     id: "overdue",
     label: "עבר",
     title: "הצג פריטים שהתאריך שלהם עבר",
@@ -31,10 +37,10 @@ const CHIPS: Array<{
   },
 ];
 
-/** Date-scope chips shown on every board: today, overdue, and no date. */
+/** Date-scope chips shown on every board: today, tomorrow, overdue, and no date. */
 export function DateScopeFilter({ value, onChange }: DateScopeFilterProps) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1">
+    <div className="flex shrink-0 flex-nowrap items-center gap-1">
       {CHIPS.map((chip) => {
         const active = value === chip.id;
         return (
