@@ -439,13 +439,6 @@ export function ItemCard({
                         className="flex w-full flex-row items-start justify-start gap-1.5"
                         onClick={(event) => event.stopPropagation()}
                       >
-                        <span
-                          className={`min-w-0 flex-1 text-start text-[11px] leading-snug ${
-                            entry.done ? "text-slate-400 line-through" : "text-slate-700"
-                          }`}
-                        >
-                          {entry.text}
-                        </span>
                         <input
                           type="checkbox"
                           {...{ [ITEM_ACTION_ATTR]: "" }}
@@ -456,6 +449,13 @@ export function ItemCard({
                             onToggleChecklist?.(toggleChecklistEntry(checklist, entry.id));
                           }}
                         />
+                        <span
+                          className={`min-w-0 flex-1 text-start text-[11px] leading-snug ${
+                            entry.done ? "text-slate-400 line-through" : "text-slate-700"
+                          }`}
+                        >
+                          {entry.text}
+                        </span>
                       </label>
                     </li>
                   ))}

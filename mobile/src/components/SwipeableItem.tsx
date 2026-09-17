@@ -314,13 +314,13 @@ export function SwipeableItem({
                         accessibilityRole="checkbox"
                         accessibilityState={{ checked: entry.done }}
                       >
+                        <Text style={styles.checkMark}>{entry.done ? "☑" : "☐"}</Text>
                         <Text
                           style={[
                             styles.checkText,
                             entry.done ? styles.checkTextDone : null,
                           ]}
                         >
-                          {entry.done ? "☑ " : "☐ "}
                           {entry.text}
                         </Text>
                       </TouchableOpacity>
@@ -593,6 +593,14 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     justifyContent: "flex-start",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+  checkMark: {
+    marginTop: 1,
+    fontSize: 14,
+    lineHeight: 16,
+    color: "#334155",
   },
   checkText: {
     flex: 1,
