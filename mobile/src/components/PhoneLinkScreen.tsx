@@ -478,7 +478,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 <View style={styles.captureBox}>
                   <Text style={styles.captureTitle}>קבוצת קליטה</Text>
                   <Text style={styles.hint}>
-                    הודעה רגילה נכנסת כמשימה או הערה. שאלה למערכת: * או «כוכבית» בהקלטה — המענה נשאר בקבוצה בלי ליצור פריט.
+                    הודעה רגילה נכנסת כמשימה או הערה. שאלה למערכת: אמרו «בבי» בהקלטה, למשל «בבי מה יש לי היום» — המענה נשאר בקבוצה בלי ליצור פריט.
                   </Text>
                   {viewer?.whatsappCaptureGroupChatId ? (
                     <>

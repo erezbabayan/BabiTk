@@ -63,14 +63,14 @@ describe("parseWhatsAppSystemQuestion", () => {
     });
   });
 
-  it("treats spoken כוכבית as a system question", () => {
-    assert.deepEqual(parseWhatsAppSystemQuestion("כוכבית מה יש לי היום"), {
+  it("treats spoken בבי as a system question", () => {
+    assert.deepEqual(parseWhatsAppSystemQuestion("בבי מה יש לי היום"), {
       kind: "question",
       question: "מה יש לי היום",
     });
-    assert.deepEqual(parseWhatsAppSystemQuestion("כוכב ית לקנות חלב"), {
+    assert.deepEqual(parseWhatsAppSystemQuestion("babi-מה יש לי היום?"), {
       kind: "question",
-      question: "לקנות חלב",
+      question: "מה יש לי היום?",
     });
     assert.deepEqual(parseWhatsAppSystemQuestion("שאלה למערכת איפה הקוד"), {
       kind: "question",
@@ -80,13 +80,16 @@ describe("parseWhatsAppSystemQuestion", () => {
 
   it("returns help when the prefix has no question", () => {
     assert.deepEqual(parseWhatsAppSystemQuestion("*"), { kind: "help" });
-    assert.deepEqual(parseWhatsAppSystemQuestion("כוכבית"), { kind: "help" });
+    assert.deepEqual(parseWhatsAppSystemQuestion("בבי"), { kind: "help" });
+    assert.deepEqual(parseWhatsAppSystemQuestion("babi"), { kind: "help" });
     assert.deepEqual(parseWhatsAppSystemQuestion("?"), { kind: "help" });
   });
 
   it("leaves regular capture messages as ingest", () => {
     assert.deepEqual(parseWhatsAppSystemQuestion("לקנות חלב מחר"), { kind: "none" });
     assert.deepEqual(parseWhatsAppSystemQuestion("הערה: קוד wifi"), { kind: "none" });
+    assert.deepEqual(parseWhatsAppSystemQuestion("בבית לקנות חלב"), { kind: "none" });
+    assert.deepEqual(parseWhatsAppSystemQuestion("ביבי מה נשמע"), { kind: "none" });
     assert.equal(isWhatsAppSystemQuestion("לקנות *חלב* בסופר"), false);
   });
 
@@ -101,12 +104,12 @@ describe("parseWhatsAppSystemQuestion", () => {
     });
   });
 
-  it("treats a trailing asterisk or כוכבית as RTL question markup", () => {
+  it("treats a trailing asterisk or בבי as RTL question markup", () => {
     assert.deepEqual(parseWhatsAppSystemQuestion("חלב *"), {
       kind: "question",
       question: "חלב",
     });
-    assert.deepEqual(parseWhatsAppSystemQuestion("מה יש לי היום כוכבית"), {
+    assert.deepEqual(parseWhatsAppSystemQuestion("מה יש לי היום בבי"), {
       kind: "question",
       question: "מה יש לי היום",
     });
@@ -114,31 +117,35 @@ describe("parseWhatsAppSystemQuestion", () => {
 });
 
 describe("parseWhatsAppVoiceQuestion", () => {
-  it("treats a recorded כוכבית as a system question, including fillers", () => {
-    assert.deepEqual(parseWhatsAppVoiceQuestion("אה כוכבית מה יש לי היום"), {
+  it("treats a recorded בבי as a system question, including fillers", () => {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אה בבי מה יש לי היום"), {
       kind: "question",
       question: "מה יש לי היום",
     });
-    assert.deepEqual(parseWhatsAppVoiceQuestion("אוקיי, כוכבית חלב"), {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אוקיי, בבי חלב"), {
       kind: "question",
       question: "חלב",
     });
-    assert.deepEqual(parseWhatsAppVoiceQuestion("תגידי כוכבית איפה הקוד"), {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("תגידי בבי איפה הקוד"), {
       kind: "question",
       question: "איפה הקוד",
     });
+    assert.deepEqual(parseWhatsAppVoiceQuestion("בבי מה יש לי היום?"), {
+      kind: "question",
+      question: "מה יש לי היום?",
+    });
   });
 
-  it("joins Whisper splits and near-miss spellings of כוכבית", () => {
-    assert.deepEqual(parseWhatsAppVoiceQuestion("אה כוכב ית מה יש לי היום"), {
+  it("joins Whisper near-miss spellings of בבי", () => {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("אה באבי מה יש לי היום"), {
       kind: "question",
       question: "מה יש לי היום",
     });
-    assert.deepEqual(parseWhatsAppVoiceQuestion("כוכבת לקנות חלב"), {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("baby לקנות חלב"), {
       kind: "question",
       question: "לקנות חלב",
     });
-    assert.deepEqual(parseWhatsAppVoiceQuestion("kokhavit מה המשימות"), {
+    assert.deepEqual(parseWhatsAppVoiceQuestion("babi-מה המשימות"), {
       kind: "question",
       question: "מה המשימות",
     });
@@ -186,7 +193,7 @@ describe("answerWhatsAppSystemQuestion", () => {
   it("explains the prefix when only * is sent", () => {
     const reply = answerWhatsAppSystemQuestion({ kind: "help" }, ITEMS, NOW);
     assert.match(reply, /לא נרשם פריט/);
-    assert.match(reply, /כוכבית/);
+    assert.match(reply, /בבי/);
   });
 
   it("says when nothing matches", () => {
@@ -196,14 +203,14 @@ describe("answerWhatsAppSystemQuestion", () => {
       NOW,
     );
     assert.match(reply, /לא מצאתי/);
-    assert.match(reply, /בלי כוכבית/);
+    assert.match(reply, /בלי בבי/);
   });
 });
 
-describe("hebrew ASR כוכבית", () => {
-  it("joins Whisper splits of כוכבית", () => {
-    assert.equal(applyHebrewAsrSpellingFixes("כוכב ית מה יש לי היום"), "כוכבית מה יש לי היום");
-    assert.equal(applyHebrewAsrSpellingFixes("כוחבית חלב"), "כוכבית חלב");
-    assert.equal(applyHebrewAsrSpellingFixes("כוכבת מה המשימות"), "כוכבית מה המשימות");
+describe("hebrew ASR בבי", () => {
+  it("normalizes Whisper near-misses of בבי", () => {
+    assert.equal(applyHebrewAsrSpellingFixes("באבי מה יש לי היום"), "בבי מה יש לי היום");
+    assert.equal(applyHebrewAsrSpellingFixes("baby חלב"), "בבי חלב");
+    assert.equal(applyHebrewAsrSpellingFixes("babi tk מה המשימות"), "בבי מה המשימות");
   });
 });

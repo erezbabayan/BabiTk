@@ -2,7 +2,7 @@
  * WhatsApp capture-group system questions.
  *
  * Regular messages ingest as a task or note. A message that starts with *,
- * ＊, ?, ؟, spoken «כוכבית», or «שאלה למערכת» is answered in the same chat
+ * ＊, ?, ؟, spoken «בבי» / «babi», or «שאלה למערכת» is answered in the same chat
  * and must not create a board item.
  */
 
@@ -30,15 +30,13 @@ const STAR_PREFIX = /^(?:[*＊✳️])\s*/u;
 const STAR_WRAP = /^(?:[*＊✳️])\s*(.*?)\s*(?:[*＊✳️])$/su;
 const STAR_SUFFIX = /^(.*\S)\s+[*＊✳️]$/u;
 const QMARK_PREFIX = /^[?؟]\s*/u;
-const KOKHAVIT_WORD =
-  "(?:כוכבית|כוכביית|כוחבית|כוכב\\s*י?\\s*ת+|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)";
-const KOKHAVIT_PREFIX = new RegExp(`^${KOKHAVIT_WORD}(?:\\s*[:.,;!?؟\\-–—])?\\s*`, "iu");
-const KOKHAVIT_SUFFIX = new RegExp(`^(.*\\S)\\s+${KOKHAVIT_WORD}$`, "iu");
-const KOKHAVIT_HEAD_TOKEN =
-  /^(?:כוכבית|כוכביית|כוחבית|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)$/iu;
+const BABI_WORD = "(?:babitk|babi|baby|בביי|באבי|בבי)";
+const BABI_PREFIX = new RegExp(`^${BABI_WORD}(?:\\s*[-–—:.,;!?؟]\\s*|\\s+|$)`, "iu");
+const BABI_SUFFIX = new RegExp(`^(.*\\S)\\s+${BABI_WORD}$`, "iu");
+const BABI_HEAD_TOKEN = /^(?:babitk|babi|baby|בביי|באבי|בבי)$/iu;
 const EXPLICIT_PREFIX = /^(?:שאלה\s+למערכת)(?:\s*[:.,;!?؟\-–—])?\s*/iu;
 const VOICE_FILLER_PREFIX =
-  /^(?:(?:אה+|אמ+|המ+|אם+|אוקיי?|יאללה|סבבה|וואלה|טוב|כן|אז|זה|בבקשה|רגע|או+|em+|um+|uh+|hmm+)[.,!?،]?\s+)+/iu;
+  /^(?:(?:אה+|אמ+|המ+|אם+|אוקיי?|יאללה|סבבה|וואלה|טוב|כן|אז|זה|בבקשה|רגע|תגידי|תגיד|תראי|תראה|או+|em+|um+|uh+|hmm+)[.,!?،]?\s+)+/iu;
 
 const STOPWORDS = new Set([
   "מה",
@@ -103,7 +101,7 @@ function restOrHelp(rest: string): SystemQuestionParse {
 function stripKnownPrefix(text: string): string | null {
   if (STAR_PREFIX.test(text)) return text.replace(STAR_PREFIX, "").trim();
   if (QMARK_PREFIX.test(text)) return text.replace(QMARK_PREFIX, "").trim();
-  if (KOKHAVIT_PREFIX.test(text)) return text.replace(KOKHAVIT_PREFIX, "").trim();
+  if (BABI_PREFIX.test(text)) return text.replace(BABI_PREFIX, "").trim();
   if (EXPLICIT_PREFIX.test(text)) return text.replace(EXPLICIT_PREFIX, "").trim();
   return null;
 }
@@ -127,9 +125,9 @@ export function parseWhatsAppSystemQuestion(text: string): SystemQuestionParse {
   if (suffixStar && !/[*＊✳️]/.test(suffixStar[1] ?? "")) {
     return restOrHelp(suffixStar[1]?.trim() ?? "");
   }
-  const suffixKokhavit = trimmed.match(KOKHAVIT_SUFFIX);
-  if (suffixKokhavit) {
-    return restOrHelp(suffixKokhavit[1]?.trim() ?? "");
+  const suffixBabi = trimmed.match(BABI_SUFFIX);
+  if (suffixBabi) {
+    return restOrHelp(suffixBabi[1]?.trim() ?? "");
   }
 
   return { kind: "none" };
@@ -139,28 +137,28 @@ export function isWhatsAppSystemQuestion(text: string): boolean {
   return parseWhatsAppSystemQuestion(text).kind !== "none";
 }
 
-function joinAsrKokhavit(text: string): string {
+function joinAsrBabi(text: string): string {
   return text
-    .replace(/כוכב\s+י\s*ת+/giu, "כוכבית")
-    .replace(/כוכב\s+ית+/giu, "כוכבית")
-    .replace(
-      /\b(?:כוחבית|כוכביית|כוכביתת|כוכבת|כוכביה|כוכביות|kokhavit|kochavit|cochavit|cohavit)\b/giu,
-      "כוכבית",
-    );
+    .replace(/\bbabi\s*tk\b/giu, "בבי")
+    .replace(/\bbabitk\b/giu, "בבי")
+    .replace(/\bbaby\b/giu, "בבי")
+    .replace(/\bbabi\b/giu, "בבי")
+    .replace(/ב\s+בי(?![\u0590-\u05FF])/giu, "בבי")
+    .replace(/(?<![\u0590-\u05FF])(?:באבי|בביי)(?![\u0590-\u05FF])/giu, "בבי");
 }
 
-/** Strip spoken fillers and ASR splits so a recorded «כוכבית» still parses. */
+/** Strip spoken fillers and ASR splits so a recorded «בבי» still parses. */
 export function normalizeSpokenWhatsAppQuestion(text: string): string {
-  const joined = joinAsrKokhavit(normalizeWhatsAppQuestionSource(text));
+  const joined = joinAsrBabi(normalizeWhatsAppQuestionSource(text));
   return joined.replace(VOICE_FILLER_PREFIX, "").trim();
 }
 
-function kokhavitInHead(text: string): SystemQuestionParse {
+function babiInHead(text: string): SystemQuestionParse {
   const words = text.split(/\s+/).filter(Boolean);
   const headLimit = Math.min(words.length, 3);
   for (let index = 0; index < headLimit; index += 1) {
     const token = (words[index] ?? "").replace(/[:.,;!?؟\-–—]+$/u, "");
-    if (!KOKHAVIT_HEAD_TOKEN.test(token)) continue;
+    if (!BABI_HEAD_TOKEN.test(token)) continue;
     const rest = [...words.slice(0, index), ...words.slice(index + 1)].join(" ").trim();
     return restOrHelp(rest);
   }
@@ -168,16 +166,16 @@ function kokhavitInHead(text: string): SystemQuestionParse {
 }
 
 /**
- * Recorded questions: leading fillers («אה כוכבית…») and Whisper splits of
- * «כוכבית» still count as a system question. A trailing ? alone is not enough
- * («לקנות חלב?» stays a task).
+ * Recorded questions: leading fillers («אה בבי…») and Whisper near-misses of
+ * «בבי» / «babi» still count as a system question. A trailing ? alone is not
+ * enough («לקנות חלב?» stays a task).
  */
 export function parseWhatsAppVoiceQuestion(text: string): SystemQuestionParse {
   const spoken = normalizeSpokenWhatsAppQuestion(text);
   if (!spoken) return { kind: "none" };
   const parsed = parseWhatsAppSystemQuestion(spoken);
   if (parsed.kind !== "none") return parsed;
-  return kokhavitInHead(spoken);
+  return babiInHead(spoken);
 }
 
 export function isWhatsAppVoiceQuestion(text: string): boolean {
@@ -193,8 +191,9 @@ export function buildWhatsAppSystemQuestionHelp(): string {
     "* מה יש לי היום",
     "* חלב",
     "",
-    "בהקלטה: אמרו «כוכבית» ואז שאלו.",
-    "אפשר גם להתחיל ב-? — נוח יותר במקלדת מהכוכבית.",
+    "בהקלטה: אמרו «בבי» ואז שאלו, למשל «בבי מה יש לי היום».",
+    "אפשר גם babi-מה יש לי היום",
+    "בהקלדה אפשר להתחיל ב-* או ב-?.",
   ].join("\n");
 }
 
@@ -346,7 +345,7 @@ export function answerWhatsAppSystemQuestion(
     lines.push(
       "",
       "לא מצאתי משימה או הערה מתאימה.",
-      "רשמו בלי כוכבית (ובלי ?) כדי להוסיף פריט ללוח.",
+      "רשמו בלי בבי (ובלי ?) כדי להוסיף פריט ללוח.",
     );
     return lines.join("\n");
   }
