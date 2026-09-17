@@ -146,15 +146,25 @@ export async function loadWhatsAppNotifyPrefs(): Promise<{
   notifyWhatsAppGroup: boolean;
   captureGroupChatId: string | null;
   captureGroupName: string | null;
+  digestHours: number[];
+  digestDays: "weekdays" | "everyday";
 }> {
   const supabase = requireSupabase();
   const userId = await currentUserId();
   if (!userId) {
-    return { notifyWhatsAppGroup: false, captureGroupChatId: null, captureGroupName: null };
+    return {
+      notifyWhatsAppGroup: false,
+      captureGroupChatId: null,
+      captureGroupName: null,
+      digestHours: [9],
+      digestDays: "everyday",
+    };
   }
   const { data, error } = await supabase
     .from("users")
-    .select("notify_whatsapp_group,whatsapp_capture_group_chat_id,whatsapp_capture_group_name")
+    .select(
+      "notify_whatsapp_group,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_digest_hours,whatsapp_digest_days",
+    )
     .eq("id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -162,7 +172,14 @@ export async function loadWhatsAppNotifyPrefs(): Promise<{
     notify_whatsapp_group?: boolean;
     whatsapp_capture_group_chat_id?: string | null;
     whatsapp_capture_group_name?: string | null;
+    whatsapp_digest_hours?: number[] | null;
+    whatsapp_digest_days?: string | null;
   } | null;
+  const hours = Array.isArray(row?.whatsapp_digest_hours)
+    ? row.whatsapp_digest_hours.filter(
+        (hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23,
+      )
+    : [];
   return {
     notifyWhatsAppGroup: row?.notify_whatsapp_group === true,
     captureGroupChatId:
@@ -171,6 +188,8 @@ export async function loadWhatsAppNotifyPrefs(): Promise<{
         : null,
     captureGroupName:
       typeof row?.whatsapp_capture_group_name === "string" ? row.whatsapp_capture_group_name : null,
+    digestHours: hours.length > 0 ? hours.slice(0, 3) : [9],
+    digestDays: row?.whatsapp_digest_days === "weekdays" ? "weekdays" : "everyday",
   };
 }
 
@@ -181,6 +200,28 @@ export async function saveNotifyWhatsAppGroup(enabled: boolean): Promise<void> {
   const { error } = await supabase
     .from("users")
     .update({ notify_whatsapp_group: enabled })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveWhatsAppDigestHours(hours: number[]): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ whatsapp_digest_hours: hours })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveWhatsAppDigestDays(days: "weekdays" | "everyday"): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ whatsapp_digest_days: days })
     .eq("id", userId);
   if (error) throw new Error(error.message);
 }

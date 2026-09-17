@@ -1,6 +1,20 @@
 import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
 import {
+  appendDigestSlot,
+  buildWhatsAppDigestMessage,
+  digestSlotKey,
+  isDigestDayAllowed,
+  isSameLocalDay,
+  localDateKey,
+  localHour,
+  localWeekday,
+  resolveDigestDays,
+  resolveDigestHours,
+  type DigestItem,
+} from "../lib/whatsapp-digest.js";
+import {
   buildWhatsAppReminderMessage,
+  resolveItemNotifyAt,
   resolveReminderDestination,
 } from "../lib/whatsapp-reminder-message.js";
 import { env } from "../config/env.js";
@@ -59,18 +73,24 @@ export async function archiveStaleInboxItems(): Promise<number> {
 }
 
 /**
- * Morning digest (08:00): WhatsApp summary of pending inbox + today's tasks.
+ * WhatsApp digest of today's reminders at the hours the user picked in settings.
+ * Each item still also sends at its own notify_at via sendTaskReminders.
  */
 export async function sendDailyDigests(): Promise<number> {
   if (!env.isSupabaseConfigured) return 0;
 
   const supabase = getSupabaseAdmin();
+  const now = new Date();
+  const hour = localHour(now, env.cronTimezone);
+  const digestDate = localDateKey(now, env.cronTimezone);
+  const slotKey = digestSlotKey(digestDate, hour);
+  const weekdayNum = localWeekday(now, env.cronTimezone);
 
   const { data: users, error } = await supabase
     .from("users")
-    .select("id, phone")
-    .not("phone", "is", null)
-    .eq("phone_verified", true);
+    .select(
+      "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots",
+    );
 
   if (error) {
     throw new Error(`Failed to load users for digest: ${error.message}`);
@@ -78,41 +98,84 @@ export async function sendDailyDigests(): Promise<number> {
 
   let sent = 0;
 
-  for (const user of users ?? []) {
-    if (!user.phone) continue;
+  for (const row of users ?? []) {
+    const hours = resolveDigestHours(row.whatsapp_digest_hours);
+    if (!hours.includes(hour)) continue;
+    if (!isDigestDayAllowed(weekdayNum, resolveDigestDays(row.whatsapp_digest_days))) {
+      continue;
+    }
+    const already = Array.isArray(row.whatsapp_digest_slots)
+      ? row.whatsapp_digest_slots
+      : [];
+    if (already.includes(slotKey)) continue;
 
-    const [{ count: inboxCount }, { count: todayCount }] = await Promise.all([
+    const destination = resolveReminderDestination(row);
+    if (destination.kind === "none") continue;
+
+    const { data: gateway } = await supabase
+      .from("whatsapp_gateways")
+      .select("instance_id, api_token, api_url")
+      .eq("user_id", row.id)
+      .maybeSingle();
+
+    const [{ data: items }, { data: lists }] = await Promise.all([
       supabase
         .from("mindtasker_items")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("status", "inbox")
+        .select("title, metadata, due_date, is_actionable")
+        .eq("user_id", row.id)
+        .in("status", ["inbox", "pending"])
         .is("deleted_at", null),
       supabase
-        .from("mindtasker_items")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_actionable", true)
-        .eq("status", "pending")
-        .is("deleted_at", null),
+        .from("task_lists")
+        .select("name, reminder_at")
+        .eq("user_id", row.id)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .not("reminder_at", "is", null),
     ]);
 
-    const inbox = inboxCount ?? 0;
-    const today = todayCount ?? 0;
+    const digestItems: DigestItem[] = [];
+    for (const item of items ?? []) {
+      const fireAt = resolveItemNotifyAt(item);
+      if (!fireAt || !isSameLocalDay(fireAt, now, env.cronTimezone)) continue;
+      digestItems.push({
+        kind: item.is_actionable ? "task" : "note",
+        title: item.title,
+        fireAt,
+      });
+    }
+    for (const list of lists ?? []) {
+      if (!list.reminder_at || !isSameLocalDay(list.reminder_at, now, env.cronTimezone)) {
+        continue;
+      }
+      digestItems.push({
+        kind: "list",
+        title: list.name,
+        fireAt: list.reminder_at,
+      });
+    }
 
-    if (inbox === 0 && today === 0) continue;
+    if (digestItems.length === 0) {
+      continue;
+    }
 
-    const message =
-      `בוקר טוב! ☀️\n` +
-      `מחכים לך ${inbox} פריטים ב-Inbox` +
-      (today > 0 ? ` ו-${today} משימות לביצוע` : "") +
-      `.\nפתח את BabaiTk לאישור וסידור.`;
-
+    const message = buildWhatsAppDigestMessage(digestItems, digestDate);
     try {
-      await sendWhatsAppText(normalizePhone(user.phone), message);
+      const delivered = await deliverWhatsAppReminder(
+        {
+          user: row as ReminderUserRow,
+          gateway: (gateway as GatewayRow | null) ?? null,
+        },
+        message,
+      );
+      if (!delivered) continue;
+      await supabase
+        .from("users")
+        .update({ whatsapp_digest_slots: appendDigestSlot(already, slotKey, digestDate) })
+        .eq("id", row.id);
       sent++;
     } catch {
-      // Skip users where WhatsApp send fails
+      // Retry next 15-minute tick within the same hour
     }
   }
 
@@ -233,20 +296,7 @@ export async function sendTaskReminders(): Promise<number> {
   for (const item of items ?? []) {
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
     if (metadata.reminder_sent === true) continue;
-    if (metadata.reminder_disabled === true) continue;
-
-    const analysis = metadata.analysis as Record<string, unknown> | undefined;
-    let notifyAt: string | null = null;
-
-    if (item.is_actionable) {
-      notifyAt =
-        (typeof analysis?.notify_at === "string" && analysis.notify_at) ||
-        item.due_date ||
-        null;
-    } else if (metadata.reminder_manual === true && item.due_date) {
-      notifyAt = item.due_date;
-    }
-
+    const notifyAt = resolveItemNotifyAt(item);
     if (!notifyAt || notifyAt > now) continue;
 
     const context = await contextFor(item.user_id);

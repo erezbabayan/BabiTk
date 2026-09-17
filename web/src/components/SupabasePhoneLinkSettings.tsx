@@ -211,9 +211,9 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
 
   const digestBlock = (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" dir="rtl">
-      <p className="font-medium text-slate-900">תזכורת יומית</p>
+      <p className="font-medium text-slate-900">ריכוז תזכורות</p>
       <p className="mt-1 text-xs text-slate-600">
-        סיכום התזכורות של אותו יום — עד {MAX_DIGEST_HOURS} מועדים. נשמר בחשבון.
+        בשעות האלה נשלחת לוואטסאפ רשימת התזכורות של היום. בנוסף, כל תזכורת נשלחת גם בזמן שמוגדר לה.
       </p>
       <p className="mt-3 text-xs font-medium text-slate-700">ימי שליחה</p>
       <div className="mt-2 flex flex-wrap justify-end gap-1.5">
@@ -268,7 +268,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       </div>
       <p className="mt-2 text-xs text-slate-500">
         {digestDays === "weekdays" ? "ימי חול בלבד · " : "כל השבוע · "}
-        עד {MAX_DIGEST_HOURS} שעות ביום
+        עד {MAX_DIGEST_HOURS} שעות ביום · כל תזכורת נשלחת גם בזמן שלה
         {savingDigestHours || savingDigestDays ? " · שומר…" : ""}
       </p>
     </div>

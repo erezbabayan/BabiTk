@@ -3,7 +3,21 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
+  appendDigestSlot,
+  buildWhatsAppDigestMessage,
+  digestSlotKey,
+  isDigestDayAllowed,
+  isSameLocalDay,
+  localDateKey,
+  localHour,
+  localWeekday,
+  resolveDigestDays,
+  resolveDigestHours,
+  type DigestItem,
+} from "../_shared/whatsapp-digest.ts";
+import {
   buildWhatsAppReminderMessage,
+  resolveItemNotifyAt,
   resolveReminderDestination,
   sendGreenApiChatMessage,
 } from "../_shared/whatsapp-reminders.ts";
@@ -61,8 +75,10 @@ Deno.serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
   let sent = 0;
+  let digests = 0;
   const userCache = new Map<string, { user: ReminderUserRow; gateway: GatewayRow | null } | null>();
 
   async function contextFor(userId: string) {
@@ -116,21 +132,12 @@ Deno.serve(async (req) => {
 
   for (const item of items ?? []) {
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
-    if (metadata.reminder_sent === true || metadata.reminder_disabled === true) continue;
-    const analysis = metadata.analysis as Record<string, unknown> | undefined;
+    if (metadata.reminder_sent === true) continue;
     if (typeof metadata.reminder_recurrence === "string" && metadata.reminder_recurrence) {
       continue;
     }
-    let notifyAt: string | null = null;
-    if (item.is_actionable) {
-      notifyAt =
-        (typeof analysis?.notify_at === "string" && analysis.notify_at) ||
-        item.due_date ||
-        null;
-    } else if (metadata.reminder_manual === true && item.due_date) {
-      notifyAt = item.due_date;
-    }
-    if (!notifyAt || notifyAt > now) continue;
+    const notifyAt = resolveItemNotifyAt(item);
+    if (!notifyAt || notifyAt > nowIso) continue;
     const context = await contextFor(item.user_id);
     if (!context) continue;
     try {
@@ -161,7 +168,7 @@ Deno.serve(async (req) => {
     .eq("status", "active")
     .is("deleted_at", null)
     .not("reminder_at", "is", null)
-    .lte("reminder_at", now);
+    .lte("reminder_at", nowIso);
   if (listsError) {
     return json({ error: listsError.message, sent }, 500);
   }
@@ -185,5 +192,71 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, sent });
+  const hour = localHour(now);
+  const digestDate = localDateKey(now);
+  const slotKey = digestSlotKey(digestDate, hour);
+  const weekdayNum = localWeekday(now);
+  const { data: digestUsers, error: digestUsersError } = await admin
+    .from("users")
+    .select(
+      "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots",
+    );
+  if (digestUsersError) {
+    return json({ error: digestUsersError.message, sent, digests }, 500);
+  }
+
+  for (const row of digestUsers ?? []) {
+    const hours = resolveDigestHours(row.whatsapp_digest_hours);
+    if (!hours.includes(hour)) continue;
+    if (!isDigestDayAllowed(weekdayNum, resolveDigestDays(row.whatsapp_digest_days))) continue;
+    const already = Array.isArray(row.whatsapp_digest_slots) ? row.whatsapp_digest_slots : [];
+    if (already.includes(slotKey)) continue;
+    const context = await contextFor(row.id);
+    if (!context) continue;
+    const [{ data: userItems }, { data: userLists }] = await Promise.all([
+      admin
+        .from("mindtasker_items")
+        .select("title, metadata, due_date, is_actionable")
+        .eq("user_id", row.id)
+        .in("status", ["inbox", "pending"])
+        .is("deleted_at", null),
+      admin
+        .from("task_lists")
+        .select("name, reminder_at")
+        .eq("user_id", row.id)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .not("reminder_at", "is", null),
+    ]);
+    const digestItems: DigestItem[] = [];
+    for (const item of userItems ?? []) {
+      const fireAt = resolveItemNotifyAt(item);
+      if (!fireAt || !isSameLocalDay(fireAt, now)) continue;
+      digestItems.push({
+        kind: item.is_actionable ? "task" : "note",
+        title: item.title,
+        fireAt,
+      });
+    }
+    for (const list of userLists ?? []) {
+      if (!list.reminder_at || !isSameLocalDay(list.reminder_at, now)) continue;
+      digestItems.push({ kind: "list", title: list.name, fireAt: list.reminder_at });
+    }
+    if (digestItems.length === 0) {
+      continue;
+    }
+    try {
+      const delivered = await deliver(context, buildWhatsAppDigestMessage(digestItems, digestDate));
+      if (!delivered) continue;
+      await admin
+        .from("users")
+        .update({ whatsapp_digest_slots: appendDigestSlot(already, slotKey, digestDate) })
+        .eq("id", row.id);
+      digests += 1;
+    } catch (error) {
+      console.error("digest send failed", error);
+    }
+  }
+
+  return json({ ok: true, sent, digests });
 });

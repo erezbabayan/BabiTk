@@ -26,6 +26,8 @@ import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import {
   loadWhatsAppNotifyPrefs,
   saveNotifyWhatsAppGroup,
+  saveWhatsAppDigestDays,
+  saveWhatsAppDigestHours,
 } from "../lib/whatsapp-gateway";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -89,6 +91,8 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   const [captureGroupName, setCaptureGroupName] = useState<string | null>(null);
   const [captureGroupChatId, setCaptureGroupChatId] = useState<string | null>(null);
   const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
+  const [cloudDigestHours, setCloudDigestHours] = useState<number[]>([9]);
+  const [cloudDigestDays, setCloudDigestDays] = useState<"weekdays" | "everyday">("everyday");
 
   useEffect(() => {
     if (!visible || !useConvexPhone || !viewer) return;
@@ -115,6 +119,8 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
         setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
         setCaptureGroupChatId(prefs.captureGroupChatId);
         setCaptureGroupName(prefs.captureGroupName);
+        setCloudDigestHours(prefs.digestHours);
+        setCloudDigestDays(prefs.digestDays);
       })
       .catch(() => undefined);
   }, [visible, useConvexPhone]);
@@ -155,8 +161,10 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     };
   }, [visible, useConvexPhone, viewer?.phoneVerified, listCaptureGroups]);
 
-  const digestHours = viewer?.whatsappDigestHours ?? [9];
-  const digestDays = viewer?.whatsappDigestDays ?? "everyday";
+  const digestHours = useConvexPhone ? (viewer?.whatsappDigestHours ?? [9]) : cloudDigestHours;
+  const digestDays = useConvexPhone
+    ? (viewer?.whatsappDigestDays ?? "everyday")
+    : cloudDigestDays;
   const convexReady = Boolean(viewer?.userId);
 
   const filteredGroups = useMemo(() => {
@@ -180,7 +188,12 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setSavingDigestDays(true);
     setError(null);
     try {
-      await updateNotificationPrefs({ whatsappDigestDays: next });
+      if (useConvexPhone) {
+        await updateNotificationPrefs({ whatsappDigestDays: next });
+      } else {
+        await saveWhatsAppDigestDays(next);
+        setCloudDigestDays(next);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת ימי השליחה");
     } finally {
@@ -208,7 +221,12 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setSavingDigestHours(true);
     setError(null);
     try {
-      await updateNotificationPrefs({ whatsappDigestHours: next });
+      if (useConvexPhone) {
+        await updateNotificationPrefs({ whatsappDigestHours: next });
+      } else {
+        await saveWhatsAppDigestHours(next);
+        setCloudDigestHours(next);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת שעות התזכורת");
     } finally {
@@ -347,6 +365,8 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                         setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
                         setCaptureGroupChatId(prefs.captureGroupChatId);
                         setCaptureGroupName(prefs.captureGroupName);
+                        setCloudDigestHours(prefs.digestHours);
+                        setCloudDigestDays(prefs.digestDays);
                       })
                       .catch(() => undefined);
                   }}
@@ -530,11 +550,11 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 </View>
               ) : null}
 
-              {useConvexPhone ? (
+              {useConvexPhone || (!useConvexPhone && isSupabaseConfigured) ? (
                 <View style={styles.digestBox}>
-                  <Text style={styles.digestTitle}>תזכורת יומית</Text>
+                  <Text style={styles.digestTitle}>ריכוז תזכורות</Text>
                   <Text style={styles.hint}>
-                    סיכום התזכורות של אותו יום — עד {MAX_DIGEST_HOURS} מועדים.
+                    בשעות האלה נשלחת רשימת התזכורות של היום. כל תזכורת נשלחת גם בזמן שמוגדר לה.
                   </Text>
                   <Text style={styles.digestLabel}>ימי שליחה</Text>
                   <View style={styles.hourGrid}>
@@ -553,7 +573,11 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             selected && styles.hourChipSelected,
                           ]}
                           disabled={
-                            viewer === undefined || savingDigestDays || savingDigestHours
+                            (useConvexPhone
+                              ? viewer === undefined
+                              : !isSupabaseConfigured) ||
+                            savingDigestDays ||
+                            savingDigestHours
                           }
                           onPress={() => void handleDigestDaysChange(option.id)}
                         >
@@ -587,7 +611,13 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             selected && styles.hourChipSelected,
                             atLimit && styles.hourChipDisabled,
                           ]}
-                          disabled={viewer === undefined || savingDigestHours || atLimit}
+                          disabled={
+                            (useConvexPhone
+                              ? viewer === undefined
+                              : !isSupabaseConfigured) ||
+                            savingDigestHours ||
+                            atLimit
+                          }
                           onPress={() => void handleDigestHourToggle(hour)}
                         >
                           <Text

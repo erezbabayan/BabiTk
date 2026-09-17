@@ -51,6 +51,32 @@ export function buildWhatsAppReminderMessage(
   return lines.join("\n");
 }
 
+export function resolveItemNotifyAt(item: {
+  is_actionable?: boolean | null;
+  due_date?: string | null;
+  metadata?: unknown;
+}): string | null {
+  const metadata =
+    item.metadata && typeof item.metadata === "object"
+      ? (item.metadata as Record<string, unknown>)
+      : {};
+  if (metadata.reminder_disabled === true) return null;
+  const analysis =
+    metadata.analysis && typeof metadata.analysis === "object"
+      ? (metadata.analysis as Record<string, unknown>)
+      : undefined;
+  if (item.is_actionable) {
+    if (typeof analysis?.notify_at === "string" && analysis.notify_at.trim()) {
+      return analysis.notify_at;
+    }
+    return item.due_date ?? null;
+  }
+  if (metadata.reminder_manual === true && item.due_date) {
+    return item.due_date;
+  }
+  return null;
+}
+
 export function resolveGreenApiChatId(toPhoneOrChatId: string): string {
   const raw = toPhoneOrChatId.trim();
   if (raw.includes("@")) return raw;

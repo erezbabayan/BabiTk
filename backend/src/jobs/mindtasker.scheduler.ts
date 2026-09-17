@@ -32,13 +32,15 @@ export function startMindtaskerScheduler(logger: {
   );
 
   const digestJob = cron.schedule(
-    "0 8 * * *",
+    "*/15 * * * *",
     () => {
       void (async () => {
         const release = beginBackgroundJob("daily-digest");
         try {
           const sent = await sendDailyDigests();
-          logger.info({ sent }, "Daily digest completed");
+          if (sent > 0) {
+            logger.info({ sent }, "WhatsApp reminder digest sent");
+          }
         } catch (error) {
           logger.error({ err: error }, "Daily digest failed");
         } finally {
@@ -106,7 +108,7 @@ export function startMindtaskerScheduler(logger: {
   jobs.push(archiveJob, digestJob, usageResetJob, trashPurgeJob, reminderJob);
 
   logger.info(
-    { timezone: env.cronTimezone, archive: "02:00", digest: "08:00", trashPurge: "03:00", reminders: "*/15" },
+    { timezone: env.cronTimezone, archive: "02:00", digest: "*/15 user hours", trashPurge: "03:00", reminders: "*/15" },
     "BabiTk cron scheduler started",
   );
 }
