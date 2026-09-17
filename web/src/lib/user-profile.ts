@@ -14,7 +14,13 @@ export interface CloudUserProfile {
   whatsapp_capture_group_name: string | null;
   whatsapp_digest_hours: number[];
   whatsapp_digest_days: DigestDays;
+  notify_in_app: boolean;
+  notify_browser: boolean;
+  notify_whatsapp: boolean;
   notify_whatsapp_group: boolean;
+  notify_overdue_reminders: boolean;
+  overdue_first_hours: number;
+  overdue_repeat_hours: number;
   tier: "free" | "premium";
   allocated_audio_seconds: number;
   used_audio_seconds: number;
@@ -35,7 +41,13 @@ const PROFILE_SELECT = [
   "whatsapp_capture_group_name",
   "whatsapp_digest_hours",
   "whatsapp_digest_days",
+  "notify_in_app",
+  "notify_browser",
+  "notify_whatsapp",
   "notify_whatsapp_group",
+  "notify_overdue_reminders",
+  "overdue_first_hours",
+  "overdue_repeat_hours",
   "tier",
   "allocated_audio_seconds",
   "used_audio_seconds",
@@ -75,7 +87,13 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
         : null,
     whatsapp_digest_hours: asHours(row.whatsapp_digest_hours),
     whatsapp_digest_days: asDigestDays(row.whatsapp_digest_days),
+    notify_in_app: row.notify_in_app !== false,
+    notify_browser: row.notify_browser === true,
+    notify_whatsapp: row.notify_whatsapp !== false,
     notify_whatsapp_group: row.notify_whatsapp_group === true,
+    notify_overdue_reminders: row.notify_overdue_reminders !== false,
+    overdue_first_hours: Number(row.overdue_first_hours ?? 24),
+    overdue_repeat_hours: Number(row.overdue_repeat_hours ?? 24),
     tier: row.tier === "premium" ? "premium" : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
@@ -193,7 +211,13 @@ export async function updateCloudUserProfile(
       | "whatsapp_capture_group_name"
       | "whatsapp_digest_hours"
       | "whatsapp_digest_days"
+      | "notify_in_app"
+      | "notify_browser"
+      | "notify_whatsapp"
       | "notify_whatsapp_group"
+      | "notify_overdue_reminders"
+      | "overdue_first_hours"
+      | "overdue_repeat_hours"
       | "tier"
     >
   >,

@@ -6,6 +6,14 @@ function digitsOnly(phone: string): string {
   return phoneFromWhatsAppId(phone).replace(/\D/g, "");
 }
 
+function resolveGreenApiChatId(to: string): string {
+  const raw = to.trim();
+  if (raw.endsWith("@g.us") || raw.endsWith("@c.us") || raw.endsWith("@lid")) {
+    return raw;
+  }
+  return `${digitsOnly(raw)}@c.us`;
+}
+
 async function sendViaMeta(to: string, body: string): Promise<void> {
   if (!env.whatsappAccessToken || !env.whatsappPhoneNumberId) {
     throw new Error("WhatsApp Meta API is not configured");
@@ -44,7 +52,7 @@ async function sendViaGreenApi(to: string, body: string): Promise<void> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chatId: `${digitsOnly(to)}@c.us`,
+      chatId: resolveGreenApiChatId(to),
       message: body,
     }),
   });

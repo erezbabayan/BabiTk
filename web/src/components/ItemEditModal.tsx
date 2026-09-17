@@ -16,6 +16,7 @@ import { ItemTagSelect } from "./ItemTagSelect";
 import { useUserTags } from "../hooks/useUserTags";
 import { alignItemTagsWithDefinitions } from "../lib/tags";
 import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
+import { recordIngestCorrectionApi } from "../lib/api";
 
 export interface ItemEditInput {
   title: string;
@@ -139,13 +140,26 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
       if (dueDate) {
         void ensureBrowserNotificationPermission();
       }
+      const nextTags = alignItemTagsWithDefinitions(selectedTags, userTags);
       await onSave({
         title: trimmedTitle,
         content: content.trim(),
-        tags: alignItemTagsWithDefinitions(selectedTags, userTags),
+        tags: nextTags,
         due_date: dueDate,
         recurrence: dueDate ? recurrence : null,
       });
+      const beforeTags = item.tags ?? [];
+      const tagsChanged =
+        beforeTags.length !== nextTags.length ||
+        beforeTags.some((tag, index) => tag !== nextTags[index]);
+      if (tagsChanged) {
+        void recordIngestCorrectionApi({
+          itemId: item.id,
+          sourceText: `${item.title}\n${item.content}`.trim(),
+          beforeTags,
+          afterTags: nextTags,
+        });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "שמירה נכשלה");

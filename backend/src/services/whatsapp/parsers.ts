@@ -14,6 +14,20 @@ function pushTextMessage(
   messages.push({ ...base, type: "text", text: text.trim() });
 }
 
+function isGroupChatId(chatId: string | undefined): boolean {
+  return Boolean(chatId?.endsWith("@g.us"));
+}
+
+function senderPhoneFromIds(sender: string | undefined, chatId: string | undefined, wid?: string): string {
+  const candidate = sender?.trim() || "";
+  if (candidate && !candidate.endsWith("@g.us") && !candidate.endsWith("@lid")) {
+    return phoneFromWhatsAppId(candidate);
+  }
+  if (wid) return phoneFromWhatsAppId(wid);
+  if (chatId && !isGroupChatId(chatId)) return phoneFromWhatsAppId(chatId);
+  return phoneFromWhatsAppId(candidate || chatId || "");
+}
+
 function pushAudioMessage(
   messages: WhatsAppInboundMessage[],
   base: Omit<WhatsAppInboundMessage, "type">,
@@ -58,6 +72,13 @@ export function parseMetaWebhook(body: unknown): WhatsAppWebhookPayload {
             text?: { body?: string };
             audio?: { id?: string; mime_type?: string };
             image?: { id?: string; mime_type?: string };
+            context?: { forwarded?: boolean };
+            button?: { text?: string; payload?: string };
+            interactive?: {
+              type?: string;
+              button_reply?: { id?: string; title?: string };
+              list_reply?: { id?: string; title?: string };
+            };
           }>;
         };
       }>;
@@ -67,11 +88,24 @@ export function parseMetaWebhook(body: unknown): WhatsAppWebhookPayload {
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       for (const message of change.value?.messages ?? []) {
+        const buttonReply =
+          message.interactive?.button_reply?.id ||
+          message.interactive?.list_reply?.id ||
+          message.button?.payload ||
+          message.button?.text;
         const base = {
           id: message.id,
           from: phoneFromWhatsAppId(message.from),
+          chatId: message.from,
+          forwarded: message.context?.forwarded === true,
+          buttonReply: buttonReply || undefined,
           provider: "meta" as const,
         };
+
+        if (buttonReply) {
+          pushTextMessage(messages, base, buttonReply);
+          continue;
+        }
 
         if (message.type === "text") {
           pushTextMessage(messages, base, message.text?.body);
@@ -104,32 +138,64 @@ export function parseGreenApiWebhook(body: unknown): WhatsAppWebhookPayload {
   const payload = body as {
     typeWebhook?: string;
     idMessage?: string;
+    instanceData?: { wid?: string };
     senderData?: { chatId?: string; sender?: string };
     messageData?: {
       typeMessage?: string;
       textMessageData?: { textMessage?: string };
+      extendedTextMessageData?: { text?: string; isForwarded?: boolean };
+      quotedMessage?: { textMessage?: string };
+      buttonsResponseMessage?: { selectedButtonId?: string; selectedButtonText?: string };
+      templateButtonReplyMessage?: { selectedId?: string };
+      listResponseMessage?: { title?: string; selectedRowId?: string };
       fileMessageData?: {
         downloadUrl?: string;
         mimeType?: string;
+        caption?: string;
       };
     };
   };
 
-  if (payload.typeWebhook !== "incomingMessageReceived") {
+  const ingestTypes = new Set(["incomingMessageReceived", "outgoingMessageReceived"]);
+  if (!payload.typeWebhook || !ingestTypes.has(payload.typeWebhook)) {
     return { messages };
   }
 
-  const chatId = payload.senderData?.chatId ?? payload.senderData?.sender ?? "";
+  const chatId = payload.senderData?.chatId ?? "";
+  const from = senderPhoneFromIds(
+    payload.senderData?.sender,
+    chatId,
+    payload.instanceData?.wid,
+  );
+  const buttonReply =
+    payload.messageData?.buttonsResponseMessage?.selectedButtonId ||
+    payload.messageData?.buttonsResponseMessage?.selectedButtonText ||
+    payload.messageData?.templateButtonReplyMessage?.selectedId ||
+    payload.messageData?.listResponseMessage?.selectedRowId ||
+    payload.messageData?.listResponseMessage?.title;
+  const forwarded =
+    payload.messageData?.extendedTextMessageData?.isForwarded === true;
   const base = {
     id: payload.idMessage ?? `green-${Date.now()}`,
-    from: phoneFromWhatsAppId(chatId),
+    from,
+    chatId: chatId || undefined,
+    forwarded,
+    buttonReply: buttonReply || undefined,
     provider: "green-api" as const,
   };
 
   const typeMessage = payload.messageData?.typeMessage;
 
-  if (typeMessage === "textMessage") {
-    pushTextMessage(messages, base, payload.messageData?.textMessageData?.textMessage);
+  if (buttonReply) {
+    pushTextMessage(messages, base, buttonReply);
+    return { messages };
+  }
+
+  if (typeMessage === "textMessage" || typeMessage === "extendedTextMessage") {
+    const text =
+      payload.messageData?.textMessageData?.textMessage ||
+      payload.messageData?.extendedTextMessageData?.text;
+    pushTextMessage(messages, { ...base, forwarded }, text);
     return { messages };
   }
 
@@ -144,6 +210,10 @@ export function parseGreenApiWebhook(body: unknown): WhatsAppWebhookPayload {
 
   if (typeMessage === "imageMessage") {
     const file = payload.messageData?.fileMessageData;
+    const caption = file?.caption;
+    if (caption?.trim()) {
+      pushTextMessage(messages, { ...base, forwarded: true }, caption);
+    }
     pushImageMessage(messages, base, {
       imageUrl: file?.downloadUrl,
       mimeType: file?.mimeType ?? "image/jpeg",

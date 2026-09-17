@@ -14,6 +14,7 @@ import {
   buildParseInputSystemPrompt,
   buildParseInputJsonSchema,
 } from "../prompts/parse-input.prompt.js";
+import { buildLearnedPreferencesPrompt } from "../lib/ingest/ingestLearning.js";
 import {
   type ParseInputOptions,
   type ParseInputResponse,
@@ -86,6 +87,7 @@ export async function parseInputWithAI(
           locale,
           referenceIso: `${referenceIso}${getTimezoneOffset(referenceDate, timezone)}`,
           allowedTags: options.allowedTags,
+          lessonsPrompt: buildLearnedPreferencesPrompt(options.lessons ?? []),
         }),
       },
       {

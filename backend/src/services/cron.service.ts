@@ -25,6 +25,7 @@ import { sendWhatsAppText } from "./whatsapp.service.js";
 import { sendViaUserGreenApi } from "./whatsapp/user-gateway-send.js";
 import { normalizePhone } from "./items.service.js";
 import { resetUsagePeriodIfNeeded } from "./usage.service.js";
+import { insertUserNotification, sendExpoPushes } from "./notifications.service.js";
 
 const TRASH_RETENTION_DAYS = 30;
 
@@ -161,7 +162,7 @@ export async function sendDailyDigests(): Promise<number> {
       continue;
     }
 
-    const message = buildWhatsAppDigestMessage(digestItems, digestDate);
+    const message = `${buildWhatsAppDigestMessage(digestItems, digestDate)}\nכתבו «תפריט» לשאלות מובנות (היום / מחר / עבודה).`;
     try {
       const delivered = await deliverWhatsAppReminder(
         {
@@ -173,7 +174,10 @@ export async function sendDailyDigests(): Promise<number> {
       if (!delivered) continue;
       await supabase
         .from("users")
-        .update({ whatsapp_digest_slots: appendDigestSlot(already, slotKey, digestDate) })
+        .update({
+          whatsapp_digest_slots: appendDigestSlot(already, slotKey, digestDate),
+          whatsapp_last_digest_at: now.toISOString(),
+        })
         .eq("id", row.id);
       sent++;
     } catch {
@@ -212,6 +216,7 @@ type ReminderUserRow = {
   phone: string | null;
   phone_verified: boolean;
   notify_whatsapp_group: boolean | null;
+  notify_in_app: boolean | null;
   whatsapp_capture_group_chat_id: string | null;
 };
 
@@ -229,7 +234,7 @@ async function loadReminderUser(
     supabase
       .from("users")
       .select(
-        "phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id",
+        "phone, phone_verified, notify_whatsapp_group, notify_in_app, whatsapp_capture_group_chat_id",
       )
       .eq("id", userId)
       .maybeSingle(),
@@ -314,6 +319,15 @@ export async function sendTaskReminders(): Promise<number> {
     try {
       const delivered = await deliverWhatsAppReminder(context, message);
       if (!delivered) continue;
+      if (context.user.notify_in_app !== false) {
+        await insertUserNotification({
+          userId: item.user_id,
+          title: "תזכורת",
+          body: item.title,
+          itemId: item.id,
+        });
+        await sendExpoPushes(item.user_id, "תזכורת", item.title);
+      }
       const after = buildAfterReminderSentPatch(
         { due_date: item.due_date, metadata },
         { firedAt: notifyAt },

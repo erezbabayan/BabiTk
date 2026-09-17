@@ -9,7 +9,7 @@ import { PaywallModal } from "./components/PaywallModal";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { useUsage } from "./hooks/useUsage";
 import { useHeaderUserName } from "./hooks/useHeaderUserName";
-import { registerPaywallHandler } from "./lib/api";
+import { ingestTextApi, registerPaywallHandler } from "./lib/api";
 import { DEMO_USER_ID, ensureLocalSeedItems } from "./lib/demo-store";
 import { clearAuthSessionCaches } from "./lib/clear-auth-caches";
 import {
@@ -202,6 +202,28 @@ function ConfiguredApp() {
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [refreshUsage]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("code")) return;
+    const shared = [params.get("text"), params.get("title"), params.get("url")]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join("\n")
+      .trim();
+    if (!shared) return;
+    void ingestTextApi(shared)
+      .then(() => {
+        setCaptureTick((tick) => tick + 1);
+        setBillingNotice("נקלט מהשיתוף.");
+      })
+      .catch(() => {
+        setBillingNotice("לא ניתן לקלוט את השיתוף.");
+      })
+      .finally(() => {
+        window.history.replaceState({}, "", window.location.pathname);
+      });
+  }, [userId]);
 
   useEffect(() => {
     registerPaywallHandler((code) => {

@@ -3,6 +3,7 @@ export function buildParseInputSystemPrompt(params: {
   locale: string;
   referenceIso: string;
   allowedTags?: string[];
+  lessonsPrompt?: string;
 }): string {
   const tagSection =
     params.allowedTags && params.allowedTags.length > 0
@@ -143,6 +144,7 @@ NLP בעברית — הטיות ווריאציות (חובה להכיר כולן
 אל תשנה קודים, מספרי טלפון או כתובות URL.
 
 ${tagSection}
+${params.lessonsPrompt ?? ""}
 
 ## ניתוח מובנה (חובה לכל פריט ב-items)
 

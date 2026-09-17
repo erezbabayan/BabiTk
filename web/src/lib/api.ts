@@ -1,4 +1,4 @@
-import { isLegacyExpressApiAvailable } from "./board-search";
+import { isLegacyExpressApiAvailable, isIgnorableBoardSearchError } from "./board-search";
 import { requireSupabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { isDemoPremium, searchDemoNotes, setDemoPremium } from "./demo-store";
 import { getCloudUserProfile, setCloudUserTier } from "./user-profile";
@@ -163,15 +163,24 @@ export async function searchItemsApi(
     }));
   }
 
-  if (!isLegacyExpressApiAvailable(import.meta.env.VITE_API_URL)) {
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname.endsWith("github.io") &&
+    !isLegacyExpressApiAvailable(import.meta.env.VITE_API_URL)
+  ) {
     return [];
   }
 
-  const data = await apiFetch<{ results: NoteSearchHit[] }>("/api/items/search", {
-    method: "POST",
-    body: JSON.stringify({ query, scope }),
-  });
-  return data.results;
+  try {
+    const data = await apiFetch<{ results: NoteSearchHit[] }>("/api/items/search", {
+      method: "POST",
+      body: JSON.stringify({ query, scope }),
+    });
+    return data.results;
+  } catch (error) {
+    if (isIgnorableBoardSearchError(error)) return [];
+    throw error;
+  }
 }
 
 /** @deprecated Use searchItemsApi */
@@ -398,6 +407,28 @@ export async function ingestTextApi(text: string): Promise<{ items: { id: string
       locale: "he-IL",
     }),
   });
+}
+
+export async function recordIngestCorrectionApi(params: {
+  itemId: string;
+  sourceText: string;
+  beforeTags: string[];
+  afterTags: string[];
+  kind?: "tags" | "prefer_merge" | "prefer_split";
+}): Promise<void> {
+  try {
+    await apiFetch(`/api/items/${params.itemId}/learn`, {
+      method: "POST",
+      body: JSON.stringify({
+        sourceText: params.sourceText,
+        beforeTags: params.beforeTags,
+        afterTags: params.afterTags,
+        kind: params.kind,
+      }),
+    });
+  } catch {
+    // Learning is best-effort when the API is not deployed.
+  }
 }
 
 export async function uploadNotebookOcrApi(file: File): Promise<void> {

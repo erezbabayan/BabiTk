@@ -254,7 +254,7 @@ export async function completeItem(
   itemId: string,
 ): Promise<DbMindtaskerItem> {
   const supabase = getSupabaseAdmin();
-  await getItemById(itemId, userId);
+  const item = await getItemById(itemId, userId);
 
   const { data, error } = await supabase
     .from("mindtasker_items")
@@ -270,6 +270,28 @@ export async function completeItem(
 
   if (error || !data) {
     throw new Error(`Failed to complete item: ${error?.message ?? itemId}`);
+  }
+
+  try {
+    const { buildNextOccurrenceInsert } = await import("../lib/recurring-task.js");
+    const next = buildNextOccurrenceInsert({
+      title: item.title,
+      content: item.content,
+      is_actionable: item.is_actionable,
+      due_date: item.due_date,
+      tags: item.tags,
+      metadata: item.metadata,
+      source_material_id: item.source_material_id,
+    });
+    if (next) {
+      await supabase.from("mindtasker_items").insert({
+        user_id: userId,
+        ...next,
+        last_interacted_at: new Date().toISOString(),
+      });
+    }
+  } catch {
+    // Recurrence spawn is best-effort
   }
 
   return data as DbMindtaskerItem;
@@ -388,7 +410,9 @@ export async function findInboxUserByPhone(phone: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, phone, phone_verified, tier, allocated_audio_seconds, used_audio_seconds")
+    .select(
+      "id, email, phone, phone_verified, tier, allocated_audio_seconds, used_audio_seconds, whatsapp_last_item_ids, whatsapp_capture_group_chat_id, notify_whatsapp, onboarding_completed_at",
+    )
     .eq("phone", normalized)
     .eq("phone_verified", true)
     .maybeSingle();
@@ -397,6 +421,27 @@ export async function findInboxUserByPhone(phone: string) {
     throw new Error(`Failed to lookup user by phone: ${error.message}`);
   }
 
+  return data;
+}
+
+export async function findInboxUserByCaptureGroup(chatId: string) {
+  const trimmed = chatId.trim();
+  if (!trimmed.endsWith("@g.us") && !trimmed.endsWith("@c.us")) return null;
+  if (!env.isSupabaseConfigured) return null;
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("users")
+    .select(
+      "id, email, phone, phone_verified, tier, allocated_audio_seconds, used_audio_seconds, whatsapp_last_item_ids, whatsapp_capture_group_chat_id, notify_whatsapp, onboarding_completed_at",
+    )
+    .eq("whatsapp_capture_group_chat_id", trimmed)
+    .eq("phone_verified", true)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to lookup user by capture group: ${error.message}`);
+  }
   return data;
 }
 

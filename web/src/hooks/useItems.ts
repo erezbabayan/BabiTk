@@ -41,9 +41,8 @@ import {
 
 } from "../lib/demo-store";
 
-import { isDemoMode } from "../lib/supabase";
-
-import { requireSupabase } from "../lib/supabase";
+import { isDemoMode, requireSupabase } from "../lib/supabase";
+import { completeItemApi } from "../lib/api";
 
 import { useConvexBackend } from "../lib/data-backend";
 
@@ -431,11 +430,21 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
+      if (!isDemoMode) {
+        try {
+          await completeItemApi(item.id);
+          await refresh();
+          return;
+        } catch {
+          // Local patch if the complete API is not deployed yet.
+        }
+      }
+
       await updateItem(item.id, buildCompleteTaskPatch());
 
     },
 
-    [enabled, updateItem],
+    [enabled, refresh, updateItem],
 
   );
 

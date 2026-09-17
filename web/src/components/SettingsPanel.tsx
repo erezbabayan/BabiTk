@@ -76,9 +76,9 @@ export function SettingsPanel({
   cloudAccount,
 }: SettingsPanelProps) {
   const [section, setSection] = useState<SettingsSection>("menu");
-  const showNotifications = false;
   const isAdmin = false;
   const cloudBackend = hasCloudAccount(cloudAccount);
+  const showNotifications = cloudBackend;
 
   const menuItems = (showNotifications
     ? MENU_ITEMS
@@ -160,7 +160,13 @@ export function SettingsPanel({
             </OfflineNotice>
           )
         ) : null}
-        {section === "notifications" && showNotifications ? <NotificationPrefs /> : null}
+        {section === "notifications" && showNotifications ? (
+          cloudBackend ? (
+            <NotificationPrefs />
+          ) : (
+            <OfflineNotice>התראות חיות דורשות חשבון ענן.</OfflineNotice>
+          )
+        ) : null}
         {section === "whatsapp" ? (
           cloudBackend ? (
             <PhoneLinkSettings userId={userId} summary={summary} />

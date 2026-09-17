@@ -155,6 +155,21 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [todayDateSort, setTodayDateSort] = useState<BoardDateSortDirection>(null);
   const [notesDateSort, setNotesDateSort] = useState<BoardDateSortDirection>(null);
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
+  const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
+
+  useEffect(() => {
+    if (!undoComplete) return;
+    const timer = window.setTimeout(() => setUndoComplete(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [undoComplete]);
+
+  const completeWithUndo = useCallback(
+    async (item: MindtaskerItem) => {
+      await completeTask(item);
+      setUndoComplete(item);
+    },
+    [completeTask],
+  );
   const [tagPickerItem, setTagPickerItem] = useState<MindtaskerItem | null>(null);
   const [tagDraft, setTagDraft] = useState<string[]>([]);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -583,7 +598,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         try {
           switch (action) {
             case "complete":
-              await completeTask(item);
+              await completeWithUndo(item);
               break;
             case "archive":
               await archiveItem(item);
@@ -707,7 +722,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             });
           }}
           onSnooze={() => setSnoozeItem(item)}
-          onComplete={item.is_actionable ? () => void completeTask(item) : undefined}
+          onComplete={item.is_actionable ? () => void completeWithUndo(item) : undefined}
         />
       </SwipeableItemCard>
     );
@@ -744,7 +759,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             });
           }}
           onSnooze={() => setSnoozeItem(item)}
-          onComplete={item.is_actionable ? () => void completeTask(item) : undefined}
+          onComplete={item.is_actionable ? () => void completeWithUndo(item) : undefined}
         />
       </SwipeableItemCard>
     );
@@ -1345,7 +1360,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   (entry) => entry.id === dueReminders.alert?.itemId,
                 );
                 if (current?.is_actionable) {
-                  void completeTask(current).then(() => dueReminders.acknowledge());
+                  void completeWithUndo(current).then(() => dueReminders.acknowledge());
                   return;
                 }
                 void dueReminders.acknowledge();
@@ -1392,7 +1407,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             );
           }}
           onEditItem={(item, patch) => editItem(item, patch)}
-          onCompleteItem={(item) => completeTask(item)}
+          onCompleteItem={(item) => completeWithUndo(item)}
           onUndoListItem={(item) =>
             undoTaskListItem(item, {
               restoreDeletedItem,
@@ -1420,6 +1435,30 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           onCreateTag={handleCreateTag}
           onCloseTagPicker={handleCloseTagPicker}
         />
+      ) : null}
+
+      {undoComplete ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[80] flex justify-center px-3">
+          <div
+            className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg"
+            dir="rtl"
+          >
+            <p className="text-slate-800">
+              סומן כבוצע: <strong>{undoComplete.title}</strong>
+            </p>
+            <button
+              type="button"
+              className="shrink-0 text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+              onClick={() => {
+                const item = undoComplete;
+                setUndoComplete(null);
+                void restoreCompletedTask(item);
+              }}
+            >
+              בטל
+            </button>
+          </div>
+        </div>
       ) : null}
     </>
   );

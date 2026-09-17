@@ -12,6 +12,7 @@ import {
 import { handlePaywallError } from "../middleware/usage.js";
 import { assertAiParseQuota } from "../services/usage.service.js";
 import { searchItems } from "../services/search.service.js";
+import { recordIngestCorrection, recordMergeOrSplitLesson } from "../services/ingest-lessons.service.js";
 
 const searchBodySchema = z.object({
   query: z.string().trim().min(2),
@@ -160,5 +161,37 @@ export const itemsRoutes: FastifyPluginAsync = async (app) => {
         message: error instanceof Error ? error.message : "Restore failed",
       });
     }
+  });
+
+  app.post("/:id/learn", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    const body = z
+      .object({
+        sourceText: z.string().trim().min(1),
+        beforeTags: z.array(z.string()),
+        afterTags: z.array(z.string()),
+        kind: z.enum(["tags", "prefer_merge", "prefer_split"]).optional(),
+      })
+      .safeParse(request.body);
+    if (!params.success || !body.success || !request.user) {
+      return reply.status(400).send({ error: "validation_error" });
+    }
+    if (body.data.kind === "prefer_merge" || body.data.kind === "prefer_split") {
+      await recordMergeOrSplitLesson({
+        userId: request.user.id,
+        sourceText: body.data.sourceText,
+        kind: body.data.kind,
+        sourceItemId: params.data.id,
+      });
+      return reply.send({ recorded: 1 });
+    }
+    const recorded = await recordIngestCorrection({
+      userId: request.user.id,
+      sourceText: body.data.sourceText,
+      beforeTags: body.data.beforeTags,
+      afterTags: body.data.afterTags,
+      sourceItemId: params.data.id,
+    });
+    return reply.send({ recorded });
   });
 };

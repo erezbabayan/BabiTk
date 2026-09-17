@@ -14,6 +14,10 @@ import {
 } from "./usage.service.js";
 import type { ParsedItem } from "../types/ai.js";
 import type { SourceType } from "../types/database.js";
+import { applySplitMergeLessons, listIngestLessons } from "./ingest-lessons.service.js";
+import { filterDuplicateParsedItems } from "../lib/duplicate-detect.js";
+import { env } from "../config/env.js";
+import { getSupabaseAdmin } from "../lib/supabase.js";
 
 export interface IngestTextParams {
   userId: string;
@@ -32,21 +36,30 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   await assertAiParseQuota(params.userId, units);
 
   const allowedTags = await getUserTagNames(params.userId);
+  const lessons = await listIngestLessons(params.userId);
 
   const parsed = await parseInputForIngest({
     text: params.text,
     timezone: params.timezone,
     locale: params.locale,
     allowedTags,
+    lessons,
   });
 
+  const merged = applySplitMergeLessons(parsed, params.text, lessons);
+  const existing = await listRecentInboxKeys(params.userId);
+  const uniqueItems = filterDuplicateParsedItems(merged.items, existing);
+
   const referenceDate = new Date();
-  const enrichedItems = enrichParsedItemsWithAnalysis(parsed.items, {
-    sourceType: params.sourceType,
-    sourceText: params.text,
-    timezone: params.timezone,
-    referenceDate,
-  });
+  const enrichedItems = enrichParsedItemsWithAnalysis(
+    uniqueItems.length > 0 ? uniqueItems : merged.items.slice(0, 1),
+    {
+      sourceType: params.sourceType,
+      sourceText: params.text,
+      timezone: params.timezone,
+      referenceDate,
+    },
+  );
 
   const result = await saveIngestionResult({
     userId: params.userId,
@@ -72,6 +85,22 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   });
 
   return result;
+}
+
+async function listRecentInboxKeys(
+  userId: string,
+): Promise<Array<{ title: string; content?: string | null }>> {
+  if (!env.isSupabaseConfigured) return [];
+  const supabase = getSupabaseAdmin();
+  const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("mindtasker_items")
+    .select("title, content")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .gte("created_at", since)
+    .limit(80);
+  return data ?? [];
 }
 
 export async function ingestParsedItems(params: {

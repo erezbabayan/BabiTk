@@ -1,7 +1,8 @@
 import { FormEvent, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
-import { isForcedLocalMode } from "../lib/supabase";
+import { resolveLoginEmail } from "../lib/resolve-login-email";
+import { isForcedLocalMode, requireSupabase, supabaseAuthRedirectUrl } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
@@ -355,6 +356,41 @@ function AuthForm({
                 />
                 זכור אותי במכשיר זה
               </label>
+            ) : null}
+
+            {authMode === "login" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  void (async () => {
+                    setError(null);
+                    setMessage(null);
+                    const identifier = email.trim();
+                    if (!identifier) {
+                      setError("הזינו שם משתמש או אימייל לאיפוס סיסמה");
+                      return;
+                    }
+                    setLoading(true);
+                    try {
+                      const loginEmail = await resolveLoginEmail(identifier);
+                      const { error: resetError } = await requireSupabase().auth.resetPasswordForEmail(
+                        loginEmail,
+                        { redirectTo: supabaseAuthRedirectUrl() },
+                      );
+                      if (resetError) throw resetError;
+                      setMessage("אם החשבון קיים, נשלח מייל לאיפוס סיסמה.");
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "שליחת איפוס הסיסמה נכשלה");
+                    } finally {
+                      setLoading(false);
+                    }
+                  })();
+                }}
+                className="w-full py-1 text-sm text-slate-500 hover:text-indigo-600 disabled:opacity-60"
+              >
+                שכחתי סיסמה
+              </button>
             ) : null}
 
             <button

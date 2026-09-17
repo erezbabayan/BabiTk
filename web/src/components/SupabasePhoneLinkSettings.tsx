@@ -314,6 +314,24 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       <p className="mt-1 text-xs text-sky-800">
         שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעות מהקבוצה נכנסות ללוח.
       </p>
+      <div className="mt-3 rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-sky-950">
+        <p className="font-semibold">שאלות מובנות בקבוצה</p>
+        <p className="mt-1 text-sky-800">
+          כתבו «תפריט» בקבוצה — המערכת תשיב במספרים. אפשר גם לשאול חופשי.
+        </p>
+        <ol className="mt-2 list-decimal space-y-0.5 pr-4 text-sky-900">
+          <li>מה יש לי היום</li>
+          <li>מה יש לי מחר</li>
+          <li>משימות באיחור</li>
+          <li>מה בתיבה</li>
+          <li>משימות השבוע</li>
+          <li>תכנן לי את היום</li>
+        </ol>
+        <p className="mt-2 text-sky-700">
+          אם יש תגיות עבודה/לימודים יופיעו גם «עבודה מחר» וכו׳. דוגמה חופשית: «מה המשימות מחר בעבודה».
+          לסימון: «בוצע 1».
+        </p>
+      </div>
 
       {groupConnected ? (
         <div className="mt-3 rounded-lg border border-emerald-300 bg-white px-3 py-2">

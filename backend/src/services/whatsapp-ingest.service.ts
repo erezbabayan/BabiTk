@@ -1,6 +1,11 @@
 import { ingestText } from "./ingest.service.js";
 import { ingestTextToSyncStore } from "./sync-ingest.service.js";
-import { findInboxUserByPhone, uploadSourceMedia } from "./items.service.js";
+import {
+  findInboxUserByCaptureGroup,
+  findInboxUserByPhone,
+  uploadSourceMedia,
+  type SaveIngestionResult,
+} from "./items.service.js";
 import { env } from "../config/env.js";
 import { extractNluTaskFromTranscription } from "./nlu-extract.service.js";
 import { integrateNluTaskForWhatsAppSender } from "./nlu-task.service.js";
@@ -22,26 +27,34 @@ import {
   WHATSAPP_REJECTION_MESSAGE,
 } from "../utils/whatsapp.js";
 import { UsageQuotaExceededError } from "./usage.service.js";
+import { buildCaptureConfirmation } from "../lib/whatsapp-commands.js";
+import { isSystemWhatsAppReply } from "../lib/whatsapp-query.js";
+import {
+  handleWhatsAppTextIntent,
+  maybeSendWhatsAppMenuOnboarding,
+  rememberLastWhatsAppItems,
+  replyDestination,
+} from "./whatsapp-actions.service.js";
 
-/**
- * WhatsApp webhook → user Inbox pipeline
- * ========================================
- *
- * 1. Webhook receives JSON; parsers set `message.from` = sender phone (E.164).
- * 2. resolveInboxOwner(message.from):
- *        DB query → users WHERE phone = ? AND phone_verified = true
- *    • No user  → ignore silently (never auto-reply to strangers)
- *    • Found    → continue with that user.id
- * 3. By media type:
- *        text  → use body as-is
- *        audio → Whisper (Hebrew) → text
- *        image → GPT-4o OCR → text
- * 4. ingestText({ userId, text }) → AI parse → save to `items` (Inbox)
- *    Visible in Web + Mobile for the same account.
- */
+async function resolveInboxOwner(message: WhatsAppInboundMessage) {
+  const byPhone = await findInboxUserByPhone(message.from);
+  if (byPhone) return byPhone;
+  if (message.chatId) {
+    return findInboxUserByCaptureGroup(message.chatId);
+  }
+  return null;
+}
 
-async function resolveInboxOwner(senderPhone: string) {
-  return findInboxUserByPhone(senderPhone);
+async function confirmCapture(
+  userId: string,
+  replyTo: string,
+  result: SaveIngestionResult,
+): Promise<void> {
+  const ids = result.items.map((item) => item.id);
+  if (ids.length > 0) {
+    await rememberLastWhatsAppItems(userId, ids);
+  }
+  await sendWhatsAppText(replyTo, buildCaptureConfirmation(result.items));
 }
 
 async function saveToUserInbox(params: {
@@ -79,22 +92,48 @@ export async function processWhatsAppMessage(
     return;
   }
 
-  // Step 2: match sender phone → MindTasker user (Supabase)
-  const user = await resolveInboxOwner(message.from);
+  const user = await resolveInboxOwner(message);
   if (!user) {
-    // Do not WhatsApp-reply to unknown numbers (prevents spam from personal bot line).
     return;
   }
 
-  // Step 3 + 4: extract text → insert into this user's Inbox
-  if (message.type === "text") {
-    await assertAiParseQuota(user.id, estimateTextParseUnits(message.text!));
+  const replyTo = replyDestination(message);
 
-    await saveToUserInbox({
+  if (message.type === "text") {
+    const inbound = (message.buttonReply || message.text || "").trim();
+    if (!inbound || isSystemWhatsAppReply(inbound)) return;
+
+    const handled = await handleWhatsAppTextIntent({
+      user,
+      text: inbound,
+      replyTo,
+    });
+    if (handled) {
+      await maybeSendWhatsAppMenuOnboarding({
+        user,
+        replyTo,
+        isGroup: Boolean(message.chatId?.endsWith("@g.us")),
+      });
+      return;
+    }
+
+    await assertAiParseQuota(user.id, estimateTextParseUnits(inbound));
+
+    const result = await saveToUserInbox({
       userId: user.id,
-      text: message.text!,
+      text: inbound,
       sourceType: "whatsapp_text",
-      metadata: { whatsapp_message_id: message.id },
+      metadata: {
+        whatsapp_message_id: message.id,
+        whatsapp_chat_id: message.chatId,
+        forwarded: message.forwarded === true,
+      },
+    });
+    await confirmCapture(user.id, replyTo, result);
+    await maybeSendWhatsAppMenuOnboarding({
+      user,
+      replyTo,
+      isGroup: Boolean(message.chatId?.endsWith("@g.us")),
     });
     return;
   }
@@ -122,7 +161,7 @@ export async function processWhatsAppMessage(
     );
     const textCheck = sanitizeInboundText(correctedText);
     if (!textCheck.accepted || isVoicePlaceholderText(correctedText)) {
-      await sendWhatsAppText(message.from, WHATSAPP_REJECTION_MESSAGE);
+      await sendWhatsAppText(replyTo, WHATSAPP_REJECTION_MESSAGE);
       return;
     }
 
@@ -140,11 +179,11 @@ export async function processWhatsAppMessage(
     });
 
     if (integration.success) {
-      await sendWhatsAppText(message.from, integration.responseText);
+      await sendWhatsAppText(replyTo, integration.responseText);
       return;
     }
 
-    await saveToUserInbox({
+    const voiceResult = await saveToUserInbox({
       userId: user.id,
       text: correctedText,
       sourceType: "whatsapp_voice",
@@ -155,8 +194,10 @@ export async function processWhatsAppMessage(
         duration_seconds: durationSeconds,
         whisper_transcription: text,
         corrected_transcription: correctedText,
+        whatsapp_chat_id: message.chatId,
       },
     });
+    await confirmCapture(user.id, replyTo, voiceResult);
     return;
   }
 
@@ -175,22 +216,27 @@ export async function processWhatsAppMessage(
 
     const textCheck = sanitizeInboundText(extractedText);
     if (!textCheck.accepted) {
-      await sendWhatsAppText(message.from, WHATSAPP_REJECTION_MESSAGE);
+      await sendWhatsAppText(replyTo, WHATSAPP_REJECTION_MESSAGE);
       return;
     }
 
-    await saveToUserInbox({
+    const ocrResult = await saveToUserInbox({
       userId: user.id,
       text: extractedText,
       sourceType: "notebook_ocr",
       rawText: ocrMetadata.raw_transcription,
       storageUrl,
-      metadata: { whatsapp_message_id: message.id, ...ocrMetadata },
+      metadata: {
+        whatsapp_message_id: message.id,
+        whatsapp_chat_id: message.chatId,
+        ...ocrMetadata,
+      },
     });
+    await confirmCapture(user.id, replyTo, ocrResult);
     return;
   }
 
-  await sendWhatsAppText(message.from, WHATSAPP_REJECTION_MESSAGE);
+  await sendWhatsAppText(replyTo, WHATSAPP_REJECTION_MESSAGE);
 }
 
 export async function safeProcessWhatsAppMessage(
@@ -204,7 +250,7 @@ export async function safeProcessWhatsAppMessage(
         error.code === "audio_quota"
           ? "הגעת למכסת התמלול החודשית. שדרג ל-Premium כדי להמשיך."
           : "הגעת למכסת ה-AI החודשית. שדרג ל-Premium כדי להמשיך.";
-      await sendWhatsAppText(message.from, msg);
+      await sendWhatsAppText(replyDestination(message), msg);
       return;
     }
 
