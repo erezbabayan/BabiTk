@@ -18,7 +18,8 @@ export async function liveWhatsAppQuestionsReady(): Promise<boolean> {
       typeof body === "object" &&
       body !== null &&
       "qa" in body &&
-      ((body as { qa?: unknown }).qa === "babi-v1" ||
+      ((body as { qa?: unknown }).qa === "babi-v2" ||
+        (body as { qa?: unknown }).qa === "babi-v1" ||
         (body as { qa?: unknown }).qa === "voice-v1" ||
         (body as { qa?: unknown }).qa === "star-v1")
     );

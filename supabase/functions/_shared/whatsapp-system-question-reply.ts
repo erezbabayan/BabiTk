@@ -9,10 +9,14 @@ import {
 } from "./whatsapp-system-question.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
 import {
+  buildTaskBriefing,
   buildWhatsAppMenuText,
   builtInMenuQuestions,
+  itemMatchesBriefingDay,
+  itemMatchesQueryTag,
   isWhatsAppMenuRequest,
   parseWhatsAppQuery,
+  type WhatsAppQuery,
 } from "./whatsapp-intents.ts";
 import { loadAllowedTagNames } from "./parse-incoming-message.ts";
 
@@ -87,6 +91,101 @@ export async function recordSystemQuestionReceipt(
   });
 }
 
+export async function rememberWhatsAppLastItemIds(
+  supabase: AdminClient,
+  userId: string,
+  itemIds: string[],
+): Promise<void> {
+  if (!userId.trim() || itemIds.length === 0) return;
+  const { error } = await supabase
+    .from("users")
+    .update({ whatsapp_last_item_ids: itemIds.slice(0, 12) })
+    .eq("id", userId);
+  if (!error) return;
+  const message = error.message ?? "";
+  if (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    error.code === "PGRST205" ||
+    /does not exist/i.test(message) ||
+    /Could not find the (?:table|column)/i.test(message)
+  ) {
+    return;
+  }
+  console.error("remember last whatsapp items failed", error);
+}
+
+async function loadOpenActionableItems(
+  supabase: AdminClient,
+  userId: string,
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    content: string;
+    due_date: string | null;
+    tags: string[] | null;
+    status: string;
+    is_actionable: boolean;
+  }>
+> {
+  const { data } = await supabase
+    .from("mindtasker_items")
+    .select("id, title, content, due_date, tags, status, is_actionable")
+    .eq("user_id", userId)
+    .eq("is_actionable", true)
+    .in("status", ["inbox", "pending"])
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false });
+  return (data ?? []) as Array<{
+    id: string;
+    title: string;
+    content: string;
+    due_date: string | null;
+    tags: string[] | null;
+    status: string;
+    is_actionable: boolean;
+  }>;
+}
+
+export async function replyWhatsAppCannedQuery(params: {
+  supabase: AdminClient;
+  userId: string;
+  chatId: string;
+  messageId: string;
+  sourceType: "whatsapp_text" | "whatsapp_voice";
+  gateway: SystemQuestionGateway | null;
+  rawText: string;
+  query: WhatsAppQuery;
+}): Promise<boolean> {
+  const items = await loadOpenActionableItems(params.supabase, params.userId);
+  const matched = items.filter(
+    (item) =>
+      itemMatchesBriefingDay(item, params.query.day) &&
+      itemMatchesQueryTag(item, params.query.tag),
+  );
+  await rememberWhatsAppLastItemIds(
+    params.supabase,
+    params.userId,
+    matched.map((item) => String(item.id)),
+  );
+  const sent = await sendGreenApiText(
+    params.gateway,
+    params.chatId,
+    buildTaskBriefing(matched, params.query),
+  );
+  if (sent) {
+    await recordSystemQuestionReceipt(params.supabase, {
+      userId: params.userId,
+      messageId: params.messageId,
+      chatId: params.chatId,
+      text: params.rawText,
+      sourceType: params.sourceType,
+    });
+  }
+  return true;
+}
+
 export async function replyWhatsAppSystemQuestion(params: {
   supabase: AdminClient;
   userId: string;
@@ -135,8 +234,8 @@ export async function resolveCaptureChatId(
 
 /**
  * After ASR, a recorded question must be answered in the capture group and
- * must not stay as a task/note. Canned group queries («מה יש לי היום») match
- * the typed WhatsApp path.
+ * must not stay as a task/note. Prefixed «בבי» questions still use canned
+ * briefings («משימות באיחור», «התאריך עבר») before free-text search.
  */
 export async function interceptRecordedWhatsAppTranscript(params: {
   supabase: AdminClient;
@@ -151,17 +250,19 @@ export async function interceptRecordedWhatsAppTranscript(params: {
   if (!raw) return false;
   const spoken = normalizeSpokenWhatsAppQuestion(raw);
   const allowedTags = await loadAllowedTagNames(params.supabase, params.userId);
-  let parsed = parseWhatsAppVoiceQuestion(raw);
-  if (parsed.kind === "none" && spoken && isWhatsAppMenuRequest(spoken)) {
-    parsed = { kind: "help" };
-  }
-  if (parsed.kind === "none" && spoken && parseWhatsAppQuery(spoken, allowedTags)) {
-    parsed = { kind: "question", question: spoken };
-  }
-  if (parsed.kind === "none") return false;
+  const parsed = parseWhatsAppVoiceQuestion(raw);
+  const intentText =
+    parsed.kind === "question" ? parsed.question : spoken || raw;
+  const prefixed = parsed.kind !== "none";
 
   const chatId = await resolveCaptureChatId(params.supabase, params.userId, params.chatId);
-  if (parsed.kind === "help" && spoken && isWhatsAppMenuRequest(spoken)) {
+
+  if (
+    parsed.kind === "help" ||
+    isWhatsAppMenuRequest(intentText) ||
+    isWhatsAppMenuRequest(raw) ||
+    isWhatsAppMenuRequest(spoken)
+  ) {
     const sent = await sendGreenApiText(
       params.gateway,
       chatId,
@@ -178,6 +279,23 @@ export async function interceptRecordedWhatsAppTranscript(params: {
     }
     return true;
   }
+
+  const query = parseWhatsAppQuery(intentText, allowedTags);
+  if (query) {
+    await replyWhatsAppCannedQuery({
+      supabase: params.supabase,
+      userId: params.userId,
+      chatId,
+      messageId: params.messageId,
+      sourceType: params.sourceType,
+      gateway: params.gateway,
+      rawText: raw,
+      query,
+    });
+    return true;
+  }
+
+  if (!prefixed) return false;
 
   await replyWhatsAppSystemQuestion({
     supabase: params.supabase,

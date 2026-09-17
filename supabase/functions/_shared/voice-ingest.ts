@@ -21,10 +21,11 @@ import {
   VOICE_PENDING_TITLE,
 } from "./voice-text.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
-import { parseWhatsAppVoiceQuestion } from "./whatsapp-system-question.ts";
+import { sendGreenApiText } from "./green-api-send.ts";
+import { buildCaptureConfirmation } from "./whatsapp-intents.ts";
 import {
   interceptRecordedWhatsAppTranscript,
-  replyWhatsAppSystemQuestion,
+  rememberWhatsAppLastItemIds,
   resolveCaptureChatId,
 } from "./whatsapp-system-question-reply.ts";
 
@@ -145,6 +146,50 @@ async function downloadVoiceAudio(params: {
       audioUrl,
     };
   }
+}
+
+function isRetryableVoiceAsrError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /voice_audio_url_missing|audio_too_short|download|404|not found|failed to fetch|fetch failed|media/i.test(
+    message,
+  );
+}
+
+async function waitMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Green-API media is often not ready on the first webhook tick. Retry quickly. */
+export async function transcribeVoiceMessageWithRetry(
+  message: ParsedGreenApiMessage,
+  gateway: VoiceGatewayCredentials | null,
+  supabase?: AdminClient,
+  attempts = 3,
+): Promise<{
+  sourceType: "whatsapp_voice";
+  title: string;
+  content: string;
+  rawText: string;
+  audioUrl: string | null;
+}> {
+  const delaysMs = [0, 700, 1600];
+  let lastError: unknown;
+  for (let index = 0; index < attempts; index += 1) {
+    const delay = delaysMs[index] ?? 1600;
+    if (delay > 0) await waitMs(delay);
+    try {
+      const transcribed = await transcribeVoiceMessage(message, gateway, supabase);
+      if (!needsVoiceTranscription(transcribed.title, transcribed.content)) {
+        return transcribed;
+      }
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableVoiceAsrError(error)) {
+        throw error;
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("voice_asr_failed");
 }
 
 export async function transcribeVoiceMessage(
@@ -362,7 +407,7 @@ export async function transcribeStoredVoiceItem(
   const source = firstSourceMaterial(row);
   const messageId = metadataString(row.metadata, "whatsapp_message_id") || row.id;
   const chatId = metadataString(row.metadata, "chat_id");
-  const transcribed = await transcribeVoiceMessage(
+  const transcribed = await transcribeVoiceMessageWithRetry(
     {
       messageId,
       senderId: "",
@@ -383,7 +428,32 @@ export async function transcribeStoredVoiceItem(
     console.error("voice system question reply failed", error);
   }
   await applyVoiceTranscription(supabase, row, transcribed);
+  try {
+    await sendVoiceCaptureConfirmation(supabase, row, transcribed, gateway);
+  } catch (error) {
+    console.error("voice capture confirmation failed", error);
+  }
   return transcribed;
+}
+
+async function sendVoiceCaptureConfirmation(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+  transcribed: { title: string; content: string },
+  gateway: VoiceGatewayCredentials | null,
+): Promise<void> {
+  if (!row.user_id) return;
+  if (needsVoiceTranscription(transcribed.title, transcribed.content)) return;
+  const chatId =
+    metadataString(row.metadata, "chat_id") ||
+    (await resolveCaptureChatId(supabase, row.user_id));
+  if (!chatId) return;
+  await rememberWhatsAppLastItemIds(supabase, row.user_id, [row.id]);
+  await sendGreenApiText(
+    gateway ?? (await loadUserGateway(supabase, row.user_id)),
+    chatId,
+    buildCaptureConfirmation([{ title: transcribed.title }]),
+  );
 }
 
 /** Repair at most one leftover placeholder. Safe to call after inbound ingest. */
@@ -472,19 +542,16 @@ export async function ingestRecordedAudio(
   }
 
   const gateway = await loadUserGateway(supabase, userId);
-  const question = parseWhatsAppVoiceQuestion(transcribed.correctedText);
-  if (question.kind !== "none") {
-    const chatId = await resolveCaptureChatId(supabase, userId);
-    await replyWhatsAppSystemQuestion({
-      supabase,
-      userId,
-      chatId,
-      messageId: `app-voice-${Date.now()}`,
-      sourceType: "whatsapp_voice",
-      parsed: question,
-      gateway,
-      rawText: transcribed.correctedText,
-    });
+  const handled = await interceptRecordedWhatsAppTranscript({
+    supabase,
+    userId,
+    chatId: await resolveCaptureChatId(supabase, userId),
+    messageId: `app-voice-${Date.now()}`,
+    sourceType: "whatsapp_voice",
+    gateway,
+    rawText: transcribed.correctedText,
+  });
+  if (handled) {
     return {
       answered: true,
       title: transcribed.title,
