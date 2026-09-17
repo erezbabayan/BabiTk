@@ -5,12 +5,15 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   loadVoiceItemForUser,
   transcribeStoredVoiceItem,
+  ingestRecordedAudio,
   type VoiceGatewayCredentials,
 } from "../_shared/voice-ingest.ts";
 import { needsVoiceTranscription } from "../_shared/voice-text.ts";
+import { decodeAudioBase64, audioFileName } from "../_shared/hebrew-voice-asr.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const DEFAULT_GREEN_URL = "https://api.greenapi.com";
 
 function json(body: unknown, status = 200): Response {
@@ -184,13 +187,36 @@ Deno.serve(async (req) => {
 
   let action = "status";
   let itemId = "";
+  let audioBase64 = "";
+  let mimeType = "audio/webm";
+  let fileName = "";
+  let durationSeconds: number | undefined;
   try {
-    const body = (await req.json()) as { action?: string; itemId?: string };
+    const body = (await req.json()) as {
+      action?: string;
+      itemId?: string;
+      audioBase64?: string;
+      mimeType?: string;
+      fileName?: string;
+      durationSeconds?: number;
+    };
     if (typeof body.action === "string" && body.action.trim()) {
       action = body.action.trim();
     }
     if (typeof body.itemId === "string") {
       itemId = body.itemId.trim();
+    }
+    if (typeof body.audioBase64 === "string") {
+      audioBase64 = body.audioBase64;
+    }
+    if (typeof body.mimeType === "string" && body.mimeType.trim()) {
+      mimeType = body.mimeType.trim();
+    }
+    if (typeof body.fileName === "string") {
+      fileName = body.fileName.trim();
+    }
+    if (typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)) {
+      durationSeconds = Math.max(1, Math.round(body.durationSeconds));
     }
   } catch {
     action = "status";
@@ -202,6 +228,50 @@ Deno.serve(async (req) => {
     .eq("user_id", userId)
     .maybeSingle();
   const gateway = gatewayData as GatewayRow | null;
+
+  if (action === "ingestVoice") {
+    if (!audioBase64) {
+      return json({ error: "audio_required" }, 400);
+    }
+    if (!SERVICE_ROLE) {
+      return json({ error: "missing_supabase_env" }, 500);
+    }
+    let bytes: Uint8Array;
+    try {
+      bytes = decodeAudioBase64(audioBase64);
+    } catch (error) {
+      return json(
+        { error: "invalid_audio", reason: error instanceof Error ? error.message : "decode_failed" },
+        400,
+      );
+    }
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    try {
+      const result = await ingestRecordedAudio(admin, userId, {
+        bytes,
+        mimeType,
+        fileName: fileName || audioFileName(`rec-${Date.now()}`, mimeType),
+        durationSeconds,
+      });
+      return json({
+        ok: true,
+        itemId: result.itemId,
+        title: result.title,
+        content: result.content,
+        text: result.content,
+      });
+    } catch (error) {
+      return json(
+        {
+          error: "transcription_failed",
+          reason: error instanceof Error ? error.message : "unknown",
+        },
+        502,
+      );
+    }
+  }
 
   if (action === "transcribeItem") {
     if (!itemId) {

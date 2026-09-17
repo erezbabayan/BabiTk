@@ -40,31 +40,53 @@ async function ingestVoiceViaEdge(
     throw new Error("יש להתחבר כדי לקלוט הקלטה");
   }
   const audioBase64 = await blobToBase64(blob);
-  const { data, error } = await invokeWithTimeout(
+  const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const payload = {
+    action: "ingestVoice",
+    audioBase64,
+    mimeType,
+    fileName,
+    durationSeconds,
+  };
+
+  const connect = await invokeWithTimeout(
+    supabase.functions.invoke("whatsapp-green-connect", { headers, body: payload }),
+    INGEST_TIMEOUT_MS,
+  );
+  if (!connect.error && parseIngestPayload(connect.data)) {
+    return;
+  }
+
+  const dedicated = await invokeWithTimeout(
     supabase.functions.invoke("ingest-voice", {
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers,
       body: {
         audioBase64,
         mimeType,
-        fileName: `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`,
+        fileName,
         durationSeconds,
       },
     }),
     INGEST_TIMEOUT_MS,
   );
-  if (error) {
-    throw new Error(error.message || "תמלול ההקלטה נכשל");
+  if (dedicated.error) {
+    throw new Error(dedicated.error.message || "תמלול ההקלטה נכשל");
   }
-  if (data && typeof data === "object" && "error" in data) {
-    throw new Error(String((data as { error: string }).error));
-  }
-  const title =
-    data && typeof data === "object" && typeof (data as { title?: unknown }).title === "string"
-      ? (data as { title: string }).title.trim()
-      : "";
-  if (!title) {
+  if (!parseIngestPayload(dedicated.data)) {
     throw new Error("transcription_empty");
   }
+}
+
+function parseIngestPayload(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const record = data as Record<string, unknown>;
+  if ("stateInstance" in record || "qrBase64" in record) return false;
+  if (typeof record.error === "string" && record.error.length > 0) {
+    throw new Error(record.error);
+  }
+  const title = typeof record.title === "string" ? record.title.trim() : "";
+  return title.length > 0;
 }
 
 async function ingestVoiceViaExpress(
