@@ -33,14 +33,13 @@ async function ingestVoiceViaExpress(
 }
 
 /**
- * Transcribe in the browser. Do not POST recordings to Edge Functions:
- * ingest-voice is not deployed, and a large body to whatsapp-green-connect
- * surfaces "Failed to send a request to the Edge Function".
+ * Transcribe via Edge `ingest-voice` (Groq whisper-large-v3-turbo, ~0.5–3s).
+ * Hugging Face Gradio is a last-resort fallback inside persistRecordedVoiceTranscript.
  */
 export async function ingestVoiceBlobForUser(
   _legacyUserId: string,
   blob: Blob,
-  options?: { durationSeconds?: number; mimeType?: string },
+  options?: { durationSeconds?: number; mimeType?: string; hintTranscript?: string },
 ): Promise<void> {
   if (isDemoMode) {
     throw new Error("הקלטה אינה זמינה במצב הדגמה בדפדפן");
@@ -59,6 +58,7 @@ export async function ingestVoiceBlobForUser(
         mimeType,
         fileName,
         durationSeconds: options?.durationSeconds,
+        hintTranscript: options?.hintTranscript,
       });
       return;
     } catch (error) {

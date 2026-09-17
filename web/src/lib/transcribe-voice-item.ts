@@ -12,6 +12,14 @@ import {
 } from "./parse-incoming-message";
 import { parseWhatsAppVoiceQuestion } from "../../../convex/lib/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
+import {
+  blobToBase64,
+  canSendAudioToEdge,
+  EDGE_INGEST_TIMEOUT_MS,
+  EDGE_TRANSCRIBE_TIMEOUT_MS,
+  isUsableLiveTranscript,
+  parseEdgeVoicePayload,
+} from "./fast-voice-asr";
 
 export interface TranscribeVoiceItemResult {
   ok: boolean;
@@ -33,21 +41,7 @@ function parseTranscribePayload(
   data: unknown,
   itemId: string,
 ): TranscribeVoiceItemResult | null {
-  if (!data || typeof data !== "object") return null;
-  const record = data as Record<string, unknown>;
-  if ("stateInstance" in record || "qrBase64" in record) return null;
-  if (typeof record.error === "string" && record.error.length > 0) {
-    throw new Error(record.error);
-  }
-  const title = typeof record.title === "string" ? record.title.trim() : "";
-  if (!title) return null;
-  return {
-    ok: true,
-    itemId: typeof record.itemId === "string" ? record.itemId : itemId,
-    title,
-    content: typeof record.content === "string" ? record.content : "",
-    alreadyTranscribed: record.alreadyTranscribed === true,
-  };
+  return parseEdgeVoicePayload(data, itemId);
 }
 
 async function invokeWithTimeout<T>(
@@ -65,6 +59,39 @@ async function invokeWithTimeout<T>(
   } finally {
     if (timer) clearTimeout(timer);
   }
+}
+
+async function invokeEdgeJson(
+  functionName: string,
+  body: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<unknown> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+  const accessToken = await currentAccessToken();
+  if (!accessToken) throw new Error("Not authenticated");
+  if (!supabaseUrl) throw new Error("Supabase is not configured");
+
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/${functionName}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: anonKey || accessToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const record = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+    const reason =
+      (typeof record?.reason === "string" && record.reason) ||
+      (typeof record?.error === "string" && record.error) ||
+      `edge_http_${response.status}`;
+    throw new Error(reason);
+  }
+  return data;
 }
 
 function firstSource(item: VoiceRepairItem): SourceMaterial | null {
@@ -260,15 +287,20 @@ async function transcribeViaPublicAsr(
 export async function invokeTranscribeVoiceItem(
   item: VoiceRepairItem | string,
 ): Promise<TranscribeVoiceItemResult> {
-  if (typeof item !== "string") {
-    try {
-      return await transcribeViaPublicAsr(item);
-    } catch {
-      // Fall through to a small Edge probe in case functions were deployed.
-    }
+  const itemId = typeof item === "string" ? item : item.id;
+
+  try {
+    const data = await invokeEdgeJson(
+      "transcribe-voice-item",
+      { itemId },
+      EDGE_TRANSCRIBE_TIMEOUT_MS,
+    );
+    const parsed = parseTranscribePayload(data, itemId);
+    if (parsed) return parsed;
+  } catch {
+    // Older deploys may only expose transcribeItem on connect.
   }
 
-  const itemId = typeof item === "string" ? item : item.id;
   const supabase = requireSupabase();
   const accessToken = await currentAccessToken();
   if (!accessToken) {
@@ -282,14 +314,14 @@ export async function invokeTranscribeVoiceItem(
         headers,
         body: { action: "transcribeItem", itemId },
       }),
-      8_000,
+      12_000,
     );
     if (!connect.error) {
       const parsed = parseTranscribePayload(connect.data, itemId);
       if (parsed) return parsed;
     }
   } catch {
-    // Live connect is the old QR-only function.
+    // Live connect may still be the old QR-only function.
   }
 
   if (typeof item !== "string") {
@@ -298,15 +330,16 @@ export async function invokeTranscribeVoiceItem(
   throw new Error("תמלול ההודעה הקולית נכשל");
 }
 
-export async function persistRecordedVoiceTranscript(params: {
-  blob: Blob;
-  mimeType: string;
-  fileName: string;
-  durationSeconds?: number;
-}): Promise<TranscribeVoiceItemResult> {
-  const userId = await currentUserId();
-  if (!userId) throw new Error("Not authenticated");
-  const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
+async function persistClientRecording(
+  userId: string,
+  transcribed: {
+    title: string;
+    rawText: string;
+    correctedText: string;
+    engine: string;
+  },
+  durationSeconds?: number,
+): Promise<TranscribeVoiceItemResult> {
   if (await tryReplyRecordedQuestion({ transcript: transcribed.correctedText })) {
     return {
       ok: true,
@@ -325,7 +358,7 @@ export async function persistRecordedVoiceTranscript(params: {
         whisper_transcription: transcribed.rawText,
         corrected_transcription: transcribed.correctedText,
         asr_engine: transcribed.engine,
-        duration_seconds: params.durationSeconds ?? null,
+        duration_seconds: durationSeconds ?? null,
       })
     : null;
   const now = Date.now();
@@ -338,7 +371,7 @@ export async function persistRecordedVoiceTranscript(params: {
       storage_url: null,
       metadata: {
         channel: "app",
-        duration_seconds: params.durationSeconds ?? null,
+        duration_seconds: durationSeconds ?? null,
         whisper_transcription: transcribed.rawText,
         corrected_transcription: transcribed.correctedText,
         asr_engine: transcribed.engine,
@@ -365,7 +398,7 @@ export async function persistRecordedVoiceTranscript(params: {
         whisper_transcription: transcribed.rawText,
         corrected_transcription: transcribed.correctedText,
         asr_engine: transcribed.engine,
-        duration_seconds: params.durationSeconds ?? null,
+        duration_seconds: durationSeconds ?? null,
       },
       sort_order: now,
       last_interacted_at: new Date(now).toISOString(),
@@ -381,4 +414,62 @@ export async function persistRecordedVoiceTranscript(params: {
     title: fields?.title ?? transcribed.title,
     content: fields?.content ?? transcribed.correctedText,
   };
+}
+
+export async function persistRecordedVoiceTranscript(params: {
+  blob: Blob;
+  mimeType: string;
+  fileName: string;
+  durationSeconds?: number;
+  hintTranscript?: string;
+}): Promise<TranscribeVoiceItemResult> {
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+
+  if (canSendAudioToEdge(params.blob.size)) {
+    try {
+      const audioBase64 = await blobToBase64(params.blob);
+      const data = await invokeEdgeJson(
+        "ingest-voice",
+        {
+          audioBase64,
+          mimeType: params.mimeType,
+          fileName: params.fileName,
+          durationSeconds: params.durationSeconds,
+          promptHint: params.hintTranscript?.trim() || undefined,
+        },
+        EDGE_INGEST_TIMEOUT_MS,
+      );
+      const parsed = parseTranscribePayload(data, "");
+      if (parsed) return parsed;
+    } catch {
+      // Groq Edge unavailable — use live caption or Gradio.
+    }
+  }
+
+  if (isUsableLiveTranscript(params.hintTranscript)) {
+    const hint = params.hintTranscript!.replace(/\s+/g, " ").trim();
+    return persistClientRecording(
+      userId,
+      {
+        title: titleFromInboundText(hint),
+        rawText: hint,
+        correctedText: hint,
+        engine: "web-speech",
+      },
+      params.durationSeconds,
+    );
+  }
+
+  const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
+  return persistClientRecording(
+    userId,
+    {
+      title: transcribed.title,
+      rawText: transcribed.rawText,
+      correctedText: transcribed.correctedText,
+      engine: transcribed.engine,
+    },
+    params.durationSeconds,
+  );
 }

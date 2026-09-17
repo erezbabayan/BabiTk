@@ -13,10 +13,11 @@
 import { titleFromInboundText } from "./voice-text.ts";
 import {
   applyHebrewAsrSpellingFixes,
+  composeHebrewWhisperPrompt,
   HEBREW_ASR_WHISPER_PROMPT,
 } from "./hebrew-asr-proofread.ts";
 
-export { applyHebrewAsrSpellingFixes, HEBREW_ASR_WHISPER_PROMPT };
+export { applyHebrewAsrSpellingFixes, composeHebrewWhisperPrompt, HEBREW_ASR_WHISPER_PROMPT };
 
 export const inboundHebrewProofreadPrompt = `אתה עורך לשוני לעברית מודרנית. תקן את הטקסט כך שיהיה כתוב נכון, ברור וקריא — בלי לשנות את כוונת הכותב.
 
@@ -170,12 +171,13 @@ async function transcribeWithOpenAiCompatible(
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
+  prompt = HEBREW_ASR_WHISPER_PROMPT,
 ): Promise<string> {
   const form = new FormData();
   form.append("file", new Blob([audio], { type: mimeType }), fileName);
   form.append("model", model);
   form.append("language", "he");
-  form.append("prompt", HEBREW_ASR_WHISPER_PROMPT);
+  form.append("prompt", prompt);
   const response = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -196,11 +198,13 @@ export async function transcribeAudio(
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
+  promptHint?: string,
 ): Promise<{ text: string; engine: VoiceTranscription["engine"] }> {
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   const groqModel = Deno.env.get("GROQ_WHISPER_MODEL")?.trim() || "whisper-large-v3-turbo";
   const openAiModel = Deno.env.get("OPENAI_WHISPER_MODEL")?.trim() || "whisper-1";
+  const prompt = composeHebrewWhisperPrompt(promptHint);
   const prefer = (Deno.env.get("HEBREW_ASR_ENGINE")?.trim().toLowerCase() || "auto") as
     | "runpod"
     | "groq"
@@ -228,6 +232,7 @@ export async function transcribeAudio(
           audio,
           fileName,
           mimeType,
+          prompt,
         );
         return { text, engine: "groq" };
       }
@@ -244,6 +249,7 @@ export async function transcribeAudio(
           audio,
           fileName,
           mimeType,
+          prompt,
         );
         return { text, engine: "openai" };
       }
@@ -265,8 +271,14 @@ export async function transcribeAndProofreadVoice(params: {
   audio: Uint8Array;
   mimeType: string;
   fileName: string;
+  promptHint?: string;
 }): Promise<VoiceTranscription> {
-  const asr = await transcribeAudio(params.audio, params.fileName, params.mimeType);
+  const asr = await transcribeAudio(
+    params.audio,
+    params.fileName,
+    params.mimeType,
+    params.promptHint,
+  );
   const rawText = applyHebrewAsrSpellingFixes(asr.text);
   const correctedText = applyHebrewAsrSpellingFixes(rawText.trim());
   if (!correctedText) {

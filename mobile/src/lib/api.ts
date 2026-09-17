@@ -492,6 +492,47 @@ async function uploadMultipart(path: string, uri: string, mimeType: string, name
   }
 }
 
+async function ingestVoiceViaEdge(params: {
+  token: string;
+  audioBase64: string;
+  mimeType: string;
+  fileName: string;
+  durationSeconds?: number;
+}): Promise<boolean> {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+  if (!supabaseUrl) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 18_000);
+  try {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-voice`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${params.token}`,
+        apikey: anonKey || params.token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        audioBase64: params.audioBase64,
+        mimeType: params.mimeType,
+        fileName: params.fileName,
+        durationSeconds: params.durationSeconds,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) return false;
+    const data = (await response.json().catch(() => null)) as
+      | { ok?: unknown; title?: unknown; answered?: unknown; error?: unknown }
+      | null;
+    if (!data || data.error) return false;
+    return data.ok === true || data.answered === true || typeof data.title === "string";
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function uploadNotebookOcr(
   uri: string,
   mimeType: string,
@@ -516,6 +557,18 @@ export async function uploadVoiceNote(
     if (!token) throw new Error("Not authenticated");
     const { readLocalAudioAsBase64 } = await import("./voice-upload");
     const audio = await readLocalAudioAsBase64(uri);
+    try {
+      const ingested = await ingestVoiceViaEdge({
+        token,
+        audioBase64: audio.base64,
+        mimeType: audio.mimeType,
+        fileName: "recording.m4a",
+        durationSeconds: options?.durationSeconds,
+      });
+      if (ingested) return;
+    } catch {
+      // Fall through to public ASR, then Express.
+    }
     try {
       const { transcribeHebrewAudioBlob } = await import(
         "../../../convex/lib/ingest/hebrewAsrPublicClient"

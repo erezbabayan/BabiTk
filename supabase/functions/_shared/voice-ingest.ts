@@ -530,12 +530,22 @@ export async function ingestRecordedAudio(
     mimeType: string;
     fileName: string;
     durationSeconds?: number;
+    promptHint?: string;
   },
 ): Promise<IngestRecordedAudioResult> {
+  const storagePath = `${userId}/${Date.now()}-${params.fileName}`;
+  const uploadPromise = supabase.storage
+    .from("source-materials")
+    .upload(storagePath, new Blob([params.bytes], { type: params.mimeType }), {
+      contentType: params.mimeType,
+      upsert: false,
+    });
+
   const transcribed = await transcribeAndProofreadVoice({
     audio: params.bytes,
     mimeType: params.mimeType,
     fileName: params.fileName,
+    promptHint: params.promptHint,
   });
   if (isVoicePlaceholderText(transcribed.correctedText)) {
     throw new Error("voice_placeholder_rejected");
@@ -560,14 +570,8 @@ export async function ingestRecordedAudio(
     };
   }
 
-  const storagePath = `${userId}/${Date.now()}-${params.fileName}`;
   let storedPath: string | null = storagePath;
-  const { error: uploadError } = await supabase.storage
-    .from("source-materials")
-    .upload(storagePath, new Blob([params.bytes], { type: params.mimeType }), {
-      contentType: params.mimeType,
-      upsert: false,
-    });
+  const { error: uploadError } = await uploadPromise;
   if (uploadError) {
     console.error("voice storage upload failed", uploadError.message);
     storedPath = null;

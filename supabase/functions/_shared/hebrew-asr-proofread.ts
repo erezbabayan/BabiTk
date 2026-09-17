@@ -22,6 +22,13 @@ export const HEBREW_ASR_WHISPER_PROMPT =
   "זמנים: מחר, מחרתיים, בצהריים, אחה״צ, סופ״ש. " +
   "שמות: רועי, נועם, אורי, גיא, עידו, עידן, מיכל, שירה, יעל, דנה, מאיה, הילה, אסף, ליאור, יונתן, דניאל, תום, רן, ניר, עומר, איתי, אביה, תמר, נועה, אביגיל, יובל, נועה.";
 
+/** Append a live/on-device transcript so Groq Whisper biases toward those words. */
+export function composeHebrewWhisperPrompt(hint?: string): string {
+  const trimmed = hint?.replace(/\s+/g, " ").trim() ?? "";
+  if (!trimmed) return HEBREW_ASR_WHISPER_PROMPT;
+  return `${HEBREW_ASR_WHISPER_PROMPT} ${trimmed.slice(0, 180)}`;
+}
+
 /**
  * Multi-word ASR splits. Longest phrases first.
  * Whisper tokenizes clitics as separate words: "ל קנות", "ב שעה".

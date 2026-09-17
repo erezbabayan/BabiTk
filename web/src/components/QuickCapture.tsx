@@ -6,6 +6,7 @@ import {
   isWebMediaCaptureSupported,
   pickSupportedAudioMimeType,
 } from "../lib/ingest-media";
+import { startLiveHebrewSpeech, type LiveHebrewSpeechHandle } from "../lib/live-hebrew-speech";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { NotebookIcon } from "./NotebookIcons";
 
@@ -30,6 +31,7 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const recordSecondsRef = useRef(0);
   const stoppingRef = useRef(false);
+  const liveSpeechRef = useRef<LiveHebrewSpeechHandle | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const mediaSupported = isWebMediaCaptureSupported();
 
@@ -45,6 +47,8 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
         }
       }
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      liveSpeechRef.current?.stop();
+      liveSpeechRef.current = null;
     };
   }, []);
 
@@ -100,6 +104,11 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
     mediaRecorderRef.current = recorder;
     recorder.start(250);
 
+    liveSpeechRef.current?.stop();
+    liveSpeechRef.current = startLiveHebrewSpeech((caption) => {
+      if (caption) setText(caption);
+    });
+
     recordSecondsRef.current = 0;
     setRecordSeconds(0);
     setIsRecording(true);
@@ -122,6 +131,8 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
     const elapsedSeconds = recordSecondsRef.current;
     mediaRecorderRef.current = null;
     setIsRecording(false);
+    const hintTranscript = liveSpeechRef.current?.stop() ?? "";
+    liveSpeechRef.current = null;
 
     let blob: Blob | null = null;
     if (recorder) {
@@ -160,7 +171,9 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
       await ingestVoiceBlobForUser(userId, blob, {
         mimeType: blob.type || "audio/webm",
         durationSeconds: Math.max(1, elapsedSeconds || 1),
+        hintTranscript,
       });
+      setText("");
       onCaptured?.();
     } catch (err) {
       setError(formatIngestError(err));
@@ -183,6 +196,8 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
       clearRecordTimer();
       stopMediaTracks();
       mediaRecorderRef.current = null;
+      liveSpeechRef.current?.stop();
+      liveSpeechRef.current = null;
       setIsRecording(false);
       recordSecondsRef.current = 0;
       setRecordSeconds(0);
@@ -282,13 +297,19 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
 
           <div className="min-w-0 flex-1 text-right">
             <p className="quick-capture-kicker mb-0.5 hidden text-[10px] font-semibold leading-none text-orange-600/90 sm:text-[11px] lg:block">
-              {isRecording ? `מקליט… ${recordLabel}` : "קליטה מהירה"}
+              {isRecording ? `מקליט… ${recordLabel}` : loading ? "מתמלל…" : "קליטה מהירה"}
             </p>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder={isRecording ? "מקליט… לחץ שוב לעצירה" : "הוסף משימה, הערה או רעיון..."}
+              placeholder={
+                isRecording
+                  ? "מקליט… דברו עכשיו"
+                  : loading
+                    ? "מתמלל…"
+                    : "הוסף משימה, הערה או רעיון..."
+              }
               dir="rtl"
               disabled={isRecording}
               className="quick-capture-input w-full !rounded-none !border-0 bg-transparent py-0.5 text-right text-sm leading-snug text-stone-800 shadow-none outline-none disabled:opacity-60 sm:text-base"
@@ -325,7 +346,13 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={isRecording ? "מקליט… לחץ שוב לעצירה" : "הוסף משימה, הערה או רעיון..."}
+          placeholder={
+            isRecording
+              ? "מקליט… דברו עכשיו"
+              : loading
+                ? "מתמלל…"
+                : "הוסף משימה, הערה או רעיון..."
+          }
           dir="rtl"
           disabled={isRecording}
           className="scrapbook-capture-input min-w-0 flex-1 !rounded-none !border-0 bg-transparent py-2 text-right text-base leading-snug shadow-none outline-none disabled:opacity-60 sm:text-lg"
