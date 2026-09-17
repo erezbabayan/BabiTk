@@ -21,6 +21,7 @@ export interface CloudUserProfile {
   notify_overdue_reminders: boolean;
   overdue_first_hours: number;
   overdue_repeat_hours: number;
+  onboarding_completed_at: string | null;
   tier: "free" | "premium";
   allocated_audio_seconds: number;
   used_audio_seconds: number;
@@ -48,6 +49,7 @@ const PROFILE_SELECT = [
   "notify_overdue_reminders",
   "overdue_first_hours",
   "overdue_repeat_hours",
+  "onboarding_completed_at",
   "tier",
   "allocated_audio_seconds",
   "used_audio_seconds",
@@ -94,6 +96,8 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
     notify_overdue_reminders: row.notify_overdue_reminders !== false,
     overdue_first_hours: Number(row.overdue_first_hours ?? 24),
     overdue_repeat_hours: Number(row.overdue_repeat_hours ?? 24),
+    onboarding_completed_at:
+      typeof row.onboarding_completed_at === "string" ? row.onboarding_completed_at : null,
     tier: row.tier === "premium" ? "premium" : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
@@ -218,6 +222,7 @@ export async function updateCloudUserProfile(
       | "notify_overdue_reminders"
       | "overdue_first_hours"
       | "overdue_repeat_hours"
+      | "onboarding_completed_at"
       | "tier"
     >
   >,

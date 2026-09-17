@@ -57,6 +57,7 @@ import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
+import { planMyDayFocus, planMyDayOrder } from "../lib/plan-my-day";
 import { ItemEditModal } from "./ItemEditModal";
 import type { MindtaskerItem } from "../types";
 interface DashboardProps {
@@ -98,6 +99,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     editItem,
     updateTags,
     togglePriority,
+    toggleChecklist,
     placeItem,
     refresh,
   } = useItems(userId, undefined, {
@@ -159,6 +161,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
+  const [planMyDay, setPlanMyDay] = useState(false);
 
   useEffect(() => {
     if (!undoComplete) return;
@@ -225,8 +228,8 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
   );
   const filteredTodayTasks = useMemo(
-    () =>
-      applyBoardDateSort(
+    () => {
+      const filtered = applyBoardDateSort(
         applyBoardItemFilters(
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           boardTag,
@@ -234,7 +237,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           boardDateFilter,
         ),
         todayDateSort,
-      ),
+      );
+      if (!planMyDay) return filtered;
+      return planMyDayOrder(planMyDayFocus(filtered));
+    },
     [
       todayTasks,
       todaySearch.activeQuery,
@@ -243,6 +249,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       boardPriorityOnly,
       boardDateFilter,
       todayDateSort,
+      planMyDay,
     ],
   );
   const filteredTasksArchive = useMemo(
@@ -398,7 +405,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || inboxDateSort,
   );
   const todayReorderDisabled = Boolean(
-    todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || todayDateSort,
+    todaySearch.activeQuery.trim() ||
+      boardTag ||
+      boardPriorityOnly ||
+      boardDateFilter !== "all" ||
+      todayDateSort ||
+      planMyDay,
   );
   const notesReorderDisabled = Boolean(
     notesSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || notesDateSort,
@@ -421,6 +433,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setBoardTag(null);
     setBoardPriorityOnly(false);
     setBoardDateFilter("all");
+    setPlanMyDay(false);
     setInboxDateSort(null);
     setTodayDateSort(null);
     setNotesDateSort(null);
@@ -568,6 +581,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       tagPickerOpen: open,
       tagsOverride: open ? tagDraft : undefined,
       onTogglePriority: () => void togglePriority(item, !isPriorityItem(item)),
+      onToggleChecklist: (checklist) => {
+        void toggleChecklist(item, checklist);
+      },
     };
   }
 
@@ -1048,6 +1064,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               }
               toolbarExtra={
                 <div className="flex shrink-0 flex-wrap items-center gap-1">
+                  {todayListView === "active" ? (
+                    <button
+                      type="button"
+                      onClick={() => setPlanMyDay((value) => !value)}
+                      className={`${boardToolbarButtonClass("blue")} ${
+                        planMyDay ? "border-blue-400 bg-blue-50 font-semibold" : ""
+                      }`}
+                      aria-pressed={planMyDay}
+                      title="סדר את משימות היום: עבר, היום, ואז עדיפות"
+                    >
+                      תכנן לי את היום
+                    </button>
+                  ) : null}
                   {todayListView === "active" && completedTasks.length > 0 ? (
                     <button
                       type="button"

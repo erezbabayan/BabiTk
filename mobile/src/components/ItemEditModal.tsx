@@ -23,6 +23,11 @@ import {
   formatTagLabel,
   readableTextColor,
 } from "../lib/tags";
+import {
+  newChecklistEntry,
+  parseChecklist,
+  type ChecklistEntry,
+} from "../lib/checklist";
 
 interface ItemEditModalProps {
   item: MindtaskerItem | null;
@@ -37,6 +42,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
   const [content, setContent] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [dueParts, setDueParts] = useState<DueDateParts>({ date: "", hour: "09", minute: "00" });
+  const [checklist, setChecklist] = useState<ChecklistEntry[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +56,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
         ? splitDueDate(effectiveTaskDueDate(item))
         : splitDueDate(null),
     );
+    setChecklist(parseChecklist(item.metadata));
     setError(null);
     // Reset form only when opening / switching items — not when tag definitions refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: omit userTags
@@ -90,6 +97,9 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
         content: content.trim(),
         tags: alignItemTagsWithDefinitions(selectedTags, userTags),
         due_date: combineDueDate(dueParts),
+        checklist: checklist
+          .map((entry) => ({ ...entry, text: entry.text.trim() }))
+          .filter((entry) => entry.text.length > 0),
       });
       resetAndClose();
     } catch (err) {
@@ -177,6 +187,45 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
               {selectedTags.length}/{MAX_ITEM_TAGS} תגיות על הפריט
             </Text>
             <DueDateFields value={dueParts} onChange={setDueParts} />
+            <View style={styles.checkHeader}>
+              <Text style={styles.label}>רשימת משימות</Text>
+              <Pressable onPress={() => setChecklist((rows) => [...rows, newChecklistEntry("")])}>
+                <Text style={styles.addCheck}>+ שורה</Text>
+              </Pressable>
+            </View>
+            {checklist.map((entry) => (
+              <View key={entry.id} style={styles.checkRow}>
+                <Pressable
+                  onPress={() =>
+                    setChecklist((rows) =>
+                      rows.map((row) =>
+                        row.id === entry.id ? { ...row, done: !row.done } : row,
+                      ),
+                    )
+                  }
+                >
+                  <Text style={styles.checkMark}>{entry.done ? "☑" : "☐"}</Text>
+                </Pressable>
+                <TextInput
+                  style={[styles.input, styles.checkInput]}
+                  value={entry.text}
+                  onChangeText={(text) =>
+                    setChecklist((rows) =>
+                      rows.map((row) => (row.id === entry.id ? { ...row, text } : row)),
+                    )
+                  }
+                  placeholder="סעיף"
+                  textAlign="right"
+                />
+                <Pressable
+                  onPress={() =>
+                    setChecklist((rows) => rows.filter((row) => row.id !== entry.id))
+                  }
+                >
+                  <Text style={styles.removeCheck}>×</Text>
+                </Pressable>
+              </View>
+            ))}
             {analysis ? (
               <View style={styles.analysisBox}>
                 <View style={styles.analysisHeader}>
@@ -366,4 +415,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontWeight: "700", fontSize: 13 },
+  checkHeader: {
+    marginTop: 8,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  addCheck: { color: "#4f46e5", fontWeight: "700", fontSize: 12 },
+  checkRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  checkMark: { fontSize: 16, color: "#334155" },
+  checkInput: { flex: 1, marginTop: 0, paddingVertical: 6 },
+  removeCheck: { fontSize: 18, color: "#94a3b8", paddingHorizontal: 4 },
 });

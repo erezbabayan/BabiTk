@@ -24,6 +24,7 @@ import {
 } from "../lib/item-restore";
 import type { MindtaskerItem } from "../lib/supabase";
 import type { ItemEditInput } from "./useBoardItems";
+import { withChecklist, type ChecklistEntry } from "../lib/checklist";
 import {
   buildClearReminderPatch,
   buildInferredReminderPatch,
@@ -256,6 +257,9 @@ export function useBoardItemsConvex(
       });
       patch.due_date = reminder.dueDate;
       patch.metadata = reminder.metadata;
+      if (input.checklist) {
+        patch.metadata = withChecklist(patch.metadata, input.checklist);
+      }
       await patchItem(item, patch);
       await syncLocalReminder({ ...item, title: input.title }, reminder.dueDate);
     },
@@ -427,6 +431,11 @@ export function useBoardItemsConvex(
       patchItem(item, { tags, last_interacted_at: new Date().toISOString() }),
     togglePriority: (item: MindtaskerItem, priority: boolean) =>
       patchItem(item, buildPriorityTogglePatch(item, priority)),
+    toggleChecklist: (item: MindtaskerItem, checklist: ChecklistEntry[]) =>
+      patchItem(item, {
+        metadata: withChecklist(item.metadata, checklist),
+        last_interacted_at: new Date().toISOString(),
+      }),
     addCapturedItem: async (_item: MindtaskerItem) => {},
   };
 }

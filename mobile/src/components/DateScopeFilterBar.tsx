@@ -5,6 +5,8 @@ import type { BoardDateFilter } from "../lib/filter-items";
 interface DateScopeFilterBarProps {
   value: BoardDateFilter;
   onChange: (value: BoardDateFilter) => void;
+  planMyDay?: boolean;
+  onPlanMyDayChange?: (active: boolean) => void;
 }
 
 const CHIPS: Array<{
@@ -17,7 +19,12 @@ const CHIPS: Array<{
   { id: "undated", label: "ללא תאריך", accessibilityLabel: "סינון בלי תאריך" },
 ];
 
-export function DateScopeFilterBar({ value, onChange }: DateScopeFilterBarProps) {
+export function DateScopeFilterBar({
+  value,
+  onChange,
+  planMyDay = false,
+  onPlanMyDayChange,
+}: DateScopeFilterBarProps) {
   return (
     <View style={styles.row}>
       {CHIPS.map((chip) => {
@@ -35,6 +42,19 @@ export function DateScopeFilterBar({ value, onChange }: DateScopeFilterBarProps)
           </Pressable>
         );
       })}
+      {onPlanMyDayChange ? (
+        <Pressable
+          style={[styles.chip, planMyDay && styles.chipActive]}
+          onPress={() => onPlanMyDayChange(!planMyDay)}
+          accessibilityRole="button"
+          accessibilityState={{ selected: planMyDay }}
+          accessibilityLabel="תכנן לי את היום"
+        >
+          <Text style={[styles.chipText, planMyDay && styles.chipTextActive]}>
+            תכנן לי את היום
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

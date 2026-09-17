@@ -70,7 +70,8 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
-import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
+import { planMyDayFocus, planMyDayOrder } from "./src/lib/plan-my-day";
+import { parseChecklist, toggleChecklistEntry } from "./src/lib/checklist";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
 import { boardTasksForListSync } from "./src/lib/task-list-items";
@@ -191,6 +192,7 @@ function MainAppInner({
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [priorityOnly, setPriorityOnly] = useState(false);
   const [dateFilter, setDateFilter] = useState<BoardDateFilter>("all");
+  const [planMyDay, setPlanMyDay] = useState(false);
   const [dateSortByTab, setDateSortByTab] = useState<Record<Tab, BoardDateSortDirection>>({
     inbox: "desc",
     today: "asc",
@@ -258,7 +260,11 @@ function MainAppInner({
       priorityOnly,
       dateFilter,
     );
-    return applyBoardDateSort(filtered, dateSortByTab[tab]);
+    const sorted = applyBoardDateSort(filtered, dateSortByTab[tab]);
+    if (tab === "today" && listView === "active" && planMyDay) {
+      return planMyDayOrder(planMyDayFocus(sorted));
+    }
+    return sorted;
   }, [
     rawItems,
     boardSearch.activeQuery,
@@ -268,6 +274,8 @@ function MainAppInner({
     dateFilter,
     dateSortByTab,
     tab,
+    listView,
+    planMyDay,
   ]);
 
   const boardTone = tab === "inbox" ? "slate" : tab === "today" ? "blue" : "orange";
@@ -569,6 +577,14 @@ function MainAppInner({
               ? () => void board.togglePriority(item, !isPriorityItem(item))
               : undefined
           }
+          onToggleChecklist={
+            listView === "active"
+              ? (entryId) => {
+                  const next = toggleChecklistEntry(parseChecklist(item.metadata), entryId);
+                  void board.toggleChecklist(item, next);
+                }
+              : undefined
+          }
         />
       );
 
@@ -805,7 +821,14 @@ function MainAppInner({
         ]}
       >
         <View style={styles.boardFilterRow}>
-          <DateScopeFilterBar value={dateFilter} onChange={setDateFilter} />
+          <DateScopeFilterBar
+            value={dateFilter}
+            onChange={setDateFilter}
+            planMyDay={planMyDay}
+            onPlanMyDayChange={
+              tab === "today" && listView === "active" ? setPlanMyDay : undefined
+            }
+          />
           <PriorityFilterBar active={priorityOnly} onToggle={setPriorityOnly} />
           <TagFilterBar
             tags={filterTags}

@@ -28,6 +28,11 @@ import {
 import { isPriorityItem } from "../lib/item-priority";
 import { PriorityStar } from "./PriorityStar";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
+import {
+  parseChecklist,
+  toggleChecklistEntry,
+  type ChecklistEntry,
+} from "../lib/checklist";
 
 export const ITEM_DRAG_MIME = "application/x-mindtasker-item";
 
@@ -42,6 +47,7 @@ interface ItemCardProps {
   onTagPress?: () => void;
   tagPickerOpen?: boolean;
   onTogglePriority?: () => void;
+  onToggleChecklist?: (checklist: ChecklistEntry[]) => void;
   /** Live tag chips while the wheel picker is open for this item. */
   tagsOverride?: string[];
   compact?: boolean;
@@ -171,6 +177,7 @@ export function ItemCard({
   onTagPress,
   tagPickerOpen = false,
   onTogglePriority,
+  onToggleChecklist,
   tagsOverride,
   compact = true,
   dense = false,
@@ -208,6 +215,8 @@ export function ItemCard({
   const doneStrike = taskListDone || isTaskListStruck(item);
   const strikeClass = doneStrike ? "line-through text-slate-400" : "";
   const priority = isPriorityItem(item);
+  const checklist = parseChecklist(item.metadata);
+  const showChecklist = checklist.length > 0 && !isSquares && !showSource;
   const showBody = Boolean(display.body) && !isSquares && (!dense || itemExpanded);
 
   function toggleSource() {
@@ -409,6 +418,37 @@ export function ItemCard({
                 >
                   {itemExpanded ? "הסתר" : "הרחב"}
                 </button>
+              ) : null}
+
+              {showChecklist ? (
+                <ul className={`${dense ? "mt-0.5" : "mt-1"} space-y-0.5 text-right`}>
+                  {checklist.map((entry) => (
+                    <li key={entry.id}>
+                      <label
+                        className="flex items-start justify-end gap-1.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <span
+                          className={`min-w-0 text-[11px] leading-snug ${
+                            entry.done ? "text-slate-400 line-through" : "text-slate-700"
+                          }`}
+                        >
+                          {entry.text}
+                        </span>
+                        <input
+                          type="checkbox"
+                          {...{ [ITEM_ACTION_ATTR]: "" }}
+                          className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                          checked={entry.done}
+                          disabled={!onToggleChecklist}
+                          onChange={() => {
+                            onToggleChecklist?.(toggleChecklistEntry(checklist, entry.id));
+                          }}
+                        />
+                      </label>
+                    </li>
+                  ))}
+                </ul>
               ) : null}
 
               {!showSource && hasTags && !isSquares ? (

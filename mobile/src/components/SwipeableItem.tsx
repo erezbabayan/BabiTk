@@ -17,6 +17,7 @@ import {
   ITEM_HEADLINE_FONT_SIZE,
 } from "../lib/item-display";
 import { isPriorityItem } from "../lib/item-priority";
+import { parseChecklist, toggleChecklistEntry } from "../lib/checklist";
 import { PriorityStar } from "./PriorityStar";
 import type { SwipeSideAction } from "../lib/item-swipe-actions";
 import type { BoardItemView } from "../lib/board-item-view";
@@ -63,6 +64,7 @@ interface SwipeableItemProps {
   onTagPress?: () => void;
   tagPickerOpen?: boolean;
   onTogglePriority?: () => void;
+  onToggleChecklist?: (id: string) => void;
   showCompleteAction?: boolean;
   showUndoAction?: boolean;
   onUndo?: () => void;
@@ -97,6 +99,7 @@ export function SwipeableItem({
   onTagPress,
   tagPickerOpen = false,
   onTogglePriority,
+  onToggleChecklist,
   showCompleteAction = false,
   showUndoAction = false,
   onUndo = () => {},
@@ -291,6 +294,28 @@ export function SwipeableItem({
                     <Text style={styles.expandBtn}>{itemExpanded ? "הסתר" : "הרחב"}</Text>
                   </TouchableOpacity>
                 ) : null}
+                {!isSquares
+                  ? parseChecklist(item.metadata).map((entry) => (
+                      <TouchableOpacity
+                        key={entry.id}
+                        style={styles.checkRow}
+                        onPress={() => onToggleChecklist?.(entry.id)}
+                        disabled={!onToggleChecklist}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: entry.done }}
+                      >
+                        <Text
+                          style={[
+                            styles.checkText,
+                            entry.done ? styles.checkTextDone : null,
+                          ]}
+                        >
+                          {entry.done ? "☑ " : "☐ "}
+                          {entry.text}
+                        </Text>
+                      </TouchableOpacity>
+                    ))
+                  : null}
               </View>
             ) : null}
 
@@ -536,6 +561,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#94a3b8",
     textAlign: "right",
+  },
+  checkRow: {
+    marginTop: 2,
+    alignSelf: "stretch",
+  },
+  checkText: {
+    textAlign: "right",
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#334155",
+  },
+  checkTextDone: {
+    color: "#94a3b8",
+    textDecorationLine: "line-through",
   },
   scheduleInBody: {
     marginTop: 4,

@@ -17,6 +17,11 @@ import { useUserTags } from "../hooks/useUserTags";
 import { alignItemTagsWithDefinitions } from "../lib/tags";
 import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
 import { recordIngestCorrectionApi } from "../lib/api";
+import {
+  newChecklistEntry,
+  parseChecklist,
+  type ChecklistEntry,
+} from "../lib/checklist";
 
 export interface ItemEditInput {
   title: string;
@@ -24,6 +29,7 @@ export interface ItemEditInput {
   tags: string[];
   due_date: string | null;
   recurrence?: ReminderRecurrence | null;
+  checklist?: ChecklistEntry[];
 }
 
 const FIELD_CLASS =
@@ -86,6 +92,7 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
   const [recurrence, setRecurrence] = useState<ReminderRecurrence | null>(() =>
     getReminderRecurrence(item.metadata),
   );
+  const [checklist, setChecklist] = useState<ChecklistEntry[]>(() => parseChecklist(item.metadata));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -147,6 +154,9 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
         tags: nextTags,
         due_date: dueDate,
         recurrence: dueDate ? recurrence : null,
+        checklist: checklist
+          .map((entry) => ({ ...entry, text: entry.text.trim() }))
+          .filter((entry) => entry.text.length > 0),
       });
       const beforeTags = item.tags ?? [];
       const tagsChanged =
@@ -244,6 +254,62 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
               />
             </div>
             <DueDateFields value={dueParts} onChange={setDueParts} compact={!expanded} />
+            <div>
+              <div className="mb-px flex items-center justify-between">
+                <label className="text-[10px] font-medium text-slate-500">רשימת משימות</label>
+                <button
+                  type="button"
+                  className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
+                  onClick={() => setChecklist((rows) => [...rows, newChecklistEntry("")])}
+                >
+                  + שורה
+                </button>
+              </div>
+              {checklist.length === 0 ? (
+                <p className="text-[10px] text-slate-400">אפשר לפצל את המשימה לשורות סימון</p>
+              ) : (
+                <ul className="space-y-1">
+                  {checklist.map((entry) => (
+                    <li key={entry.id} className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 shrink-0"
+                        checked={entry.done}
+                        onChange={() => {
+                          setChecklist((rows) =>
+                            rows.map((row) =>
+                              row.id === entry.id ? { ...row, done: !row.done } : row,
+                            ),
+                          );
+                        }}
+                      />
+                      <input
+                        type="text"
+                        value={entry.text}
+                        onChange={(event) => {
+                          const text = event.target.value;
+                          setChecklist((rows) =>
+                            rows.map((row) => (row.id === entry.id ? { ...row, text } : row)),
+                          );
+                        }}
+                        className={`${FIELD_CLASS} !py-0.5`}
+                        placeholder="סעיף"
+                      />
+                      <button
+                        type="button"
+                        className="shrink-0 text-[11px] text-slate-400 hover:text-rose-600"
+                        onClick={() =>
+                          setChecklist((rows) => rows.filter((row) => row.id !== entry.id))
+                        }
+                        aria-label="מחק סעיף"
+                      >
+                        ×
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <div className="pt-0.5">
               <ReminderRecurrenceChips
                 value={recurrence}

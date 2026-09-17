@@ -21,6 +21,7 @@ import {
 import { dispatchWhatsAppItemReminder } from "../lib/whatsapp-reminders";
 
 import type { ItemEditInput } from "../components/ItemEditModal";
+import { withChecklist, type ChecklistEntry } from "../lib/checklist";
 
 import {
   applyColumnPatch,
@@ -643,6 +644,9 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       patch.due_date = reminder.dueDate;
 
       patch.metadata = reminder.metadata;
+      if (input.checklist) {
+        patch.metadata = withChecklist(patch.metadata, input.checklist);
+      }
 
 
 
@@ -672,6 +676,16 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     [updateItem],
 
+  );
+
+  const toggleChecklist = useCallback(
+    async (item: MindtaskerItem, checklist: ChecklistEntry[]) => {
+      await updateItem(item.id, {
+        metadata: withChecklist(item.metadata, checklist),
+        last_interacted_at: new Date().toISOString(),
+      });
+    },
+    [updateItem],
   );
 
   const togglePriority = useCallback(
@@ -900,6 +914,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       togglePriority: async () => {},
 
+      toggleChecklist: async () => {},
+
       moveToColumn: async () => {},
 
       placeItem: async () => {},
@@ -957,6 +973,8 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     updateTags,
 
     togglePriority,
+
+    toggleChecklist,
 
     moveToColumn,
 

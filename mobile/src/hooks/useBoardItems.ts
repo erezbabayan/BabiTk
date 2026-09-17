@@ -15,6 +15,7 @@ import {
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
 import { buildPriorityTogglePatch } from "../lib/item-priority";
+import { withChecklist, type ChecklistEntry } from "../lib/checklist";
 import {
   addDemoItem,
   getDemoItemsSnapshot,
@@ -52,6 +53,7 @@ export interface ItemEditInput {
   content: string;
   tags: string[];
   due_date: string | null;
+  checklist?: ChecklistEntry[];
 }
 
 async function fetchAllFromServer(): Promise<MindtaskerItem[]> {
@@ -132,6 +134,7 @@ export function useBoardItems(
       placeItem: useConvexData ? convex.placeItem : legacy.placeItem,
       updateTags: useConvexData ? convex.updateTags : legacy.updateTags,
       togglePriority: useConvexData ? convex.togglePriority : legacy.togglePriority,
+      toggleChecklist: useConvexData ? convex.toggleChecklist : legacy.toggleChecklist,
       addCapturedItem: legacy.addCapturedItem,
       convexUserId,
     };
@@ -348,6 +351,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       placeItem: async () => {},
       updateTags: async () => {},
       togglePriority: async () => {},
+      toggleChecklist: async () => {},
       addCapturedItem: async () => {},
     };
   }
@@ -459,6 +463,9 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       });
       patch.due_date = reminder.dueDate;
       patch.metadata = reminder.metadata;
+      if (input.checklist) {
+        patch.metadata = withChecklist(patch.metadata, input.checklist);
+      }
       return patchItem(item, patch);
     },
     toggleActionable: (item: MindtaskerItem) => {
@@ -545,6 +552,11 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       patchItem(item, { tags, last_interacted_at: new Date().toISOString() }),
     togglePriority: (item: MindtaskerItem, priority: boolean) =>
       patchItem(item, buildPriorityTogglePatch(item, priority)),
+    toggleChecklist: (item: MindtaskerItem, checklist: ChecklistEntry[]) =>
+      patchItem(item, {
+        metadata: withChecklist(item.metadata, checklist),
+        last_interacted_at: new Date().toISOString(),
+      }),
     addCapturedItem: async (item: MindtaskerItem) => {
       if (isDemoMode) {
         const showSync = isSyncEnabled();
