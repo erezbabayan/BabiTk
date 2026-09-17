@@ -56,6 +56,8 @@ import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
 import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
+import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
+import { ItemEditModal } from "./ItemEditModal";
 import type { MindtaskerItem } from "../types";
 interface DashboardProps {
   userId: string;
@@ -156,12 +158,27 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [notesDateSort, setNotesDateSort] = useState<BoardDateSortDirection>(null);
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
+  const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
 
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
     return () => window.clearTimeout(timer);
   }, [undoComplete]);
+
+  useEffect(() => {
+    function onOpenItem(event: Event) {
+      const itemId = itemIdFromOpenEvent(event);
+      if (!itemId) return;
+      const found = boardItemsByIdRef.current.get(itemId);
+      if (!found) return;
+      const column = getItemColumn(found);
+      if (column) setMobileTab(column);
+      setFocusEditItem(found);
+    }
+    window.addEventListener(OPEN_ITEM_EVENT, onOpenItem);
+    return () => window.removeEventListener(OPEN_ITEM_EVENT, onOpenItem);
+  }, []);
 
   const completeWithUndo = useCallback(
     async (item: MindtaskerItem) => {
@@ -359,7 +376,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     [filteredNotes],
   );
   boardItemsByIdRef.current = new Map(
-    [...inbox, ...todayTasks, ...notes].map((item) => [item.id, item]),
+    [...inbox, ...todayTasks, ...notes, ...completedTasks, ...inboxArchive, ...notesArchive].map(
+      (item) => [item.id, item],
+    ),
   );
 
   useEffect(() => {
@@ -1353,6 +1372,16 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         alert={dueReminders.alert}
         onDismiss={() => dueReminders.dismiss()}
         onAcknowledge={() => void dueReminders.acknowledge()}
+        onOpen={() => {
+          const itemId = dueReminders.alert?.itemId;
+          if (!itemId) return;
+          const found = reminderItems.find((entry) => entry.id === itemId);
+          if (found) {
+            const column = getItemColumn(found);
+            if (column) setMobileTab(column);
+            setFocusEditItem(found);
+          }
+        }}
         onComplete={
           dueReminders.alert?.itemId
             ? () => {
@@ -1368,6 +1397,17 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             : undefined
         }
       />
+
+      {focusEditItem ? (
+        <ItemEditModal
+          item={focusEditItem}
+          onClose={() => setFocusEditItem(null)}
+          onSave={async (patch) => {
+            await editItem(focusEditItem, patch);
+            setFocusEditItem(null);
+          }}
+        />
+      ) : null}
 
       {!showTaskLists ? (
         <TagWheelPicker

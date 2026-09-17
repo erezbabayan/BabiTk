@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  listUserNotifications,
+  markNotificationRead,
+  subscribeUserNotifications,
+  wasLocallyPresentedNotification,
+  type UserNotification,
+} from "../lib/user-notifications";
 import {
   playReminderChime,
   showBrowserReminderNotification,
@@ -13,40 +17,19 @@ export type ReminderAlertItem = {
   title: string;
   body: string;
   itemId?: string;
-  taskId?: Id<"tasks">;
-  notebookId?: Id<"notebooks">;
-  listId?: Id<"taskLists">;
 };
 
-type NotificationRow = ReminderAlertItem & {
-  read: boolean;
-};
-
-function toAlertItem(row: {
-  _id: string;
-  title: string;
-  body: string;
-  taskId?: Id<"tasks">;
-  notebookId?: Id<"notebooks">;
-  listId?: Id<"taskLists">;
-}): ReminderAlertItem {
+function toAlertItem(row: UserNotification): ReminderAlertItem {
   return {
-    _id: row._id,
+    _id: row.id,
     title: row.title,
     body: row.body,
-    taskId: row.taskId,
-    notebookId: row.notebookId,
-    listId: row.listId,
+    itemId: row.item_id ?? undefined,
   };
 }
 
 /** Watch for new in-app reminder rows and surface a popup + chime (FIFO queue). */
-export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: boolean) {
-  const rows = useQuery(
-    api.notifications.listMine,
-    enabled && userId ? { userId, limit: 15 } : "skip",
-  ) as NotificationRow[] | undefined;
-  const markRead = useMutation(api.notifications.markRead);
+export function useReminderAlerts(userId: string | null | undefined, enabled: boolean) {
   const [alert, setAlert] = useState<ReminderAlertItem | null>(null);
   const queueRef = useRef<ReminderAlertItem[]>([]);
   const seenIds = useRef(new Set<string>());
@@ -69,6 +52,10 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
   function enqueue(items: ReminderAlertItem[]) {
     for (const item of items) {
       if (seenIds.current.has(item._id)) continue;
+      if (wasLocallyPresentedNotification(item._id)) {
+        seenIds.current.add(item._id);
+        continue;
+      }
       seenIds.current.add(item._id);
       queueRef.current.push(item);
     }
@@ -83,25 +70,43 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
     setAlert(null);
   }, [userId]);
 
-  // Permission is requested from explicit UI (bell / settings), not on mount —
-  // Android Chrome often blocks prompt without a user gesture.
-
   useEffect(() => {
-    if (!rows) return;
+    if (!enabled || !userId) return;
 
-    if (!bootstrapped.current) {
-      // Seed seen with whatever we already have so reconnects don't flood.
-      for (const row of rows) seenIds.current.add(row._id);
-      bootstrapped.current = true;
-      return;
+    let cancelled = false;
+
+    async function loadInitial() {
+      try {
+        const rows = await listUserNotifications(15);
+        if (cancelled) return;
+        for (const row of rows) seenIds.current.add(row.id);
+        bootstrapped.current = true;
+      } catch {
+        bootstrapped.current = true;
+      }
     }
 
-    const fresh = rows
-      .filter((row) => !row.read && !seenIds.current.has(row._id))
-      .map(toAlertItem);
-    if (fresh.length === 0) return;
-    enqueue(fresh);
-  }, [rows]);
+    void loadInitial();
+
+    const unsubscribe = subscribeUserNotifications(userId, () => {
+      void listUserNotifications(15)
+        .then((rows) => {
+          if (cancelled || !bootstrapped.current) return;
+          const fresh = rows
+            .filter((row) => !row.read && !seenIds.current.has(row.id))
+            .map(toAlertItem);
+          if (fresh.length > 0) enqueue(fresh);
+        })
+        .catch(() => {
+          /* ignore polling errors */
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [enabled, userId]);
 
   function dismiss() {
     showingRef.current = false;
@@ -112,7 +117,7 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
   async function acknowledge() {
     if (!alert) return;
     try {
-      await markRead({ notificationId: alert._id as Id<"notifications"> });
+      await markNotificationRead(alert._id);
     } catch (error) {
       console.warn(
         "[reminder-alert] markRead failed:",

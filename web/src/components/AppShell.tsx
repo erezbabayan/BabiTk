@@ -1,22 +1,16 @@
-import { useQuery } from "convex/react";
 import { useState, type ReactNode } from "react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { useConvexUserId } from "../hooks/useConvexUserId";
 import { useReminderAlerts } from "../hooks/useReminderAlerts";
-import { isConvexConfigured } from "../lib/convex";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { CONVEX_RUNTIME } from "../lib/convex-runtime";
+import { useUserNotifications } from "../hooks/useUserNotifications";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
+import { requestOpenItem } from "../lib/user-notifications";
 import type { UserNameParts } from "../lib/user-display-name";
 import { AppHeader } from "./AppHeader";
 import { BoardViewToggle } from "./BoardViewToggle";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { QuickCapture } from "./QuickCapture";
 import { ReminderAlertModal } from "./ReminderAlertModal";
-
-const OFFLINE = !CONVEX_RUNTIME;
 
 interface AppShellProps {
   userName?: UserNameParts | null;
@@ -25,11 +19,7 @@ interface AppShellProps {
   onSettings: () => void;
   onLogout: () => void;
   onCaptured: () => void;
-  onOpenNotificationItem?: (payload: {
-    taskId?: Id<"tasks">;
-    notebookId?: Id<"notebooks">;
-    listId?: Id<"taskLists">;
-  }) => void;
+  onOpenNotificationItem?: (itemId: string) => void;
   beforeMain?: ReactNode;
   children: ReactNode;
 }
@@ -79,11 +69,7 @@ function AppShellChrome({
   );
 }
 
-function AppShellOffline(props: AppShellProps) {
-  return <AppShellChrome {...props} />;
-}
-
-function AppShellOnline({
+function AppShellWithNotifications({
   userName,
   userId,
   onLogoClick,
@@ -95,17 +81,20 @@ function AppShellOnline({
   children,
 }: AppShellProps) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const { convexUserId } = useConvexUserId(userId ?? undefined);
-  const notificationsEnabled =
-    Boolean(convexUserId) && isConvexConfigured && shouldUseConvexAuthLogin();
-  const unread = useQuery(
-    api.notifications.unreadCount,
-    notificationsEnabled && convexUserId ? { userId: convexUserId } : "skip",
-  );
+  const notifications = useUserNotifications(userId, Boolean(userId));
   const reminderAlerts = useReminderAlerts(
-    notificationsEnabled ? convexUserId : undefined,
-    notificationsEnabled,
+    userId,
+    Boolean(userId) && notifications.notifyInApp,
   );
+
+  function openItem(itemId: string | null | undefined) {
+    if (!itemId) return;
+    if (onOpenNotificationItem) {
+      onOpenNotificationItem(itemId);
+      return;
+    }
+    requestOpenItem(itemId);
+  }
 
   function openNotificationsPanel() {
     setNotificationsOpen(true);
@@ -123,7 +112,7 @@ function AppShellOnline({
         onCaptured={onCaptured}
         beforeMain={beforeMain}
         notifications={
-          notificationsEnabled ? (
+          notifications.notifyInApp ? (
             <button
               type="button"
               className="app-header-bell relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-stone-300/80 bg-white/70 text-stone-800 shadow-sm transition hover:bg-stone-100 hover:text-stone-950 lg:w-auto lg:gap-1.5 lg:px-2.5"
@@ -135,9 +124,9 @@ function AppShellOnline({
                 🔔
               </span>
               <span className="hidden text-xs font-semibold lg:inline">התראות</span>
-              {(unread ?? 0) > 0 ? (
+              {notifications.unread > 0 ? (
                 <span className="absolute -top-1 -right-1 inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-4 text-white">
-                  {(unread ?? 0) > 9 ? "9+" : unread}
+                  {notifications.unread > 9 ? "9+" : notifications.unread}
                 </span>
               ) : null}
             </button>
@@ -147,22 +136,33 @@ function AppShellOnline({
         {children}
       </AppShellChrome>
 
-      {notificationsEnabled && convexUserId ? (
+      {userId ? (
         <NotificationsPanel
           open={notificationsOpen}
-          userId={convexUserId}
+          rows={notifications.rows}
           onClose={() => setNotificationsOpen(false)}
-          onOpenItem={onOpenNotificationItem}
+          onMarkRead={(id) => void notifications.markRead(id)}
+          onMarkAllRead={() => void notifications.markAllRead()}
+          onOpenItem={(itemId) => {
+            openItem(itemId);
+            setNotificationsOpen(false);
+          }}
         />
       ) : null}
 
       <ReminderAlertModal
         alert={reminderAlerts.alert}
-        onDismiss={() => void reminderAlerts.dismiss()}
-        onAcknowledge={() => void reminderAlerts.dismiss()}
+        onDismiss={() => reminderAlerts.dismiss()}
+        onAcknowledge={() => void reminderAlerts.acknowledge()}
+        onOpen={() => openItem(reminderAlerts.alert?.itemId)}
       />
     </>
   );
 }
 
-export const AppShell = OFFLINE ? AppShellOffline : AppShellOnline;
+export function AppShell(props: AppShellProps) {
+  if (isSupabaseConfigured && props.userId) {
+    return <AppShellWithNotifications {...props} />;
+  }
+  return <AppShellChrome {...props} />;
+}

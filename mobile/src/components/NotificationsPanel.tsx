@@ -1,18 +1,14 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { UserNotification } from "../lib/user-notifications";
 
 interface NotificationsPanelProps {
   visible: boolean;
-  userId: Id<"users">;
+  rows: UserNotification[] | undefined;
   onClose: () => void;
-  onOpenItem?: (payload: {
-    taskId?: Id<"tasks">;
-    notebookId?: Id<"notebooks">;
-    listId?: Id<"taskLists">;
-  }) => void;
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+  onOpenItem?: (itemId: string | null) => void;
 }
 
 function formatWhen(iso: string): string {
@@ -30,17 +26,12 @@ function formatWhen(iso: string): string {
 
 export function NotificationsPanel({
   visible,
-  userId,
+  rows,
   onClose,
+  onMarkRead,
+  onMarkAllRead,
   onOpenItem,
 }: NotificationsPanelProps) {
-  const rows = useQuery(
-    api.notifications.listMine,
-    visible ? { userId, limit: 40 } : "skip",
-  );
-  const markRead = useMutation(api.notifications.markRead);
-  const markAllRead = useMutation(api.notifications.markAllRead);
-
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -48,11 +39,7 @@ export function NotificationsPanel({
           <View style={styles.header}>
             <Text style={styles.title}>התראות</Text>
             <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => {
-                  void markAllRead({});
-                }}
-              >
+              <Pressable onPress={onMarkAllRead}>
                 <Text style={styles.action}>סמן הכל כנקרא</Text>
               </Pressable>
               <Pressable onPress={onClose}>
@@ -69,21 +56,17 @@ export function NotificationsPanel({
             ) : (
               rows.map((row) => (
                 <Pressable
-                  key={row._id}
+                  key={row.id}
                   style={[styles.row, !row.read && styles.rowUnread]}
                   onPress={() => {
-                    void markRead({ notificationId: row._id });
-                    onOpenItem?.({
-                      taskId: row.taskId,
-                      notebookId: row.notebookId,
-                      listId: row.listId,
-                    });
+                    if (!row.read) onMarkRead(row.id);
+                    onOpenItem?.(row.item_id);
                     onClose();
                   }}
                 >
                   <Text style={styles.rowTitle}>{row.title}</Text>
                   <Text style={styles.rowBody}>{row.body}</Text>
-                  <Text style={styles.rowMeta}>{formatWhen(row.fireAt)}</Text>
+                  <Text style={styles.rowMeta}>{formatWhen(row.fire_at)}</Text>
                 </Pressable>
               ))
             )}

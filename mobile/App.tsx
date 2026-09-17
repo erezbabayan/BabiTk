@@ -47,8 +47,7 @@ import { useBoardSelection } from "./src/hooks/useBoardSelection";
 import { BoardViewToggle } from "./src/components/BoardViewToggle";
 import { useConfirmDialog } from "./src/hooks/useConfirmDialog";
 import { deleteItemConfirmMessage, deleteManyItemsConfirmMessage } from "./src/lib/confirm-copy";
-import { useConvexAuth, useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
+import { useUserNotifications } from "./src/hooks/useUserNotifications";
 import { buildMobileSwipeActions } from "./src/lib/item-swipe-actions";
 import {
   itemsForBulkAction,
@@ -151,23 +150,13 @@ function MainAppInner({
   const demoHybrid = useDemoHybridSync();
   const taskLists = useTaskLists(userId);
   useTagCascadeSync(board.convexUserId);
-  const { isAuthenticated } = useConvexAuth();
-  const notificationsEnabled =
-    shouldUseConvexAuthLogin() && Boolean(board.convexUserId);
-  // Prefer live auth, but still show the bell when we have a Convex user id
-  // (soft queries return [] / 0 until the JWT is ready).
-  const notificationsQueryArgs =
-    notificationsEnabled && board.convexUserId
-      ? { userId: board.convexUserId }
-      : "skip";
-  usePushRegistration(notificationsEnabled && isAuthenticated);
-  useDigestLocalAlerts(notificationsEnabled && isAuthenticated);
-  const unreadNotifications = useQuery(
-    api.notifications.unreadCount,
-    notificationsQueryArgs,
-  );
+  const notificationsEnabled = isSupabaseConfigured && Boolean(userId);
+  const notifications = useUserNotifications(userId, notificationsEnabled);
+  usePushRegistration(notificationsEnabled);
+  useDigestLocalAlerts(notificationsEnabled);
+  const unreadNotifications = notifications.unread;
   const reminderAlerts = useReminderAlerts(
-    notificationsEnabled ? board.convexUserId : undefined,
+    notificationsEnabled ? userId : undefined,
     notificationsEnabled,
   );
 
@@ -949,19 +938,15 @@ function MainAppInner({
         onUsageChanged={() => void refreshUsage()}
       />
 
-      {notificationsEnabled && board.convexUserId ? (
+      {notificationsEnabled ? (
         <NotificationsPanel
           visible={notificationsVisible}
-          userId={board.convexUserId}
+          rows={notifications.rows}
           onClose={() => setNotificationsVisible(false)}
-          onOpenItem={({ taskId, notebookId, listId }) => {
-            if (listId) {
-              setTaskListsMode("existing");
-              setShowTaskLists(true);
-              return;
-            }
-            const targetId = String(taskId ?? notebookId ?? "");
-            if (!targetId) return;
+          onMarkRead={(id) => void notifications.markRead(id)}
+          onMarkAllRead={() => void notifications.markAllRead()}
+          onOpenItem={(itemId) => {
+            if (!itemId) return;
             const pool = [
               ...board.inbox,
               ...board.todayTasks,
@@ -970,7 +955,7 @@ function MainAppInner({
               ...board.inboxArchive,
               ...board.notesArchive,
             ];
-            const found = pool.find((item) => item.id === targetId);
+            const found = pool.find((item) => item.id === itemId);
             if (found) setEditItem(found);
           }}
         />
@@ -984,14 +969,7 @@ function MainAppInner({
         }}
         onOpen={() => {
           const current = reminderAlerts.alert;
-          if (!current) return;
-          if (current.listId) {
-            setTaskListsMode("existing");
-            setShowTaskLists(true);
-            return;
-          }
-          const targetId = String(current.taskId ?? current.notebookId ?? "");
-          if (!targetId) return;
+          if (!current?.itemId) return;
           const pool = [
             ...board.inbox,
             ...board.todayTasks,
@@ -1000,19 +978,21 @@ function MainAppInner({
             ...board.inboxArchive,
             ...board.notesArchive,
           ];
-          const found = pool.find((item) => item.id === targetId);
+          const found = pool.find((item) => item.id === current.itemId);
           if (found) setEditItem(found);
         }}
         onComplete={() => {
           const current = reminderAlerts.alert;
-          if (!current) return;
-          const targetId = String(current.taskId ?? current.notebookId ?? "");
+          if (!current?.itemId) {
+            void reminderAlerts.acknowledge();
+            return;
+          }
           const pool = [
             ...board.inbox,
             ...board.todayTasks,
             ...board.notes,
           ];
-          const found = pool.find((item) => item.id === targetId && item.is_actionable);
+          const found = pool.find((item) => item.id === current.itemId && item.is_actionable);
           if (found) {
             void board.completeTask(found).then(() => reminderAlerts.acknowledge());
             return;

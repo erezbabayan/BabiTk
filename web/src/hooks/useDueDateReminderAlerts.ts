@@ -13,6 +13,10 @@ import {
   playReminderChime,
   showBrowserReminderNotification,
 } from "../lib/reminder-chime";
+import {
+  insertUserNotification,
+  rememberLocallyPresentedNotification,
+} from "../lib/user-notifications";
 
 const POLL_MS = 15_000;
 const MAX_TIMER_MS = 2_147_000_000;
@@ -91,6 +95,17 @@ export function useDueDateReminderAlerts(
         void Promise.resolve(onFiredRef.current?.(item, fireAt)).catch(() => {
           persistedIds.current.delete(id);
         });
+        void insertUserNotification({
+          title: item.title || "תזכורת",
+          body: formatReminderAlertBody(item, fireAt),
+          itemId: item.id,
+        })
+          .then((row) => {
+            if (row?.id) rememberLocallyPresentedNotification(row.id);
+          })
+          .catch(() => {
+            /* Bell history is best-effort when the table is not migrated yet. */
+          });
       }
     }
     if (due.length > 0) enqueue(due);

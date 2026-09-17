@@ -1,35 +1,27 @@
 import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
 import * as Notifications from "expo-notifications";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  listUserNotifications,
+  markNotificationRead,
+  subscribeUserNotifications,
+  type UserNotification,
+} from "../lib/user-notifications";
 import { presentImmediateReminderAlert } from "../lib/reminder-alert";
 
 export type ReminderAlertItem = {
-  _id: Id<"notifications">;
+  _id: string;
   title: string;
   body: string;
-  taskId?: Id<"tasks">;
-  notebookId?: Id<"notebooks">;
-  listId?: Id<"taskLists">;
+  itemId?: string;
 };
 
-function toAlertItem(row: {
-  _id: Id<"notifications">;
-  title: string;
-  body: string;
-  taskId?: Id<"tasks">;
-  notebookId?: Id<"notebooks">;
-  listId?: Id<"taskLists">;
-}): ReminderAlertItem {
+function toAlertItem(row: UserNotification): ReminderAlertItem {
   return {
-    _id: row._id,
+    _id: row.id,
     title: row.title,
     body: row.body,
-    taskId: row.taskId,
-    notebookId: row.notebookId,
-    listId: row.listId,
+    itemId: row.item_id ?? undefined,
   };
 }
 
@@ -44,13 +36,8 @@ function pruneSeenIds(seen: Set<string>, max = 200) {
   }
 }
 
-/** Watch for new Convex reminder rows and present OS sound + in-app dialog (FIFO queue). */
-export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: boolean) {
-  const rows = useQuery(
-    api.notifications.listMine,
-    enabled && userId ? { userId, limit: 15 } : "skip",
-  );
-  const markRead = useMutation(api.notifications.markRead);
+/** Watch for new reminder rows and present OS sound + in-app dialog (FIFO queue). */
+export function useReminderAlerts(userId: string | undefined, enabled: boolean) {
   const [alert, setAlert] = useState<ReminderAlertItem | null>(null);
   const queueRef = useRef<ReminderAlertItem[]>([]);
   const seenIds = useRef(new Set<string>());
@@ -66,17 +53,13 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
     }
     showingRef.current = true;
     setAlert(next);
-    // Tag so the OS-notification listener does not re-enqueue this same alert
-    // (that would create an endless echo of local-* ids).
     void presentImmediateReminderAlert({
       title: next.title,
       body: next.body,
       data: {
         notificationId: next._id,
         source: "in_app_echo",
-        ...(next.taskId ? { taskId: next.taskId } : {}),
-        ...(next.notebookId ? { notebookId: next.notebookId } : {}),
-        ...(next.listId ? { listId: next.listId } : {}),
+        ...(next.itemId ? { itemId: next.itemId } : {}),
       },
     });
   }
@@ -106,7 +89,6 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
       const data = notification.request.content.data as
         | Record<string, unknown>
         | undefined;
-      // Skip OS notifications we fired ourselves for the in-app modal.
       if (data?.source === "in_app_echo") return;
 
       const notificationId =
@@ -120,20 +102,18 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
         typeof notification.request.content.body === "string"
           ? notification.request.content.body
           : "";
+      const itemId =
+        typeof data?.itemId === "string"
+          ? data.itemId
+          : typeof data?.taskId === "string"
+            ? data.taskId
+            : undefined;
       enqueue([
         {
-          _id: notificationId as Id<"notifications">,
+          _id: notificationId,
           title,
           body,
-          ...(typeof data?.taskId === "string"
-            ? { taskId: data.taskId as Id<"tasks"> }
-            : {}),
-          ...(typeof data?.notebookId === "string"
-            ? { notebookId: data.notebookId as Id<"notebooks"> }
-            : {}),
-          ...(typeof data?.listId === "string"
-            ? { listId: data.listId as Id<"taskLists"> }
-            : {}),
+          itemId,
         },
       ]);
     });
@@ -144,29 +124,51 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
   }, [enabled]);
 
   useEffect(() => {
-    if (!rows) return;
+    if (!enabled || !userId) return;
+    let cancelled = false;
 
-    if (!bootstrapped.current) {
-      bootstrapped.current = true;
-      const recentCutoff = Date.now() - 10 * 60 * 1000;
-      for (const row of rows) {
-        if (row.read || row.createdAt < recentCutoff) {
-          seenIds.current.add(row._id);
+    void listUserNotifications(15)
+      .then((rows) => {
+        if (cancelled) return;
+        bootstrapped.current = true;
+        const recentCutoff = Date.now() - 10 * 60 * 1000;
+        for (const row of rows) {
+          const created = Date.parse(row.created_at);
+          if (row.read || !Number.isFinite(created) || created < recentCutoff) {
+            seenIds.current.add(row.id);
+          }
         }
-      }
-      const recentUnread = rows
-        .filter((row) => !row.read && row.createdAt >= recentCutoff)
-        .map(toAlertItem);
-      enqueue(recentUnread);
-      return;
-    }
+        const recentUnread = rows
+          .filter((row) => {
+            const created = Date.parse(row.created_at);
+            return !row.read && Number.isFinite(created) && created >= recentCutoff;
+          })
+          .map(toAlertItem);
+        enqueue(recentUnread);
+      })
+      .catch(() => {
+        bootstrapped.current = true;
+      });
 
-    const fresh = rows
-      .filter((row) => !row.read && !seenIds.current.has(row._id))
-      .map(toAlertItem);
-    if (fresh.length === 0) return;
-    enqueue(fresh);
-  }, [rows]);
+    const unsubscribe = subscribeUserNotifications(userId, () => {
+      void listUserNotifications(15)
+        .then((rows) => {
+          if (cancelled || !bootstrapped.current) return;
+          const fresh = rows
+            .filter((row) => !row.read && !seenIds.current.has(row.id))
+            .map(toAlertItem);
+          if (fresh.length > 0) enqueue(fresh);
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [enabled, userId]);
 
   function dismiss() {
     showingRef.current = false;
@@ -179,7 +181,7 @@ export function useReminderAlerts(userId: Id<"users"> | undefined, enabled: bool
     const isLocal = String(alert._id).startsWith("local-");
     if (!isLocal) {
       try {
-        await markRead({ notificationId: alert._id });
+        await markNotificationRead(alert._id);
       } catch (error) {
         console.warn(
           "[reminder-alert] markRead failed:",

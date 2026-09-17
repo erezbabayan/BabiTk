@@ -1,29 +1,13 @@
-import { useMutation, useQuery } from "convex/react";
-
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { UserNotification } from "../lib/user-notifications";
 
 interface NotificationsPanelProps {
   open: boolean;
-  userId: Id<"users">;
+  rows: UserNotification[] | undefined;
   onClose: () => void;
-  onOpenItem?: (payload: {
-    taskId?: Id<"tasks">;
-    notebookId?: Id<"notebooks">;
-    listId?: Id<"taskLists">;
-  }) => void;
+  onMarkRead: (id: string) => void;
+  onMarkAllRead: () => void;
+  onOpenItem?: (itemId: string | null) => void;
 }
-
-type NotificationRow = {
-  _id: Id<"notifications">;
-  title: string;
-  body: string;
-  read: boolean;
-  fireAt: string;
-  taskId?: Id<"tasks">;
-  notebookId?: Id<"notebooks">;
-  listId?: Id<"taskLists">;
-};
 
 function formatWhen(iso: string): string {
   try {
@@ -40,17 +24,12 @@ function formatWhen(iso: string): string {
 
 export function NotificationsPanel({
   open,
-  userId,
+  rows,
   onClose,
+  onMarkRead,
+  onMarkAllRead,
   onOpenItem,
 }: NotificationsPanelProps) {
-  const rows = useQuery(
-    api.notifications.listMine,
-    open ? { userId, limit: 40 } : "skip",
-  ) as NotificationRow[] | undefined;
-  const markRead = useMutation(api.notifications.markRead);
-  const markAllRead = useMutation(api.notifications.markAllRead);
-
   if (!open) return null;
 
   return (
@@ -74,9 +53,7 @@ export function NotificationsPanel({
             <button
               type="button"
               className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-              onClick={() => {
-                void markAllRead({});
-              }}
+              onClick={onMarkAllRead}
             >
               סמן הכל כנקרא
             </button>
@@ -98,7 +75,7 @@ export function NotificationsPanel({
           ) : (
             rows.map((row) => (
               <button
-                key={row._id}
+                key={row.id}
                 type="button"
                 className={`w-full rounded-lg border p-3 text-right transition hover:bg-slate-50 ${
                   row.read
@@ -106,19 +83,15 @@ export function NotificationsPanel({
                     : "border-indigo-200 bg-indigo-50"
                 }`}
                 onClick={() => {
-                  void markRead({ notificationId: row._id });
-                  onOpenItem?.({
-                    taskId: row.taskId,
-                    notebookId: row.notebookId,
-                    listId: row.listId,
-                  });
+                  if (!row.read) onMarkRead(row.id);
+                  onOpenItem?.(row.item_id);
                   onClose();
                 }}
               >
                 <p className="text-sm font-semibold text-slate-900">{row.title}</p>
                 <p className="mt-1 text-xs leading-5 text-slate-600">{row.body}</p>
                 <p className="mt-2 text-[11px] text-slate-400" dir="ltr">
-                  {formatWhen(row.fireAt)}
+                  {formatWhen(row.fire_at)}
                 </p>
               </button>
             ))
