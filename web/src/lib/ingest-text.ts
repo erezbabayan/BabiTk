@@ -2,19 +2,9 @@ import { ingestTextApi, clientTimezone } from "./api";
 import { invalidateSyncCache } from "./demo-store";
 import { ingestTextSync } from "./sync-client";
 import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
+import { formatIngestError } from "./ingest-error";
 
-export function formatIngestError(error: unknown): string {
-  if (error instanceof Error) {
-    if (error.message === "Failed to fetch") {
-      return "לא ניתן להתחבר לשרת. נסה שוב או בדוק את החיבור.";
-    }
-    if (/^API error (404|405|501|502|503)$/.test(error.message.trim())) {
-      return "";
-    }
-    return error.message;
-  }
-  return "שגיאה בקליטה";
-}
+export { formatIngestError };
 
 async function ingestViaSupabase(userId: string, text: string): Promise<void> {
   const supabase = requireSupabase();

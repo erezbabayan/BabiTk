@@ -165,6 +165,14 @@ async function transcribeViaPublicAsr(
 export async function invokeTranscribeVoiceItem(
   item: VoiceRepairItem | string,
 ): Promise<TranscribeVoiceItemResult> {
+  if (typeof item !== "string") {
+    try {
+      return await transcribeViaPublicAsr(item);
+    } catch {
+      // Fall through to a small Edge probe in case functions were deployed.
+    }
+  }
+
   const itemId = typeof item === "string" ? item : item.id;
   const supabase = requireSupabase();
   const accessToken = await currentAccessToken();
@@ -179,36 +187,20 @@ export async function invokeTranscribeVoiceItem(
         headers,
         body: { action: "transcribeItem", itemId },
       }),
-      20_000,
+      8_000,
     );
     if (!connect.error) {
       const parsed = parseTranscribePayload(connect.data, itemId);
       if (parsed) return parsed;
     }
   } catch {
-    // Live connect is the old QR-only function — keep going.
+    // Live connect is the old QR-only function.
   }
 
-  try {
-    const dedicated = await invokeWithTimeout(
-      supabase.functions.invoke("transcribe-voice-item", {
-        headers,
-        body: { itemId },
-      }),
-      20_000,
-    );
-    if (!dedicated.error) {
-      const parsed = parseTranscribePayload(dedicated.data, itemId);
-      if (parsed) return parsed;
-    }
-  } catch {
-    // Function is not deployed in production yet.
+  if (typeof item !== "string") {
+    return transcribeViaPublicAsr(item);
   }
-
-  if (typeof item === "string") {
-    throw new Error("תמלול ההודעה הקולית נכשל");
-  }
-  return transcribeViaPublicAsr(item);
+  throw new Error("תמלול ההודעה הקולית נכשל");
 }
 
 export async function persistRecordedVoiceTranscript(params: {

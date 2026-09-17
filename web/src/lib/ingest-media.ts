@@ -1,93 +1,7 @@
 import { clientTimezone, uploadNotebookOcrApi } from "./api";
 import { currentAccessToken } from "./whatsapp-gateway";
-import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
-
-const INGEST_TIMEOUT_MS = 20_000;
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
-
-async function invokeWithTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      work,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("transcription_timeout")), ms);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
-async function ingestVoiceViaEdge(
-  blob: Blob,
-  mimeType: string,
-  durationSeconds?: number,
-): Promise<void> {
-  const supabase = requireSupabase();
-  const accessToken = await currentAccessToken();
-  if (!accessToken) {
-    throw new Error("יש להתחבר כדי לקלוט הקלטה");
-  }
-  const audioBase64 = await blobToBase64(blob);
-  const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
-  const headers = { Authorization: `Bearer ${accessToken}` };
-  const payload = {
-    action: "ingestVoice",
-    audioBase64,
-    mimeType,
-    fileName,
-    durationSeconds,
-  };
-
-  const connect = await invokeWithTimeout(
-    supabase.functions.invoke("whatsapp-green-connect", { headers, body: payload }),
-    INGEST_TIMEOUT_MS,
-  );
-  if (!connect.error && parseIngestPayload(connect.data)) {
-    return;
-  }
-
-  const dedicated = await invokeWithTimeout(
-    supabase.functions.invoke("ingest-voice", {
-      headers,
-      body: {
-        audioBase64,
-        mimeType,
-        fileName,
-        durationSeconds,
-      },
-    }),
-    INGEST_TIMEOUT_MS,
-  );
-  if (dedicated.error) {
-    throw new Error(dedicated.error.message || "תמלול ההקלטה נכשל");
-  }
-  if (!parseIngestPayload(dedicated.data)) {
-    throw new Error("transcription_empty");
-  }
-}
-
-function parseIngestPayload(data: unknown): boolean {
-  if (!data || typeof data !== "object") return false;
-  const record = data as Record<string, unknown>;
-  if ("stateInstance" in record || "qrBase64" in record) return false;
-  if (typeof record.error === "string" && record.error.length > 0) {
-    throw new Error(record.error);
-  }
-  const title = typeof record.title === "string" ? record.title.trim() : "";
-  return title.length > 0;
-}
+import { isDemoMode, isSupabaseConfigured } from "./supabase";
+import { persistRecordedVoiceTranscript } from "./transcribe-voice-item";
 
 async function ingestVoiceViaExpress(
   blob: Blob,
@@ -118,6 +32,11 @@ async function ingestVoiceViaExpress(
   }
 }
 
+/**
+ * Transcribe in the browser. Do not POST recordings to Edge Functions:
+ * ingest-voice is not deployed, and a large body to whatsapp-green-connect
+ * surfaces "Failed to send a request to the Edge Function".
+ */
 export async function ingestVoiceBlobForUser(
   _legacyUserId: string,
   blob: Blob,
@@ -133,27 +52,21 @@ export async function ingestVoiceBlobForUser(
   }
 
   if (isSupabaseConfigured) {
+    const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
     try {
-      await ingestVoiceViaEdge(blob, mimeType, options?.durationSeconds);
+      await persistRecordedVoiceTranscript({
+        blob,
+        mimeType,
+        fileName,
+        durationSeconds: options?.durationSeconds,
+      });
       return;
-    } catch {
-      try {
-        const { persistRecordedVoiceTranscript } = await import("./transcribe-voice-item");
-        const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
-        await persistRecordedVoiceTranscript({
-          blob,
-          mimeType,
-          fileName,
-          durationSeconds: options?.durationSeconds,
-        });
+    } catch (error) {
+      if (import.meta.env.VITE_API_URL?.trim()) {
+        await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
         return;
-      } catch (fallbackError) {
-        if (import.meta.env.VITE_API_URL?.trim()) {
-          await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
-          return;
-        }
-        throw fallbackError;
       }
+      throw error;
     }
   }
 

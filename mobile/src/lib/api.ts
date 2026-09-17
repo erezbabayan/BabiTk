@@ -516,36 +516,6 @@ export async function uploadVoiceNote(
     if (!token) throw new Error("Not authenticated");
     const { readLocalAudioAsBase64 } = await import("./voice-upload");
     const audio = await readLocalAudioAsBase64(uri);
-    const headers = { Authorization: `Bearer ${token}` };
-    const payload = {
-      audioBase64: audio.base64,
-      mimeType: audio.mimeType,
-      fileName: "recording.m4a",
-      durationSeconds: options?.durationSeconds,
-    };
-
-    const ingestTitle = (data: unknown): string => {
-      if (!data || typeof data !== "object") return "";
-      const record = data as Record<string, unknown>;
-      if ("stateInstance" in record || "qrBase64" in record) return "";
-      if (typeof record.error === "string" && record.error.length > 0) {
-        throw new Error(record.error);
-      }
-      return typeof record.title === "string" ? record.title.trim() : "";
-    };
-
-    const connect = await supabase.functions.invoke("whatsapp-green-connect", {
-      headers,
-      body: { action: "ingestVoice", ...payload },
-    });
-    if (!connect.error && ingestTitle(connect.data)) return;
-
-    const { data, error } = await supabase.functions.invoke("ingest-voice", {
-      headers,
-      body: payload,
-    });
-    if (!error && ingestTitle(data)) return;
-
     try {
       const { transcribeHebrewAudioBlob } = await import(
         "../../../convex/lib/ingest/hebrewAsrPublicClient"
@@ -599,7 +569,7 @@ export async function uploadVoiceNote(
       if (!API_BASE) {
         throw fallbackError instanceof Error
           ? fallbackError
-          : new Error(error?.message || "תמלול ההקלטה נכשל");
+          : new Error("תמלול ההקלטה נכשל");
       }
     }
   }
