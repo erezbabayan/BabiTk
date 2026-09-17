@@ -5,7 +5,7 @@ import {
   GITHUB_OIDC_ISSUER,
   GITHUB_OIDC_REPOSITORY,
   isAllowedGitHubOidcClaims,
-} from "../../../supabase/functions/_shared/github-oidc.ts";
+} from "../lib/github-oidc.js";
 
 const valid: Record<string, unknown> = {
   iss: GITHUB_OIDC_ISSUER,
