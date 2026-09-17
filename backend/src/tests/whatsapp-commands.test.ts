@@ -107,6 +107,20 @@ describe("WhatsApp structured menu and queries", () => {
       day: "plan",
       tag: null,
     });
+    assert.deepEqual(parseWhatsAppQuery("מה המשימות שהתאריך שלהם עבר", tags), {
+      type: "query",
+      day: "overdue",
+      tag: null,
+    });
+    assert.deepEqual(
+      parseWhatsAppQuery("שלח לי את המשימות שלי שהתאריך שלהן עבר", tags),
+      { type: "query", day: "overdue", tag: null },
+    );
+    assert.deepEqual(parseWhatsAppQuery("משימות באיחור", tags), {
+      type: "query",
+      day: "overdue",
+      tag: null,
+    });
     assert.equal(parseWhatsAppQuery("לקנות חלב מחר", tags), null);
   });
 
@@ -124,9 +138,17 @@ describe("WhatsApp structured menu and queries", () => {
       tags: ["לימודים"],
       status: "pending",
     };
+    const overdue = {
+      title: "חשבון",
+      due_date: "2026-09-15T09:00:00+03:00",
+      tags: ["בית"],
+      status: "pending",
+    };
     assert.equal(itemMatchesBriefingDay(today, "today", now), true);
     assert.equal(itemMatchesBriefingDay(tomorrow, "today", now), false);
     assert.equal(itemMatchesBriefingDay(tomorrow, "tomorrow", now), true);
+    assert.equal(itemMatchesBriefingDay(overdue, "overdue", now), true);
+    assert.equal(itemMatchesBriefingDay(today, "overdue", now), false);
     assert.equal(itemMatchesQueryTag(today, "עבודה"), true);
     assert.equal(itemMatchesQueryTag(today, "לימודים"), false);
   });

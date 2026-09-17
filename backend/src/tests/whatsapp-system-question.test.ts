@@ -8,6 +8,7 @@ import {
   parseWhatsAppVoiceQuestion,
   type SystemQuestionItem,
 } from "../lib/whatsapp-system-question.js";
+import { parseWhatsAppQuery } from "../lib/whatsapp-query.js";
 import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
 
 const NOW = new Date("2026-09-17T12:00:00+03:00");
@@ -35,6 +36,14 @@ const ITEMS: SystemQuestionItem[] = [
     isActionable: false,
     dueDate: null,
     tags: ["קודים"],
+    status: "pending",
+  },
+  {
+    title: "לשלם חשבון",
+    content: "חשמל שעבר מועד",
+    isActionable: true,
+    dueDate: "2026-09-15T09:00:00+03:00",
+    tags: ["בית"],
     status: "pending",
   },
 ];
@@ -204,6 +213,38 @@ describe("answerWhatsAppSystemQuestion", () => {
     );
     assert.match(reply, /לא מצאתי/);
     assert.match(reply, /בלי בבי/);
+  });
+
+  it("lists overdue tasks for date-passed questions", () => {
+    const reply = answerWhatsAppSystemQuestion(
+      {
+        kind: "question",
+        question: "שלח לי את המשימות שלי שהתאריך שלהן עבר",
+      },
+      ITEMS,
+      NOW,
+    );
+    assert.match(reply, /לשלם חשבון/);
+    assert.match(reply, /באיחור/);
+    assert.doesNotMatch(reply, /לקנות חלב/);
+    assert.doesNotMatch(reply, /לא מצאתי/);
+  });
+});
+
+describe("spoken overdue questions", () => {
+  it("strips בבי then matches the canned overdue briefing", () => {
+    const parsed = parseWhatsAppVoiceQuestion("בבי מה המשימות שהתאריך שלהם עבר");
+    assert.equal(parsed.kind, "question");
+    if (parsed.kind !== "question") return;
+    assert.deepEqual(parseWhatsAppQuery(parsed.question), {
+      type: "query",
+      day: "overdue",
+      tag: null,
+    });
+    assert.deepEqual(
+      parseWhatsAppQuery("שלח לי את המשימות שלי שהתאריך שלהן עבר"),
+      { type: "query", day: "overdue", tag: null },
+    );
   });
 });
 

@@ -23,7 +23,7 @@ import {
   pendingVoiceItem,
   scheduleBackgroundWork,
   transcribeStoredVoiceItem,
-  transcribeVoiceMessage,
+  transcribeVoiceMessageWithRetry,
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
@@ -468,7 +468,7 @@ async function voiceItemFromMessage(
   audioUrl: string | null;
 }> {
   try {
-    const transcribed = await transcribeVoiceMessage(message, gateway, supabase);
+    const transcribed = await transcribeVoiceMessageWithRetry(message, gateway, supabase);
     if (!needsVoiceTranscription(transcribed.title, transcribed.content)) {
       return transcribed;
     }
@@ -625,8 +625,8 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
-      asr: "inline-whisper-v3",
-      qa: "babi-v1",
+      asr: "inline-whisper-v4",
+      qa: "babi-v2",
     });
   }
   if (req.method !== "POST") {
@@ -728,17 +728,20 @@ Deno.serve(async (req) => {
         answered.push({ messageId: message.messageId, userId: user.id });
       } else if (inserted) {
         await rememberLastItemIds(supabase, user.id, [inserted.id]);
-        await sendGreenApiText(
-          gateway,
-          replyChatId(message),
-          buildCaptureConfirmation([{ title: inserted.title }]),
-        );
-        await maybeSendGroupMenu({
-          supabase,
-          user,
-          gateway,
-          chatId: message.chatId,
-        });
+        const pendingVoice = needsVoiceTranscription(inserted.title, inserted.title);
+        if (!pendingVoice) {
+          await sendGreenApiText(
+            gateway,
+            replyChatId(message),
+            buildCaptureConfirmation([{ title: inserted.title }]),
+          );
+          await maybeSendGroupMenu({
+            supabase,
+            user,
+            gateway,
+            chatId: message.chatId,
+          });
+        }
         scheduled.push({
           messageId: message.messageId,
           userId: user.id,
