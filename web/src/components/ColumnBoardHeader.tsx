@@ -9,7 +9,7 @@ export const COLUMN_SEARCH_WIDTH_CLASS = "w-[13rem] min-w-[5.5rem] max-w-full sh
 
 /** Title row height — shared across boards for subgrid alignment. */
 export const BOARD_HEADER_TITLE_ROW_CLASS =
-  "board-notebook-chrome flex min-h-9 shrink-0 items-center justify-start gap-1";
+  "board-notebook-chrome flex min-h-9 shrink-0 items-center justify-between gap-1";
 
 /** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
@@ -55,10 +55,10 @@ export function ColumnBoardHeader({
           >
             {title}
           </h2>
-          {titleTrailing ? (
-            <div className="relative z-[4] shrink-0">{titleTrailing}</div>
-          ) : null}
         </div>
+        {titleTrailing ? (
+          <div className="relative z-[4] shrink-0">{titleTrailing}</div>
+        ) : null}
       </div>
       {hasToolbar ? (
         <div
