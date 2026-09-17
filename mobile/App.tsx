@@ -29,7 +29,6 @@ import { LoginScreen } from "./src/components/LoginScreen";
 import { BoardBrushMark, MindTaskerLogo, type BoardMarkTone } from "./src/components/MindTaskerLogo";
 import { TagFilterBar } from "./src/components/TagFilterBar";
 import { PriorityFilterBar } from "./src/components/PriorityFilterBar";
-import { TodayFilterBar } from "./src/components/TodayFilterBar";
 import { TagWheelPicker } from "./src/components/TagWheelPicker";
 import { TaskListsModal, type TaskListsModalMode } from "./src/components/TaskListsModal";
 import { ListBoardIcon } from "./src/components/ListBoardIcon";
@@ -39,15 +38,23 @@ import { SwipeableItem } from "./src/components/SwipeableItem";
 import { BoardDateSortButton } from "./src/components/BoardDateSortButton";
 import { NotificationsPanel } from "./src/components/NotificationsPanel";
 import { ReminderAlertModal } from "./src/components/ReminderAlertModal";
+import { BoardBulkBar } from "./src/components/BoardBulkBar";
+import { DateScopeFilterBar } from "./src/components/DateScopeFilterBar";
 import { useDigestLocalAlerts } from "./src/hooks/useDigestLocalAlerts";
 import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
+import { useBoardSelection } from "./src/hooks/useBoardSelection";
 import { BoardViewToggle } from "./src/components/BoardViewToggle";
 import { useConfirmDialog } from "./src/hooks/useConfirmDialog";
-import { deleteItemConfirmMessage } from "./src/lib/confirm-copy";
+import { deleteItemConfirmMessage, deleteManyItemsConfirmMessage } from "./src/lib/confirm-copy";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { buildMobileSwipeActions } from "./src/lib/item-swipe-actions";
+import {
+  itemsForBulkAction,
+  type BoardBulkAction,
+  type BoardSelectScope,
+} from "./src/lib/board-bulk-actions";
 import {
   readBoardItemView,
   toggleBoardItemView,
@@ -64,7 +71,7 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
-import { applyBoardItemFilters } from "./src/lib/filter-items";
+import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
 import { boardTasksForListSync } from "./src/lib/task-list-items";
@@ -88,6 +95,14 @@ import { MAX_ITEM_TAGS, alignItemTagsWithDefinitions } from "./src/lib/tags";
 
 type Tab = "inbox" | "today" | "notes";
 type ListView = "active" | "archive" | "completed";
+
+function boardSelectScope(tab: Tab, listView: ListView): BoardSelectScope {
+  if (tab === "inbox") return listView === "archive" ? "inbox-archive" : "inbox-active";
+  if (tab === "notes") return listView === "archive" ? "notes-archive" : "notes-active";
+  if (listView === "archive") return "today-archive";
+  if (listView === "completed") return "today-completed";
+  return "today-active";
+}
 
 function MainApp({
   onSignOut,
@@ -164,6 +179,18 @@ function MainAppInner({
   const [tagDraft, setTagDraft] = useState<string[]>([]);
   const [deletedItem, setDeletedItem] = useState<MindtaskerItem | null>(null);
   const { requestConfirm, confirmDialog } = useConfirmDialog();
+  const {
+    ids: selectedIds,
+    busy: selectBusy,
+    setBusy: setSelectBusy,
+    isSelecting,
+    enter: enterSelect,
+    exit: exitSelect,
+    toggle: toggleSelect,
+    selectAll,
+    clear: clearSelect,
+    isSelected,
+  } = useBoardSelection();
   const inboxSearch = useBoardSearch("inbox");
   const todaySearch = useBoardSearch("today");
   const notesSearch = useBoardSearch("notes");
@@ -174,7 +201,7 @@ function MainAppInner({
   const clearNotesSearch = notesSearch.clear;
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [priorityOnly, setPriorityOnly] = useState(false);
-  const [todayOnly, setTodayOnly] = useState(false);
+  const [dateFilter, setDateFilter] = useState<BoardDateFilter>("all");
   const [dateSortByTab, setDateSortByTab] = useState<Record<Tab, BoardDateSortDirection>>({
     inbox: "desc",
     today: "asc",
@@ -240,7 +267,7 @@ function MainAppInner({
       merged,
       selectedTag,
       priorityOnly,
-      tab === "today" && todayOnly,
+      dateFilter,
     );
     return applyBoardDateSort(filtered, dateSortByTab[tab]);
   }, [
@@ -249,7 +276,7 @@ function MainAppInner({
     boardSearch.semanticHits,
     selectedTag,
     priorityOnly,
-    todayOnly,
+    dateFilter,
     dateSortByTab,
     tab,
   ]);
@@ -266,7 +293,8 @@ function MainAppInner({
     clearTodaySearch();
     clearNotesSearch();
     setListView("active");
-  }, [tab, clearInboxSearch, clearTodaySearch, clearNotesSearch]);
+    exitSelect();
+  }, [tab, clearInboxSearch, clearTodaySearch, clearNotesSearch, exitSelect]);
 
   const clearUndoTimer = useCallback(() => {
     if (undoTimer.current) {
@@ -298,6 +326,42 @@ function MainAppInner({
     },
     [board, requestConfirm, scheduleUndoClear],
   );
+
+  const selectScope = boardSelectScope(tab, listView);
+  const selecting = isSelecting(selectScope);
+
+  async function handleBulkAction(action: BoardBulkAction) {
+    const selected = displayItems.filter((item) => selectedIds.has(item.id));
+    const targets = itemsForBulkAction(selected, action);
+    if (targets.length === 0) return;
+    if (action === "delete") {
+      const ok = await requestConfirm({
+        title: "מחיקה",
+        message: deleteManyItemsConfirmMessage(targets.length),
+        confirmLabel: "מחק",
+        cancelLabel: "ביטול",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+    setSelectBusy(true);
+    try {
+      for (const item of targets) {
+        if (action === "complete") await board.completeTask(item);
+        else if (action === "archive") await board.archiveItem(item);
+        else if (action === "restore") {
+          if (item.status === "completed") await board.restoreCompletedTask(item);
+          else await board.restoreArchiveItem(item);
+        } else if (action === "delete") await board.deleteItem(item);
+        else if (action === "convertToNote" || action === "convertToTask") {
+          await board.toggleActionable(item);
+        } else if (action === "sendToBoard") await board.approveItem(item);
+      }
+      clearSelect();
+    } finally {
+      setSelectBusy(false);
+    }
+  }
 
   const handleUndo = useCallback(async () => {
     if (!deletedItem) return;
@@ -372,12 +436,23 @@ function MainAppInner({
 
     if (listView !== "active") {
       return (
-        <TouchableOpacity
-          style={boardToolbarBtn}
-          onPress={() => setListView("active")}
-        >
-          <Text style={textStyle}>חזור</Text>
-        </TouchableOpacity>
+        <View style={styles.tabHeaderActionsRow}>
+          <TouchableOpacity
+            style={boardToolbarBtn}
+            onPress={() => {
+              exitSelect();
+              setListView("active");
+            }}
+          >
+            <Text style={textStyle}>חזור</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={boardToolbarBtn}
+            onPress={() => (selecting ? exitSelect() : enterSelect(selectScope))}
+          >
+            <Text style={textStyle}>{selecting ? "סיום" : "בחר"}</Text>
+          </TouchableOpacity>
+        </View>
       );
     }
 
@@ -386,16 +461,28 @@ function MainAppInner({
         {tab === "today" && completedCount > 0 ? (
           <TouchableOpacity
             style={boardToolbarBtn}
-            onPress={() => setListView("completed")}
+            onPress={() => {
+              exitSelect();
+              setListView("completed");
+            }}
           >
             <Text style={textStyle}>הושלמו ({completedCount})</Text>
           </TouchableOpacity>
         ) : null}
         <TouchableOpacity
           style={boardToolbarBtn}
-          onPress={() => setListView("archive")}
+          onPress={() => {
+            exitSelect();
+            setListView("archive");
+          }}
         >
           <Text style={textStyle}>ארכיון ({archiveCount})</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={boardToolbarBtn}
+          onPress={() => (selecting ? exitSelect() : enterSelect(selectScope))}
+        >
+          <Text style={textStyle}>{selecting ? "סיום" : "בחר"}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -451,7 +538,8 @@ function MainAppInner({
     setTagPickerItem(null);
     setTagDraft([]);
     setDeletedItem(null);
-  }, [clearInboxSearch, clearTodaySearch, clearNotesSearch]);
+    exitSelect();
+  }, [clearInboxSearch, clearTodaySearch, clearNotesSearch, exitSelect]);
 
   const isSquaresView = boardItemView === "squares";
 
@@ -475,6 +563,9 @@ function MainAppInner({
           onApprove={() => void board.approveItem(item)}
           onComplete={() => void board.completeTask(item)}
           showCompleteAction={listView === "active" && item.is_actionable}
+          selecting={selecting}
+          selected={selecting && isSelected(item.id)}
+          onToggleSelect={() => toggleSelect(item.id)}
           onSnooze={() => setSnoozeItem(item)}
           onLongPressMove={
             listView === "active" ? () => setMoveItem(item) : undefined
@@ -505,11 +596,14 @@ function MainAppInner({
       boardItemView,
       handleDelete,
       isSquaresView,
+      isSelected,
       listView,
       openTagPicker,
+      selecting,
       tab,
       tagDraft,
       tagPickerItem?.id,
+      toggleSelect,
       userTags,
     ],
   );
@@ -521,8 +615,10 @@ function MainAppInner({
       tagPickerId: tagPickerItem?.id ?? null,
       tagDraft,
       userTagCount: userTags.length,
+      selecting,
+      selectedCount: selectedIds.size,
     }),
-    [boardItemView, listView, tagDraft, tagPickerItem?.id, userTags.length],
+    [boardItemView, listView, tagDraft, tagPickerItem?.id, userTags.length, selecting, selectedIds.size],
   );
 
   return (
@@ -720,9 +816,7 @@ function MainAppInner({
         ]}
       >
         <View style={styles.boardFilterRow}>
-          {tab === "today" ? (
-            <TodayFilterBar active={todayOnly} onToggle={setTodayOnly} />
-          ) : null}
+          <DateScopeFilterBar value={dateFilter} onChange={setDateFilter} />
           <PriorityFilterBar active={priorityOnly} onToggle={setPriorityOnly} />
           <TagFilterBar
             tags={filterTags}
@@ -731,6 +825,17 @@ function MainAppInner({
             userTags={userTags}
           />
         </View>
+        {selecting ? (
+          <BoardBulkBar
+            items={displayItems.filter((item) => selectedIds.has(item.id))}
+            total={displayItems.length}
+            busy={selectBusy}
+            onSelectAll={() => selectAll(displayItems.map((item) => item.id))}
+            onClear={clearSelect}
+            onExit={exitSelect}
+            onAction={(action) => void handleBulkAction(action)}
+          />
+        ) : null}
       </View>
 
       <FlatList
@@ -758,7 +863,12 @@ function MainAppInner({
         }
         ListEmptyComponent={
           <Text style={styles.empty}>
-            {boardSearch.activeQuery.trim() || selectedTag || priorityOnly || todayOnly
+            {boardFiltersActive({
+              query: boardSearch.activeQuery,
+              tag: selectedTag,
+              priorityOnly,
+              dateFilter,
+            })
               ? "אין תוצאות לסינון"
               : emptyListMessage(tab, listView)}
           </Text>
@@ -892,6 +1002,22 @@ function MainAppInner({
           ];
           const found = pool.find((item) => item.id === targetId);
           if (found) setEditItem(found);
+        }}
+        onComplete={() => {
+          const current = reminderAlerts.alert;
+          if (!current) return;
+          const targetId = String(current.taskId ?? current.notebookId ?? "");
+          const pool = [
+            ...board.inbox,
+            ...board.todayTasks,
+            ...board.notes,
+          ];
+          const found = pool.find((item) => item.id === targetId && item.is_actionable);
+          if (found) {
+            void board.completeTask(found).then(() => reminderAlerts.acknowledge());
+            return;
+          }
+          void reminderAlerts.acknowledge();
         }}
       />
 
@@ -1300,6 +1426,7 @@ const styles = StyleSheet.create({
   boardFilterRow: {
     flexDirection: "row-reverse",
     alignItems: "flex-start",
+    flexWrap: "wrap",
     gap: 8,
   },
   boardChromeSlate: {

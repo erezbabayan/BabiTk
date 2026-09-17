@@ -10,20 +10,29 @@ import { ItemCard, ITEM_DRAG_MIME } from "./ItemCard";
 import { SwipeableItemCard } from "./SwipeableItemCard";
 import { TagFilter } from "./TagFilter";
 import { PriorityFilter } from "./PriorityFilter";
-import { TodayFilter } from "./TodayFilter";
+import { DateScopeFilter } from "./DateScopeFilter";
 import { TagWheelPicker } from "./TagWheelPicker";
 import { TaskListsModal, type TaskListsModalMode } from "./TaskListsModal";
 import { ListBoardIcon } from "./ListBoardIcon";
 import { ReminderPicker } from "./ReminderPicker";
 import { ReminderAlertModal } from "./ReminderAlertModal";
+import { BoardBulkBar } from "./BoardBulkBar";
 import { NotebookBoardSection } from "./NotebookBoardSection";
 import { useItems } from "../hooks/useItems";
 import { useDueDateReminderAlerts } from "../hooks/useDueDateReminderAlerts";
+import { useBoardSelection } from "../hooks/useBoardSelection";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useTaskLists } from "../hooks/useTaskLists";
 import { useUserTags } from "../hooks/useUserTags";
-import { deleteItemConfirmMessage } from "../lib/confirm-copy";
-import { applyBoardItemFilters } from "../lib/filter-items";
+import {
+  deleteItemConfirmMessage,
+  deleteManyItemsConfirmMessage,
+} from "../lib/confirm-copy";
+import {
+  applyBoardItemFilters,
+  boardFiltersActive,
+  type BoardDateFilter,
+} from "../lib/filter-items";
 import { isPriorityItem } from "../lib/item-priority";
 import { mergeSearchResults } from "../lib/unified-search";
 import { undoTaskListItem } from "../lib/task-list-actions";
@@ -33,7 +42,12 @@ import { useTagCascadeSync } from "../hooks/useTagCascadeSync";
 import { boardTasksForListSync } from "../lib/task-list-items";
 import { boardSwipeActions, inboxSendToBoardLabel, inboxSwipeActions } from "../lib/item-swipe-actions";
 import { applyBoardDateSort, type BoardDateSortDirection } from "../lib/board-date-sort";
-import { boardToolbarButtonClass } from "../lib/board-toolbar";
+import {
+  itemsForBulkAction,
+  type BoardBulkAction,
+  type BoardSelectScope,
+} from "../lib/board-bulk-actions";
+import { boardToolbarButtonClass, type BoardToolbarTone } from "../lib/board-toolbar";
 import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-labels";
 import { BoardDateSortButton } from "./BoardDateSortButton";
 import { BoardMobileTabs } from "./BoardMobileTabs";
@@ -93,6 +107,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const taskLists = useTaskLists(userId);
   useTagCascadeSync(convexUserId);
   const { requestConfirm, confirmDialog } = useConfirmDialog();
+  const {
+    ids: selectedIds,
+    scope: selectScope,
+    busy: selectBusy,
+    setBusy: setSelectBusy,
+    isSelecting,
+    enter: enterSelect,
+    exit: exitSelect,
+    toggle: toggleSelect,
+    selectAll,
+    clear: clearSelect,
+    isSelected,
+  } = useBoardSelection();
 
   const reminderItems = useMemo(
     () => [...inbox, ...todayTasks, ...notes],
@@ -105,6 +132,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   );
 
   useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") exitSelect();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [exitSelect]);
+
+  useEffect(() => {
     if (refreshTick > 0) void refresh();
   }, [refreshTick, refresh]);
 
@@ -112,7 +147,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [mobileTab, setMobileTab] = useState<BoardTab>("inbox");
   const [boardTag, setBoardTag] = useState<string | null>(null);
   const [boardPriorityOnly, setBoardPriorityOnly] = useState(false);
-  const [boardTodayOnly, setBoardTodayOnly] = useState(false);
+  const [boardDateFilter, setBoardDateFilter] = useState<BoardDateFilter>("all");
   const inboxSearch = useBoardSearch("inbox");
   const todaySearch = useBoardSearch("today");
   const notesSearch = useBoardSearch("notes");
@@ -138,10 +173,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inbox, inboxSearch.activeQuery, inboxSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         inboxDateSort,
       ),
-    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, inboxDateSort],
+    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
   );
   const filteredInboxArchive = useMemo(
     () =>
@@ -150,10 +186,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         inboxDateSort,
       ),
-    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, inboxDateSort],
+    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, inboxDateSort],
   );
   const filteredTodayTasks = useMemo(
     () =>
@@ -162,7 +199,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           boardTag,
           boardPriorityOnly,
-          boardTodayOnly,
+          boardDateFilter,
         ),
         todayDateSort,
       ),
@@ -172,7 +209,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       boardTag,
       boardPriorityOnly,
-      boardTodayOnly,
+      boardDateFilter,
       todayDateSort,
     ],
   );
@@ -183,7 +220,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
           boardTag,
           boardPriorityOnly,
-          boardTodayOnly,
+          boardDateFilter,
         ),
         todayDateSort,
       ),
@@ -193,7 +230,28 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       boardTag,
       boardPriorityOnly,
-      boardTodayOnly,
+      boardDateFilter,
+      todayDateSort,
+    ],
+  );
+  const filteredCompletedTasks = useMemo(
+    () =>
+      applyBoardDateSort(
+        applyBoardItemFilters(
+          mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
+          boardTag,
+          boardPriorityOnly,
+          boardDateFilter,
+        ),
+        todayDateSort,
+      ),
+    [
+      completedTasks,
+      todaySearch.activeQuery,
+      todaySearch.semanticHits,
+      boardTag,
+      boardPriorityOnly,
+      boardDateFilter,
       todayDateSort,
     ],
   );
@@ -204,10 +262,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notes, notesSearch.activeQuery, notesSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         notesDateSort,
       ),
-    [notes, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, notesDateSort],
+    [notes, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
   );
   const filteredNotesArchive = useMemo(
     () =>
@@ -216,20 +275,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notesArchive, notesSearch.activeQuery, notesSearch.semanticHits),
           boardTag,
           boardPriorityOnly,
+          boardDateFilter,
         ),
         notesDateSort,
       ),
-    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, notesDateSort],
+    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, boardTag, boardPriorityOnly, boardDateFilter, notesDateSort],
   );
 
   const filterTags = useBoardFilterTags();
 
-  function renderBoardFilters(options?: { showToday?: boolean }) {
+  function renderBoardFilters() {
     return (
-      <div className="board-notebook-chrome flex gap-2">
-        {options?.showToday ? (
-          <TodayFilter active={boardTodayOnly} onToggle={setBoardTodayOnly} />
-        ) : null}
+      <div className="board-notebook-chrome flex flex-wrap items-center gap-2">
+        <DateScopeFilter value={boardDateFilter} onChange={setBoardDateFilter} />
         <PriorityFilter active={boardPriorityOnly} onToggle={setBoardPriorityOnly} />
         <div className="min-w-0 flex-1">
           <TagFilter
@@ -241,6 +299,15 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         </div>
       </div>
     );
+  }
+
+  function boardListFiltered(query: string) {
+    return boardFiltersActive({
+      query,
+      tag: boardTag,
+      priorityOnly: boardPriorityOnly,
+      dateFilter: boardDateFilter,
+    });
   }
 
   useEffect(() => {
@@ -294,13 +361,13 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   }
 
   const inboxReorderDisabled = Boolean(
-    inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || inboxDateSort,
+    inboxSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || inboxDateSort,
   );
   const todayReorderDisabled = Boolean(
-    todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || todayDateSort,
+    todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || todayDateSort,
   );
   const notesReorderDisabled = Boolean(
-    notesSearch.activeQuery.trim() || boardTag || boardPriorityOnly || notesDateSort,
+    notesSearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardDateFilter !== "all" || notesDateSort,
   );
 
   function clearDragState() {
@@ -319,7 +386,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setMobileTab("inbox");
     setBoardTag(null);
     setBoardPriorityOnly(false);
-    setBoardTodayOnly(false);
+    setBoardDateFilter("all");
     setInboxDateSort(null);
     setTodayDateSort(null);
     setNotesDateSort(null);
@@ -329,9 +396,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setSnoozeItem(null);
     setTagPickerItem(null);
     setTagDraft([]);
+    exitSelect();
     clearDragState();
     scrollAllBoardColumnsToTop();
-  }, [inboxSearch.clear, todaySearch.clear, notesSearch.clear]);
+  }, [inboxSearch.clear, todaySearch.clear, notesSearch.clear, exitSelect]);
 
   useEffect(() => {
     if (homeResetTick < 1) return;
@@ -339,7 +407,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   }, [homeResetTick, resetHomeView]);
 
   function bindDrag(item: MindtaskerItem) {
-    if (!isDesktop) {
+    if (!isDesktop || selectScope) {
       return {
         draggable: false as const,
         isDragging: false,
@@ -469,9 +537,106 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     };
   }
 
+  function bindSelect(scope: BoardSelectScope, item: MindtaskerItem) {
+    const selecting = isSelecting(scope);
+    return {
+      selecting,
+      selected: selecting && isSelected(item.id),
+      onToggleSelect: selecting ? () => toggleSelect(item.id) : undefined,
+    };
+  }
+
+  function selectToggleButton(scope: BoardSelectScope, tone: BoardToolbarTone) {
+    const selecting = isSelecting(scope);
+    return (
+      <button
+        type="button"
+        aria-pressed={selecting}
+        onClick={() => (selecting ? exitSelect() : enterSelect(scope))}
+        className={boardToolbarButtonClass(tone)}
+      >
+        {selecting ? "סיום" : "בחר"}
+      </button>
+    );
+  }
+
+  async function handleBulkAction(
+    list: MindtaskerItem[],
+    action: BoardBulkAction,
+  ) {
+    const selected = list.filter((item) => selectedIds.has(item.id));
+    const targets = itemsForBulkAction(selected, action);
+    if (targets.length === 0) return;
+    if (action === "delete") {
+      const ok = await requestConfirm({
+        title: "מחיקה",
+        message: deleteManyItemsConfirmMessage(targets.length),
+        confirmLabel: "מחק",
+        cancelLabel: "ביטול",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+    setSelectBusy(true);
+    try {
+      for (const item of targets) {
+        try {
+          switch (action) {
+            case "complete":
+              await completeTask(item);
+              break;
+            case "archive":
+              await archiveItem(item);
+              break;
+            case "restore":
+              if (item.status === "completed") await restoreCompletedTask(item);
+              else await restoreArchiveItem(item);
+              break;
+            case "delete":
+              await deleteItem(item);
+              break;
+            case "convertToNote":
+            case "convertToTask":
+              await toggleActionable(item);
+              break;
+            case "sendToBoard":
+              await approveInboxItem(item);
+              break;
+          }
+        } catch (error) {
+          logItemActionError(`bulk ${action} failed`, error);
+        }
+      }
+      clearSelect();
+    } finally {
+      setSelectBusy(false);
+    }
+  }
+
+  function renderBulkBar(
+    scope: BoardSelectScope,
+    list: MindtaskerItem[],
+    tone: BoardToolbarTone,
+  ) {
+    if (!isSelecting(scope)) return null;
+    return (
+      <BoardBulkBar
+        items={list.filter((item) => selectedIds.has(item.id))}
+        total={list.length}
+        busy={selectBusy}
+        tone={tone}
+        onSelectAll={() => selectAll(list.map((item) => item.id))}
+        onClear={clearSelect}
+        onExit={exitSelect}
+        onAction={(action) => void handleBulkAction(list, action)}
+      />
+    );
+  }
+
   function renderInboxItem(itemId: string) {
     const item = inboxById.get(itemId);
     if (!item) return null;
+    const selecting = isSelecting("inbox-active");
     const swipe = inboxSwipeActions(
       item,
       () => {
@@ -486,6 +651,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
+        disabled={selecting}
       >
         <ItemCard
           item={item}
@@ -493,6 +659,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           userTags={userTags}
           {...bindDrag(item)}
           {...bindItemChrome(item)}
+          {...bindSelect("inbox-active", item)}
           onEdit={(patch) => editItem(item, patch)}
           onToggleType={() => {
             void toggleActionable(item).catch((error) => {
@@ -513,6 +680,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   function renderTodayItem(itemId: string) {
     const item = todayById.get(itemId);
     if (!item) return null;
+    const selecting = isSelecting("today-active");
     const swipe = boardSwipeActions(
       () => void archiveItem(item),
       () => confirmDelete(item),
@@ -523,6 +691,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
+        disabled={selecting}
       >
         <ItemCard
           item={item}
@@ -530,6 +699,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           userTags={userTags}
           {...bindDrag(item)}
           {...bindItemChrome(item)}
+          {...bindSelect("today-active", item)}
           onEdit={(patch) => editItem(item, patch)}
           onToggleType={() => {
             void toggleActionable(item).catch((error) => {
@@ -546,6 +716,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   function renderNoteItem(itemId: string) {
     const item = notesById.get(itemId);
     if (!item) return null;
+    const selecting = isSelecting("notes-active");
     const swipe = boardSwipeActions(
       () => void archiveItem(item),
       () => confirmDelete(item),
@@ -556,6 +727,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         leftAction={swipe.left}
         rightAction={swipe.right}
         squares={swipeSquares}
+        disabled={selecting}
       >
         <ItemCard
           item={item}
@@ -564,6 +736,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           userTags={userTags}
           {...bindDrag(item)}
           {...bindItemChrome(item)}
+          {...bindSelect("notes-active", item)}
           onEdit={(patch) => editItem(item, patch)}
           onToggleType={() => {
             void toggleActionable(item).catch((error) => {
@@ -662,10 +835,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     loading={inboxSearch.loading}
                   />
                 }
+                toolbarExtra={selectToggleButton("inbox-archive", "slate")}
                 action={
                   <button
                     type="button"
-                    onClick={() => setShowArchive(false)}
+                    onClick={() => {
+                      exitSelect();
+                      setShowArchive(false);
+                    }}
                     className={boardToolbarButtonClass("slate")}
                   >
                     חזור
@@ -673,6 +850,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
+              {renderBulkBar("inbox-archive", filteredInboxArchive, "slate")}
               <ColumnDropZone
                 column="inbox"
                 active={false}
@@ -698,6 +876,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    selecting={isSelecting("inbox-archive")}
+                    selectedIds={selectedIds}
+                    onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
               </ColumnDropZone>
@@ -729,12 +910,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     loading={inboxSearch.loading}
                   />
                 }
+                toolbarExtra={selectToggleButton("inbox-active", "slate")}
                 action={
                   <button
                     type="button"
                     onClick={() => {
                       setShowArchive(true);
                       setShowNotesArchive(false);
+                      exitSelect();
                     }}
                     className={boardToolbarButtonClass("slate")}
                   >
@@ -743,6 +926,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
+              {renderBulkBar("inbox-active", filteredInbox, "slate")}
               <ColumnDropZone
                 column="inbox"
                 active={dropTarget === "inbox" && dragging}
@@ -758,10 +942,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     items={filteredInbox}
                     draggingId={draggingId}
                     dropSlot={dropSlot}
-                    disabled={inboxReorderDisabled}
+                    disabled={inboxReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-slate-400">
-                        {inboxSearch.activeQuery.trim() || boardTag
+                        {boardListFiltered(inboxSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברה למחברת"
@@ -829,26 +1013,38 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 />
               }
               toolbarExtra={
-                todayListView === "active" && completedTasks.length > 0 ? (
-                  <div className="flex shrink-0 items-center gap-1">
+                <div className="flex shrink-0 flex-wrap items-center gap-1">
+                  {todayListView === "active" && completedTasks.length > 0 ? (
                     <button
                       type="button"
                       onClick={() => {
                         setShowCompletedTasks(true);
                         setShowTasksArchive(false);
+                        exitSelect();
                       }}
                       className={boardToolbarButtonClass("blue")}
                     >
                       הושלמו ({completedTasks.length})
                     </button>
-                  </div>
-                ) : null
+                  ) : null}
+                  {selectToggleButton(
+                    todayListView === "archive"
+                      ? "today-archive"
+                      : todayListView === "completed"
+                        ? "today-completed"
+                        : "today-active",
+                    "blue",
+                  )}
+                </div>
               }
               action={
                 showCompletedTasks ? (
                   <button
                     type="button"
-                    onClick={() => setShowCompletedTasks(false)}
+                    onClick={() => {
+                      exitSelect();
+                      setShowCompletedTasks(false);
+                    }}
                     className={boardToolbarButtonClass("blue")}
                   >
                     חזור
@@ -859,11 +1055,13 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     onClick={() => {
                       if (showTasksArchive) {
                         setShowTasksArchive(false);
+                        exitSelect();
                       } else {
                         setShowTasksArchive(true);
                         setShowArchive(false);
                         setShowNotesArchive(false);
                         setShowCompletedTasks(false);
+                        exitSelect();
                       }
                     }}
                     className={boardToolbarButtonClass("blue")}
@@ -873,7 +1071,20 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 )
               }
             />
-            {renderBoardFilters({ showToday: true })}
+            {renderBoardFilters()}
+            {renderBulkBar(
+              todayListView === "archive"
+                ? "today-archive"
+                : todayListView === "completed"
+                  ? "today-completed"
+                  : "today-active",
+              todayListView === "archive"
+                ? filteredTasksArchive
+                : todayListView === "completed"
+                  ? filteredCompletedTasks
+                  : filteredTodayTasks,
+              "blue",
+            )}
             <ColumnDropZone
               column="today"
               active={dropTarget === "today" && dragging && todayListView === "active"}
@@ -900,15 +1111,21 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    selecting={isSelecting("today-archive")}
+                    selectedIds={selectedIds}
+                    onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
               ) : showCompletedTasks ? (
                 <MouseDragScroll>
                   <CompletedPanel
-                    items={completedTasks}
+                    items={filteredCompletedTasks}
                     onRestore={(item) => void restoreCompletedTask(item)}
                     onDelete={confirmDelete}
                     onEdit={(item, patch) => editItem(item, patch)}
+                    selecting={isSelecting("today-completed")}
+                    selectedIds={selectedIds}
+                    onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
               ) : (
@@ -918,10 +1135,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     items={filteredTodayTasks}
                     draggingId={draggingId}
                     dropSlot={dropSlot}
-                    disabled={todayReorderDisabled}
+                    disabled={todayReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-blue-400/80">
-                        {todaySearch.activeQuery.trim() || boardTag || boardPriorityOnly || boardTodayOnly
+                        {boardListFiltered(todaySearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : dragging
                             ? "שחרר כאן להעברת משימה"
@@ -976,10 +1193,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     loading={notesSearch.loading}
                   />
                 }
+                toolbarExtra={selectToggleButton("notes-archive", "orange")}
                 action={
                   <button
                     type="button"
-                    onClick={() => setShowNotesArchive(false)}
+                    onClick={() => {
+                      exitSelect();
+                      setShowNotesArchive(false);
+                    }}
                     className={boardToolbarButtonClass("orange")}
                   >
                     חזור
@@ -987,6 +1208,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
+              {renderBulkBar("notes-archive", filteredNotesArchive, "orange")}
               <ColumnDropZone
                 column="notes"
                 active={false}
@@ -1012,6 +1234,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       tagPickerItem?.id === item.id ? tagDraft : undefined
                     }
                     userTags={userTags}
+                    selecting={isSelecting("notes-archive")}
+                    selectedIds={selectedIds}
+                    onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
               </ColumnDropZone>
@@ -1043,12 +1268,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     loading={notesSearch.loading}
                   />
                 }
+                toolbarExtra={selectToggleButton("notes-active", "orange")}
                 action={
                   <button
                     type="button"
                     onClick={() => {
                       setShowNotesArchive(true);
                       setShowArchive(false);
+                      exitSelect();
                     }}
                     className={boardToolbarButtonClass("orange")}
                   >
@@ -1057,6 +1284,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
               />
               {renderBoardFilters()}
+              {renderBulkBar("notes-active", filteredNotes, "orange")}
               <ColumnDropZone
                 column="notes"
                 active={dropTarget === "notes" && dragging}
@@ -1067,7 +1295,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 className="flex min-h-0 flex-1 flex-col"
               >
                 <MouseDragScroll>
-                  {dragging && filteredNotes.length === 0 && !notesSearch.activeQuery.trim() && !boardTag ? (
+                  {dragging && filteredNotes.length === 0 && !boardListFiltered(notesSearch.activeQuery) ? (
                     <p className="mb-2 text-sm text-orange-500">שחרר כאן להעברת הערה</p>
                   ) : null}
                   <DraggableItemList
@@ -1075,10 +1303,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     items={filteredNotes}
                     draggingId={draggingId}
                     dropSlot={dropSlot}
-                    disabled={notesReorderDisabled}
+                    disabled={notesReorderDisabled || Boolean(selectScope)}
                     emptyMessage={
                       <p className="text-sm text-orange-400/80">
-                        {notesSearch.activeQuery.trim() || boardTag
+                        {boardListFiltered(notesSearch.activeQuery)
                           ? "אין תוצאות לסינון"
                           : "אין הערות שמורות"}
                       </p>
@@ -1110,6 +1338,20 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         alert={dueReminders.alert}
         onDismiss={() => dueReminders.dismiss()}
         onAcknowledge={() => void dueReminders.acknowledge()}
+        onComplete={
+          dueReminders.alert?.itemId
+            ? () => {
+                const current = reminderItems.find(
+                  (entry) => entry.id === dueReminders.alert?.itemId,
+                );
+                if (current?.is_actionable) {
+                  void completeTask(current).then(() => dueReminders.acknowledge());
+                  return;
+                }
+                void dueReminders.acknowledge();
+              }
+            : undefined
+        }
       />
 
       {!showTaskLists ? (

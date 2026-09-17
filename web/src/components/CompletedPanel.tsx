@@ -11,6 +11,9 @@ interface CompletedPanelProps {
   onRestore: (item: MindtaskerItem) => void;
   onDelete: (item: MindtaskerItem) => void;
   onEdit?: (item: MindtaskerItem, patch: ItemEditInput) => void;
+  selecting?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (item: MindtaskerItem) => void;
 }
 
 export function CompletedPanel({
@@ -18,6 +21,9 @@ export function CompletedPanel({
   onRestore,
   onDelete,
   onEdit,
+  selecting = false,
+  selectedIds,
+  onToggleSelect,
 }: CompletedPanelProps) {
   const { view } = useBoardItemViewOptional();
 
@@ -42,12 +48,16 @@ export function CompletedPanel({
               leftAction={swipe.left}
               rightAction={swipe.right}
               squares={view === "squares"}
+              disabled={selecting}
             >
               <ItemCard
                 item={item}
                 boardAccent="today"
                 compact
                 onEdit={onEdit ? (patch) => onEdit(item, patch) : undefined}
+                selecting={selecting}
+                selected={selectedIds?.has(item.id) ?? false}
+                onToggleSelect={onToggleSelect ? () => onToggleSelect(item) : undefined}
               />
             </SwipeableItemCard>
           </div>

@@ -57,6 +57,10 @@ interface ItemCardProps {
   taskListDone?: boolean;
   /** Undo archive / delete in task lists (shows ↩ instead of ✓). */
   onTaskListUndo?: () => void;
+  /** Multi-select on the board. */
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 function NotebookActionButton({
@@ -105,6 +109,36 @@ function NotebookActionButton({
   );
 }
 
+function SelectCheckbox({
+  selected,
+  onClick,
+  dense = false,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  dense?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      {...{ [ITEM_ACTION_ATTR]: "" }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`notebook-item-select shrink-0 ${selected ? "notebook-item-select--on" : ""}`}
+      title={selected ? "בטל בחירה" : "בחר פריט"}
+      aria-label={selected ? "בטל בחירה" : "בחר פריט"}
+      aria-pressed={selected}
+    >
+      {selected ? <NotebookIcon name="check" size={dense ? 11 : 13} tone="white" /> : null}
+    </button>
+  );
+}
+
 function TaskCheckbox({ onClick, dense = false }: { onClick: () => void; dense?: boolean }) {
   return (
     <button
@@ -148,6 +182,9 @@ export function ItemCard({
   boardAccent: boardAccentProp,
   taskListDone = false,
   onTaskListUndo,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
 }: ItemCardProps) {
   const [showSource, setShowSource] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -183,7 +220,7 @@ export function ItemCard({
   }, [item.id]);
 
   function handleDoubleClick(event: MouseEvent) {
-    if (!onEdit || showSource) return;
+    if (selecting || !onEdit || showSource) return;
     const target = event.target as HTMLElement;
     if (target.closest("button, a, input, textarea, select, label, [data-item-drag-handle]")) {
       return;
@@ -213,12 +250,23 @@ export function ItemCard({
       <article
         data-item-drag-root=""
         onDoubleClick={handleDoubleClick}
+        onClick={
+          selecting && onToggleSelect
+            ? (event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest("button, a, input, textarea, select, label")) return;
+                onToggleSelect();
+              }
+            : undefined
+        }
         style={cardStyle}
         className={`board-notebook-item relative overflow-hidden transition ${
           dense ? "board-notebook-item--dense" : ""
         } ${isSquares ? "board-notebook-item--squares" : ""} ${
           isDragging ? "opacity-40" : ""
-        } ${onEdit ? "cursor-default" : ""}`}
+        } ${selected ? "board-notebook-item--selected" : ""} ${
+          selecting ? "cursor-pointer" : onEdit ? "cursor-default" : ""
+        }`}
       >
         <div
           className={`absolute inset-y-0 w-[3px] ${
@@ -242,7 +290,16 @@ export function ItemCard({
               isSquares ? "min-h-0 shrink" : ""
             }`}
           >
-            {onComplete ? <TaskCheckbox onClick={onComplete} dense={dense || isSquares} /> : null}
+            {selecting && onToggleSelect ? (
+              <SelectCheckbox
+                selected={selected}
+                onClick={onToggleSelect}
+                dense={dense || isSquares}
+              />
+            ) : null}
+            {onComplete && !selecting ? (
+              <TaskCheckbox onClick={onComplete} dense={dense || isSquares} />
+            ) : null}
             <div
               className={`min-w-0 flex-1 ${dense ? "flex flex-col gap-0" : ""} ${
                 isSquares ? "flex min-h-0 flex-1 flex-col" : ""

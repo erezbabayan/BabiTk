@@ -7,6 +7,7 @@ interface ReminderAlertModalProps {
   onDismiss: () => void;
   onAcknowledge: () => void;
   onOpen?: () => void;
+  onComplete?: () => void;
 }
 
 export function ReminderAlertModal({
@@ -14,6 +15,7 @@ export function ReminderAlertModal({
   onDismiss,
   onAcknowledge,
   onOpen,
+  onComplete,
 }: ReminderAlertModalProps) {
   return (
     <Modal
@@ -31,6 +33,11 @@ export function ReminderAlertModal({
           <Text style={styles.title}>{alert?.title}</Text>
           <Text style={styles.body}>{alert?.body}</Text>
           <View style={styles.actions}>
+            {onComplete ? (
+              <Pressable style={styles.done} onPress={onComplete}>
+                <Text style={styles.doneText}>בוצע</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={styles.primary}
               onPress={() => {
@@ -103,6 +110,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   primaryText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  done: {
+    backgroundColor: "#059669",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  doneText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   secondary: {
     borderWidth: 1,
     borderColor: "#e2e8f0",

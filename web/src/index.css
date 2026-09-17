@@ -397,6 +397,18 @@ body {
   @apply inline-flex items-center justify-center rounded-md border-0 bg-transparent p-0 transition hover:bg-blue-50/60;
 }
 
+.notebook-item-select {
+  @apply mt-0.5 inline-flex h-[18px] w-[18px] items-center justify-center rounded border border-slate-400 bg-white transition hover:border-blue-500;
+}
+
+.notebook-item-select--on {
+  @apply border-blue-600 bg-blue-600 text-white;
+}
+
+.board-notebook-item--selected {
+  @apply bg-blue-50/90 ring-1 ring-inset ring-blue-300;
+}
+
 /* Notebook dashboard columns */
 .board-notebook {
   @apply relative flex h-full min-h-0 flex-col;

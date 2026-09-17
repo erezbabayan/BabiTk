@@ -7,6 +7,7 @@ interface ReminderAlertModalProps {
   onDismiss: () => void;
   onAcknowledge: () => void;
   onOpen?: () => void;
+  onComplete?: () => void;
 }
 
 export function ReminderAlertModal({
@@ -14,6 +15,7 @@ export function ReminderAlertModal({
   onDismiss,
   onAcknowledge,
   onOpen,
+  onComplete,
 }: ReminderAlertModalProps) {
   if (!alert) return null;
 
@@ -50,6 +52,17 @@ export function ReminderAlertModal({
           {alert.body}
         </p>
         <div className="mt-5 flex flex-row-reverse flex-wrap justify-start gap-2">
+          {onComplete ? (
+            <button
+              type="button"
+              onClick={() => {
+                onComplete();
+              }}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              בוצע
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {

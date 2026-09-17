@@ -68,6 +68,9 @@ interface SwipeableItemProps {
   onUndo?: () => void;
   /** Tighter card for nested list rows (task lists modal). */
   dense?: boolean;
+  selecting?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 function renderActionSlot(action: SwipeSideAction, width: number, compact = false) {
@@ -98,6 +101,9 @@ export function SwipeableItem({
   showUndoAction = false,
   onUndo = () => {},
   dense = false,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
 }: SwipeableItemProps) {
   const swipeRef = useRef<Swipeable>(null);
   const lastPressRef = useRef(0);
@@ -155,14 +161,18 @@ export function SwipeableItem({
       Gesture.LongPress()
         .minDuration(LONG_PRESS_MS)
         .maxDistance(LONG_PRESS_MOVE_SLOP)
-        .enabled(Boolean(longPressHandler))
+        .enabled(Boolean(longPressHandler) && !selecting)
         .onStart(() => {
           runOnJS(invokeLongPress)();
         }),
-    [longPressHandler, invokeLongPress],
+    [longPressHandler, invokeLongPress, selecting],
   );
 
   function handleCardPress() {
+    if (selecting) {
+      onToggleSelect?.();
+      return;
+    }
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false;
       return;
@@ -189,6 +199,7 @@ export function SwipeableItem({
           styles.card,
           dense ? styles.cardDense : null,
           isSquares ? styles.cardSquares : null,
+          selected ? styles.cardSelected : null,
           cardMinHeight !== undefined ? { minHeight: cardMinHeight } : null,
         ]}
       >
@@ -215,6 +226,18 @@ export function SwipeableItem({
         >
           <View>
             <View style={styles.headlineRow}>
+              {selecting ? (
+                <TouchableOpacity
+                  onPress={() => onToggleSelect?.()}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selected }}
+                  accessibilityLabel={selected ? "בטל בחירה" : "בחר פריט"}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  style={[styles.selectBox, selected && styles.selectBoxOn]}
+                >
+                  {selected ? <Text style={styles.selectMark}>✓</Text> : null}
+                </TouchableOpacity>
+              ) : null}
               <Text
                 style={[styles.headline, dense || isSquares ? styles.headlineDense : null, strikeStyle]}
                 numberOfLines={dense || isSquares || !showFullContent ? 2 : undefined}
@@ -336,30 +359,34 @@ export function SwipeableItem({
         isSquares ? styles.swipeClipSquares : null,
       ]}
     >
-      <Swipeable
-        ref={swipeRef}
-        friction={2}
-        overshootLeft={false}
-        overshootRight={false}
-        activeOffsetX={[-20, 20]}
-        failOffsetY={[-20, 20]}
-        leftThreshold={swipeWidth * 0.45}
-        rightThreshold={swipeWidth * 0.45}
-        containerStyle={[
-          styles.swipeContainer,
-          isSquares ? styles.swipeContainerSquares : null,
-        ]}
-        childrenContainerStyle={isSquares ? styles.swipeChildrenSquares : undefined}
-        renderLeftActions={
-          leftAction ? () => renderActionSlot(leftAction, swipeWidth, swipeCompact) : undefined
-        }
-        renderRightActions={
-          rightAction ? () => renderActionSlot(rightAction, swipeWidth, swipeCompact) : undefined
-        }
-        onSwipeableOpen={handleOpen}
-      >
-        {card}
-      </Swipeable>
+      {selecting ? (
+        card
+      ) : (
+        <Swipeable
+          ref={swipeRef}
+          friction={2}
+          overshootLeft={false}
+          overshootRight={false}
+          activeOffsetX={[-20, 20]}
+          failOffsetY={[-20, 20]}
+          leftThreshold={swipeWidth * 0.45}
+          rightThreshold={swipeWidth * 0.45}
+          containerStyle={[
+            styles.swipeContainer,
+            isSquares ? styles.swipeContainerSquares : null,
+          ]}
+          childrenContainerStyle={isSquares ? styles.swipeChildrenSquares : undefined}
+          renderLeftActions={
+            leftAction ? () => renderActionSlot(leftAction, swipeWidth, swipeCompact) : undefined
+          }
+          renderRightActions={
+            rightAction ? () => renderActionSlot(rightAction, swipeWidth, swipeCompact) : undefined
+          }
+          onSwipeableOpen={handleOpen}
+        >
+          {card}
+        </Swipeable>
+      )}
     </View>
   );
 }
@@ -403,6 +430,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
+  },
+  cardSelected: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#93c5fd",
+  },
+  selectBox: {
+    marginTop: 1,
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: "#94a3b8",
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectBoxOn: {
+    borderColor: "#2563eb",
+    backgroundColor: "#2563eb",
+  },
+  selectMark: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+    lineHeight: 14,
   },
   cardDense: {
     borderRadius: 8,

@@ -19,6 +19,9 @@ interface ArchivePanelProps {
   tagPickerOpenId?: string | null;
   tagsOverrideForItem?: (item: MindtaskerItem) => string[] | undefined;
   userTags?: UserTag[];
+  selecting?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (item: MindtaskerItem) => void;
 }
 
 const EMPTY_MESSAGES: Record<ArchivePanelProps["variant"], string> = {
@@ -38,6 +41,9 @@ export function ArchivePanel({
   tagPickerOpenId,
   tagsOverrideForItem,
   userTags = [],
+  selecting = false,
+  selectedIds,
+  onToggleSelect,
 }: ArchivePanelProps) {
   const { view } = useBoardItemViewOptional();
 
@@ -59,6 +65,7 @@ export function ArchivePanel({
               leftAction={swipe.left}
               rightAction={swipe.right}
               squares={view === "squares"}
+              disabled={selecting}
             >
               <ItemCard
                 item={item}
@@ -72,6 +79,9 @@ export function ArchivePanel({
                 }
                 tagPickerOpen={tagPickerOpenId === item.id}
                 tagsOverride={tagsOverrideForItem?.(item)}
+                selecting={selecting}
+                selected={selectedIds?.has(item.id) ?? false}
+                onToggleSelect={onToggleSelect ? () => onToggleSelect(item) : undefined}
               />
             </SwipeableItemCard>
           </div>

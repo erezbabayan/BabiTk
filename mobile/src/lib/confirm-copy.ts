@@ -4,6 +4,10 @@ export function deleteItemConfirmMessage(title: string): string {
   return `בטוח שברצונך למחוק את «${title}»?\nהפריט ייצא מהמערכת.`;
 }
 
+export function deleteManyItemsConfirmMessage(count: number): string {
+  return `בטוח שברצונך למחוק ${count} פריטים?\nהפריטים ייצאו מהמערכת.`;
+}
+
 export function deleteListConfirmMessage(name: string): string {
   return `בטוח שברצונך למחוק את הרשימה «${name}»?\nהרשימה תצא מהמערכת.`;
 }

@@ -3,6 +3,8 @@ import type { UserTag } from "./tags";
 import { normalizeTagName } from "./tags";
 import { filterItemsByPriority } from "./item-priority";
 
+export type BoardDateFilter = "all" | "today" | "overdue" | "undated";
+
 export function filterItemsByQuery(
   items: MindtaskerItem[],
   query: string,
@@ -26,28 +28,31 @@ export function filterItemsByTag(
   return items.filter((item) => (item.tags ?? []).includes(tag));
 }
 
-export function applyBoardItemFilters(
-  items: MindtaskerItem[],
-  tag: string | null,
-  priorityOnly: boolean,
-  todayOnly = false,
-): MindtaskerItem[] {
-  return filterItemsDueToday(
-    filterItemsByPriority(filterItemsByTag(items, tag), priorityOnly),
-    todayOnly,
-  );
+export function itemDueTimestamp(item: { due_date: string | null }): number | null {
+  if (!item.due_date) return null;
+  const ms = Date.parse(item.due_date);
+  return Number.isFinite(ms) ? ms : null;
 }
 
 /** True when the item's due date falls on the local calendar day of `now`. */
-export function isItemDueToday(item: MindtaskerItem, now = new Date()): boolean {
-  if (!item.due_date) return false;
-  const due = new Date(item.due_date);
-  if (Number.isNaN(due.getTime())) return false;
+export function isItemDueToday(item: { due_date: string | null }, now = new Date()): boolean {
+  const ts = itemDueTimestamp(item);
+  if (ts === null) return false;
+  const due = new Date(ts);
   return (
     due.getFullYear() === now.getFullYear() &&
     due.getMonth() === now.getMonth() &&
     due.getDate() === now.getDate()
   );
+}
+
+export function isItemOverdue(item: { due_date: string | null }, now = Date.now()): boolean {
+  const ts = itemDueTimestamp(item);
+  return ts !== null && ts < now;
+}
+
+export function isItemUndated(item: { due_date: string | null }): boolean {
+  return itemDueTimestamp(item) === null;
 }
 
 export function filterItemsDueToday(
@@ -57,6 +62,52 @@ export function filterItemsDueToday(
 ): MindtaskerItem[] {
   if (!todayOnly) return items;
   return items.filter((item) => isItemDueToday(item, now));
+}
+
+export function filterItemsByDate(
+  items: MindtaskerItem[],
+  dateFilter: BoardDateFilter,
+  now = Date.now(),
+): MindtaskerItem[] {
+  if (dateFilter === "all") return items;
+  if (dateFilter === "today") {
+    const today = new Date(now);
+    return items.filter((item) => isItemDueToday(item, today));
+  }
+  if (dateFilter === "overdue") {
+    return items.filter((item) => isItemOverdue(item, now));
+  }
+  return items.filter((item) => isItemUndated(item));
+}
+
+export function applyBoardItemFilters(
+  items: MindtaskerItem[],
+  tag: string | null,
+  priorityOnly: boolean,
+  dateFilter: BoardDateFilter | boolean = "all",
+  now = Date.now(),
+): MindtaskerItem[] {
+  const resolved: BoardDateFilter =
+    typeof dateFilter === "boolean" ? (dateFilter ? "today" : "all") : dateFilter;
+  return filterItemsByDate(
+    filterItemsByPriority(filterItemsByTag(items, tag), priorityOnly),
+    resolved,
+    now,
+  );
+}
+
+export function boardFiltersActive(options: {
+  query?: string;
+  tag?: string | null;
+  priorityOnly?: boolean;
+  dateFilter?: BoardDateFilter;
+}): boolean {
+  return Boolean(
+    options.query?.trim() ||
+      options.tag ||
+      options.priorityOnly ||
+      (options.dateFilter && options.dateFilter !== "all"),
+  );
 }
 
 export function collectTags(items: MindtaskerItem[]): string[] {
