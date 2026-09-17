@@ -10,9 +10,12 @@ import {
   isWhatsAppMenuRequest,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
-  parseWhatsAppQuery,
   type WhatsAppQuery,
 } from "../lib/whatsapp-query.js";
+import { resolveWhatsAppTextIntent } from "../lib/whatsapp-text-intent.js";
+import {
+  answerWhatsAppSystemQuestion,
+} from "../lib/whatsapp-system-question.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { env } from "../config/env.js";
 import {
@@ -94,6 +97,23 @@ export async function loadLastWhatsAppItemIds(userId: string): Promise<string[]>
   return Array.isArray(ids) ? ids.map(String) : [];
 }
 
+export async function listOpenItems(userId: string): Promise<DbMindtaskerItem[]> {
+  if (!env.isSupabaseConfigured) return [];
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("mindtasker_items")
+    .select("id, user_id, title, content, is_actionable, status, due_date, tags, metadata")
+    .eq("user_id", userId)
+    .in("status", ["inbox", "pending"])
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false });
+
+  if (error) {
+    throw new Error(`Failed to list open items: ${error.message}`);
+  }
+  return (data ?? []) as DbMindtaskerItem[];
+}
+
 export async function handleWhatsAppTextIntent(options: {
   user: LinkedWhatsAppUser;
   text: string;
@@ -103,25 +123,66 @@ export async function handleWhatsAppTextIntent(options: {
   if (!raw) return false;
   const allowedTags = await getUserTagNames(options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
+  const resolved = resolveWhatsAppTextIntent(raw, allowedTags);
 
-  if (isWhatsAppMenuRequest(raw)) {
+  if (resolved.type === "skip") return true;
+  if (resolved.type === "ingest") return false;
+
+  if (resolved.type === "menu" || isWhatsAppMenuRequest(raw)) {
     await sendWhatsAppText(options.replyTo, buildWhatsAppMenuText(menu));
     await markWhatsAppOnboardingComplete(options.user.id);
     return true;
   }
 
-  const query = parseWhatsAppQuery(raw, allowedTags);
-  if (query) {
-    const tasks = filterTasksForQuery(await listOpenTasks(options.user.id), query);
+  if (resolved.type === "query") {
+    const open = await listOpenTasks(options.user.id);
+    const tasks = filterTasksForQuery(open, resolved.query);
+    if (tasks.length === 0 && resolved.fallbackSearch) {
+      const all = await listOpenItems(options.user.id);
+      const reply = answerWhatsAppSystemQuestion(
+        { kind: "question", question: resolved.fallbackSearch },
+        all.map((item) => ({
+          title: item.title,
+          content: item.content ?? "",
+          isActionable: item.is_actionable,
+          dueDate: item.due_date,
+          tags: item.tags,
+          status: item.status,
+        })),
+      );
+      await sendWhatsAppText(options.replyTo, reply);
+      return true;
+    }
     await rememberLastWhatsAppItems(
       options.user.id,
       tasks.map((item) => item.id),
     );
-    await sendWhatsAppText(options.replyTo, buildTaskBriefing(tasks, query, TIMEZONE));
+    const inboxCount = open.filter((item) => item.status === "inbox").length;
+    await sendWhatsAppText(
+      options.replyTo,
+      buildTaskBriefing(tasks, resolved.query, TIMEZONE, { inboxCount }),
+    );
     return true;
   }
 
-  const command = parseWhatsAppCommand(raw);
+  if (resolved.type === "search") {
+    const all = await listOpenItems(options.user.id);
+    const reply = answerWhatsAppSystemQuestion(
+      resolved.parsed,
+      all.map((item) => ({
+        title: item.title,
+        content: item.content ?? "",
+        isActionable: item.is_actionable,
+        dueDate: item.due_date,
+        tags: item.tags,
+        status: item.status,
+      })),
+    );
+    await sendWhatsAppText(options.replyTo, reply);
+    return true;
+  }
+
+  const command = resolved.type === "command" ? resolved.command : parseWhatsAppCommand(raw);
   if (!command) return false;
 
   const lastIds = await loadLastWhatsAppItemIds(options.user.id);

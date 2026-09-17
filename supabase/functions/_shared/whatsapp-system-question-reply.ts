@@ -28,8 +28,22 @@ export async function loadOpenItemsForSystemQuestion(
     .in("status", ["inbox", "pending"])
     .order("due_date", { ascending: true })
     .limit(80);
-  if (error || !data) return [];
-  return data.map((row) => ({
+  const rows =
+    error && /deleted_at|does not exist|Could not find the (?:table|column)/i.test(error.message)
+      ? (
+          await supabase
+            .from("mindtasker_items")
+            .select("title, content, is_actionable, due_date, tags, status")
+            .eq("user_id", userId)
+            .in("status", ["inbox", "pending"])
+            .order("due_date", { ascending: true })
+            .limit(80)
+        ).data
+      : error
+        ? null
+        : data;
+  if (!rows) return [];
+  return rows.map((row) => ({
     title: typeof row.title === "string" ? row.title : "",
     content: typeof row.content === "string" ? row.content : "",
     isActionable: row.is_actionable === true,

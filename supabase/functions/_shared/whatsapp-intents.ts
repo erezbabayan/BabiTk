@@ -1,5 +1,11 @@
 /** Canned WhatsApp group questions + reply commands for the live Green-API webhook. */
 
+import {
+  parseWhatsAppSystemQuestion,
+  type SystemQuestionParse,
+} from "./whatsapp-system-question.ts";
+import { isSystemWhatsAppReply } from "./green-api.ts";
+
 export type BriefingDay = "today" | "tomorrow" | "overdue" | "inbox" | "week" | "plan";
 
 export type WhatsAppQuery = {
@@ -21,7 +27,9 @@ export type WhatsAppCommandAction =
   | { type: "tomorrow"; index: number | null; itemId?: string; hour: number };
 
 const QUERY_HINT =
-  /(?:מה|משימ|יש לי|יש לנו|רשימ|תיב(?:ה|ת)|inbox|תזכור|agenda|today|tomorrow)/iu;
+  /(?:מה\s+(?:יש|המשימ|לעשות)|משימ(?:ה|ות)|יש לנו|רשימ(?:ה|ת)|תיב(?:ה|ת)|בתיבה|\binbox\b|תזכור(?:ת|ות)|agenda|\btoday\b|\btomorrow\b|^מה\b)/iu;
+const SHORT_MENU_ALIASES = new Set(["היום", "מחר"]);
+const COMMAND_PREFIX_RE = /^(?:בוצע|סיימתי|דחה|snooze|done|מחר)(?:\s|$)/iu;
 const MENU_REQUEST_RE =
   /^(?:תפריט|עזרה|help|\?|מה אפשר(?:\s+לשאול)?|שאלות(?:\s+מובנות)?|שאלה|menu|אפשרויות|מה את(?:ה|ם) יודע(?:ים)?|מה המערכת יכולה)$/iu;
 const DAY_TOMORROW = /(?:מחר(?:תיים)?|tomorrow)/iu;
@@ -107,9 +115,11 @@ export function parseMenuSelection(raw: string, menu: MenuQuestion[]): WhatsAppQ
   if (numbered) {
     return menu.find((row) => row.number === Number(numbered[1]))?.query ?? null;
   }
-  const byLabel = menu.find(
-    (row) => row.label === text || row.label.replace(/^מה יש לי /, "") === text,
-  );
+  const byLabel = menu.find((row) => {
+    if (row.label === text) return true;
+    const stripped = row.label.replace(/^מה יש לי /, "");
+    return stripped === text && !SHORT_MENU_ALIASES.has(text);
+  });
   return byLabel?.query ?? null;
 }
 
@@ -143,13 +153,66 @@ export function parseWhatsAppQuery(raw: string, allowedTags: string[] = []): Wha
     return { type: "query", day: "plan", tag: extractQueryTag(text, allowedTags) };
   }
   if (!QUERY_HINT.test(text)) return null;
-  if (/^(?:בוצע|סיימתי|דחה|snooze|done)\b/iu.test(text)) return null;
+  if (COMMAND_PREFIX_RE.test(text)) return null;
   let day: BriefingDay = "today";
   if (DAY_INBOX.test(text)) day = "inbox";
   else if (DAY_OVERDUE.test(text)) day = "overdue";
   else if (DAY_WEEK.test(text)) day = "week";
   else if (DAY_TOMORROW.test(text)) day = "tomorrow";
   return { type: "query", day, tag: extractQueryTag(text, allowedTags) };
+}
+
+export type ResolvedWhatsAppIntent =
+  | { type: "skip" }
+  | { type: "menu" }
+  | { type: "query"; query: WhatsAppQuery; fallbackSearch: string | null }
+  | { type: "search"; parsed: SystemQuestionParse }
+  | { type: "command"; command: WhatsAppCommandAction }
+  | { type: "ingest" };
+
+export function resolveWhatsAppTextIntent(
+  raw: string,
+  allowedTags: string[] = [],
+): ResolvedWhatsAppIntent {
+  const text = raw.trim();
+  if (!text || isSystemWhatsAppReply(text)) return { type: "skip" };
+
+  const systemQuestion = parseWhatsAppSystemQuestion(text);
+  const intentText =
+    systemQuestion.kind === "question" ? systemQuestion.question : text;
+  const prefixed = systemQuestion.kind !== "none";
+
+  if (
+    systemQuestion.kind === "help" ||
+    isWhatsAppMenuRequest(intentText) ||
+    isWhatsAppMenuRequest(text)
+  ) {
+    return { type: "menu" };
+  }
+
+  const command = parseWhatsAppCommand(text);
+  if (command && !prefixed) {
+    const asQuery = parseWhatsAppQuery(intentText, allowedTags);
+    if (!asQuery) return { type: "command", command };
+  }
+
+  const query = parseWhatsAppQuery(intentText, allowedTags);
+  if (query) {
+    return {
+      type: "query",
+      query,
+      fallbackSearch: prefixed ? intentText : null,
+    };
+  }
+
+  if (prefixed && systemQuestion.kind === "question") {
+    return { type: "search", parsed: systemQuestion };
+  }
+  if (prefixed && systemQuestion.kind === "help") {
+    return { type: "menu" };
+  }
+
+  return { type: "ingest" };
 }
 
 export function parseWhatsAppCommand(raw: string): WhatsAppCommandAction | null {
@@ -216,7 +279,7 @@ export function buildCaptureConfirmation(items: Array<{ title: string }>): strin
   );
 }
 
-export { isSystemWhatsAppReply } from "./green-api.ts";
+export { isSystemWhatsAppReply };
 
 function jerusalemYmd(date: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -239,10 +302,17 @@ export function itemMatchesBriefingDay(
   now = new Date(),
 ): boolean {
   if (day === "inbox") return item.status === "inbox";
+  const today = jerusalemYmd(now);
+  if (day === "plan") {
+    if (item.status === "inbox") return true;
+    if (!item.due_date) return false;
+    const due = new Date(item.due_date);
+    if (Number.isNaN(due.getTime())) return false;
+    return jerusalemYmd(due) <= today;
+  }
   if (!item.due_date) return false;
   const due = new Date(item.due_date);
   if (Number.isNaN(due.getTime())) return false;
-  const today = jerusalemYmd(now);
   const dueDay = jerusalemYmd(due);
   if (day === "overdue") return dueDay < today;
   if (day === "week") {
@@ -295,23 +365,30 @@ const BRIEFING_FOOTER = `\n\nהשב «בוצע 1» לסימון · «תפריט�
 export function buildTaskBriefing(
   items: Array<{ title: string; due_date?: string | null; tags?: string[] | null }>,
   query: WhatsAppQuery,
+  extra: { inboxCount?: number } = {},
 ): string {
   const scope = DAY_LABEL[query.day];
   const tagBit = query.tag ? ` ב«${query.tag}»` : "";
-  if (items.length === 0) return `אין משימות ${scope}${tagBit}.${BRIEFING_FOOTER}`;
+  if (items.length === 0) {
+    const inboxHint =
+      extra.inboxCount && extra.inboxCount > 0 && query.day !== "inbox"
+        ? `\nבתיבה יש ${extra.inboxCount} פריטים — שלחו «מה בתיבה» או «4».`
+        : "";
+    return `אין משימות ${scope}${tagBit}.${inboxHint}${BRIEFING_FOOTER}`;
+  }
   const lines = items.slice(0, 20).map((item, index) => {
     const time = formatDueClock(item.due_date);
     const tags =
       item.tags && item.tags.length > 0 ? ` · ${item.tags.slice(0, 2).join(", ")}` : "";
     return `${index + 1}. ${item.title}${time ? ` (${time})` : ""}${tags}`;
   });
-  const extra = items.length > 20 ? `\n…ועוד ${items.length - 20}` : "";
+  const more = items.length > 20 ? `\n…ועוד ${items.length - 20}` : "";
   const noun = items.length === 1 ? "משימה" : "משימות";
   const heading =
     query.day === "plan"
       ? `🗓 תכנון ליום${tagBit} — ${items.length} ${noun}:`
       : `📋 ${items.length} ${noun} ${scope}${tagBit}:`;
-  return `${heading}\n${lines.join("\n")}${extra}${BRIEFING_FOOTER}`;
+  return `${heading}\n${lines.join("\n")}${more}${BRIEFING_FOOTER}`;
 }
 
 export function addHoursIso(hours: number, now = new Date()): string {
