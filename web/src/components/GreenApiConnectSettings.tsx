@@ -15,6 +15,7 @@ import {
   WHATSAPP_PAIRING_HINT,
   WHATSAPP_SCAN_HINT,
 } from "../lib/whatsapp-pairing";
+import { WhatsAppWebhookDeployBanner } from "./WhatsAppWebhookDeployBanner";
 
 const GREEN_CONSOLE = "https://console.green-api.com/";
 
@@ -190,6 +191,7 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
 
   return (
     <div className="space-y-4" dir="rtl">
+      <WhatsAppWebhookDeployBanner />
       <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
         <p className="font-medium text-slate-900">חיבור וואטסאפ</p>
         <p className="mt-2 text-xs leading-5 text-slate-600">

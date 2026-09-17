@@ -11,6 +11,7 @@ import {
   type DigestDays,
 } from "../lib/user-profile";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
+import { WhatsAppWebhookDeployBanner } from "./WhatsAppWebhookDeployBanner";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -310,6 +311,9 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
 
   const groupBlock = (
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
+      <div className="mb-3">
+        <WhatsAppWebhookDeployBanner />
+      </div>
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
         שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעה רגילה נכנסת ללוח כמשימה או הערה. שאלה למערכת מתחילה ב-* (או ב-?), ובהקלטה אומרים «כוכבית» ואז שואלים — המענה חוזר לקבוצה בלי ליצור פריט.
