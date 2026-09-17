@@ -66,7 +66,7 @@ export interface ItemDisplayFields {
   isBodyExpandable: boolean;
   isItemExpandable: boolean;
   reminderActive: boolean;
-  /** Checklist sub-task rows. Shown as a number only while those rows are hidden. */
+  /** Checklist sub-task rows. Squares show this count; list shows the rows. */
   subtaskCount: number;
 }
 
@@ -198,7 +198,8 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
     isNote: !item.is_actionable,
     isHeadlineTruncated: headlineTruncated,
     isBodyExpandable: bodyExpandable,
-    isItemExpandable: headlineTruncated || bodyExpandable || subtaskCount > 0,
+    isItemExpandable:
+      headlineTruncated || bodyExpandable || isChecklistOverflow(subtaskCount),
     reminderActive: isReminderActive(item),
     subtaskCount,
   };
@@ -209,7 +210,20 @@ export function itemSubtaskCount(item: ItemDisplaySource): number {
   return parseChecklist(item.metadata).length;
 }
 
-/** Digit shown on the card while sub-task rows are collapsed. */
+/** Max checklist rows shown in list view before הרחב / צמצם. */
+export const CHECKLIST_PREVIEW_LIMIT = 5;
+
+export function isChecklistOverflow(count: number): boolean {
+  return count > CHECKLIST_PREVIEW_LIMIT;
+}
+
+/** List preview: first 5 rows unless the card is expanded. */
+export function visibleChecklistEntries<T>(entries: T[], expanded: boolean): T[] {
+  if (expanded || entries.length <= CHECKLIST_PREVIEW_LIMIT) return entries;
+  return entries.slice(0, CHECKLIST_PREVIEW_LIMIT);
+}
+
+/** Digit shown on square tiles. */
 export function formatSubtaskCount(count: number): string | null {
   if (count <= 0) return null;
   return String(count);

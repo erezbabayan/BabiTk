@@ -7,9 +7,11 @@ import { resolveItemSource } from "../lib/item-source";
 import {
   buildItemDisplayFields,
   buildItemScheduleLine,
+  isChecklistOverflow,
   isItemContentCollapsed,
   isTaskListStruck,
   itemCardMinHeight,
+  visibleChecklistEntries,
 } from "../lib/item-display";
 import { ITEM_ACTION_ATTR, ITEM_DRAG_HANDLE_ATTR } from "./SwipeableItemCard";
 import { ItemTagDots } from "./ItemTagDots";
@@ -216,9 +218,16 @@ export function ItemCard({
   const strikeClass = doneStrike ? "line-through text-slate-400" : "";
   const priority = isPriorityItem(item);
   const checklist = parseChecklist(item.metadata);
-  const showChecklist =
-    checklist.length > 0 && !isSquares && !showSource && (dense || itemExpanded);
-  const showSubtaskCount = display.subtaskCount > 0 && !showChecklist && !showSource;
+  const checklistOverflow = isChecklistOverflow(checklist.length);
+  const showChecklist = checklist.length > 0 && !isSquares && !showSource;
+  const visibleChecklist = showChecklist
+    ? visibleChecklistEntries(checklist, itemExpanded)
+    : [];
+  const showSubtaskCount = isSquares && display.subtaskCount > 0 && !showSource;
+  const showExpand =
+    !showSource &&
+    !isSquares &&
+    ((!dense && display.isItemExpandable) || (dense && checklistOverflow));
   const showBody = Boolean(display.body) && !isSquares && (!dense || itemExpanded);
 
   function toggleSource() {
@@ -416,26 +425,9 @@ export function ItemCard({
                 </p>
               ) : null}
 
-              {display.isItemExpandable && !isSquares && !dense ? (
-                <button
-                  type="button"
-                  {...{ [ITEM_ACTION_ATTR]: "" }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setItemExpanded((value) => !value);
-                  }}
-                  className="mt-0.5 shrink-0 text-[10px] font-medium text-slate-400 hover:text-slate-600"
-                  aria-expanded={itemExpanded}
-                >
-                  {itemExpanded ? "הסתר" : "הרחב"}
-                </button>
-              ) : null}
-
               {showChecklist ? (
                 <ul className={`${dense ? "mt-0.5" : "mt-1"} w-full space-y-0.5`} dir="rtl">
-                  {checklist.map((entry) => (
+                  {visibleChecklist.map((entry) => (
                     <li key={entry.id} className="w-full">
                       <label
                         className="flex w-full flex-row items-start justify-start gap-1.5"
@@ -462,6 +454,23 @@ export function ItemCard({
                     </li>
                   ))}
                 </ul>
+              ) : null}
+
+              {showExpand ? (
+                <button
+                  type="button"
+                  {...{ [ITEM_ACTION_ATTR]: "" }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setItemExpanded((value) => !value);
+                  }}
+                  className="mt-0.5 shrink-0 text-[10px] font-medium text-slate-400 hover:text-slate-600"
+                  aria-expanded={itemExpanded}
+                >
+                  {itemExpanded ? "צמצם" : "הרחב"}
+                </button>
               ) : null}
 
               {!showSource && hasTags && !isSquares ? (

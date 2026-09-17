@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildItemDisplayFields, formatSubtaskCount } from "./item-display.js";
+import { buildItemDisplayFields, formatSubtaskCount, visibleChecklistEntries } from "./item-display.js";
 import { isVoicePlaceholderText, VOICE_TRANSCRIBING_TITLE } from "./voice-text.js";
 
 describe("buildItemDisplayFields voice placeholders", () => {
@@ -57,6 +57,47 @@ describe("subtask count on board cards", () => {
     assert.equal(display.subtaskCount, 2);
     assert.equal(formatSubtaskCount(display.subtaskCount), "2");
     assert.equal(display.isItemExpandable, true);
+  });
+
+  it("does not expand a short card with five or fewer sub-tasks", () => {
+    const display = buildItemDisplayFields({
+      title: "קניות",
+      content: "קניות",
+      tags: [],
+      is_actionable: true,
+      due_date: null,
+      metadata: {
+        checklist: [
+          { id: "a", text: "חלב", done: false },
+          { id: "b", text: "לחם", done: false },
+        ],
+      },
+    });
+    assert.equal(display.subtaskCount, 2);
+    assert.equal(display.isItemExpandable, false);
+  });
+
+  it("expands list cards with more than five sub-tasks", () => {
+    const rows = ["א", "ב", "ג", "ד", "ה", "ו"].map((text, index) => ({
+      id: String(index),
+      text,
+      done: false,
+    }));
+    const display = buildItemDisplayFields({
+      title: "קניות",
+      content: "קניות",
+      tags: [],
+      is_actionable: true,
+      due_date: null,
+      metadata: { checklist: rows },
+    });
+    assert.equal(display.subtaskCount, 6);
+    assert.equal(display.isItemExpandable, true);
+    assert.deepEqual(
+      visibleChecklistEntries(rows, false).map((row) => row.text),
+      ["א", "ב", "ג", "ד", "ה"],
+    );
+    assert.equal(visibleChecklistEntries(rows, true).length, 6);
   });
 
   it("ignores OCR and multi-line notes when there is no checklist", () => {

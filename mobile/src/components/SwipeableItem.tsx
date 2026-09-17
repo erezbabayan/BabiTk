@@ -10,14 +10,16 @@ import { SourceIndicator } from "./SourceIndicator";
 import {
   buildItemDisplayFields,
   buildItemScheduleLine,
+  isChecklistOverflow,
   isItemContentCollapsed,
   isTaskListStruck,
   itemCardMinHeight,
   ITEM_BODY_FONT_SIZE,
   ITEM_HEADLINE_FONT_SIZE,
+  visibleChecklistEntries,
 } from "../lib/item-display";
 import { isPriorityItem } from "../lib/item-priority";
-import { parseChecklist, toggleChecklistEntry } from "../lib/checklist";
+import { parseChecklist } from "../lib/checklist";
 import { PriorityStar } from "./PriorityStar";
 import type { SwipeSideAction } from "../lib/item-swipe-actions";
 import type { BoardItemView } from "../lib/board-item-view";
@@ -132,8 +134,15 @@ export function SwipeableItem({
   const strikeStyle = doneStrike ? styles.textDone : undefined;
   const priority = isPriorityItem(item);
   const checklist = parseChecklist(item.metadata);
-  const showChecklist = checklist.length > 0 && !isSquares && (dense || itemExpanded);
-  const showSubtaskCount = display.subtaskCount > 0 && !showChecklist;
+  const checklistOverflow = isChecklistOverflow(checklist.length);
+  const showChecklist = checklist.length > 0 && !isSquares;
+  const visibleChecklist = showChecklist
+    ? visibleChecklistEntries(checklist, itemExpanded)
+    : [];
+  const showSubtaskCount = isSquares && display.subtaskCount > 0;
+  const showExpand =
+    !isSquares &&
+    ((!dense && display.isItemExpandable) || (dense && checklistOverflow));
   const showBody = Boolean(display.body) && !isSquares && (!dense || itemExpanded);
 
   const swipeWidth = dense
@@ -275,7 +284,7 @@ export function SwipeableItem({
             {showBody ||
             showSubtaskCount ||
             showChecklist ||
-            (!dense && !isSquares && display.isItemExpandable) ? (
+            showExpand ? (
               <View
                 style={[
                   styles.bodyBlock,
@@ -300,18 +309,8 @@ export function SwipeableItem({
                     {display.subtaskCount}
                   </Text>
                 ) : null}
-                {!dense && !isSquares && display.isItemExpandable ? (
-                  <TouchableOpacity
-                    onPress={() => setItemExpanded((value) => !value)}
-                    accessibilityRole="button"
-                    accessibilityState={{ expanded: itemExpanded }}
-                    accessibilityLabel={itemExpanded ? "הסתר" : "הרחב"}
-                  >
-                    <Text style={styles.expandBtn}>{itemExpanded ? "הסתר" : "הרחב"}</Text>
-                  </TouchableOpacity>
-                ) : null}
                 {showChecklist
-                  ? checklist.map((entry) => (
+                  ? visibleChecklist.map((entry) => (
                       <TouchableOpacity
                         key={entry.id}
                         style={styles.checkRow}
@@ -332,6 +331,16 @@ export function SwipeableItem({
                       </TouchableOpacity>
                     ))
                   : null}
+                {showExpand ? (
+                  <TouchableOpacity
+                    onPress={() => setItemExpanded((value) => !value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: itemExpanded }}
+                    accessibilityLabel={itemExpanded ? "צמצם" : "הרחב"}
+                  >
+                    <Text style={styles.expandBtn}>{itemExpanded ? "צמצם" : "הרחב"}</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
             ) : null}
 
