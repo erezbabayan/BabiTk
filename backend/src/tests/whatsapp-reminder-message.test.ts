@@ -9,7 +9,7 @@ import {
   stampWhatsAppReminderFireAt,
   whatsappReminderFireStamp,
 } from "../lib/whatsapp-reminder-message.js";
-import { patchAfterReminderSent } from "../../../supabase/functions/_shared/whatsapp-reminders.ts";
+import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
 import { sendViaUserGreenApi } from "../services/whatsapp/user-gateway-send.js";
 
 describe("WhatsApp group reminder destination", () => {
@@ -114,23 +114,23 @@ describe("WhatsApp fire stamp", () => {
   });
 });
 
-describe("after reminder sent (edge copy)", () => {
+describe("after reminder sent", () => {
   it("marks a one-shot reminder as sent", () => {
-    const after = patchAfterReminderSent(
+    const after = buildAfterReminderSentPatch(
       { due_date: "2026-09-17T09:00:00.000Z", metadata: {} },
-      "2026-09-17T09:00:00.000Z",
+      { firedAt: "2026-09-17T09:00:00.000Z" },
     );
     assert.equal(after.metadata.reminder_sent, true);
     assert.equal(after.due_date, undefined);
   });
 
   it("rolls a daily reminder forward instead of skipping it", () => {
-    const after = patchAfterReminderSent(
+    const after = buildAfterReminderSentPatch(
       {
         due_date: "2026-09-17T09:00:00.000Z",
         metadata: { reminder_recurrence: "daily" },
       },
-      "2026-09-17T09:00:00.000Z",
+      { firedAt: "2026-09-17T09:00:00.000Z" },
     );
     assert.equal(after.metadata.reminder_sent, false);
     assert.ok(typeof after.due_date === "string");
@@ -160,9 +160,11 @@ describe("Green-API group send", () => {
         "⏰ תזכורת משימה מ-BabiTk",
       );
       assert.equal(calls.length, 1);
-      assert.match(calls[0].url, /waInstance1100000001\/sendMessage\/token/);
-      assert.equal(calls[0].body.chatId, "120363000000000001@g.us");
-      assert.match(calls[0].body.message, /תזכורת משימה/);
+      const sent = calls[0];
+      assert.ok(sent);
+      assert.match(sent.url, /waInstance1100000001\/sendMessage\/token/);
+      assert.equal(sent.body.chatId, "120363000000000001@g.us");
+      assert.match(sent.body.message, /תזכורת משימה/);
     } finally {
       globalThis.fetch = originalFetch;
     }
