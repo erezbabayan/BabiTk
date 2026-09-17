@@ -71,7 +71,6 @@ import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
 import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
-import { planMyDayFocus, planMyDayOrder } from "./src/lib/plan-my-day";
 import { parseChecklist, toggleChecklistEntry } from "./src/lib/checklist";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
@@ -205,7 +204,6 @@ function MainAppInner({
     today: "all",
     notes: "all",
   });
-  const [planMyDay, setPlanMyDay] = useState(false);
   const selectedTag = tagByTab[tab];
   const priorityOnly = priorityOnlyByTab[tab];
   const dateFilter = dateFilterByTab[tab];
@@ -285,11 +283,7 @@ function MainAppInner({
       priorityOnly,
       dateFilter,
     );
-    const sorted = applyBoardDateSort(filtered, dateSortByTab[tab]);
-    if (tab === "today" && listView === "active" && planMyDay) {
-      return planMyDayOrder(planMyDayFocus(sorted));
-    }
-    return sorted;
+    return applyBoardDateSort(filtered, dateSortByTab[tab]);
   }, [
     rawItems,
     boardSearch.activeQuery,
@@ -299,8 +293,6 @@ function MainAppInner({
     dateFilter,
     dateSortByTab,
     tab,
-    listView,
-    planMyDay,
   ]);
 
   const boardTone = tab === "inbox" ? "slate" : tab === "today" ? "blue" : "orange";
@@ -552,7 +544,6 @@ function MainAppInner({
     setTagByTab({ inbox: null, today: null, notes: null });
     setPriorityOnlyByTab({ inbox: false, today: false, notes: false });
     setDateFilterByTab({ inbox: "all", today: "all", notes: "all" });
-    setPlanMyDay(false);
     clearInboxSearch();
     clearTodaySearch();
     clearNotesSearch();
@@ -867,19 +858,6 @@ function MainAppInner({
             onSelect={(tag) => setTagByTab((current) => ({ ...current, [tab]: tag }))}
             userTags={userTags}
           />
-          {tab === "today" && listView === "active" ? (
-            <TouchableOpacity
-              style={[styles.planChip, planMyDay && styles.planChipActive]}
-              onPress={() => setPlanMyDay((value) => !value)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: planMyDay }}
-              accessibilityLabel="תכנן לי את היום"
-            >
-              <Text style={[styles.planChipText, planMyDay && styles.planChipTextActive]}>
-                תכנן לי את היום
-              </Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
         {selecting ? (
           <BoardBulkBar
@@ -1475,28 +1453,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
-  },
-  planChip: {
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#e2e8f0",
-    backgroundColor: "rgba(255,255,255,0.85)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexShrink: 0,
-  },
-  planChipActive: {
-    borderColor: "#60a5fa",
-    backgroundColor: "#eff6ff",
-  },
-  planChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#64748b",
-  },
-  planChipTextActive: {
-    fontWeight: "700",
-    color: "#1e40af",
   },
   boardChromeSlate: {
     borderBottomColor: "rgba(203, 213, 225, 0.9)",
