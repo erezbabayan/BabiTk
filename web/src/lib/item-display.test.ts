@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildItemDisplayFields } from "./item-display.js";
+import { buildItemDisplayFields, formatSubtaskCount } from "./item-display.js";
 import { isVoicePlaceholderText, VOICE_TRANSCRIBING_TITLE } from "./voice-text.js";
 
 describe("buildItemDisplayFields voice placeholders", () => {
@@ -39,8 +39,27 @@ describe("buildItemDisplayFields voice placeholders", () => {
   });
 });
 
-describe("active line count on board cards", () => {
-  it("labels open OCR lines", () => {
+describe("subtask count on board cards", () => {
+  it("counts checklist rows, not content line breaks", () => {
+    const display = buildItemDisplayFields({
+      title: "קניות",
+      content: "לקנות חלב\nלהתקשר לרועי\nלשלוח מייל",
+      tags: [],
+      is_actionable: true,
+      due_date: null,
+      metadata: {
+        checklist: [
+          { id: "a", text: "חלב", done: false },
+          { id: "b", text: "לחם", done: true },
+        ],
+      },
+    });
+    assert.equal(display.subtaskCount, 2);
+    assert.equal(formatSubtaskCount(display.subtaskCount), "2");
+    assert.equal(display.isItemExpandable, true);
+  });
+
+  it("ignores OCR and multi-line notes when there is no checklist", () => {
     const display = buildItemDisplayFields({
       title: "רשימת קניות",
       content: "רשימת קניות",
@@ -64,30 +83,14 @@ describe("active line count on board cards", () => {
               completed: false,
               bbox: { left: 0, top: 0.2, width: 1, height: 0.2 },
             },
-            {
-              text: "ביצים",
-              completed: true,
-              bbox: { left: 0, top: 0.4, width: 1, height: 0.2 },
-            },
           ],
         },
       },
     });
-    assert.equal(display.activeLineCountLabel, "2 שורות פעילות");
+    assert.equal(display.subtaskCount, 0);
   });
 
-  it("labels multi-line content when there is no OCR", () => {
-    const display = buildItemDisplayFields({
-      title: "משימות",
-      content: "לקנות חלב\nלהתקשר לרועי\nלשלוח מייל",
-      tags: [],
-      is_actionable: true,
-      due_date: null,
-    });
-    assert.equal(display.activeLineCountLabel, "3 שורות פעילות");
-  });
-
-  it("hides the label for a single content line", () => {
+  it("is zero when there are no sub-tasks", () => {
     const display = buildItemDisplayFields({
       title: "לקנות חלב",
       content: "לקנות חלב",
@@ -95,6 +98,8 @@ describe("active line count on board cards", () => {
       is_actionable: true,
       due_date: null,
     });
-    assert.equal(display.activeLineCountLabel, null);
+    assert.equal(display.subtaskCount, 0);
+    assert.equal(formatSubtaskCount(display.subtaskCount), null);
+    assert.equal(display.isItemExpandable, false);
   });
 });

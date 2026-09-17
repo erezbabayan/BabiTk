@@ -216,7 +216,9 @@ export function ItemCard({
   const strikeClass = doneStrike ? "line-through text-slate-400" : "";
   const priority = isPriorityItem(item);
   const checklist = parseChecklist(item.metadata);
-  const showChecklist = checklist.length > 0 && !isSquares && !showSource;
+  const showChecklist =
+    checklist.length > 0 && !isSquares && !showSource && (dense || itemExpanded);
+  const showSubtaskCount = display.subtaskCount > 0 && !showChecklist && !showSource;
   const showBody = Boolean(display.body) && !isSquares && (!dense || itemExpanded);
 
   function toggleSource() {
@@ -403,14 +405,14 @@ export function ItemCard({
                 </div>
               ) : null}
 
-              {display.activeLineCountLabel ? (
+              {showSubtaskCount ? (
                 <p
                   dir="rtl"
                   className={`w-full text-right font-medium text-amber-700 ${
                     dense || isSquares ? "mt-0.5 text-[9px] leading-none" : "mt-1 text-[10px] leading-tight"
                   }`}
                 >
-                  {display.activeLineCountLabel}
+                  {display.subtaskCount}
                 </p>
               ) : null}
 

@@ -1,4 +1,5 @@
 import type { SourceMaterial } from "../types";
+import { parseChecklist } from "./checklist";
 import { formatLocalDateDdMmYyyy } from "./date-display";
 import { getItemAnalysis, type StoredItemAnalysis } from "./item-analysis";
 import {
@@ -61,8 +62,8 @@ export interface ItemDisplayFields {
   isBodyExpandable: boolean;
   isItemExpandable: boolean;
   reminderActive: boolean;
-  /** Shown under the body when the item has open OCR/content lines. */
-  activeLineCountLabel: string | null;
+  /** Checklist sub-task rows. Shown as a number only while those rows are hidden. */
+  subtaskCount: number;
 }
 
 export function truncateHeadline(text: string, maxWords = HEADLINE_MAX_WORDS): string {
@@ -170,6 +171,7 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
   const fullHeadline = resolveFullHeadline(displayItem);
   const headlineTruncated = isHeadlineTruncated(displayItem);
   const bodyExpandable = isBodyExpandable(body);
+  const subtaskCount = itemSubtaskCount(item);
 
   const recurrenceLabel = formatReminderRecurrenceLabel(
     getReminderRecurrence(item.metadata),
@@ -193,67 +195,21 @@ export function buildItemDisplayFields(item: ItemDisplaySource): ItemDisplayFiel
     isNote: !item.is_actionable,
     isHeadlineTruncated: headlineTruncated,
     isBodyExpandable: bodyExpandable,
-    isItemExpandable: headlineTruncated || bodyExpandable,
+    isItemExpandable: headlineTruncated || bodyExpandable || subtaskCount > 0,
     reminderActive: isReminderActive(item),
-    activeLineCountLabel: itemActiveLineCountLabel({
-      ...item,
-      title: displayItem.title,
-      content: displayItem.content,
-    }),
+    subtaskCount,
   };
 }
 
-const DONE_LINE_PREFIX = /^(?:✓|✔|☑|☒|\[x\]|\[X\]|~~)/u;
-
-type OcrLineLike = { text?: unknown; completed?: unknown };
-
-function firstSourceMaterial(item: ItemDisplaySource): SourceMaterial | null {
-  const source = item.source_materials;
-  if (!source) return null;
-  return Array.isArray(source) ? (source[0] ?? null) : source;
+/** Number of checklist sub-tasks written as rows on the item. */
+export function itemSubtaskCount(item: ItemDisplaySource): number {
+  return parseChecklist(item.metadata).length;
 }
 
-function itemOcrLines(item: ItemDisplaySource): { text: string; completed: boolean }[] {
-  const lines = firstSourceMaterial(item)?.metadata?.ocr_lines;
-  if (!Array.isArray(lines)) return [];
-  return (lines as OcrLineLike[])
-    .map((line) => ({
-      text: typeof line.text === "string" ? line.text.trim() : "",
-      completed: line.completed === true,
-    }))
-    .filter((line) => line.text.length > 0);
-}
-
-function splitContentLines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-/** Open OCR lines, or non-done content lines when OCR is missing. */
-export function itemActiveLines(item: ItemDisplaySource): string[] {
-  const ocr = itemOcrLines(item);
-  if (ocr.length > 0) {
-    return ocr.filter((line) => !line.completed).map((line) => line.text);
-  }
-  const text = (item.content.trim() || item.title.trim());
-  return splitContentLines(text).filter((line) => !DONE_LINE_PREFIX.test(line));
-}
-
-export function formatActiveLineCount(count: number): string | null {
+/** Digit shown on the card while sub-task rows are collapsed. */
+export function formatSubtaskCount(count: number): string | null {
   if (count <= 0) return null;
-  if (count === 1) return "שורה פעילה אחת";
-  return `${count} שורות פעילות`;
-}
-
-/** Label for the board card — OCR always, content lists only when 2+ lines. */
-export function itemActiveLineCountLabel(item: ItemDisplaySource): string | null {
-  const ocr = itemOcrLines(item);
-  const active = itemActiveLines(item);
-  if (ocr.length > 0) return formatActiveLineCount(active.length);
-  if (active.length < 2) return null;
-  return formatActiveLineCount(active.length);
+  return String(count);
 }
 
 const META_BULLET = " • ";

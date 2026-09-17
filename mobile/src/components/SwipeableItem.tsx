@@ -131,6 +131,9 @@ export function SwipeableItem({
   const doneStrike = isTaskListStruck(item);
   const strikeStyle = doneStrike ? styles.textDone : undefined;
   const priority = isPriorityItem(item);
+  const checklist = parseChecklist(item.metadata);
+  const showChecklist = checklist.length > 0 && !isSquares && (dense || itemExpanded);
+  const showSubtaskCount = display.subtaskCount > 0 && !showChecklist;
   const showBody = Boolean(display.body) && !isSquares && (!dense || itemExpanded);
 
   const swipeWidth = dense
@@ -269,7 +272,10 @@ export function SwipeableItem({
               </View>
             </View>
 
-            {showBody || (!dense && !isSquares && display.isItemExpandable) ? (
+            {showBody ||
+            showSubtaskCount ||
+            showChecklist ||
+            (!dense && !isSquares && display.isItemExpandable) ? (
               <View
                 style={[
                   styles.bodyBlock,
@@ -284,14 +290,14 @@ export function SwipeableItem({
                     {display.body}
                   </Text>
                 ) : null}
-                {display.activeLineCountLabel ? (
+                {showSubtaskCount ? (
                   <Text
                     style={[
                       styles.activeLineCount,
                       dense || isSquares ? styles.activeLineCountDense : null,
                     ]}
                   >
-                    {display.activeLineCountLabel}
+                    {display.subtaskCount}
                   </Text>
                 ) : null}
                 {!dense && !isSquares && display.isItemExpandable ? (
@@ -304,8 +310,8 @@ export function SwipeableItem({
                     <Text style={styles.expandBtn}>{itemExpanded ? "הסתר" : "הרחב"}</Text>
                   </TouchableOpacity>
                 ) : null}
-                {!isSquares
-                  ? parseChecklist(item.metadata).map((entry) => (
+                {showChecklist
+                  ? checklist.map((entry) => (
                       <TouchableOpacity
                         key={entry.id}
                         style={styles.checkRow}
