@@ -24,6 +24,7 @@ import {
   resolveRestoreFromTrashPatch,
 } from "../lib/item-restore";
 import type { ItemEditInput } from "../components/ItemEditModal";
+import { withChecklist, type ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
 import {
   buildClearReminderPatch,
@@ -73,6 +74,7 @@ function useItemsConvexOffline(
     editItem: noop,
     updateTags: noop,
     togglePriority: noop,
+    toggleChecklist: noop,
     moveToColumn: noop,
     placeItem: noop,
     refresh: noopRefresh,
@@ -348,6 +350,9 @@ function useItemsConvexOnline(
       });
       patch.due_date = reminder.dueDate;
       patch.metadata = reminder.metadata;
+      if (input.checklist) {
+        patch.metadata = withChecklist(patch.metadata, input.checklist);
+      }
       await updateItem(item.id, patch);
       if (reminder.dueDate) {
         try {
@@ -380,6 +385,16 @@ function useItemsConvexOnline(
   const togglePriority = useCallback(
     async (item: MindtaskerItem, priority: boolean) => {
       await updateItem(item.id, buildPriorityTogglePatch(item, priority));
+    },
+    [updateItem],
+  );
+
+  const toggleChecklist = useCallback(
+    async (item: MindtaskerItem, checklist: ChecklistEntry[]) => {
+      await updateItem(item.id, {
+        metadata: withChecklist(item.metadata, checklist),
+        last_interacted_at: new Date().toISOString(),
+      });
     },
     [updateItem],
   );
@@ -515,6 +530,7 @@ function useItemsConvexOnline(
     editItem,
     updateTags,
     togglePriority,
+    toggleChecklist,
     moveToColumn,
     placeItem,
     refresh: noopRefresh,

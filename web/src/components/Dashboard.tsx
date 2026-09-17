@@ -59,6 +59,7 @@ import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
 import { planMyDayFocus, planMyDayOrder } from "../lib/plan-my-day";
 import { ItemEditModal } from "./ItemEditModal";
+import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
 interface DashboardProps {
   userId: string;
@@ -581,7 +582,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       tagPickerOpen: open,
       tagsOverride: open ? tagDraft : undefined,
       onTogglePriority: () => void togglePriority(item, !isPriorityItem(item)),
-      onToggleChecklist: (checklist) => {
+      onToggleChecklist: (checklist: ChecklistEntry[]) => {
         void toggleChecklist(item, checklist);
       },
     };
