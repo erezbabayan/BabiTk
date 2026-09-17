@@ -5,13 +5,26 @@ import {
   invokeGreenConnect,
   loadWhatsAppGateway,
   saveWhatsAppGateway,
+  type GreenConnectAction,
   type GreenConnectStatus,
   type WhatsAppGatewayRow,
 } from "../lib/whatsapp-gateway";
+import {
+  formatPairingCode,
+  preferPhonePairingOnThisDevice,
+  WHATSAPP_PAIRING_HINT,
+  WHATSAPP_SCAN_HINT,
+} from "../lib/whatsapp-pairing";
 
 const GREEN_CONSOLE = "https://console.green-api.com/";
 
-export function GreenApiConnectSettings() {
+type ConnectMethod = "qr" | "phone";
+
+interface GreenApiConnectSettingsProps {
+  onLinked?: () => void;
+}
+
+export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsProps) {
   const [gateway, setGateway] = useState<WhatsAppGatewayRow | null>(null);
   const [status, setStatus] = useState<GreenConnectStatus | null>(null);
   const [instanceId, setInstanceId] = useState("");
@@ -21,12 +34,25 @@ export function GreenApiConnectSettings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [method, setMethod] = useState<ConnectMethod>(() =>
+    preferPhonePairingOnThisDevice() ? "phone" : "qr",
+  );
+  const [phone, setPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
 
-  async function refreshStatus(action: "status" | "configureWebhook" = "status"): Promise<GreenConnectStatus | null> {
-    const next = await invokeGreenConnect(action);
+  async function refreshStatus(
+    action: GreenConnectAction = "status",
+    extra?: { phone?: string },
+  ): Promise<GreenConnectStatus | null> {
+    const next = await invokeGreenConnect(action, extra);
     setStatus(next);
     if (next.instanceId) setInstanceId(next.instanceId);
     if (next.configured) setShowKeys(false);
+    if (next.pairingCode) setPairingCode(next.pairingCode);
+    if (next.authorized) {
+      setPairingCode(null);
+      onLinked?.();
+    }
     return next;
   }
 
@@ -38,15 +64,19 @@ export function GreenApiConnectSettings() {
         if (cancelled) return;
         setGateway(row);
         if (row) setInstanceId(row.instance_id);
-        const next = await refreshStatus(row ? "configureWebhook" : "status");
+        let next = await refreshStatus(row ? "configureWebhook" : "status");
         if (cancelled) return;
-        if (!row && !next?.configured) {
-          setShowKeys(true);
+        if (!row && next?.canAutoProvision && !next.configured) {
+          next = await refreshStatus("ensureInstance");
+          if (cancelled) return;
+        }
+        if (!row && !next?.configured && !next?.canAutoProvision) {
+          setShowKeys(false);
         }
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "טעינת חיבור הוואטסאפ נכשלה");
-          setShowKeys(true);
+          setShowKeys(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -65,7 +95,7 @@ export function GreenApiConnectSettings() {
     return () => window.clearInterval(timer);
   }, [status?.configured, status?.authorized]);
 
-  async function handleSave(event: FormEvent) {
+  async function handleSaveKeys(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setError(null);
@@ -78,7 +108,9 @@ export function GreenApiConnectSettings() {
       setMessage(
         next?.authorized
           ? "הוואטסאפ מחובר וה-webhook הוגדר."
-          : "סרקו את ה-QR למטה עם וואטסאפ → מכשירים מקושרים.",
+          : method === "phone"
+            ? "הזינו מספר וואטסאפ לקבלת קוד חיבור."
+            : WHATSAPP_SCAN_HINT,
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "שמירת החיבור נכשלה");
@@ -87,6 +119,29 @@ export function GreenApiConnectSettings() {
       } catch {
         // keep save error
       }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePairing(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const next = await refreshStatus("pairingCode", { phone });
+      if (next?.pairingCode) {
+        setPairingCode(next.pairingCode);
+        setMessage("הזינו את הקוד בוואטסאפ. אחרי החיבור תתקבל הודעת אישור.");
+      } else if (next?.authorized) {
+        setMessage("הוואטסאפ כבר מחובר.");
+      } else {
+        setError(next?.hint || "לא הצלחנו להפיק קוד. נסו סריקת QR במחשב.");
+        if (!next?.configured) setShowKeys(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "בקשת קוד החיבור נכשלה");
     } finally {
       setSaving(false);
     }
@@ -102,10 +157,24 @@ export function GreenApiConnectSettings() {
       setStatus(null);
       setInstanceId("");
       setApiToken("");
-      setShowKeys(true);
-      setMessage("חיבור GREEN-API נותק.");
+      setPairingCode(null);
+      setShowKeys(false);
+      setMessage("חיבור הוואטסאפ נותק.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "ניתוק נכשל");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResendWelcome() {
+    setSaving(true);
+    setError(null);
+    try {
+      const next = await refreshStatus("sendWelcome");
+      setMessage(next?.welcomeSent ? "נשלחה הודעת אישור לוואטסאפ." : next?.hint ?? "החיבור פעיל.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שליחת ההודעה נכשלה");
     } finally {
       setSaving(false);
     }
@@ -115,101 +184,168 @@ export function GreenApiConnectSettings() {
     return <p className="text-sm text-slate-500">טוען חיבור וואטסאפ...</p>;
   }
 
-  const waitingForQr = Boolean(status?.configured && !status.authorized);
+  const waiting = Boolean(status?.configured && !status.authorized);
   const connected = Boolean(status?.authorized);
+  const needsKeys = !gateway && !status?.configured && !status?.canAutoProvision;
 
   return (
     <div className="space-y-4" dir="rtl">
       <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
-        <p className="font-medium text-slate-900">חיבור וואטסאפ — חינם</p>
+        <p className="font-medium text-slate-900">חיבור וואטסאפ</p>
         <p className="mt-2 text-xs leading-5 text-slate-600">
-          BabiTk קולט הודעות מקבוצה או מ«הודעה לעצמי», כמו פעם. מומלץ{" "}
-          <strong>GREEN-API Developer</strong> — חינם, QR, קבוצות, עד 3 צ׳אטים בחודש
-          (מספיק לקבוצת משימות + הודעה לעצמי).
+          במחשב סורקים QR. בטלפון מזינים מספר ומקבלים קוד — בלי סריקה. אחרי החיבור תישלח הודעת אישור לוואטסאפ.
         </p>
       </div>
-
-      {waitingForQr ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <p className="font-medium">סרקו כדי לחבר את הוואטסאפ</p>
-          <p className="mt-1 text-xs">{status?.hint}</p>
-          {status?.stateInstance ? (
-            <p className="mt-1 text-xs" dir="ltr">
-              state: {status.stateInstance}
-            </p>
-          ) : null}
-          {status?.qrBase64 ? (
-            <img
-              alt="QR לחיבור וואטסאפ"
-              className="mx-auto mt-3 h-52 w-52 rounded-lg bg-white p-2"
-              src={`data:image/png;base64,${status.qrBase64}`}
-            />
-          ) : (
-            <p className="mt-3 text-xs">טוען QR מ-GREEN-API...</p>
-          )}
-          {status?.qrPageUrl ? (
-            <a
-              className="mt-2 inline-block text-xs underline"
-              href={status.qrPageUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              אם ה-QR לא מופיע — פתחו את דף GREEN-API
-            </a>
-          ) : null}
-          <p className="mt-3 text-xs">
-            בוואטסאפ: הגדרות → מכשירים מקושרים → קישור מכשיר
-          </p>
-          <button
-            type="button"
-            className="mt-3 text-xs font-medium underline"
-            onClick={() => void handleDisconnect()}
-            disabled={saving}
-          >
-            נתק instance
-          </button>
-        </div>
-      ) : null}
 
       {connected ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
           <p className="font-medium">הוואטסאפ מחובר</p>
           <p className="mt-1 text-xs">{status?.hint}</p>
-          {status?.instanceId ? (
+          {status?.linkedPhone ? (
             <p className="mt-1 text-xs" dir="ltr">
-              instance: {status.instanceId}
+              {status.linkedPhone}
             </p>
           ) : null}
-          <button
-            type="button"
-            className="mt-3 text-xs font-medium underline"
-            onClick={() => void handleDisconnect()}
-            disabled={saving}
-          >
-            נתק instance
-          </button>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="text-xs font-medium underline"
+              onClick={() => void handleResendWelcome()}
+              disabled={saving}
+            >
+              שלח שוב הודעת אישור
+            </button>
+            <button
+              type="button"
+              className="text-xs font-medium underline"
+              onClick={() => void handleDisconnect()}
+              disabled={saving}
+            >
+              נתק
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {waiting || !connected ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                method === "qr" ? "bg-amber-900 text-white" : "bg-white text-amber-900"
+              }`}
+              onClick={() => setMethod("qr")}
+            >
+              סריקת QR
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                method === "phone" ? "bg-amber-900 text-white" : "bg-white text-amber-900"
+              }`}
+              onClick={() => setMethod("phone")}
+            >
+              בלי סריקה — קוד בטלפון
+            </button>
+          </div>
+
+          {method === "qr" ? (
+            <div className="mt-3">
+              <p className="font-medium">סרקו עם הוואטסאפ בטלפון</p>
+              <p className="mt-1 text-xs">{WHATSAPP_SCAN_HINT}</p>
+              {status?.qrBase64 ? (
+                <img
+                  alt="QR לחיבור וואטסאפ"
+                  className="mx-auto mt-3 h-52 w-52 rounded-lg bg-white p-2"
+                  src={`data:image/png;base64,${status.qrBase64}`}
+                />
+              ) : status?.configured ? (
+                <p className="mt-3 text-xs">טוען QR...</p>
+              ) : (
+                <p className="mt-3 text-xs">
+                  אם ה-QR לא מופיע, השלימו קודם את ההגדרה החד-פעמית למטה — ואז הסריקה תופיע כאן.
+                </p>
+              )}
+              {status?.qrPageUrl ? (
+                <a
+                  className="mt-2 inline-block text-xs underline"
+                  href={status.qrPageUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  אם ה-QR לא מופיע — פתחו בדף נפרד
+                </a>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-3">
+              <p className="font-medium">חברו עם מספר טלפון</p>
+              <p className="mt-1 text-xs">{WHATSAPP_PAIRING_HINT}</p>
+              <form onSubmit={(event) => void handlePairing(event)} className="mt-3 space-y-3">
+                <label className="block text-xs font-medium">
+                  מספר הוואטסאפ
+                  <input
+                    type="tel"
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="0501234567"
+                    className="mt-1 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-slate-900"
+                    dir="ltr"
+                    required
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={saving || !phone.trim()}
+                  className="w-full rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {saving ? "מכין קוד…" : pairingCode ? "חדש קוד" : "שלח קוד חיבור"}
+                </button>
+              </form>
+              {pairingCode ? (
+                <div className="mt-4 rounded-xl border border-emerald-300 bg-white p-4 text-center">
+                  <p className="text-xs text-slate-600">הקוד להזנה בוואטסאפ</p>
+                  <p className="mt-2 font-mono text-3xl font-bold tracking-widest text-emerald-800" dir="ltr">
+                    {formatPairingCode(pairingCode)}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    וואטסאפ → הגדרות → מכשירים מקושרים → קישור מכשיר → קישור עם מספר טלפון
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {status?.configured ? (
+            <button
+              type="button"
+              className="mt-3 text-xs font-medium underline"
+              onClick={() => void handleDisconnect()}
+              disabled={saving}
+            >
+              נתק
+            </button>
+          ) : null}
         </div>
       ) : null}
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
 
-      <button
-        type="button"
-        className="text-xs text-slate-500 underline"
-        onClick={() => setShowKeys((open) => !open)}
-      >
-        {showKeys ? "הסתר מפתחות GREEN-API" : gateway || status?.configured ? "מפתחות GREEN-API (רק אם צריך לעדכן)" : "הזנת מפתחות GREEN-API"}
-      </button>
-
-      {showKeys ? (
-        <form onSubmit={(event) => void handleSave(event)} className="space-y-3 rounded-xl border border-slate-200 p-4">
-          <p className="text-sm font-medium text-slate-900">מפתחות GREEN-API</p>
-          <ol className="list-decimal space-y-1 pr-4 text-xs text-slate-600">
-            <li>צרו instance בתוכנית Developer (חינם)</li>
-            <li>העתיקו Instance ID ו-API Token</li>
-            <li>שמרו כאן וסרקו QR עם וואטסאפ → מכשירים מקושרים</li>
-          </ol>
+      {needsKeys || showKeys ? (
+        <details className="rounded-xl border border-slate-200 p-4">
+          <summary className="cursor-pointer text-xs text-slate-500">
+            הגדרה טכנית מוסתרת
+          </summary>
+          <form onSubmit={(event) => void handleSaveKeys(event)} className="mt-3 space-y-3">
+          <p className="text-xs leading-5 text-slate-600">
+            פעם אחת: צרו instance חינמי ב-
+            <a className="underline" href={GREEN_CONSOLE} target="_blank" rel="noreferrer">
+              GREEN-API
+            </a>
+            , הדביקו את המפתחות, ואז סרקו או הזינו מספר.
+          </p>
           <label className="block text-xs font-medium text-slate-600">
             Instance ID
             <input
@@ -238,10 +374,19 @@ export function GreenApiConnectSettings() {
             disabled={saving}
             className="w-full rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
           >
-            {saving ? "שומר…" : gateway ? "עדכן וחבר webhook" : "שמור וחבר webhook"}
+            {saving ? "שומר…" : "שמור והמשך לחיבור"}
           </button>
-        </form>
-      ) : null}
+          </form>
+        </details>
+      ) : (
+        <button
+          type="button"
+          className="text-xs text-slate-500 underline"
+          onClick={() => setShowKeys((open) => !open)}
+        >
+          הגדרה טכנית מוסתרת
+        </button>
+      )}
     </div>
   );
 }

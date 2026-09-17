@@ -10,6 +10,7 @@ import {
   type CloudUserProfile,
   type DigestDays,
 } from "../lib/user-profile";
+import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -33,8 +34,10 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
   const [savingDigestHours, setSavingDigestHours] = useState(false);
   const [savingDigestDays, setSavingDigestDays] = useState(false);
+  const [testingReminder, setTestingReminder] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,9 +68,23 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const groupConnected = Boolean(profile?.whatsapp_capture_group_name?.trim());
   const digestHours = profile?.whatsapp_digest_hours ?? [9];
   const digestDays: DigestDays = profile?.whatsapp_digest_days ?? "everyday";
-  const captureIsPersonal = Boolean(
-    profile?.whatsapp_capture_group_chat_id?.trim().toLowerCase().endsWith("@c.us"),
-  );
+  const captureChatId = profile?.whatsapp_capture_group_chat_id?.trim() ?? "";
+  const notifyWhatsAppGroup = profile?.notify_whatsapp_group === true;
+  const captureIsPersonal = Boolean(captureChatId.toLowerCase().endsWith("@c.us"));
+  const captureIsGroup = captureChatId.toLowerCase().endsWith("@g.us");
+
+  useEffect(() => {
+    if (!profile || !captureIsGroup || notifyWhatsAppGroup) return;
+    let cancelled = false;
+    void updateCloudUserProfile({ notify_whatsapp_group: true })
+      .then((next) => {
+        if (!cancelled) setProfile(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, captureIsGroup, notifyWhatsAppGroup]);
 
   async function handleLinkPhone(event: FormEvent) {
     event.preventDefault();
@@ -111,6 +128,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       const next = await updateCloudUserProfile({
         whatsapp_capture_group_name: name,
         whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null,
+        notify_whatsapp_group: true,
       });
       setProfile(next);
       setMessage(`הקבוצה «${name}» נשמרה בחשבון.`);
@@ -128,12 +146,53 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       const next = await updateCloudUserProfile({
         whatsapp_capture_group_chat_id: null,
         whatsapp_capture_group_name: null,
+        notify_whatsapp_group: false,
       });
       setProfile(next);
       setGroupName("");
       setMessage("נותקת מהקבוצה. אפשר לחבר שוב למטה.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בניתוק");
+    }
+  }
+
+  async function handleNotifyGroupToggle(enabled: boolean) {
+    if (!captureIsGroup) {
+      setError("קודם חברו קבוצת קליטה, ואז אפשר לקבל אליה תזכורות.");
+      return;
+    }
+    setSavingNotifyGroup(true);
+    setError(null);
+    try {
+      const next = await updateCloudUserProfile({ notify_whatsapp_group: enabled });
+      setProfile(next);
+      setMessage(
+        enabled
+          ? "תזכורות פעילות יישלחו כהודעה לקבוצת הוואטסאפ שהוגדרה."
+          : "תזכורות לקבוצה כובו.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
+    } finally {
+      setSavingNotifyGroup(false);
+    }
+  }
+
+  async function handleTestReminder() {
+    setTestingReminder(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await sendWhatsAppReminderTest();
+      setMessage(
+        result.sent
+          ? "נשלחה הודעת בדיקה לקבוצת הוואטסאפ. בדקו שההודעה הגיעה."
+          : "אין יעד לשליחה — חברו קבוצה או וואטסאפ.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שליחת הבדיקה נכשלה");
+    } finally {
+      setTestingReminder(false);
     }
   }
 
@@ -186,9 +245,9 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
 
   const digestBlock = (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" dir="rtl">
-      <p className="font-medium text-slate-900">תזכורת יומית</p>
+      <p className="font-medium text-slate-900">ריכוז תזכורות</p>
       <p className="mt-1 text-xs text-slate-600">
-        סיכום התזכורות של אותו יום — עד {MAX_DIGEST_HOURS} מועדים. נשמר בחשבון.
+        בשעות האלה נשלחת לוואטסאפ רשימת התזכורות של היום. בנוסף, כל תזכורת נשלחת גם בזמן שמוגדר לה.
       </p>
       <p className="mt-3 text-xs font-medium text-slate-700">ימי שליחה</p>
       <div className="mt-2 flex flex-wrap justify-end gap-1.5">
@@ -243,17 +302,17 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       </div>
       <p className="mt-2 text-xs text-slate-500">
         {digestDays === "weekdays" ? "ימי חול בלבד · " : "כל השבוע · "}
-        עד {MAX_DIGEST_HOURS} שעות ביום
+        עד {MAX_DIGEST_HOURS} שעות ביום · כל תזכורת נשלחת גם בזמן שלה
         {savingDigestHours || savingDigestDays ? " · שומר…" : ""}
       </p>
     </div>
   );
 
-  const groupBlock = linkedPhone ? (
+  const groupBlock = (
     <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm" dir="rtl">
       <p className="font-medium text-sky-950">קבוצת קליטה</p>
       <p className="mt-1 text-xs text-sky-800">
-        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור GREEN-API, הודעות מהקבוצה נכנסות ללוח.
+        שמרו את שם הקבוצה הקיימת (למשל «משימות ארז»). אחרי חיבור הוואטסאפ, הודעות מהקבוצה נכנסות ללוח.
       </p>
 
       {groupConnected ? (
@@ -279,6 +338,37 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         </p>
       )}
 
+      <label className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-sky-200 bg-white px-3 py-3">
+        <span className="text-right">
+          <span className="block text-sm font-medium text-sky-950">
+            תזכורות פעילות לקבוצה
+          </span>
+          <span className="mt-0.5 block text-xs text-sky-800">
+            {captureIsGroup
+              ? `כל תזכורת של משימה או הערה נשלחת לקבוצה «${profile?.whatsapp_capture_group_name?.trim() || "קבוצת הקליטה"}» בזמן שמוגדר לה.`
+              : "דורש קבוצת וואטסאפ שהוגדרה למעלה (לא הודעה אישית)"}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          className="mt-1 h-4 w-4"
+          checked={notifyWhatsAppGroup || captureIsGroup}
+          disabled={!captureIsGroup || savingNotifyGroup}
+          onChange={(event) => void handleNotifyGroupToggle(event.target.checked)}
+        />
+      </label>
+
+      {captureIsGroup ? (
+        <button
+          type="button"
+          disabled={testingReminder}
+          onClick={() => void handleTestReminder()}
+          className="mt-3 w-full rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+        >
+          {testingReminder ? "שולח בדיקה…" : "שלחו הודעת בדיקה לקבוצה"}
+        </button>
+      ) : null}
+
       <form onSubmit={(event) => void handleSaveGroup(event)} className="mt-4 space-y-3">
         <label className="block text-xs font-medium text-sky-900">שם קבוצה קיימת</label>
         <input
@@ -297,54 +387,45 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         </button>
       </form>
     </div>
-  ) : null;
-
-  if (linkedPhone) {
-    return (
-      <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm" dir="rtl">
-          <p className="font-medium text-emerald-900">מחובר</p>
-          <p className="mt-1 text-emerald-800" dir="ltr">
-            {linkedPhone}
-          </p>
-          <p className="mt-2 text-xs text-emerald-700">
-            המספר והקבוצה שמורים בחשבון. חברו GREEN-API למטה כדי לקלוט הודעות חיות.
-          </p>
-        </div>
-        {groupBlock}
-        <GreenApiConnectSettings />
-        {digestBlock}
-        {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      </ChannelInfoPanel>
-    );
-  }
+  );
 
   return (
     <ChannelInfoPanel channelId="whatsapp" summary={summary} compact>
-      <p className="text-sm text-slate-600" dir="rtl">
-        חברו מספר וואטסאפ — ואז שמרו קבוצה קיימת וחברו GREEN-API לקליטה חיה.
-      </p>
-      <GreenApiConnectSettings />
+      <GreenApiConnectSettings onLinked={() => void refresh().catch(() => undefined)} />
+
+      {linkedPhone ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm" dir="rtl">
+          <p className="font-medium text-emerald-900">מספר שמור בחשבון</p>
+          <p className="mt-1 text-emerald-800" dir="ltr">
+            {linkedPhone}
+          </p>
+        </div>
+      ) : (
+        <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm" dir="rtl">
+          <summary className="cursor-pointer text-xs text-slate-500">שמירת מספר בלי חיבור וואטסאפ</summary>
+          <form onSubmit={(event) => void handleLinkPhone(event)} className="mt-3 space-y-3">
+            <input
+              type="tel"
+              placeholder="0501234567"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2"
+              dir="ltr"
+              required
+            />
+            <button
+              type="submit"
+              disabled={savingPhone}
+              className="w-full rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              {savingPhone ? "שומר..." : "שמור מספר"}
+            </button>
+          </form>
+        </details>
+      )}
+
+      {groupBlock}
       {digestBlock}
-      <form onSubmit={(event) => void handleLinkPhone(event)} className="space-y-3">
-        <input
-          type="tel"
-          placeholder="+972501234567"
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2"
-          dir="ltr"
-          required
-        />
-        <button
-          type="submit"
-          disabled={savingPhone}
-          className="w-full rounded-lg bg-blue-600 px-3 py-2.5 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-        >
-          {savingPhone ? "שומר..." : "חבר מספר"}
-        </button>
-      </form>
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </ChannelInfoPanel>

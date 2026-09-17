@@ -15,8 +15,6 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
   getProfile,
-  requestPhoneVerification,
-  verifyPhoneCode,
   type UsageSummary,
   type UserProfile,
 } from "../lib/api";
@@ -24,6 +22,14 @@ import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { isConvexConfigured } from "../lib/convex";
 import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoView } from "./ChannelInfoView";
+import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
+import {
+  loadWhatsAppNotifyPrefs,
+  saveNotifyWhatsAppGroup,
+  saveWhatsAppDigestDays,
+  saveWhatsAppDigestHours,
+} from "../lib/whatsapp-gateway";
+import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -69,8 +75,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [phone, setPhone] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"idle" | "verify">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -84,6 +88,13 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   );
   const [groupSearch, setGroupSearch] = useState("");
   const [awaitingGroupMessage, setAwaitingGroupMessage] = useState(false);
+  const [notifyWhatsAppGroup, setNotifyWhatsAppGroup] = useState(false);
+  const [captureGroupName, setCaptureGroupName] = useState<string | null>(null);
+  const [captureGroupChatId, setCaptureGroupChatId] = useState<string | null>(null);
+  const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
+  const [testingReminder, setTestingReminder] = useState(false);
+  const [cloudDigestHours, setCloudDigestHours] = useState<number[]>([9]);
+  const [cloudDigestDays, setCloudDigestDays] = useState<"weekdays" | "everyday">("everyday");
 
   useEffect(() => {
     if (!visible || !useConvexPhone || !viewer) return;
@@ -105,6 +116,15 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     void getProfile()
       .then(setProfile)
       .catch(() => setProfile(null));
+    void loadWhatsAppNotifyPrefs()
+      .then((prefs) => {
+        setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
+        setCaptureGroupChatId(prefs.captureGroupChatId);
+        setCaptureGroupName(prefs.captureGroupName);
+        setCloudDigestHours(prefs.digestHours);
+        setCloudDigestDays(prefs.digestDays);
+      })
+      .catch(() => undefined);
   }, [visible, useConvexPhone]);
 
   useEffect(() => {
@@ -143,8 +163,10 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     };
   }, [visible, useConvexPhone, viewer?.phoneVerified, listCaptureGroups]);
 
-  const digestHours = viewer?.whatsappDigestHours ?? [9];
-  const digestDays = viewer?.whatsappDigestDays ?? "everyday";
+  const digestHours = useConvexPhone ? (viewer?.whatsappDigestHours ?? [9]) : cloudDigestHours;
+  const digestDays = useConvexPhone
+    ? (viewer?.whatsappDigestDays ?? "everyday")
+    : cloudDigestDays;
   const convexReady = Boolean(viewer?.userId);
 
   const filteredGroups = useMemo(() => {
@@ -161,13 +183,32 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     : profile?.phone_verified
       ? profile.phone
       : null;
+  const captureIsGroup = (captureGroupChatId ?? "").toLowerCase().endsWith("@g.us");
+
+  useEffect(() => {
+    if (!visible || useConvexPhone || !captureIsGroup || notifyWhatsAppGroup) return;
+    let cancelled = false;
+    void saveNotifyWhatsAppGroup(true)
+      .then(() => {
+        if (!cancelled) setNotifyWhatsAppGroup(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, useConvexPhone, captureIsGroup, notifyWhatsAppGroup]);
 
   async function handleDigestDaysChange(next: "weekdays" | "everyday") {
     if (next === digestDays) return;
     setSavingDigestDays(true);
     setError(null);
     try {
-      await updateNotificationPrefs({ whatsappDigestDays: next });
+      if (useConvexPhone) {
+        await updateNotificationPrefs({ whatsappDigestDays: next });
+      } else {
+        await saveWhatsAppDigestDays(next);
+        setCloudDigestDays(next);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת ימי השליחה");
     } finally {
@@ -195,7 +236,12 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setSavingDigestHours(true);
     setError(null);
     try {
-      await updateNotificationPrefs({ whatsappDigestHours: next });
+      if (useConvexPhone) {
+        await updateNotificationPrefs({ whatsappDigestHours: next });
+      } else {
+        await saveWhatsAppDigestHours(next);
+        setCloudDigestHours(next);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת שעות התזכורת");
     } finally {
@@ -224,33 +270,44 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     }
   }
 
-  async function handleRequest() {
-    setLoading(true);
+  async function handleNotifyGroupToggle(enabled: boolean) {
+    if (!captureIsGroup) {
+      setError("קודם חברו קבוצת קליטה, ואז אפשר לקבל אליה תזכורות.");
+      return;
+    }
+    setSavingNotifyGroup(true);
     setError(null);
     setMessage(null);
     try {
-      const result = await requestPhoneVerification(phone);
-      setStep("verify");
-      setMessage(result.devCode ? `${result.message}: ${result.devCode}` : result.message);
+      await saveNotifyWhatsAppGroup(enabled);
+      setNotifyWhatsAppGroup(enabled);
+      setMessage(
+        enabled
+          ? "תזכורות פעילות יישלחו כהודעה לקבוצת הוואטסאפ שהוגדרה."
+          : "תזכורות לקבוצה כובו.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
+      setError(err instanceof Error ? err.message : "שגיאה בשמירת הגדרת התזכורות");
     } finally {
-      setLoading(false);
+      setSavingNotifyGroup(false);
     }
   }
 
-  async function handleVerify() {
-    setLoading(true);
+  async function handleTestReminder() {
+    setTestingReminder(true);
     setError(null);
+    setMessage(null);
     try {
-      const result = await verifyPhoneCode(code);
-      setProfile(result.profile);
-      setStep("idle");
-      setMessage(result.message);
+      const result = await sendWhatsAppReminderTest();
+      setMessage(
+        result.sent
+          ? "נשלחה הודעת בדיקה לקבוצת הוואטסאפ. בדקו שההודעה הגיעה."
+          : "אין יעד לשליחה — חברו קבוצה או וואטסאפ.",
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
+      setError(err instanceof Error ? err.message : "שליחת הבדיקה נכשלה");
     } finally {
-      setLoading(false);
+      setTestingReminder(false);
     }
   }
 
@@ -330,6 +387,65 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>וואטסאפ</Text>
             <ChannelInfoView channelId="whatsapp" summary={summary} compact>
+              {!useConvexPhone && isSupabaseConfigured && visible ? (
+                <GreenApiConnectSettings
+                  onLinked={() => {
+                    void getProfile()
+                      .then(setProfile)
+                      .catch(() => undefined);
+                    void loadWhatsAppNotifyPrefs()
+                      .then((prefs) => {
+                        setNotifyWhatsAppGroup(prefs.notifyWhatsAppGroup);
+                        setCaptureGroupChatId(prefs.captureGroupChatId);
+                        setCaptureGroupName(prefs.captureGroupName);
+                        setCloudDigestHours(prefs.digestHours);
+                        setCloudDigestDays(prefs.digestDays);
+                      })
+                      .catch(() => undefined);
+                  }}
+                />
+              ) : null}
+              {!useConvexPhone && isSupabaseConfigured ? (
+                <View style={styles.captureBox}>
+                  <Text style={styles.captureTitle}>תזכורות פעילות לקבוצה</Text>
+                  <Text style={styles.hint}>
+                    {captureIsGroup
+                      ? `כל תזכורת של משימה או הערה נשלחת לקבוצה «${captureGroupName?.trim() || "קבוצת הקליטה"}» בזמן שמוגדר לה.`
+                      : "דורש קבוצת וואטסאפ שהוגדרה (לא הודעה אישית)"}
+                  </Text>
+                  <Pressable
+                    style={[
+                      styles.primaryButton,
+                      (!captureIsGroup || savingNotifyGroup) && styles.buttonDisabled,
+                    ]}
+                    disabled={!captureIsGroup || savingNotifyGroup}
+                    onPress={() => void handleNotifyGroupToggle(!notifyWhatsAppGroup)}
+                  >
+                    {savingNotifyGroup ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.buttonText}>
+                        {notifyWhatsAppGroup || captureIsGroup
+                          ? "תזכורות לקבוצה פעילות"
+                          : "קבל תזכורות כהודעה בקבוצה"}
+                      </Text>
+                    )}
+                  </Pressable>
+                  {captureIsGroup ? (
+                    <Pressable
+                      style={[styles.button, testingReminder && styles.buttonDisabled]}
+                      disabled={testingReminder}
+                      onPress={() => void handleTestReminder()}
+                    >
+                      {testingReminder ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text style={styles.buttonText}>שלחו הודעת בדיקה לקבוצה</Text>
+                      )}
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
               {linkedPhone ? (
                 <Text style={styles.ok}>מחובר: {linkedPhone}</Text>
               ) : useConvexPhone ? (
@@ -356,31 +472,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     )}
                   </Pressable>
                 </>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+972501234567"
-                    placeholderTextColor="#94a3b8"
-                    value={step === "idle" ? phone : code}
-                    onChangeText={step === "idle" ? setPhone : setCode}
-                    keyboardType={step === "idle" ? "phone-pad" : "number-pad"}
-                  />
-                  <Pressable
-                    style={[styles.button, loading && styles.buttonDisabled]}
-                    onPress={() => void (step === "idle" ? handleRequest() : handleVerify())}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>
-                        {step === "idle" ? "שלח קוד" : "אמת קוד"}
-                      </Text>
-                    )}
-                  </Pressable>
-                </>
-              )}
+              ) : null}
 
               {linkedPhone && useConvexPhone ? (
                 <View style={styles.captureBox}>
@@ -506,11 +598,11 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 </View>
               ) : null}
 
-              {useConvexPhone ? (
+              {useConvexPhone || (!useConvexPhone && isSupabaseConfigured) ? (
                 <View style={styles.digestBox}>
-                  <Text style={styles.digestTitle}>תזכורת יומית</Text>
+                  <Text style={styles.digestTitle}>ריכוז תזכורות</Text>
                   <Text style={styles.hint}>
-                    סיכום התזכורות של אותו יום — עד {MAX_DIGEST_HOURS} מועדים.
+                    בשעות האלה נשלחת רשימת התזכורות של היום. כל תזכורת נשלחת גם בזמן שמוגדר לה.
                   </Text>
                   <Text style={styles.digestLabel}>ימי שליחה</Text>
                   <View style={styles.hourGrid}>
@@ -529,7 +621,11 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             selected && styles.hourChipSelected,
                           ]}
                           disabled={
-                            viewer === undefined || savingDigestDays || savingDigestHours
+                            (useConvexPhone
+                              ? viewer === undefined
+                              : !isSupabaseConfigured) ||
+                            savingDigestDays ||
+                            savingDigestHours
                           }
                           onPress={() => void handleDigestDaysChange(option.id)}
                         >
@@ -563,7 +659,13 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             selected && styles.hourChipSelected,
                             atLimit && styles.hourChipDisabled,
                           ]}
-                          disabled={viewer === undefined || savingDigestHours || atLimit}
+                          disabled={
+                            (useConvexPhone
+                              ? viewer === undefined
+                              : !isSupabaseConfigured) ||
+                            savingDigestHours ||
+                            atLimit
+                          }
                           onPress={() => void handleDigestHourToggle(hour)}
                         >
                           <Text

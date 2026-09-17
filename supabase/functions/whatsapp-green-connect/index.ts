@@ -10,10 +10,19 @@ import {
 } from "../_shared/voice-ingest.ts";
 import { needsVoiceTranscription } from "../_shared/voice-text.ts";
 import { decodeAudioBase64, audioFileName } from "../_shared/hebrew-voice-asr.ts";
+import {
+  parseAuthorizationCodeResponse,
+  phoneDigitsForGreenApi,
+  phoneFromWid,
+  WHATSAPP_PAIRING_HINT,
+  WHATSAPP_SCAN_HINT,
+  WHATSAPP_WELCOME_MESSAGE,
+} from "../_shared/green-api-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const PARTNER_TOKEN = Deno.env.get("GREEN_API_PARTNER_TOKEN")?.trim() ?? "";
 const DEFAULT_GREEN_URL = "https://api.greenapi.com";
 
 function json(body: unknown, status = 200): Response {
@@ -38,6 +47,14 @@ function greenUrl(baseUrl: string, instanceId: string, method: string, token: st
   return `${base}/waInstance${instanceId}/${method}/${token}`;
 }
 
+function newWebhookToken(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+function canAutoProvision(): boolean {
+  return PARTNER_TOKEN.length > 8;
+}
+
 interface GatewayRow {
   instance_id: string;
   api_token: string;
@@ -45,6 +62,7 @@ interface GatewayRow {
   webhook_token: string | null;
   instance_wid: string | null;
   last_state: string | null;
+  connected_at: string | null;
 }
 
 interface ConnectStatus {
@@ -58,6 +76,33 @@ interface ConnectStatus {
   webhookConfigured: boolean;
   hint: string;
   ok?: boolean;
+  pairingCode: string | null;
+  pairingPhone: string | null;
+  linkedPhone: string | null;
+  welcomeSent: boolean;
+  canAutoProvision: boolean;
+}
+
+function emptyStatus(partial: Partial<ConnectStatus> = {}): ConnectStatus {
+  return {
+    configured: false,
+    authorized: false,
+    stateInstance: null,
+    qrBase64: null,
+    qrPageUrl: null,
+    instanceId: null,
+    webhookUrl: `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook`,
+    webhookConfigured: false,
+    hint: canAutoProvision()
+      ? "הזינו מספר וואטסאפ או סרקו QR — נחבר את המכשיר."
+      : "צרו instance חינמי ב-GREEN-API והדביקו Instance ID ו-API Token (פעם אחת).",
+    pairingCode: null,
+    pairingPhone: null,
+    linkedPhone: null,
+    welcomeSent: false,
+    canAutoProvision: canAutoProvision(),
+    ...partial,
+  };
 }
 
 async function readJson(response: Response): Promise<unknown> {
@@ -99,12 +144,65 @@ async function configureWebhook(
   return { ok: response.ok, saveSettings };
 }
 
+async function sendWelcomeMessage(gateway: GatewayRow, digits: string): Promise<boolean> {
+  const url = greenUrl(gateway.api_url, gateway.instance_id, "sendMessage", gateway.api_token);
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chatId: `${digits}@c.us`,
+      message: WHATSAPP_WELCOME_MESSAGE,
+    }),
+  });
+  return response.ok;
+}
+
+async function linkUserPhone(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  linkedPhone: string,
+): Promise<void> {
+  const { data } = await supabase
+    .from("users")
+    .select("phone,phone_verified,whatsapp_capture_group_chat_id,whatsapp_capture_group_name")
+    .eq("id", userId)
+    .maybeSingle();
+  const row = (data ?? null) as {
+    phone?: string | null;
+    phone_verified?: boolean;
+    whatsapp_capture_group_chat_id?: string | null;
+    whatsapp_capture_group_name?: string | null;
+  } | null;
+  const patch: Record<string, unknown> = {};
+  if (!row?.phone_verified || !row.phone) {
+    patch.phone = linkedPhone;
+    patch.phone_verified = true;
+  }
+  if (!row?.whatsapp_capture_group_chat_id) {
+    const digits = linkedPhone.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      patch.whatsapp_capture_group_chat_id = `${digits}@c.us`;
+      patch.whatsapp_capture_group_name = row?.whatsapp_capture_group_name ?? "הודעה לעצמי (BabiTk)";
+    }
+  }
+  if (Object.keys(patch).length === 0) return;
+  const { error } = await supabase.from("users").update(patch).eq("id", userId);
+  if (error) {
+    console.error("whatsapp phone link failed", error.message);
+  }
+}
+
 async function readConnectStatus(
   supabase: ReturnType<typeof createClient>,
   userId: string,
   gateway: GatewayRow,
   webhookUrl: string,
   webhookConfigured: boolean,
+  extras: {
+    pairingCode?: string | null;
+    pairingPhone?: string | null;
+    sendWelcome?: boolean;
+  } = {},
 ): Promise<ConnectStatus> {
   const qrPageUrl = `https://qr.green-api.com/waInstance${gateway.instance_id}/${gateway.api_token}`;
   const stateRes = await fetch(
@@ -135,12 +233,24 @@ async function readConnectStatus(
     instanceWid = waJson.wid ?? waJson.phone ?? null;
   }
 
+  const linkedPhone = phoneFromWid(instanceWid) ?? extras.pairingPhone ?? null;
+  let welcomeSent = false;
+  const shouldWelcome = authorized && Boolean(linkedPhone) && (extras.sendWelcome || !gateway.connected_at);
+  if (shouldWelcome && linkedPhone) {
+    welcomeSent = await sendWelcomeMessage(gateway, linkedPhone.replace(/\D/g, ""));
+    await linkUserPhone(supabase, userId, linkedPhone);
+  } else if (authorized && linkedPhone) {
+    await linkUserPhone(supabase, userId, linkedPhone);
+  }
+
   await supabase
     .from("whatsapp_gateways")
     .update({
       last_state: stateInstance,
       instance_wid: instanceWid,
-      connected_at: authorized ? new Date().toISOString() : null,
+      connected_at: authorized
+        ? gateway.connected_at || new Date().toISOString()
+        : null,
       updated_at: new Date().toISOString(),
     })
     .eq("user_id", userId);
@@ -155,10 +265,141 @@ async function readConnectStatus(
     webhookUrl,
     webhookConfigured,
     hint: authorized
-      ? "הוואטסאפ מחובר. שלחו הודעה לקבוצת הקליטה או «הודעה לעצמי»."
-      : "סרקו את ה-QR עם וואטסאפ → מכשירים מקושרים.",
+      ? welcomeSent
+        ? "הוואטסאפ מחובר. נשלחה הודעת אישור לוואטסאפ."
+        : "הוואטסאפ מחובר. שלחו הודעה לקבוצת הקליטה או «הודעה לעצמי»."
+      : extras.pairingCode
+        ? WHATSAPP_PAIRING_HINT
+        : WHATSAPP_SCAN_HINT,
     ok: true,
+    pairingCode: extras.pairingCode ?? null,
+    pairingPhone: extras.pairingPhone ?? null,
+    linkedPhone,
+    welcomeSent,
+    canAutoProvision: canAutoProvision(),
   };
+}
+
+async function loadGateway(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<GatewayRow | null> {
+  const { data } = await supabase
+    .from("whatsapp_gateways")
+    .select("instance_id,api_token,api_url,webhook_token,instance_wid,last_state,connected_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return (data as GatewayRow | null) ?? null;
+}
+
+async function saveGatewayRow(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  row: {
+    instanceId: string;
+    apiToken: string;
+    apiUrl: string;
+    webhookToken: string;
+  },
+): Promise<GatewayRow> {
+  const payload = {
+    user_id: userId,
+    provider: "green-api",
+    instance_id: row.instanceId,
+    api_token: row.apiToken,
+    api_url: row.apiUrl,
+    webhook_token: row.webhookToken,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from("whatsapp_gateways")
+    .upsert(payload, { onConflict: "user_id" })
+    .select("instance_id,api_token,api_url,webhook_token,instance_wid,last_state,connected_at")
+    .single();
+  if (error || !data) {
+    throw new Error(error?.message || "שמירת החיבור נכשלה");
+  }
+  return data as GatewayRow;
+}
+
+async function createPartnerInstance(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<GatewayRow | null> {
+  if (!canAutoProvision()) return null;
+  const webhookToken = newWebhookToken();
+  const webhookUrl = webhookPublicUrl(webhookToken);
+  const response = await fetch(
+    `https://api.green-api.com/partner/createInstance/${PARTNER_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `BabiTk ${userId.slice(0, 8)}`,
+        webhookUrl,
+        webhookUrlToken: webhookToken,
+        incomingWebhook: "yes",
+        outgoingWebhook: "yes",
+        outgoingMessageWebhook: "yes",
+        enableMessagesHistory: "yes",
+        stateWebhook: "yes",
+        keepOnlineStatus: "yes",
+      }),
+    },
+  );
+  const created = (await readJson(response)) as {
+    idInstance?: number | string;
+    apiTokenInstance?: string;
+  };
+  const instanceId = created.idInstance != null ? String(created.idInstance).trim() : "";
+  const apiToken = created.apiTokenInstance?.trim() ?? "";
+  if (!response.ok || !instanceId || !apiToken) {
+    console.error("GREEN-API createInstance failed", created);
+    return null;
+  }
+  const gateway = await saveGatewayRow(supabase, userId, {
+    instanceId,
+    apiToken,
+    apiUrl: DEFAULT_GREEN_URL,
+    webhookToken,
+  });
+  await configureWebhook(gateway, webhookUrl);
+  return gateway;
+}
+
+async function ensureGateway(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  existing: GatewayRow | null,
+): Promise<GatewayRow | null> {
+  if (existing) return existing;
+  return await createPartnerInstance(supabase, userId);
+}
+
+async function requestPairingCode(
+  gateway: GatewayRow,
+  phone: string,
+): Promise<{ code: string | null; pairingPhone: string; hint: string }> {
+  const digits = phoneDigitsForGreenApi(phone);
+  const pairingPhone = `+${digits}`;
+  const response = await fetch(
+    greenUrl(gateway.api_url, gateway.instance_id, "getAuthorizationCode", gateway.api_token),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber: digits }),
+    },
+  );
+  const raw = await readJson(response);
+  const parsed = parseAuthorizationCodeResponse(raw);
+  if (!parsed.ok) {
+    const reason =
+      raw && typeof raw === "object" && "error" in raw && typeof (raw as { error?: unknown }).error === "string"
+        ? (raw as { error: string }).error
+        : "לא הצלחנו להפיק קוד חיבור. נסו סריקת QR במחשב.";
+    return { code: null, pairingPhone, hint: reason };
+  }
+  return { code: parsed.code, pairingPhone, hint: WHATSAPP_PAIRING_HINT };
 }
 
 Deno.serve(async (req) => {
@@ -191,6 +432,7 @@ Deno.serve(async (req) => {
   let mimeType = "audio/webm";
   let fileName = "";
   let durationSeconds: number | undefined;
+  let phone = "";
   try {
     const body = (await req.json()) as {
       action?: string;
@@ -199,6 +441,7 @@ Deno.serve(async (req) => {
       mimeType?: string;
       fileName?: string;
       durationSeconds?: number;
+      phone?: string;
     };
     if (typeof body.action === "string" && body.action.trim()) {
       action = body.action.trim();
@@ -218,16 +461,14 @@ Deno.serve(async (req) => {
     if (typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)) {
       durationSeconds = Math.max(1, Math.round(body.durationSeconds));
     }
+    if (typeof body.phone === "string") {
+      phone = body.phone.trim();
+    }
   } catch {
     action = "status";
   }
 
-  const { data: gatewayData } = await supabase
-    .from("whatsapp_gateways")
-    .select("instance_id,api_token,api_url,webhook_token,instance_wid,last_state")
-    .eq("user_id", userId)
-    .maybeSingle();
-  const gateway = gatewayData as GatewayRow | null;
+  let gateway = await loadGateway(supabase, userId);
 
   if (action === "ingestVoice") {
     if (!audioBase64) {
@@ -325,18 +566,26 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (action === "ensureInstance" || action === "pairingCode") {
+    try {
+      gateway = await ensureGateway(supabase, userId, gateway);
+    } catch (error) {
+      return json(
+        emptyStatus({
+          hint: error instanceof Error ? error.message : "יצירת חיבור וואטסאפ נכשלה",
+        }),
+      );
+    }
+  }
+
   if (!gateway) {
-    return json({
-      configured: false,
-      authorized: false,
-      stateInstance: null,
-      qrBase64: null,
-      qrPageUrl: null,
-      instanceId: null,
-      webhookUrl: `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook`,
-      webhookConfigured: false,
-      hint: "צרו instance חינמי ב-GREEN-API והדביקו כאן Instance ID ו-API Token.",
-    } satisfies ConnectStatus);
+    return json(
+      emptyStatus({
+        hint: canAutoProvision()
+          ? "לא הצלחנו לפתוח חיבור אוטומטי. נסו שוב, או הזינו מפתחות GREEN-API."
+          : "צרו instance חינמי ב-GREEN-API והדביקו Instance ID ו-API Token (פעם אחת).",
+      }),
+    );
   }
 
   const webhookUrl = webhookPublicUrl(gateway.webhook_token || "missing");
@@ -346,12 +595,36 @@ Deno.serve(async (req) => {
     webhookConfigured = result.ok;
   }
 
-  const status = await readConnectStatus(
-    supabase,
-    userId,
-    gateway,
-    webhookUrl,
-    webhookConfigured,
-  );
+  if (action === "pairingCode") {
+    if (!phone) {
+      return json({ error: "הזינו מספר וואטסאפ", hint: "הזינו מספר וואטסאפ" }, 400);
+    }
+    let pairing;
+    try {
+      pairing = await requestPairingCode(gateway, phone);
+    } catch (error) {
+      return json(
+        {
+          error: "pairing_failed",
+          hint: error instanceof Error ? error.message : "מספר טלפון לא תקין",
+        },
+        400,
+      );
+    }
+    const status = await readConnectStatus(supabase, userId, gateway, webhookUrl, webhookConfigured, {
+      pairingCode: pairing.code,
+      pairingPhone: pairing.pairingPhone,
+    });
+    return json({
+      ...status,
+      hint: pairing.code ? pairing.hint : pairing.hint,
+      pairingCode: pairing.code,
+      pairingPhone: pairing.pairingPhone,
+    });
+  }
+
+  const status = await readConnectStatus(supabase, userId, gateway, webhookUrl, webhookConfigured, {
+    sendWelcome: action === "sendWelcome",
+  });
   return json(status);
 });

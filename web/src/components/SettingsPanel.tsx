@@ -48,7 +48,7 @@ function hasCloudAccount(cloudAccount: boolean | undefined): boolean {
 const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
   { id: "notifications", label: "🔔 התראות" },
-  { id: "whatsapp", label: "💬 וואטסאפ — בחירת קבוצה" },
+  { id: "whatsapp", label: "💬 וואטסאפ — חיבור" },
   { id: "voice", label: "🎙 הקלטה קולית" },
   { id: "notebook", label: "📷 סריקת מחברת" },
   { id: "text", label: "✏️ קליטת טקסט" },

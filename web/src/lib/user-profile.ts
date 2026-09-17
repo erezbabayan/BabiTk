@@ -14,6 +14,7 @@ export interface CloudUserProfile {
   whatsapp_capture_group_name: string | null;
   whatsapp_digest_hours: number[];
   whatsapp_digest_days: DigestDays;
+  notify_whatsapp_group: boolean;
   tier: "free" | "premium";
   allocated_audio_seconds: number;
   used_audio_seconds: number;
@@ -34,6 +35,7 @@ const PROFILE_SELECT = [
   "whatsapp_capture_group_name",
   "whatsapp_digest_hours",
   "whatsapp_digest_days",
+  "notify_whatsapp_group",
   "tier",
   "allocated_audio_seconds",
   "used_audio_seconds",
@@ -73,6 +75,7 @@ function mapProfile(row: Record<string, unknown>, userId: string, email: string)
         : null,
     whatsapp_digest_hours: asHours(row.whatsapp_digest_hours),
     whatsapp_digest_days: asDigestDays(row.whatsapp_digest_days),
+    notify_whatsapp_group: row.notify_whatsapp_group === true,
     tier: row.tier === "premium" ? "premium" : "free",
     allocated_audio_seconds: Number(row.allocated_audio_seconds ?? 1800),
     used_audio_seconds: Number(row.used_audio_seconds ?? 0),
@@ -190,6 +193,7 @@ export async function updateCloudUserProfile(
       | "whatsapp_capture_group_name"
       | "whatsapp_digest_hours"
       | "whatsapp_digest_days"
+      | "notify_whatsapp_group"
       | "tier"
     >
   >,

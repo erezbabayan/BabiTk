@@ -10,5 +10,6 @@
     "noEmit": true,
     "isolatedModules": true
   },
-  "include": ["src", "../convex"]
+  "include": ["src", "../convex"],
+  "exclude": ["src/**/*.test.ts"]
 }

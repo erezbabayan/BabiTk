@@ -142,6 +142,90 @@ export async function clearWhatsAppGateway(): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function loadWhatsAppNotifyPrefs(): Promise<{
+  notifyWhatsAppGroup: boolean;
+  captureGroupChatId: string | null;
+  captureGroupName: string | null;
+  digestHours: number[];
+  digestDays: "weekdays" | "everyday";
+}> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) {
+    return {
+      notifyWhatsAppGroup: false,
+      captureGroupChatId: null,
+      captureGroupName: null,
+      digestHours: [9],
+      digestDays: "everyday",
+    };
+  }
+  const { data, error } = await supabase
+    .from("users")
+    .select(
+      "notify_whatsapp_group,whatsapp_capture_group_chat_id,whatsapp_capture_group_name,whatsapp_digest_hours,whatsapp_digest_days",
+    )
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  const row = (data ?? null) as {
+    notify_whatsapp_group?: boolean;
+    whatsapp_capture_group_chat_id?: string | null;
+    whatsapp_capture_group_name?: string | null;
+    whatsapp_digest_hours?: number[] | null;
+    whatsapp_digest_days?: string | null;
+  } | null;
+  const hours = Array.isArray(row?.whatsapp_digest_hours)
+    ? row.whatsapp_digest_hours.filter(
+        (hour) => Number.isInteger(hour) && hour >= 0 && hour <= 23,
+      )
+    : [];
+  return {
+    notifyWhatsAppGroup: row?.notify_whatsapp_group === true,
+    captureGroupChatId:
+      typeof row?.whatsapp_capture_group_chat_id === "string"
+        ? row.whatsapp_capture_group_chat_id
+        : null,
+    captureGroupName:
+      typeof row?.whatsapp_capture_group_name === "string" ? row.whatsapp_capture_group_name : null,
+    digestHours: hours.length > 0 ? hours.slice(0, 3) : [9],
+    digestDays: row?.whatsapp_digest_days === "weekdays" ? "weekdays" : "everyday",
+  };
+}
+
+export async function saveNotifyWhatsAppGroup(enabled: boolean): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ notify_whatsapp_group: enabled })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveWhatsAppDigestHours(hours: number[]): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ whatsapp_digest_hours: hours })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveWhatsAppDigestDays(days: "weekdays" | "everyday"): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const { error } = await supabase
+    .from("users")
+    .update({ whatsapp_digest_days: days })
+    .eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
 export async function invokeGreenConnect(
   action: GreenConnectAction,
   extra?: { phone?: string },
@@ -156,21 +240,7 @@ export async function invokeGreenConnect(
     body: { action, phone: extra?.phone },
   });
   if (error) {
-    let detail = error.message || "קריאת סטטוס GREEN-API נכשלה";
-    const context = (error as { context?: Response }).context;
-    if (context) {
-      try {
-        const body = (await context.clone().json()) as {
-          hint?: string;
-          error?: string;
-          reason?: string;
-        };
-        detail = body.hint || body.error || body.reason || detail;
-      } catch {
-        // keep detail
-      }
-    }
-    throw new Error(detail);
+    throw new Error(error.message || "קריאת סטטוס GREEN-API נכשלה");
   }
   if (data && typeof data === "object" && "error" in data && (data as { error?: string }).error) {
     throw new Error(String((data as { error: string }).error));

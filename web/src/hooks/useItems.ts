@@ -18,6 +18,7 @@ import {
   buildTaskReminderUpdate,
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
+import { dispatchWhatsAppItemReminder } from "../lib/whatsapp-reminders";
 
 import type { ItemEditInput } from "../components/ItemEditModal";
 
@@ -509,8 +510,10 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
   const markReminderFired = useCallback(
     async (item: MindtaskerItem, fireAt?: string) => {
       if (!enabled) return;
+      const firedAt = fireAt ?? item.due_date ?? undefined;
+      await dispatchWhatsAppItemReminder(item.id, firedAt).catch(() => undefined);
       const after = buildAfterReminderSentPatch(item, {
-        firedAt: fireAt ?? item.due_date ?? undefined,
+        firedAt,
       });
       await updateItem(item.id, {
         ...(after.due_date !== undefined ? { due_date: after.due_date } : {}),

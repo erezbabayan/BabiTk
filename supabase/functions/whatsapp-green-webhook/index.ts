@@ -108,6 +108,9 @@ async function gateCapture(
         .update({
           whatsapp_capture_group_chat_id: incoming,
           whatsapp_capture_group_name: configuredName,
+          ...(incoming.toLowerCase().endsWith("@g.us")
+            ? { notify_whatsapp_group: true }
+            : {}),
         })
         .eq("id", user.id);
     }
@@ -120,6 +123,9 @@ async function gateCapture(
       .update({
         whatsapp_capture_group_chat_id: incoming,
         whatsapp_capture_group_name: chatName?.trim() || configuredName || null,
+        ...(incoming.toLowerCase().endsWith("@g.us")
+          ? { notify_whatsapp_group: true }
+          : {}),
       })
       .eq("id", user.id);
     return { allowed: true };
@@ -151,6 +157,7 @@ async function gateCapture(
         .update({
           whatsapp_capture_group_chat_id: incoming,
           whatsapp_capture_group_name: chatName?.trim() || "קבוצת קליטה",
+          notify_whatsapp_group: true,
         })
         .eq("id", user.id);
       return { allowed: true };

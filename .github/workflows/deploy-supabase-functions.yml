@@ -30,4 +30,5 @@ jobs:
           npx supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
           npx supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
+          npx supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
