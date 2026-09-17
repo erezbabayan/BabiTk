@@ -103,25 +103,35 @@ export function subscribeUserNotifications(
   userId: string,
   onChange: () => void,
 ): () => void {
-  if (!isSupabaseConfigured || !userId) return () => {};
-  const channel = requireSupabase()
-    .channel(`user-notifications:${userId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "user_notifications",
-        filter: `user_id=eq.${userId}`,
-      },
-      () => {
-        onChange();
-      },
-    )
-    .subscribe();
-  return () => {
-    void requireSupabase().removeChannel(channel);
-  };
+  if (isDemoMode || !isSupabaseConfigured || !userId) return () => {};
+  const supabase = requireSupabase();
+  const topic = `user-notifications:${userId}:${
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  }`;
+  try {
+    const channel = supabase
+      .channel(topic)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "user_notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          onChange();
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  } catch {
+    return () => {};
+  }
 }
 
 export const OPEN_ITEM_EVENT = "babitk:open-item";
