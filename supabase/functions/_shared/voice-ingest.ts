@@ -34,7 +34,7 @@ import {
   rememberWhatsAppLastItemIds,
   resolveCaptureChatId,
 } from "./whatsapp-system-question-reply.ts";
-import { parseInboundText } from "./inbound-item.ts";
+import { parseInboundText, layoutMetadataFromParsed } from "./inbound-item.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -308,6 +308,8 @@ export async function applyVoiceTranscription(
         tags: string[];
         due_date: string | null;
         analysis: unknown;
+        reminder_recurrence?: string | null;
+        checklist?: Array<{ id: string; text: string; done: boolean }>;
       }
     | undefined;
   try {
@@ -329,7 +331,7 @@ export async function applyVoiceTranscription(
     .from("mindtasker_items")
     .update({
       title: parsed?.title || transcribed.title,
-      content: parsed?.content || transcribed.content,
+      content: parsed?.content ?? transcribed.content,
       is_actionable: parsed?.is_actionable ?? true,
       due_date: parsed?.due_date ?? null,
       tags: parsed?.tags ?? [],
@@ -337,6 +339,7 @@ export async function applyVoiceTranscription(
       metadata: {
         ...metadata,
         ...(parsed?.analysis ? { analysis: parsed.analysis } : {}),
+        ...layoutMetadataFromParsed(parsed ?? {}),
       },
     })
     .eq("id", row.id);
@@ -751,6 +754,8 @@ export async function ingestRecordedAudio(
         tags: string[];
         due_date: string | null;
         analysis?: unknown;
+        reminder_recurrence?: string | null;
+        checklist?: Array<{ id: string; text: string; done: boolean }>;
       }
     | undefined;
   try {
@@ -796,7 +801,7 @@ export async function ingestRecordedAudio(
       user_id: userId,
       source_material_id: source?.id ?? null,
       title: parsed?.title || transcribed.title,
-      content: parsed?.content || transcribed.correctedText,
+      content: parsed?.content ?? transcribed.correctedText,
       is_actionable: parsed?.is_actionable ?? true,
       status: "inbox",
       due_date: parsed?.due_date ?? null,
@@ -807,6 +812,8 @@ export async function ingestRecordedAudio(
         corrected_transcription: transcribed.correctedText,
         asr_engine: transcribed.engine,
         duration_seconds: params.durationSeconds ?? null,
+        ...(parsed?.analysis ? { analysis: parsed.analysis } : {}),
+        ...layoutMetadataFromParsed(parsed ?? {}),
       },
       sort_order: now,
       last_interacted_at: new Date(now).toISOString(),

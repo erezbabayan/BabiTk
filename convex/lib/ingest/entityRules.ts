@@ -22,9 +22,10 @@ import {
   type IngestLesson,
 } from "./ingestLearning.ts";
 import { formatStructuredNoteBody } from "./textStructure.ts";
+import { applyTaskLayoutToItem } from "./taskLayout.ts";
 
 const FILLER_PREFIX =
-  /^(?:תזכיר לי|תזכירי לי|שים לב|שימי לב|אמ+|אה+|שומע|שומעת|כאילו|בעצם)[,\s]*/iu;
+  /^(?:תכניס|תכניסי|תוסיף|תוסיפי|תוסיפו|תרשום|תרשמי|רשום|רשמי|שימי|שים)(?:\s+לי)?[,:]?(?:\s+(?:משימה|משימות|הערה|הערות|תזכורת|פריט))?[,:]?[,\s]*|^(?:תזכיר לי|תזכירי לי|שים לב|שימי לב|אמ+|אה+|שומע|שומעת|כאילו|בעצם)[,\s]*/iu;
 
 const DEFAULT_NOTE_TAGS = ["מידע"];
 const DEFAULT_TASK_TAGS = ["כללי"];
@@ -57,23 +58,26 @@ export function enforceEntityRules(
     const noteContent = formatStructuredNoteBody(
       item.content.trim() || item.title,
     );
-    return {
-      title: cleanTitle(item.title),
-      content: noteContent || cleanTitle(item.title),
-      is_actionable: false,
-      due_date: null,
-      tags: applyTagsWithInference(
-        item.tags,
-        noteFallback,
-        allowedTags,
-        inferenceText,
-        options?.lessons,
-      ),
-      analysis: {
-        ...item.analysis,
-        task: "חסר",
+    return applyTaskLayoutToItem(
+      {
+        title: cleanTitle(item.title),
+        content: noteContent || cleanTitle(item.title),
+        is_actionable: false,
+        due_date: null,
+        tags: applyTagsWithInference(
+          item.tags,
+          noteFallback,
+          allowedTags,
+          inferenceText,
+          options?.lessons,
+        ),
+        analysis: {
+          ...item.analysis,
+          task: "חסר",
+        },
       },
-    };
+      options?.sourceText,
+    );
   }
 
   const due_date = resolveTaskDueDate(item, options);
@@ -102,20 +106,23 @@ export function enforceEntityRules(
     analysis.task = title.trim();
   }
 
-  return {
-    title: title || cleanTitle(item.title),
-    content,
-    is_actionable: true,
-    due_date,
-    tags: applyTagsWithInference(
-      item.tags,
-      taskFallback,
-      allowedTags,
-      inferenceText,
-      options?.lessons,
-    ),
-    analysis,
-  };
+  return applyTaskLayoutToItem(
+    {
+      title: title || cleanTitle(item.title),
+      content,
+      is_actionable: true,
+      due_date,
+      tags: applyTagsWithInference(
+        item.tags,
+        taskFallback,
+        allowedTags,
+        inferenceText,
+        options?.lessons,
+      ),
+      analysis,
+    },
+    options?.sourceText,
+  );
 }
 
 export function enforceIngestionRules(
@@ -175,6 +182,8 @@ function expandCompoundCapture(
         content: segment,
         is_actionable: actionable,
         due_date: null,
+        reminder_recurrence: undefined,
+        checklist: undefined,
         tags: sharedTags,
         analysis: {
           ...template.analysis,

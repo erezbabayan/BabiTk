@@ -11,6 +11,8 @@ export interface InboundParsedFields {
   tags: string[];
   due_date: string | null;
   analysis: ParsedItem["analysis"];
+  reminder_recurrence?: ParsedItem["reminder_recurrence"];
+  checklist?: ParsedItem["checklist"];
 }
 
 export interface SupabaseIngestRow {
@@ -45,6 +47,26 @@ function fallbackTitleFromText(text: string, explicit?: string): string {
   return text.split(/\r?\n/).find((line) => line.trim())?.trim().slice(0, 120) || "פריט חדש";
 }
 
+export function layoutMetadataFromParsed(item: {
+  checklist?: Array<{ id: string; text: string; done: boolean }>;
+  reminder_recurrence?: string | null;
+}): Record<string, unknown> {
+  const extra: Record<string, unknown> = {};
+  if (
+    item.reminder_recurrence === "daily" ||
+    item.reminder_recurrence === "weekly" ||
+    item.reminder_recurrence === "monthly" ||
+    item.reminder_recurrence === "weekdays"
+  ) {
+    extra.reminder_recurrence = item.reminder_recurrence;
+    extra.reminder_manual = true;
+  }
+  if (item.checklist && item.checklist.length > 0) {
+    extra.checklist = item.checklist;
+  }
+  return extra;
+}
+
 /**
  * Hebrew local parse + notify_at enrichment for any inbound channel.
  * Used by web/mobile (no Express /api) and WhatsApp Edge ingest.
@@ -75,11 +97,13 @@ export function parseInboundText(
       item.title.trim() || fallbackTitleFromText(trimmed, options?.fallbackTitle);
     return {
       title: title.slice(0, 120),
-      content: item.content.trim() || trimmed,
+      content: item.content.trim(),
       is_actionable: item.is_actionable,
       tags: item.tags ?? [],
       due_date: item.due_date,
       analysis: item.analysis,
+      reminder_recurrence: item.reminder_recurrence ?? null,
+      checklist: item.checklist?.length ? item.checklist : undefined,
     };
   });
 }
@@ -113,6 +137,7 @@ export function buildSupabaseIngestRows(
       metadata: {
         source: sourceType,
         analysis: item.analysis,
+        ...layoutMetadataFromParsed(item),
         ...(options?.extraMetadata ?? {}),
       },
       sort_order: nowMs + index,

@@ -25,6 +25,14 @@ export interface StoredItemAnalysis extends ParsedItemAnalysis {
   formatted: string;
 }
 
+export type ReminderRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
+
+export interface LayoutChecklistEntry {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export interface ParsedItem {
   title: string;
   content: string;
@@ -32,6 +40,10 @@ export interface ParsedItem {
   due_date: string | null;
   tags: string[];
   analysis: ParsedItemAnalysis | StoredItemAnalysis;
+  /** Recurring reminder — schedule data only, never written into title/content. */
+  reminder_recurrence?: ReminderRecurrence | null;
+  /** Place / unit rows on a single task. Empty when the capture has no list. */
+  checklist?: LayoutChecklistEntry[];
 }
 
 export interface ParseInputResponse {

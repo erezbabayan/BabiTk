@@ -9,6 +9,7 @@ import {
   deriveShortTaskTitle,
   deriveTaskContent,
 } from "../lib/ingest/taskPresentation.js";
+import { stripCaptureLead } from "../lib/ingest/taskLayout.js";
 import {
   extractTimeMention,
   hasTemporalHint,
@@ -75,7 +76,7 @@ function buildAnalysis(
 }
 
 function cleanSegmentLead(text: string): string {
-  return text
+  return stripCaptureLead(text)
     .replace(/^(?:וגם|תזכיר לי|תזכירי לי)\s+/iu, "")
     .replace(/\s+/g, " ")
     .trim();
