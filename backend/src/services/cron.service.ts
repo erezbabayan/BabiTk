@@ -336,8 +336,8 @@ export async function sendTaskReminders(): Promise<number> {
 
     try {
       const delivered = await deliverWhatsAppReminder(context, message);
-      if (!delivered) continue;
-      if (context.user.notify_in_app !== false) {
+      const notifyInApp = context.user.notify_in_app !== false;
+      if (notifyInApp) {
         await insertUserNotification({
           userId: item.user_id,
           title: "תזכורת",
@@ -345,6 +345,9 @@ export async function sendTaskReminders(): Promise<number> {
           itemId: item.id,
         });
         await sendExpoPushes(item.user_id, "תזכורת", item.title);
+      }
+      if (!delivered && !notifyInApp) {
+        continue;
       }
       const after = buildAfterReminderSentPatch(
         { due_date: item.due_date, metadata },
@@ -381,7 +384,16 @@ export async function sendTaskReminders(): Promise<number> {
     const message = buildWhatsAppReminderMessage(list.name, list.reminder_at, "list");
     try {
       const delivered = await deliverWhatsAppReminder(context, message);
-      if (!delivered) continue;
+      const notifyInApp = context.user.notify_in_app !== false;
+      if (notifyInApp) {
+        await insertUserNotification({
+          userId: list.user_id,
+          title: "תזכורת",
+          body: list.name,
+        });
+        await sendExpoPushes(list.user_id, "תזכורת", list.name);
+      }
+      if (!delivered && !notifyInApp) continue;
       await supabase
         .from("task_lists")
         .update({ reminder_at: null, updated_at: new Date().toISOString() })

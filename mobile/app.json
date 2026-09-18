@@ -5,7 +5,41 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "scheme": "mindtasker",
+    "plugins": [
+      "expo-font",
+      "expo-asset",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "BabiTk צריך גישה למצלמה כדי לסרוק דפי מחברת.",
+          "microphonePermission": "BabiTk צריך גישה למיקרופון להקלטת וידאו."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4f46e5"
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-web-browser",
+      "expo-secure-store",
+      "react-native-webview"
+    ],
+    "extra": {
+      "webUrl": "https://erezbabayan.github.io/BabiTk/",
+      "supabaseUrl": "https://ghibfuinantybqidwadj.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4"
+    },
     "ios": {
+      "bundleIdentifier": "com.mindtasker.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSMicrophoneUsageDescription": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה.",
@@ -42,33 +76,6 @@
           ]
         }
       ]
-    },
-    "scheme": "mindtasker",
-    "plugins": [
-      "expo-font",
-      "expo-asset",
-      [
-        "expo-av",
-        {
-          "microphonePermission": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "cameraPermission": "BabiTk צריך גישה למצלמה כדי לסרוק דפי מחברת.",
-          "microphonePermission": "BabiTk צריך גישה למיקרופון להקלטת וידאו."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "color": "#4f46e5"
-        }
-      ],
-      "@react-native-community/datetimepicker",
-      "expo-web-browser",
-      "expo-secure-store"
-    ]
+    }
   }
 }

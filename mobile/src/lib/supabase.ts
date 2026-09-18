@@ -1,8 +1,15 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+const extra = Constants.expoConfig?.extra as
+  | { supabaseUrl?: string; supabaseAnonKey?: string }
+  | undefined;
+
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || extra?.supabaseUrl?.trim() || "";
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() || extra?.supabaseAnonKey?.trim() || "";
 
 function isValidSupabaseUrl(url: string): boolean {
   try {

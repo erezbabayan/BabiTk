@@ -20,6 +20,7 @@ import { BoardBulkBar } from "./BoardBulkBar";
 import { NotebookBoardSection } from "./NotebookBoardSection";
 import { useItems } from "../hooks/useItems";
 import { useDueDateReminderAlerts } from "../hooks/useDueDateReminderAlerts";
+import { useNativeReminderSync } from "../hooks/useNativeReminderSync";
 import { useBoardSelection } from "../hooks/useBoardSelection";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { useTaskLists } from "../hooks/useTaskLists";
@@ -134,6 +135,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     true,
     (item, fireAt) => markReminderFired(item as MindtaskerItem, fireAt),
   );
+  useNativeReminderSync(reminderItems, true);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

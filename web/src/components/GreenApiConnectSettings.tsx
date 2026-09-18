@@ -9,6 +9,7 @@ import {
   type GreenConnectStatus,
   type WhatsAppGatewayRow,
 } from "../lib/whatsapp-gateway";
+import { openNativeWhatsApp } from "../lib/native-bridge";
 import {
   formatPairingCode,
   preferPhonePairingOnThisDevice,
@@ -314,6 +315,17 @@ export function GreenApiConnectSettings({ onLinked }: GreenApiConnectSettingsPro
                   <p className="mt-2 text-xs text-slate-500">
                     וואטסאפ → הגדרות → מכשירים מקושרים → קישור מכשיר → קישור עם מספר טלפון
                   </p>
+                  <button
+                    type="button"
+                    className="mt-3 w-full rounded-lg bg-[#25D366] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#1ebe5d]"
+                    onClick={() => {
+                      if (!openNativeWhatsApp()) {
+                        window.open("https://wa.me/", "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                  >
+                    פתח וואטסאפ
+                  </button>
                 </div>
               ) : null}
             </div>

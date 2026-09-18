@@ -27,8 +27,10 @@ import {
 import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
+import { signInWithGoogle } from "./lib/google-auth";
 import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
+import { useNativeAppBridge } from "./hooks/useNativeAppBridge";
 
 const DEMO_HEADER_NAME: UserNameParts = { firstName: "משתמש", lastName: "הדגמה" };
 
@@ -183,6 +185,7 @@ function ConfiguredApp() {
   const [captureTick, setCaptureTick] = useState(0);
   const [homeResetTick, setHomeResetTick] = useState(0);
   const headerUserName = useHeaderUserName({ userId, userMetadata });
+  useNativeAppBridge(userId);
 
   const goHome = useCallback(() => {
     setSettingsOpen(false);
@@ -365,6 +368,7 @@ function ConfiguredApp() {
       <LoginScreen
         mode="auth"
         onSubmit={handleAuth}
+        onGoogleSignIn={() => signInWithGoogle(supabase)}
         subtitle="התחברו עם המשתמש שלכם — כל חשבון עם לוח נפרד"
         usernameLabel="שם משתמש או אימייל"
         signupAutoSignIn

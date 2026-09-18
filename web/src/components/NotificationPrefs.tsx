@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { ensureBrowserNotificationPermission } from "../lib/reminder-chime";
+import { isNativeApp, requestNativeNotificationPermission } from "../lib/native-bridge";
 import { requireSupabase } from "../lib/supabase";
 import {
   getCloudUserProfile,
@@ -132,7 +133,25 @@ export function NotificationPrefs() {
           />
         </label>
 
-        {browserPermission !== "unsupported" ? (
+        {isNativeApp() ? (
+          <div className="flex items-start justify-between gap-3 border-t border-slate-100 pt-3">
+            <span className="text-right">
+              <span className="block text-sm text-slate-800">התראות במכשיר</span>
+              <span className="mt-0.5 block text-xs text-slate-500">
+                תזכורות שקופצות במסך הנעילה גם כשהאפליקציה סגורה
+              </span>
+            </span>
+            <button
+              type="button"
+              className="shrink-0 rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+              onClick={() => {
+                requestNativeNotificationPermission();
+              }}
+            >
+              אשר התראות
+            </button>
+          </div>
+        ) : browserPermission !== "unsupported" ? (
           <div className="flex items-start justify-between gap-3 border-t border-slate-100 pt-3">
             <span className="text-right">
               <span className="block text-sm text-slate-800">התראות דפדפן (Windows)</span>

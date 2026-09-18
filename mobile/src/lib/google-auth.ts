@@ -5,8 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 WebBrowser.maybeCompleteAuthSession();
 
+export type GoogleAuthSession = {
+  accessToken: string;
+  refreshToken: string;
+};
+
 /** Sign in with Google via Supabase OAuth (opens system browser). */
-export async function signInWithGoogle(supabase: SupabaseClient): Promise<void> {
+export async function signInWithGoogle(supabase: SupabaseClient): Promise<GoogleAuthSession> {
   const redirectTo = makeRedirectUri({ scheme: "mindtasker" });
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -36,7 +41,13 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<void> 
   if (params.code) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
     if (exchangeError) throw exchangeError;
-    return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    const refreshToken = sessionData.session?.refresh_token;
+    if (!accessToken || !refreshToken) {
+      throw new Error("חסר session אחרי התחברות Google");
+    }
+    return { accessToken, refreshToken };
   }
 
   throw new Error("חסר קוד אימות מהתחברות Google");
