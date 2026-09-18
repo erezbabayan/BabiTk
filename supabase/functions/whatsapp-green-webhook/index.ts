@@ -623,8 +623,15 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
-      asr: "inline-whisper-v6",
+      asr: "inline-whisper-v7",
       qa: "babi-v3",
+      engines: {
+        groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
+        openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),
+        runpod: Boolean(
+          Deno.env.get("RUNPOD_API_KEY")?.trim() && Deno.env.get("RUNPOD_ENDPOINT_ID")?.trim(),
+        ),
+      },
     });
   }
   if (req.method !== "POST") {

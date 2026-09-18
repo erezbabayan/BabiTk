@@ -6,8 +6,8 @@
  * Optional RunPod hosts ivrit-ai/whisper-large-v3-turbo-ct2 (self-hosted Eliezer).
  * Do NOT wrap the public eliezer.ivrit.ai WhatsApp API.
  *
- * Hot path: Groq (~0.5–3s for a WhatsApp voice note) + lexicon proofread.
- * No hanging LLM chat-completion.
+ * Hot path: Groq JSON data-URI (no Deno multipart) → FormData+Blob → OpenAI whisper-1.
+ * Deno File/Uint8Array bodies are empty or mangled; never use them for Whisper.
  */
 
 import { titleFromInboundText } from "./voice-text.ts";
@@ -19,12 +19,23 @@ import {
 } from "./hebrew-asr-proofread.ts";
 import {
   asrUploadVariants,
+  audioDataUrl,
+  bytesToBase64,
   isLikelyAudioBytes,
+  isPublicMediaUrl,
   mimeForContainer,
   sniffAudioContainer,
+  tightAudioBytes,
 } from "./audio-format.ts";
 
-export { asrUploadVariants, isLikelyAudioBytes, mimeForContainer, sniffAudioContainer };
+export {
+  asrUploadVariants,
+  audioDataUrl,
+  isLikelyAudioBytes,
+  isPublicMediaUrl,
+  mimeForContainer,
+  sniffAudioContainer,
+};
 
 export {
   applyHebrewAsrSpellingFixes,
@@ -115,14 +126,8 @@ function timeoutSignal(ms: number): AbortSignal {
   return AbortSignal.timeout(ms);
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(binary);
-}
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 type RunPodSegment = { text?: string; start?: number; end?: number };
 
@@ -216,59 +221,103 @@ async function transcribeViaRunPod(audio: Uint8Array): Promise<string> {
   return text;
 }
 
-function utf8Bytes(value: string): Uint8Array {
-  return new TextEncoder().encode(value);
+function isAsrFormatError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ASR HTTP 400|ASR HTTP 415|ASR HTTP 422|unrecognized|invalid file|could not process|unsupported|format|file must be/i.test(
+    message,
+  );
 }
 
-function concatBytes(parts: Uint8Array[]): Uint8Array {
-  let total = 0;
-  for (const part of parts) total += part.byteLength;
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    out.set(part, offset);
-    offset += part.byteLength;
+function audioBlob(audio: Uint8Array, mimeType: string): Blob {
+  const copy = tightAudioBytes(audio);
+  const buffer = copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength);
+  return new Blob([buffer], { type: mimeType });
+}
+
+async function readTranscriptionText(response: Response): Promise<string> {
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`ASR HTTP ${response.status}: ${text.slice(0, 240)}`);
   }
-  return out;
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("text/plain") || contentType.includes("text/html")) {
+    const text = (await response.text()).trim();
+    if (!text) throw new Error("empty_transcription");
+    return text;
+  }
+  const data = (await response.json()) as { text?: string };
+  const text = data.text?.trim() ?? "";
+  if (!text) throw new Error("empty_transcription");
+  return text;
+}
+
+function whisperJsonPayload(
+  model: string,
+  prompt: string,
+  audioUrl: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    model,
+    language: "he",
+    prompt,
+    url: audioUrl,
+    response_format: "json",
+  };
+  if (model.includes("whisper")) payload.temperature = 0;
+  return payload;
+}
+
+/** Groq JSON `url` — data URI or public HTTPS. Avoids Deno multipart/File bugs. */
+async function transcribeWithAudioUrl(
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  audioUrl: string,
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(whisperJsonPayload(model, prompt, audioUrl)),
+    signal: timeoutSignal(timeoutMs),
+  });
+  return readTranscriptionText(response);
 }
 
 /**
- * Raw multipart — Deno FormData/File often produces an empty or unnamed
- * part, which Groq/OpenAI then reject as an unrecognized WhatsApp ogg.
+ * FormData + Blob (never File, never raw Uint8Array body).
+ * Deno's File([Uint8Array]) is often empty; Uint8Array fetch bodies get mangled.
  */
-function buildWhisperMultipart(
+async function transcribeWithFormBlob(
+  endpoint: string,
+  apiKey: string,
+  model: string,
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
-  fields: Record<string, string>,
-): { body: Uint8Array; contentType: string } {
-  const boundary = `----BabitkAsr${Date.now().toString(16)}`;
-  const parts: Uint8Array[] = [
-    utf8Bytes(
-      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n`,
-    ),
-    audio,
-    utf8Bytes("\r\n"),
-  ];
-  for (const [name, value] of Object.entries(fields)) {
-    parts.push(
-      utf8Bytes(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
-      ),
-    );
+  prompt: string,
+  timeoutMs: number,
+): Promise<string> {
+  const form = new FormData();
+  form.append("model", model);
+  form.append("language", "he");
+  form.append("prompt", prompt);
+  if (model.includes("whisper")) {
+    form.append("temperature", "0");
+    form.append("response_format", "json");
   }
-  parts.push(utf8Bytes(`--${boundary}--\r\n`));
-  return {
-    body: concatBytes(parts),
-    contentType: `multipart/form-data; boundary=${boundary}`,
-  };
-}
-
-function isAsrFormatError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /ASR HTTP 400|unrecognized|invalid file|could not process|unsupported|format/i.test(
-    message,
-  );
+  form.append("file", audioBlob(audio, mimeType), fileName);
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+    signal: timeoutSignal(timeoutMs),
+  });
+  return readTranscriptionText(response);
 }
 
 async function transcribeWithOpenAiCompatible(
@@ -280,43 +329,46 @@ async function transcribeWithOpenAiCompatible(
   mimeType: string,
   prompt = HEBREW_ASR_WHISPER_PROMPT,
   timeoutMs = ASR_TIMEOUT_MS,
+  sourceUrl?: string,
 ): Promise<string> {
-  const fields: Record<string, string> = {
-    model,
-    language: "he",
-    prompt,
-  };
-  if (model.includes("whisper")) {
-    fields.temperature = "0";
-    fields.response_format = "json";
-  }
   const variants = asrUploadVariants(fileName, mimeType, audio);
-  let lastError: unknown;
+  const attempts: Array<() => Promise<string>> = [];
+  const supportsUrl = url.includes("api.groq.com");
+  if (supportsUrl) {
+    attempts.push(() =>
+      transcribeWithAudioUrl(
+        url,
+        apiKey,
+        model,
+        audioDataUrl(audio, variants[0]?.mimeType || mimeType || "audio/ogg"),
+        prompt,
+        timeoutMs,
+      ),
+    );
+    if (sourceUrl && isPublicMediaUrl(sourceUrl)) {
+      attempts.push(() =>
+        transcribeWithAudioUrl(url, apiKey, model, sourceUrl, prompt, timeoutMs),
+      );
+    }
+  }
   for (const upload of variants) {
-    try {
-      const { body, contentType } = buildWhisperMultipart(
+    attempts.push(() =>
+      transcribeWithFormBlob(
+        url,
+        apiKey,
+        model,
         audio,
         upload.fileName,
         upload.mimeType,
-        fields,
-      );
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": contentType,
-        },
-        body,
-        signal: timeoutSignal(timeoutMs),
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(`ASR HTTP ${response.status}: ${text.slice(0, 200)}`);
-      }
-      const data = (await response.json()) as { text?: string };
-      const text = data.text?.trim() ?? "";
-      if (!text) throw new Error("empty_transcription");
-      return text;
+        prompt,
+        timeoutMs,
+      ),
+    );
+  }
+  let lastError: unknown;
+  for (const attempt of attempts) {
+    try {
+      return await attempt();
     } catch (error) {
       lastError = error;
       if (!isAsrFormatError(error)) throw error;
@@ -330,7 +382,7 @@ export async function transcribeAudio(
   fileName: string,
   mimeType: string,
   promptHint?: string,
-  options?: { hotPath?: boolean },
+  options?: { hotPath?: boolean; sourceUrl?: string },
 ): Promise<{ text: string; engine: VoiceTranscription["engine"] }> {
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
@@ -344,27 +396,37 @@ export async function transcribeAudio(
     | "auto";
   const errors: string[] = [];
   const hotPath = options?.hotPath === true;
+  const sourceUrl = options?.sourceUrl;
   const container = sniffAudioContainer(audio);
-  const oggLike = container === "ogg" || mimeType.toLowerCase().includes("ogg") || mimeType.toLowerCase().includes("opus");
-  const asrTimeout =
-    hotPath && !oggLike
+  const oggLike =
+    container === "ogg" ||
+    mimeType.toLowerCase().includes("ogg") ||
+    mimeType.toLowerCase().includes("opus");
+  const asrTimeout = oggLike
+    ? Math.max(ASR_TIMEOUT_MS, 15_000)
+    : hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
       ? SHORT_ASR_TIMEOUT_MS
-      : oggLike
-        ? Math.max(ASR_TIMEOUT_MS, 15_000)
-        : hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
-          ? SHORT_ASR_TIMEOUT_MS
-          : ASR_TIMEOUT_MS;
+      : ASR_TIMEOUT_MS;
   const resolvedMime = mimeForContainer(container, mimeType);
-
-  const engines: Array<"runpod" | "groq" | "openai"> = hotPath
+  const engines: Array<"runpod" | "groq" | "openai"> = oggLike
     ? ["groq", "openai", "runpod"]
-    : prefer === "runpod"
-      ? ["runpod", "groq", "openai"]
-      : prefer === "groq"
-        ? ["groq", "openai"]
-        : prefer === "openai"
-          ? ["openai"]
-          : ["groq", "openai", "runpod"];
+    : hotPath
+      ? ["groq", "openai", "runpod"]
+      : prefer === "runpod"
+        ? ["runpod", "groq", "openai"]
+        : prefer === "groq"
+          ? ["groq", "openai"]
+          : prefer === "openai"
+            ? ["openai"]
+            : ["groq", "openai", "runpod"];
+
+  console.error("hebrew asr start", {
+    bytes: audio.byteLength,
+    container,
+    mime: resolvedMime,
+    groq: Boolean(groqKey),
+    openai: Boolean(openAiKey),
+  });
 
   for (const engine of engines) {
     try {
@@ -379,6 +441,7 @@ export async function transcribeAudio(
           resolvedMime,
           prompt,
           asrTimeout,
+          sourceUrl,
         );
         return { text, engine: "groq" };
       }
@@ -434,13 +497,14 @@ export async function transcribeAndProofreadVoice(params: {
   fileName: string;
   promptHint?: string;
   hotPath?: boolean;
+  sourceUrl?: string;
 }): Promise<VoiceTranscription> {
   const asr = await transcribeAudio(
     params.audio,
     params.fileName,
     params.mimeType,
     params.promptHint,
-    { hotPath: params.hotPath },
+    { hotPath: params.hotPath, sourceUrl: params.sourceUrl },
   );
   const rawText = applyHebrewAsrSpellingFixes(asr.text);
   const correctedText = pickBestHebrewTranscript(rawText, params.promptHint);
@@ -462,8 +526,9 @@ export async function downloadAudioBytes(url: string): Promise<{
   const response = await fetch(url, {
     headers: {
       Accept: "audio/*,application/octet-stream,*/*",
-      "User-Agent": "BabiTk-whatsapp-asr/1.0",
+      "User-Agent": BROWSER_UA,
     },
+    redirect: "follow",
     signal: timeoutSignal(DOWNLOAD_TIMEOUT_MS),
   });
   if (!response.ok) {
