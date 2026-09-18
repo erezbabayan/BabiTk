@@ -252,6 +252,7 @@ export async function applyVoiceTranscription(
     content: string;
     rawText: string;
     audioUrl?: string | null;
+    engine?: string;
   },
 ): Promise<void> {
   const source = firstSourceMaterial(row);
@@ -265,6 +266,7 @@ export async function applyVoiceTranscription(
     whisper_transcription: transcribed.rawText,
     corrected_transcription: transcribed.content,
     voice_transcribe_started_at: null,
+    ...(transcribed.engine ? { asr_engine: transcribed.engine } : {}),
   };
   const allowedTags = await loadAllowedTagNames(
     supabase,
@@ -531,37 +533,55 @@ export async function ingestRecordedAudio(
     fileName: string;
     durationSeconds?: number;
     promptHint?: string;
+    itemId?: string;
   },
 ): Promise<IngestRecordedAudioResult> {
   const storagePath = `${userId}/${Date.now()}-${params.fileName}`;
+  const existingPromise = params.itemId
+    ? loadVoiceItemForUser(supabase, userId, params.itemId)
+    : Promise.resolve(null);
   const uploadPromise = supabase.storage
     .from("source-materials")
     .upload(storagePath, new Blob([params.bytes], { type: params.mimeType }), {
       contentType: params.mimeType,
       upsert: false,
     });
-
-  const transcribed = await transcribeAndProofreadVoice({
+  const gatewayPromise = loadUserGateway(supabase, userId);
+  const chatIdPromise = resolveCaptureChatId(supabase, userId);
+  const transcribedPromise = transcribeAndProofreadVoice({
     audio: params.bytes,
     mimeType: params.mimeType,
     fileName: params.fileName,
     promptHint: params.promptHint,
   });
+
+  const transcribed = await transcribedPromise;
   if (isVoicePlaceholderText(transcribed.correctedText)) {
     throw new Error("voice_placeholder_rejected");
   }
 
-  const gateway = await loadUserGateway(supabase, userId);
+  const [gateway, chatId, existing] = await Promise.all([
+    gatewayPromise,
+    chatIdPromise,
+    existingPromise,
+  ]);
   const handled = await interceptRecordedWhatsAppTranscript({
     supabase,
     userId,
-    chatId: await resolveCaptureChatId(supabase, userId),
+    chatId,
     messageId: `app-voice-${Date.now()}`,
     sourceType: "whatsapp_voice",
     gateway,
     rawText: transcribed.correctedText,
   });
   if (handled) {
+    if (existing) {
+      try {
+        await softDeleteVoiceItemAsQuestion(supabase, existing, transcribed);
+      } catch (error) {
+        console.error("voice question placeholder delete failed", error);
+      }
+    }
     return {
       answered: true,
       title: transcribed.title,
@@ -575,6 +595,22 @@ export async function ingestRecordedAudio(
   if (uploadError) {
     console.error("voice storage upload failed", uploadError.message);
     storedPath = null;
+  }
+
+  if (existing) {
+    await applyVoiceTranscription(supabase, existing, {
+      title: transcribed.title,
+      content: transcribed.correctedText,
+      rawText: transcribed.rawText,
+      audioUrl: storedPath,
+      engine: transcribed.engine,
+    });
+    return {
+      itemId: existing.id,
+      title: transcribed.title,
+      content: transcribed.correctedText,
+      rawText: transcribed.rawText,
+    };
   }
 
   const allowedTags = await loadAllowedTagNames(supabase, userId);

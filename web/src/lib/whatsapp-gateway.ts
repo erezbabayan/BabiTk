@@ -45,7 +45,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function peekAccessToken(): Promise<string | null> {
+  const supabase = requireSupabase();
+  const { data: sessionData } = await supabase.auth.getSession();
+  return sessionData.session?.access_token ?? null;
+}
+
 export async function currentAccessToken(): Promise<string | null> {
+  const existing = await peekAccessToken();
+  if (existing) return existing;
   const supabase = requireSupabase();
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const { data: sessionData } = await supabase.auth.getSession();

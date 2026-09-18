@@ -294,7 +294,7 @@ function takeItems(items: SystemQuestionItem[]): {
 function renderList(title: string, items: SystemQuestionItem[]): string[] {
   if (items.length === 0) return [];
   const { shown, extra } = takeItems(items);
-  const lines = [title, ...shown.map(formatItemLine)];
+  const lines = [title, ...shown.map((item) => formatItemLine(item))];
   if (extra > 0) lines.push(`…ועוד ${extra}`);
   return lines;
 }

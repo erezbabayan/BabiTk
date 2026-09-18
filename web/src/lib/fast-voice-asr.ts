@@ -11,6 +11,7 @@
  */
 
 export const FAST_VOICE_ASR_CASCADE = [
+  "live-caption",
   "edge-groq",
   "web-speech",
   "gradio-last-resort",
@@ -18,8 +19,9 @@ export const FAST_VOICE_ASR_CASCADE = [
 
 /** Stay under the typical Supabase Edge JSON body limit. */
 export const MAX_EDGE_AUDIO_BYTES = 4_500_000;
-export const EDGE_INGEST_TIMEOUT_MS = 18_000;
-export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;
+export const EDGE_INGEST_TIMEOUT_MS = 12_000;
+export const EDGE_REFINE_WAIT_MS = 4_500;
+export const EDGE_TRANSCRIBE_TIMEOUT_MS = 16_000;
 
 const HEBREW_ASR_WHISPER_PROMPT =
   "עברית מדוברת. משימות יומיום: לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
@@ -41,6 +43,26 @@ export function composeHebrewWhisperPrompt(hint?: string): string {
   const trimmed = hint?.replace(/\s+/g, " ").trim() ?? "";
   if (!trimmed) return HEBREW_ASR_WHISPER_PROMPT;
   return `${HEBREW_ASR_WHISPER_PROMPT} ${trimmed.slice(0, 180)}`;
+}
+
+export function pickBestHebrewTranscript(primary: string, hint?: string): string {
+  const hosted = primary.replace(/\s+/g, " ").trim();
+  const live = (hint ?? "").replace(/\s+/g, " ").trim();
+  if (!hosted) return live;
+  if (!live) return hosted;
+  const hostedHebrew = hasHebrewLetters(hosted);
+  const liveHebrew = hasHebrewLetters(live);
+  if (hostedHebrew && !liveHebrew) return hosted;
+  if (liveHebrew && !hostedHebrew) return live;
+  if (
+    hostedHebrew &&
+    liveHebrew &&
+    live.length >= hosted.length * 2 &&
+    live.length - hosted.length >= 8
+  ) {
+    return live;
+  }
+  return hosted;
 }
 
 export function canSendAudioToEdge(byteLength: number): boolean {

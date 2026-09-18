@@ -9,12 +9,14 @@ import {
   joinSpeechRecognitionTranscripts,
   MAX_EDGE_AUDIO_BYTES,
   parseEdgeVoicePayload,
+  pickBestHebrewTranscript,
   uint8ToBase64,
 } from "./fast-voice-asr.ts";
 
 describe("fast Hebrew ASR helpers", () => {
-  it("prefers Groq Edge then on-device speech before Gradio", () => {
+  it("shows a live caption first, then Groq, then fallbacks", () => {
     assert.deepEqual(FAST_VOICE_ASR_CASCADE, [
+      "live-caption",
       "edge-groq",
       "web-speech",
       "gradio-last-resort",
@@ -79,5 +81,11 @@ describe("fast Hebrew ASR helpers", () => {
 
   it("encodes audio bytes as base64", () => {
     assert.equal(uint8ToBase64(new Uint8Array([72, 105])), "SGk=");
+  });
+
+  it("keeps Groq Hebrew and replaces English drift with the live caption", () => {
+    assert.equal(pickBestHebrewTranscript("לקנות חלב", "לקנות מים"), "לקנות חלב");
+    assert.equal(pickBestHebrewTranscript("buy milk please", "לקנות חלב"), "לקנות חלב");
+    assert.equal(pickBestHebrewTranscript("חלב", "לקנות חלב מחר בבוקר"), "לקנות חלב מחר בבוקר");
   });
 });
