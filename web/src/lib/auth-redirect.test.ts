@@ -5,6 +5,7 @@ import {
   buildAuthRedirectUrl,
   formatOAuthSignInError,
   googleSignInOptions,
+  isGoogleProviderEnabled,
   readOAuthCallback,
   stripOAuthParamsFromUrl,
 } from "./auth-redirect.ts";
@@ -81,5 +82,10 @@ describe("Google sign-in options", () => {
     assert.equal(spec.options.queryParams.prompt, "select_account");
     assert.match(spec.options.scopes, /email/);
     assert.ok(spec.options.redirectTo.includes("/BabiTk/"));
+  });
+
+  it("detects a disabled Google provider from GoTrue settings", () => {
+    assert.equal(isGoogleProviderEnabled({ external: { google: false } }), false);
+    assert.equal(isGoogleProviderEnabled({ external: { google: true } }), true);
   });
 });

@@ -69,6 +69,12 @@ export function stripOAuthParamsFromUrl(href: string): string {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+export function isGoogleProviderEnabled(settings: {
+  external?: { google?: boolean } | null;
+} | null | undefined): boolean {
+  return settings?.external?.google === true;
+}
+
 export function googleSignInOptions(redirectTo: string): {
   provider: "google";
   options: {
