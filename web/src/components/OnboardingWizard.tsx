@@ -24,6 +24,7 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
   const [visible, setVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -54,12 +55,15 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
 
   async function complete() {
     setBusy(true);
+    setError(null);
     try {
       await updateCloudUserProfile({
         onboarding_completed_at: new Date().toISOString(),
       });
       setVisible(false);
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "לא ניתן לשמור את סיום ההגדרה");
+    } finally {
       setBusy(false);
     }
   }
@@ -82,7 +86,7 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
       role="presentation"
     >
       <div
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-4 shadow-xl"
+        className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-xl bg-white p-4 shadow-xl"
         role="dialog"
         aria-labelledby="onboarding-title"
         dir="rtl"
@@ -114,27 +118,30 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
           />
         </div>
 
-        <p className="mb-4 text-sm text-slate-600">{step.body}</p>
+        <p className="mb-1 text-sm text-slate-600">{step.body}</p>
         <p className="mb-3 text-xs text-slate-500">אפשר לשנות את זה אחר כך בהגדרות.</p>
+        {error ? <p className="mb-2 text-sm text-red-600">{error}</p> : null}
 
-        {step.settingsSection === "notifications" ? <NotificationPrefs compact /> : null}
-        {step.settingsSection === "whatsapp" ? (
-          <PhoneLinkSettings userId={userId} summary={summary} />
-        ) : null}
-        {step.settingsSection === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
-        {step.settingsSection === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
-        {step.settingsSection === "text" ? <TextCaptureSettings summary={summary} /> : null}
-        {step.settingsSection === "boards" ? <BoardSettingsPanel /> : null}
-        {step.settingsSection === "calendar" ? (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">
-              משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
-            </p>
-            <GoogleCalendarLink />
-          </div>
-        ) : null}
+        <div className="min-h-[16rem] flex-1 overflow-y-auto pb-2">
+          {step.settingsSection === "notifications" ? <NotificationPrefs compact /> : null}
+          {step.settingsSection === "whatsapp" ? (
+            <PhoneLinkSettings userId={userId} summary={summary} />
+          ) : null}
+          {step.settingsSection === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
+          {step.settingsSection === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
+          {step.settingsSection === "text" ? <TextCaptureSettings summary={summary} /> : null}
+          {step.settingsSection === "boards" ? <BoardSettingsPanel /> : null}
+          {step.settingsSection === "calendar" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-slate-600">
+                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
+              </p>
+              <GoogleCalendarLink />
+            </div>
+          ) : null}
+        </div>
 
-        <div className="mt-5 flex items-center justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <button
             type="button"
             onClick={goBack}
