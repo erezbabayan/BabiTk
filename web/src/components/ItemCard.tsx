@@ -460,11 +460,11 @@ export function ItemCard({
               ) : null}
               <div
                 className={`flex w-full min-w-0 flex-nowrap items-center justify-between ${
-                  isSquares ? "gap-0.5" : "gap-1.5"
+                  isSquares ? "board-square-actions gap-0.5" : "gap-1.5"
                 }`}
                 dir="rtl"
               >
-                <div className={`flex shrink-0 items-center ${isSquares ? "gap-1" : "gap-1"}`}>
+                <div className={`flex shrink-0 items-center ${isSquares ? "gap-0.5" : "gap-1"}`}>
                   {onTogglePriority ? (
                     <button
                       type="button"
@@ -527,7 +527,7 @@ export function ItemCard({
                 {hasActions && !showSource ? (
                   <div
                     className={`flex min-w-0 flex-nowrap items-center justify-end ${
-                      isSquares ? "gap-1" : "gap-1.5"
+                      isSquares ? "gap-0.5" : "gap-1.5"
                     }`}
                   >
                     {onTagPress ? (

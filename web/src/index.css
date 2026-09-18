@@ -385,12 +385,17 @@ body {
   border-radius: 8px;
 }
 
-/* Squares — 28px tap targets, one row like list view */
+/* Squares — 28px tap targets when the tile is wide enough; shrink to keep one row */
+.board-square-actions {
+  container-type: inline-size;
+}
 .board-notebook-item--squares .notebook-icon-btn {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+  width: min(28px, calc((100cqw - 10px) / 6));
+  height: min(28px, calc((100cqw - 10px) / 6));
+  min-width: 20px;
+  min-height: 20px;
+  max-width: 28px;
+  max-height: 28px;
   border-radius: 8px;
 }
 
