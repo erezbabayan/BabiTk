@@ -13,7 +13,7 @@ import {
   parsedItemInsertFields,
   resolveAllowedTagNames,
 } from "./parse-incoming-message";
-import { parseWhatsAppVoiceQuestion } from "../../../convex/lib/whatsappSystemQuestion";
+import { parseWhatsAppInboundQuestion } from "../../../convex/lib/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 import {
   canSendAudioToEdge,
@@ -216,7 +216,7 @@ async function tryReplyRecordedQuestion(params: {
   transcript: string;
   itemId?: string;
 }): Promise<boolean> {
-  const parsed = parseWhatsAppVoiceQuestion(params.transcript);
+  const parsed = parseWhatsAppInboundQuestion(params.transcript);
   if (!params.itemId && parsed.kind === "none") return false;
   try {
     const supabase = requireSupabase();

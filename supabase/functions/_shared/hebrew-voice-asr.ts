@@ -512,6 +512,7 @@ export async function transcribeAndProofreadVoice(params: {
   mimeType: string;
   fileName: string;
   promptHint?: string;
+  liveCaption?: string;
   hotPath?: boolean;
   sourceUrl?: string;
 }): Promise<VoiceTranscription> {
@@ -523,7 +524,7 @@ export async function transcribeAndProofreadVoice(params: {
     { hotPath: params.hotPath, sourceUrl: params.sourceUrl },
   );
   const rawText = applyHebrewAsrSpellingFixes(asr.text);
-  const correctedText = pickBestHebrewTranscript(rawText, params.promptHint);
+  const correctedText = pickBestHebrewTranscript(rawText, params.liveCaption);
   if (!correctedText) {
     throw new Error("empty_transcription");
   }

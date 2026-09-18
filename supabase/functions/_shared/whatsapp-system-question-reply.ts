@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   answerWhatsAppSystemQuestion,
   normalizeSpokenWhatsAppQuestion,
-  parseWhatsAppVoiceQuestion,
+  parseWhatsAppInboundQuestion,
   type SystemQuestionItem,
   type SystemQuestionParse,
 } from "./whatsapp-system-question.ts";
@@ -15,6 +15,8 @@ import {
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
   isWhatsAppMenuRequest,
+  isBareWhatsAppMenuPick,
+  parseMenuSelection,
   parseWhatsAppQuery,
   type WhatsAppQuery,
 } from "./whatsapp-intents.ts";
@@ -218,7 +220,7 @@ export async function replyWhatsAppSystemQuestion(params: {
 }
 
 export function parseIfSystemQuestion(text: string): SystemQuestionParse {
-  return parseWhatsAppVoiceQuestion(text);
+  return parseWhatsAppInboundQuestion(text);
 }
 
 export async function resolveCaptureChatId(
@@ -255,7 +257,7 @@ export async function interceptRecordedWhatsAppTranscript(params: {
   if (!raw) return false;
   const spoken = normalizeSpokenWhatsAppQuestion(raw);
   const allowedTags = await loadAllowedTagNames(params.supabase, params.userId);
-  const parsed = parseWhatsAppVoiceQuestion(raw);
+  const parsed = parseWhatsAppInboundQuestion(raw);
   const intentText =
     parsed.kind === "question" ? parsed.question : spoken || raw;
   const prefixed = parsed.kind !== "none";
@@ -264,7 +266,6 @@ export async function interceptRecordedWhatsAppTranscript(params: {
 
   if (
     parsed.kind === "help" ||
-    isWhatsAppMenuRequest(intentText) ||
     isWhatsAppMenuRequest(raw) ||
     isWhatsAppMenuRequest(spoken)
   ) {
@@ -285,7 +286,11 @@ export async function interceptRecordedWhatsAppTranscript(params: {
     return true;
   }
 
-  const query = parseWhatsAppQuery(intentText, allowedTags);
+  const numberedPick =
+    isBareWhatsAppMenuPick(raw) || isBareWhatsAppMenuPick(spoken)
+      ? parseMenuSelection(raw.trim() || spoken, builtInMenuQuestions(allowedTags))
+      : null;
+  const query = prefixed ? parseWhatsAppQuery(intentText, allowedTags) : numberedPick;
   if (query) {
     await replyWhatsAppCannedQuery({
       supabase: params.supabase,

@@ -25,9 +25,9 @@ export const AWAIT_EDGE_ON_CAPTURE = false;
 export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;
 
 const HEBREW_ASR_WHISPER_PROMPT =
-  "עברית מדוברת. משימות יומיום: לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
+  "עברית מדוברת. משימות יומיום: תכניס משימה, תוסיף הערה, תרשום, לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
   "סלנג: יאללה, סבבה, וואלה, תכלס, אחלה, אוקיי. " +
-  "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, בצהריים, אחה״צ, סופ״ש.";
+  "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, יום רביעי, בצהריים, אחה״צ, סופ״ש.";
 
 export function hasHebrewLetters(text: string): boolean {
   return /[\u0590-\u05FF]/.test(text);
@@ -51,6 +51,9 @@ export function pickBestHebrewTranscript(primary: string, hint?: string): string
   const live = (hint ?? "").replace(/\s+/g, " ").trim();
   if (!hosted) return live;
   if (!live) return hosted;
+  if (/בבי\s+מה\s+המשימות/.test(live) && /תפריט|היום\s+מחר/.test(live) && !/בבי\s+מה\s+המשימות/.test(hosted)) {
+    return hosted;
+  }
   const hostedHebrew = hasHebrewLetters(hosted);
   const liveHebrew = hasHebrewLetters(live);
   if (hostedHebrew && !liveHebrew) return hosted;

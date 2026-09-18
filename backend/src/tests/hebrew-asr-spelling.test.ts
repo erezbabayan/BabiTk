@@ -48,6 +48,7 @@ describe("hebrew ASR slang and ktiv male", () => {
     assert.equal(applyHebrewAsrSpellingFixes("ת זכיר לי ל בדוק מחר"), "תזכיר לי לבדוק מחר");
     assert.equal(applyHebrewAsrSpellingFixes("ב בקשה תזכרת ב שעה שש"), "בבקשה תזכורת בשעה שש");
     assert.equal(applyHebrewAsrSpellingFixes("ל התקשר לרואי"), "להתקשר לרועי");
+    assert.equal(applyHebrewAsrSpellingFixes("ת כניס משימה תו סיף הערה"), "תכניס משימה תוסיף הערה");
   });
 
   it("fixes ktiv male and time slang", () => {

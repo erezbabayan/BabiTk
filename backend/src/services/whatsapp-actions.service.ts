@@ -7,12 +7,18 @@ import {
   builtInMenuQuestions,
   buildTaskBriefing,
   buildWhatsAppMenuText,
+  isBareWhatsAppMenuPick,
   isWhatsAppMenuRequest,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
+  parseMenuSelection,
   parseWhatsAppQuery,
   type WhatsAppQuery,
 } from "../lib/whatsapp-query.js";
+import {
+  normalizeSpokenWhatsAppQuestion,
+  parseWhatsAppInboundQuestion,
+} from "../lib/whatsapp-system-question.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { env } from "../config/env.js";
 import {
@@ -103,14 +109,23 @@ export async function handleWhatsAppTextIntent(options: {
   if (!raw) return false;
   const allowedTags = await getUserTagNames(options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
+  const spoken = normalizeSpokenWhatsAppQuestion(raw);
+  const systemQuestion = parseWhatsAppInboundQuestion(raw);
+  const intentText =
+    systemQuestion.kind === "question" ? systemQuestion.question : spoken || raw;
+  const prefixed = systemQuestion.kind !== "none";
 
-  if (isWhatsAppMenuRequest(raw)) {
+  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(raw) || isWhatsAppMenuRequest(spoken)) {
     await sendWhatsAppText(options.replyTo, buildWhatsAppMenuText(menu));
     await markWhatsAppOnboardingComplete(options.user.id);
     return true;
   }
 
-  const query = parseWhatsAppQuery(raw, allowedTags);
+  const numberedPick =
+    isBareWhatsAppMenuPick(raw) || isBareWhatsAppMenuPick(spoken)
+      ? parseMenuSelection(raw.trim() || spoken, menu)
+      : null;
+  const query = prefixed ? parseWhatsAppQuery(intentText, allowedTags) : numberedPick;
   if (query) {
     const tasks = filterTasksForQuery(await listOpenTasks(options.user.id), query);
     await rememberLastWhatsAppItems(

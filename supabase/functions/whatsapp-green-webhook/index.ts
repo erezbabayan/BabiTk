@@ -33,15 +33,17 @@ import {
   formatClockFromIso,
   isSystemWhatsAppReply,
   isWhatsAppMenuRequest,
+  isBareWhatsAppMenuPick,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
+  parseMenuSelection,
   parseWhatsAppCommand,
   parseWhatsAppQuery,
   replyChatId,
   resolveCommandItemId,
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
-import { parseWhatsAppVoiceQuestion, normalizeSpokenWhatsAppQuestion } from "../_shared/whatsapp-system-question.ts";
+import { parseWhatsAppInboundQuestion, normalizeSpokenWhatsAppQuestion } from "../_shared/whatsapp-system-question.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -195,13 +197,13 @@ async function handleGroupTextIntent(options: {
   const replyTo = replyChatId(options.message);
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
-  const systemQuestion = parseWhatsAppVoiceQuestion(raw);
+  const systemQuestion = parseWhatsAppInboundQuestion(raw);
   const spoken = normalizeSpokenWhatsAppQuestion(raw);
   const intentText =
     systemQuestion.kind === "question" ? systemQuestion.question : spoken || raw;
   const prefixed = systemQuestion.kind !== "none";
 
-  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(intentText) || isWhatsAppMenuRequest(raw)) {
+  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(raw) || isWhatsAppMenuRequest(spoken)) {
     await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
     const { error } = await options.supabase
       .from("users")
@@ -212,7 +214,11 @@ async function handleGroupTextIntent(options: {
     return true;
   }
 
-  const query = parseWhatsAppQuery(intentText, allowedTags);
+  const numberedPick =
+    isBareWhatsAppMenuPick(raw) || isBareWhatsAppMenuPick(spoken)
+      ? parseMenuSelection(raw.trim() || spoken, menu)
+      : null;
+  const query = prefixed ? parseWhatsAppQuery(intentText, allowedTags) : numberedPick;
   if (query) {
     const { data } = await options.supabase
       .from("mindtasker_items")
@@ -624,7 +630,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v8",
-      qa: "babi-v3",
+      qa: "babi-v4",
       engines: {
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),

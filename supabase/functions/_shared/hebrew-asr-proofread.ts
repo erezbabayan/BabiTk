@@ -17,9 +17,9 @@
 
 /** Vocabulary bias for Whisper / Groq / ivrit.ai turbo. */
 export const HEBREW_ASR_WHISPER_PROMPT =
-  "עברית מדוברת. משימות יומיום: לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
+  "עברית מדוברת. משימות יומיום: תכניס משימה, תוסיף הערה, תרשום, לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
   "סלנג: יאללה, סבבה, וואלה, תכלס, אחלה, אוקיי. " +
-  "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, בצהריים, אחה״צ, סופ״ש. " +
+  "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, יום רביעי, בצהריים, אחה״צ, סופ״ש. " +
   "שמות: רועי, נועם, אורי, גיא, עידו, עידן, מיכל, שירה, יעל, דנה, מאיה, הילה, אסף, ליאור, יונתן, דניאל, תום, רן, ניר, עומר, איתי, אביה, תמר, נועה, אביגיל, יובל, נועה.";
 
 /** Append a live/on-device transcript so Groq Whisper biases toward those words. */
@@ -67,6 +67,8 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["babi-tk", "בבי"],
   ["ת זכיר", "תזכיר"],
   ["ת רשום", "תרשום"],
+  ["ת כניס", "תכניס"],
+  ["תו סיף", "תוסיף"],
   ["ל סגור", "לסגור"],
   ["ל בדוק", "לבדוק"],
   ["ל עדכן", "לעדכן"],
@@ -238,11 +240,21 @@ function hasHebrewLetters(text: string): boolean {
  * Prefer the hosted ASR text, but keep a live caption if Groq drifted
  * to English or dropped most of the utterance.
  */
+function isWhisperPromptLeak(text: string): boolean {
+  return /בבי\s+מה\s+המשימות/.test(text) && /תפריט|היום\s+מחר/.test(text);
+}
+
+/**
+ * Prefer the hosted ASR text, but keep a live caption if Groq drifted
+ * to English or dropped most of the utterance.
+ * Vocabulary prompts (Whisper `prompt`) must never be passed as `hint`.
+ */
 export function pickBestHebrewTranscript(primary: string, hint?: string): string {
   const hosted = applyHebrewAsrSpellingFixes(primary).trim();
   const live = applyHebrewAsrSpellingFixes(hint ?? "").trim();
   if (!hosted) return live;
   if (!live) return hosted;
+  if (isWhisperPromptLeak(live) && !isWhisperPromptLeak(hosted)) return hosted;
   const hostedHebrew = hasHebrewLetters(hosted);
   const liveHebrew = hasHebrewLetters(live);
   if (hostedHebrew && !liveHebrew) return hosted;
