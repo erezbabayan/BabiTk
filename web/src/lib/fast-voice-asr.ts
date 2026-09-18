@@ -70,6 +70,31 @@ export function canSendAudioToEdge(byteLength: number): boolean {
   return Number.isFinite(byteLength) && byteLength >= 64 && byteLength <= MAX_EDGE_AUDIO_BYTES;
 }
 
+/** Whisper/Groq reject `audio/webm;codecs=opus` and odd extensions. */
+export function normalizeAsrUpload(
+  fileName: string,
+  mimeType: string,
+): { fileName: string; mimeType: string } {
+  const mime = mimeType.toLowerCase().split(";")[0]?.trim() || "application/octet-stream";
+  const lowerName = fileName.toLowerCase();
+  if (mime.includes("wav") || lowerName.endsWith(".wav")) {
+    return { fileName: "recording.wav", mimeType: "audio/wav" };
+  }
+  if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac") || lowerName.endsWith(".m4a") || lowerName.endsWith(".mp4")) {
+    return { fileName: "recording.m4a", mimeType: "audio/mp4" };
+  }
+  if (mime.includes("mpeg") || mime.includes("mp3") || lowerName.endsWith(".mp3")) {
+    return { fileName: "recording.mp3", mimeType: "audio/mpeg" };
+  }
+  if (mime.includes("ogg") || lowerName.endsWith(".ogg") || lowerName.endsWith(".oga")) {
+    return { fileName: "recording.ogg", mimeType: "audio/ogg" };
+  }
+  if (mime.includes("webm") || lowerName.endsWith(".webm")) {
+    return { fileName: "recording.webm", mimeType: "audio/webm" };
+  }
+  return { fileName: "recording.wav", mimeType: "audio/wav" };
+}
+
 export function uint8ToBase64(bytes: Uint8Array): string {
   if (typeof Buffer !== "undefined") {
     return Buffer.from(bytes).toString("base64");

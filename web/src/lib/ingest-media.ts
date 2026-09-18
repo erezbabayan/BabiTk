@@ -2,6 +2,8 @@ import { clientTimezone, uploadNotebookOcrApi } from "./api";
 import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured } from "./supabase";
 import { persistRecordedVoiceTranscript } from "./transcribe-voice-item";
+import { blobToWhisperWav } from "./voice-wav";
+import { normalizeAsrUpload } from "./fast-voice-asr";
 
 async function ingestVoiceViaExpress(
   blob: Blob,
@@ -52,12 +54,16 @@ export async function ingestVoiceBlobForUser(
   }
 
   if (isSupabaseConfigured) {
-    const fileName = `recording.${mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm"}`;
+    const prepared = await blobToWhisperWav(blob);
+    const upload = normalizeAsrUpload(
+      prepared.fileName,
+      prepared.mimeType || mimeType,
+    );
     try {
       await persistRecordedVoiceTranscript({
-        blob,
-        mimeType,
-        fileName,
+        blob: prepared.blob,
+        mimeType: upload.mimeType,
+        fileName: upload.fileName,
         durationSeconds: options?.durationSeconds,
         hintTranscript: options?.hintTranscript,
       });
@@ -117,7 +123,7 @@ export function pickSupportedAudioMimeType(): string {
 export function createVoiceRecorder(stream: MediaStream): MediaRecorder {
   const mimeType = pickSupportedAudioMimeType();
   const options: MediaRecorderOptions = {
-    audioBitsPerSecond: 24_000,
+    audioBitsPerSecond: 64_000,
   };
   if (mimeType) options.mimeType = mimeType;
   try {

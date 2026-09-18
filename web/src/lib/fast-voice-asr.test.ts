@@ -9,6 +9,7 @@ import {
   isUsableLiveTranscript,
   joinSpeechRecognitionTranscripts,
   MAX_EDGE_AUDIO_BYTES,
+  normalizeAsrUpload,
   parseEdgeVoicePayload,
   pickBestHebrewTranscript,
   uint8ToBase64,
@@ -29,6 +30,21 @@ describe("fast Hebrew ASR helpers", () => {
     assert.equal(canSendAudioToEdge(63), false);
     assert.equal(canSendAudioToEdge(MAX_EDGE_AUDIO_BYTES), true);
     assert.equal(canSendAudioToEdge(MAX_EDGE_AUDIO_BYTES + 1), false);
+  });
+
+  it("strips codec suffixes so Whisper accepts browser recordings", () => {
+    assert.deepEqual(normalizeAsrUpload("clip.webm", "audio/webm;codecs=opus"), {
+      fileName: "recording.webm",
+      mimeType: "audio/webm",
+    });
+    assert.deepEqual(normalizeAsrUpload("clip.wav", "audio/wav"), {
+      fileName: "recording.wav",
+      mimeType: "audio/wav",
+    });
+    assert.deepEqual(normalizeAsrUpload("clip.mp4", "audio/mp4"), {
+      fileName: "recording.m4a",
+      mimeType: "audio/mp4",
+    });
   });
 
   it("treats short Hebrew captions as usable live transcripts", () => {

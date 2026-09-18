@@ -105,7 +105,7 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
       if (event.data.size > 0) chunksRef.current.push(event.data);
     };
     mediaRecorderRef.current = recorder;
-    recorder.start(250);
+    recorder.start();
 
     liveSpeechRef.current?.stop();
     liveSpeechRef.current = startLiveHebrewSpeech((caption) => {

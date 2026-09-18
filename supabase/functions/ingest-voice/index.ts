@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { decodeAudioBase64, audioFileName } from "../_shared/hebrew-voice-asr.ts";
+import { decodeAudioBase64, audioFileName, normalizeAsrUpload } from "../_shared/hebrew-voice-asr.ts";
 import { ingestRecordedAudio } from "../_shared/voice-ingest.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -41,6 +41,14 @@ function optionalNumber(value: FormDataEntryValue | null): number | undefined {
   return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : undefined;
 }
 
+function isBlobLike(value: FormDataEntryValue | null): value is Blob {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      typeof (value as Blob).arrayBuffer === "function",
+  );
+}
+
 async function readIngestRequest(req: Request): Promise<{
   bytes: Uint8Array;
   mimeType: string;
@@ -55,17 +63,17 @@ async function readIngestRequest(req: Request): Promise<{
     const file = form.get("file");
     const mimeType =
       optionalString(form.get("mimeType")) ||
-      (file instanceof File && file.type) ||
+      (isBlobLike(file) && file.type) ||
       "audio/webm";
     const fileName =
       optionalString(form.get("fileName")) ||
       (file instanceof File ? file.name : "") ||
       audioFileName(`rec-${Date.now()}`, mimeType);
-    if (!(file instanceof File) && typeof file !== "string") {
+    if (!isBlobLike(file) && typeof file !== "string") {
       throw new Error("audio_required");
     }
     const bytes =
-      file instanceof File
+      isBlobLike(file)
         ? new Uint8Array(await file.arrayBuffer())
         : decodeAudioBase64(file);
     if (bytes.byteLength < 64) {
@@ -141,6 +149,8 @@ Deno.serve(async (req) => {
   let payload: Awaited<ReturnType<typeof readIngestRequest>>;
   try {
     payload = await readIngestRequest(req);
+    const upload = normalizeAsrUpload(payload.fileName, payload.mimeType);
+    payload = { ...payload, mimeType: upload.mimeType, fileName: upload.fileName };
   } catch (error) {
     const reason = error instanceof Error ? error.message : "invalid_audio";
     return json(

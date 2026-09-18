@@ -20,9 +20,16 @@ import {
   EDGE_INGEST_TIMEOUT_MS,
   EDGE_TRANSCRIBE_TIMEOUT_MS,
   isUsableLiveTranscript,
+  blobToBase64,
+  normalizeAsrUpload,
   parseEdgeVoicePayload,
 } from "./fast-voice-asr";
-import { titleFromInboundText, needsVoiceTranscription, VOICE_TRANSCRIBING_TITLE } from "./voice-text";
+import {
+  titleFromInboundText,
+  needsVoiceTranscription,
+  VOICE_TRANSCRIBING_TITLE,
+  VOICE_UNAVAILABLE_TITLE,
+} from "./voice-text";
 
 export interface TranscribeVoiceItemResult {
   ok: boolean;
@@ -129,10 +136,11 @@ async function invokeIngestVoice(params: {
   hintTranscript?: string;
   itemId?: string;
 }): Promise<TranscribeVoiceItemResult | null> {
+  const upload = normalizeAsrUpload(params.fileName, params.mimeType);
   const form = new FormData();
-  form.append("file", params.blob, params.fileName);
-  form.append("mimeType", params.mimeType);
-  form.append("fileName", params.fileName);
+  form.append("file", params.blob, upload.fileName);
+  form.append("mimeType", upload.mimeType);
+  form.append("fileName", upload.fileName);
   if (params.durationSeconds != null) {
     form.append("durationSeconds", String(params.durationSeconds));
   }
@@ -142,8 +150,26 @@ async function invokeIngestVoice(params: {
   if (params.itemId) {
     form.append("itemId", params.itemId);
   }
-  const data = await invokeEdge("ingest-voice", form, EDGE_INGEST_TIMEOUT_MS);
-  return parseTranscribePayload(data, params.itemId ?? "");
+  try {
+    const data = await invokeEdge("ingest-voice", form, EDGE_INGEST_TIMEOUT_MS);
+    return parseTranscribePayload(data, params.itemId ?? "");
+  } catch (multipartError) {
+    if (!canSendAudioToEdge(params.blob.size)) throw multipartError;
+    const audioBase64 = await blobToBase64(params.blob);
+    const data = await invokeEdgeJson(
+      "ingest-voice",
+      {
+        audioBase64,
+        mimeType: upload.mimeType,
+        fileName: upload.fileName,
+        durationSeconds: params.durationSeconds,
+        promptHint: params.hintTranscript?.trim() || undefined,
+        itemId: params.itemId,
+      },
+      EDGE_INGEST_TIMEOUT_MS,
+    );
+    return parseTranscribePayload(data, params.itemId ?? "");
+  }
 }
 
 function firstSource(item: VoiceRepairItem): SourceMaterial | null {
@@ -511,6 +537,24 @@ function isFinishedTranscript(result: TranscribeVoiceItemResult | null): boolean
   return !needsVoiceTranscription(result.title, result.content);
 }
 
+async function markVoiceTranscriptionFailed(itemId: string, currentTitle: string): Promise<void> {
+  try {
+    const supabase = requireSupabase();
+    const nextTitle = isUsableLiveTranscript(currentTitle)
+      ? currentTitle
+      : VOICE_UNAVAILABLE_TITLE;
+    await supabase
+      .from("mindtasker_items")
+      .update({
+        title: nextTitle,
+        last_interacted_at: new Date().toISOString(),
+      })
+      .eq("id", itemId);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function refineRecordedVoiceInBackground(params: {
   userId: string;
   blob: Blob;
@@ -658,7 +702,7 @@ export async function persistRecordedVoiceTranscript(params: {
   });
 
   if (early) {
-    void refine.catch(() => undefined);
+    void refine.catch(() => markVoiceTranscriptionFailed(early.itemId, early.title));
     return early;
   }
 
