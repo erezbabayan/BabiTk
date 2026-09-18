@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  digestDueWindowIso,
   isCronReminderDue,
   reminderDueQueryCutoffIso,
   resolveCronReminderFireAt,
@@ -78,6 +79,12 @@ describe("task reminder due window", () => {
       metadata: null,
     };
     assert.equal(isCronReminderDue(item, NOW), false);
+  });
+
+  it("builds a digest due window around now", () => {
+    const window = digestDueWindowIso(NOW);
+    assert.ok(Date.parse(window.start) < NOW);
+    assert.ok(Date.parse(window.end) > NOW);
   });
 
   it("lookahead cutoff is one hour ahead of now", () => {

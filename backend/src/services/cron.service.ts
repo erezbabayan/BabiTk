@@ -1,5 +1,6 @@
 import { buildAfterReminderSentPatch } from "../lib/reminderRecurrence.js";
 import {
+  digestDueWindowIso,
   isCronReminderDue,
   reminderDueQueryCutoffIso,
   resolveCronReminderFireAt,
@@ -94,16 +95,21 @@ export async function sendDailyDigests(): Promise<number> {
   const slotKey = digestSlotKey(digestDate, hour);
   const weekdayNum = localWeekday(now, env.cronTimezone);
 
-  const { data: users, error } = await supabase
-    .from("users")
-    .select(
-      "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots",
-    );
+  const digestSelect =
+    "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots";
+  let usersQuery = supabase.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
+  let { data: users, error } = await usersQuery;
+  if (error) {
+    const fallback = await supabase.from("users").select(digestSelect);
+    users = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(`Failed to load users for digest: ${error.message}`);
   }
 
+  const dueWindow = digestDueWindowIso(now.getTime());
   let sent = 0;
 
   for (const row of users ?? []) {
@@ -132,7 +138,10 @@ export async function sendDailyDigests(): Promise<number> {
         .select("title, metadata, due_date, is_actionable")
         .eq("user_id", row.id)
         .in("status", ["inbox", "pending"])
-        .is("deleted_at", null),
+        .is("deleted_at", null)
+        .not("due_date", "is", null)
+        .gte("due_date", dueWindow.start)
+        .lte("due_date", dueWindow.end),
       supabase
         .from("task_lists")
         .select("name, reminder_at")

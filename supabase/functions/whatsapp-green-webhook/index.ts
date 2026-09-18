@@ -218,9 +218,10 @@ async function handleGroupTextIntent(options: {
       .select("id, title, content, due_date, tags, status, is_actionable")
       .eq("user_id", options.user.id)
       .eq("is_actionable", true)
-      .in("status", ["inbox", "pending"])
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true, nullsFirst: false });
+    .in("status", ["inbox", "pending"])
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .limit(80);
     const matched = (data ?? []).filter(
       (item) =>
         itemMatchesBriefingDay(item, query.day) && itemMatchesQueryTag(item, query.tag),

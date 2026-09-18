@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, type MindtaskerItem } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
 import { getSessionUserId, subscribeUserItems } from "../lib/realtime-items";
 
 export function useTodayTasks() {
@@ -13,14 +14,17 @@ export function useTodayTasks() {
       return;
     }
 
-    const { data } = await supabase
-      .from("mindtasker_items")
-      .select("id, title, content, is_actionable, status, due_date, tags")
-      .eq("user_id", sessionUserId)
-      .eq("is_actionable", true)
-      .eq("status", "pending")
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true, nullsFirst: false });
+    const data = await collectPagedRows((from, to) =>
+      supabase
+        .from("mindtasker_items")
+        .select("id, title, content, is_actionable, status, due_date, tags")
+        .eq("user_id", sessionUserId)
+        .eq("is_actionable", true)
+        .eq("status", "pending")
+        .is("deleted_at", null)
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .range(from, to),
+    );
 
     setItems((data ?? []) as MindtaskerItem[]);
   }, [userId]);

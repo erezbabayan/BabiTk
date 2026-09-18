@@ -61,3 +61,12 @@ export function isCronReminderDue(
 export function reminderDueQueryCutoffIso(nowMs = Date.now()): string {
   return new Date(nowMs + REMINDER_DUE_LOOKAHEAD_MS).toISOString();
 }
+
+/** Local-day digest: due dates from yesterday through tomorrow. */
+export function digestDueWindowIso(nowMs = Date.now()): { start: string; end: string } {
+  const span = 36 * 60 * 60 * 1000;
+  return {
+    start: new Date(nowMs - span).toISOString(),
+    end: new Date(nowMs + span).toISOString(),
+  };
+}

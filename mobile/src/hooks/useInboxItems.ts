@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase, normalizeMindtaskerRows, type MindtaskerItem } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
 import { getSessionUserId, subscribeUserItems } from "../lib/realtime-items";
 
 const ITEM_SELECT = `
@@ -18,13 +19,16 @@ export function useInboxItems() {
       return;
     }
 
-    const { data } = await supabase
-      .from("mindtasker_items")
-      .select(ITEM_SELECT)
-      .eq("user_id", sessionUserId)
-      .eq("status", "inbox")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
+    const data = await collectPagedRows((from, to) =>
+      supabase
+        .from("mindtasker_items")
+        .select(ITEM_SELECT)
+        .eq("user_id", sessionUserId)
+        .eq("status", "inbox")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    );
 
     setItems(normalizeMindtaskerRows(data));
   }, [userId]);

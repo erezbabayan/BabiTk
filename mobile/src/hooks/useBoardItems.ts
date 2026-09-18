@@ -23,6 +23,8 @@ import {
   updateDemoItem,
 } from "../lib/demo-store";
 import { isDemoMode, normalizeMindtaskerRows, requireSupabase, type MindtaskerItem } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
+import { applyItemRealtimeChange } from "../lib/realtime-items";
 import { isSyncEnabled } from "../lib/sync-client";
 import {
   applyOptimistic,
@@ -47,7 +49,6 @@ const ITEM_SELECT = `
   id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id, sort_order, created_at,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
-const REALTIME_REFRESH_MS = 250;
 
 export interface ItemEditInput {
   title: string;
@@ -58,18 +59,20 @@ export interface ItemEditInput {
 }
 
 async function fetchAllFromServer(userId?: string): Promise<MindtaskerItem[]> {
-  let query = requireSupabase()
-    .from("mindtasker_items")
-    .select(ITEM_SELECT)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
-  if (userId) {
-    query = query.eq("user_id", userId);
-  }
-  const { data, error } = await query;
-
-  if (error) throw error;
+  const client = requireSupabase();
+  const data = await collectPagedRows((from, to) => {
+    let query = client
+      .from("mindtasker_items")
+      .select(ITEM_SELECT)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    return query;
+  });
   return normalizeMindtaskerRows(data);
 }
 
@@ -246,14 +249,6 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   useEffect(() => {
     if (!enabled || !isOnline || isDemoMode || !userId) return;
     const supabase = requireSupabase();
-    let debounce: ReturnType<typeof setTimeout> | null = null;
-    const scheduleRefresh = () => {
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        debounce = null;
-        void refresh();
-      }, REALTIME_REFRESH_MS);
-    };
     const channel = supabase
       .channel(`mobile-board-${userId}`)
       .on(
@@ -264,14 +259,15 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
           table: "mindtasker_items",
           filter: `user_id=eq.${userId}`,
         },
-        scheduleRefresh,
+        (payload) => {
+          setItems((prev) => applyItemRealtimeChange(prev, payload));
+        },
       )
       .subscribe();
     return () => {
-      if (debounce) clearTimeout(debounce);
       void supabase.removeChannel(channel);
     };
-  }, [enabled, isOnline, refresh, userId]);
+  }, [enabled, isOnline, userId]);
 
   const patchItem = useCallback(
     async (item: MindtaskerItem, patch: Partial<MindtaskerItem>) => {

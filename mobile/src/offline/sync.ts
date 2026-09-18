@@ -1,4 +1,5 @@
 import { supabase, normalizeMindtaskerRows, isSupabaseConfigured, type MindtaskerItem } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
 import { apiFetch } from "../lib/api";
 import { buildSoftDeletePatch, resolveRestoreFromTrashPatch } from "../lib/item-restore";
 import type { OfflineAction } from "./types";
@@ -112,57 +113,60 @@ export async function flushOfflineQueue(): Promise<{ synced: number; failed: num
 }
 
 export async function fetchInboxFromServer(userId?: string): Promise<MindtaskerItem[]> {
-  let query = supabase
-    .from("mindtasker_items")
-    .select(
-      `id, title, content, is_actionable, status, due_date, tags, source_material_id,
-       source_materials (id, source_type, storage_url, raw_text, metadata)`,
-    )
-    .eq("status", "inbox")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  if (userId) {
-    query = query.eq("user_id", userId);
-  }
-  const { data, error } = await query;
-
-  if (error) throw error;
+  const data = await collectPagedRows((from, to) => {
+    let query = supabase
+      .from("mindtasker_items")
+      .select(
+        `id, title, content, is_actionable, status, due_date, tags, source_material_id,
+         source_materials (id, source_type, storage_url, raw_text, metadata)`,
+      )
+      .eq("status", "inbox")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    return query;
+  });
   return normalizeMindtaskerRows(data);
 }
 
 export async function fetchTodayFromServer(userId?: string): Promise<MindtaskerItem[]> {
-  let query = supabase
-    .from("mindtasker_items")
-    .select("id, title, content, is_actionable, status, due_date, tags")
-    .eq("is_actionable", true)
-    .eq("status", "pending")
-    .is("deleted_at", null)
-    .order("due_date", { ascending: true, nullsFirst: false });
-  if (userId) {
-    query = query.eq("user_id", userId);
-  }
-  const { data, error } = await query;
-
-  if (error) throw error;
+  const data = await collectPagedRows((from, to) => {
+    let query = supabase
+      .from("mindtasker_items")
+      .select("id, title, content, is_actionable, status, due_date, tags")
+      .eq("is_actionable", true)
+      .eq("status", "pending")
+      .is("deleted_at", null)
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .range(from, to);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    return query;
+  });
   return normalizeMindtaskerRows(data);
 }
 
 export async function fetchNotesFromServer(userId?: string): Promise<MindtaskerItem[]> {
-  let query = supabase
-    .from("mindtasker_items")
-    .select(
-      `id, title, content, is_actionable, status, due_date, tags, source_material_id,
-       source_materials (id, source_type, storage_url, raw_text, metadata)`,
-    )
-    .eq("is_actionable", false)
-    .eq("status", "pending")
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
-  if (userId) {
-    query = query.eq("user_id", userId);
-  }
-  const { data, error } = await query;
-
-  if (error) throw error;
+  const data = await collectPagedRows((from, to) => {
+    let query = supabase
+      .from("mindtasker_items")
+      .select(
+        `id, title, content, is_actionable, status, due_date, tags, source_material_id,
+         source_materials (id, source_type, storage_url, raw_text, metadata)`,
+      )
+      .eq("is_actionable", false)
+      .eq("status", "pending")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    return query;
+  });
   return normalizeMindtaskerRows(data);
 }
