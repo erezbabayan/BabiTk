@@ -3,9 +3,12 @@ import { describe, it } from "node:test";
 
 import {
   asrUploadVariants,
+  audioDataUrl,
   isLikelyAudioBytes,
+  isPublicMediaUrl,
   sniffAudioContainer,
 } from "../../../supabase/functions/_shared/audio-format.ts";
+import { parseGreenApiDownloadFileBody } from "../../../supabase/functions/_shared/green-api-media.ts";
 
 function oggHeader(): Uint8Array {
   const bytes = new Uint8Array(80);
@@ -39,11 +42,41 @@ describe("WhatsApp audio sniff", () => {
     assert.equal(isLikelyAudioBytes(html), false);
   });
 
-  it("tries ogg then opus filenames for WhatsApp PTT", () => {
+  it("tries ogg then opus filenames for WhatsApp PTT, not .oga", () => {
     const variants = asrUploadVariants("msg.ogg", "audio/ogg; codecs=opus", oggHeader());
     assert.deepEqual(
       variants.map((row) => row.fileName),
-      ["audio.ogg", "audio.opus", "audio.oga"],
+      ["audio.ogg", "audio.opus"],
     );
+  });
+
+  it("builds a Groq data URI from Ogg bytes", () => {
+    const url = audioDataUrl(oggHeader(), "audio/ogg; codecs=opus");
+    assert.match(url, /^data:audio\/ogg;base64,/);
+    assert.ok(url.length > 40);
+  });
+
+  it("rejects Green-API downloadFile endpoints as public media URLs", () => {
+    assert.equal(
+      isPublicMediaUrl("https://api.green-api.com/waInstance123/downloadFile/token"),
+      false,
+    );
+    assert.equal(
+      isPublicMediaUrl("https://sw-media.storage.yandexcloud.net/1103912412/voice.ogg"),
+      true,
+    );
+  });
+
+  it("parses downloadFile JSON and raw OggS bodies", () => {
+    const json = new TextEncoder().encode(
+      JSON.stringify({ downloadUrl: "https://sw-media.storage.yandexcloud.net/a/voice.ogg" }),
+    );
+    assert.equal(
+      parseGreenApiDownloadFileBody(json).downloadUrl,
+      "https://sw-media.storage.yandexcloud.net/a/voice.ogg",
+    );
+    const ogg = parseGreenApiDownloadFileBody(oggHeader(), "application/octet-stream");
+    assert.equal(ogg.bytes?.byteLength, 80);
+    assert.equal(ogg.mimeType, "audio/ogg");
   });
 });

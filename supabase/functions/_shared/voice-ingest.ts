@@ -7,11 +7,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import type { ParsedGreenApiMessage } from "./green-api.ts";
-import { resolveGreenApiMediaUrl, type GreenApiMediaCredentials } from "./green-api-media.ts";
+import { resolveGreenApiMediaUrl, requestGreenApiDownloadFile, type GreenApiMediaCredentials } from "./green-api-media.ts";
 import {
   audioFileName,
   downloadAudioBytes,
   isHttpUrl,
+  isPublicMediaUrl,
   isStorageObjectPath,
   mimeForContainer,
   sniffAudioContainer,
@@ -124,48 +125,61 @@ async function downloadVoiceAudio(params: {
     const downloaded = await downloadAudioBytes(url);
     return {
       bytes: downloaded.bytes,
-    mimeType: downloaded.mimeType || params.mimeType || "audio/ogg",
+      mimeType: downloaded.mimeType || params.mimeType || "audio/ogg",
       audioUrl: url,
     };
   };
 
-  const directUrl = isHttpUrl(params.downloadUrl) ? params.downloadUrl!.trim() : "";
-  if (directUrl) {
+  const fromApi = await requestGreenApiDownloadFile({
+    chatId: params.chatId,
+    messageId: params.messageId,
+    credentials: params.credentials,
+  });
+  if (fromApi?.bytes && fromApi.bytes.byteLength >= 64) {
+    const sniffed = sniffAudioContainer(fromApi.bytes);
+    return {
+      bytes: fromApi.bytes,
+      mimeType: mimeForContainer(sniffed, fromApi.mimeType || params.mimeType || "audio/ogg"),
+      audioUrl: fromApi.downloadUrl || params.downloadUrl || "",
+    };
+  }
+
+  const candidateUrls = [
+    fromApi?.downloadUrl,
+    isPublicMediaUrl(params.downloadUrl) ? params.downloadUrl : null,
+    isHttpUrl(params.downloadUrl) ? params.downloadUrl : null,
+  ].filter((url): url is string => Boolean(url?.trim()));
+
+  let lastError: unknown;
+  for (const url of [...new Set(candidateUrls)]) {
     try {
-      return await tryHttp(directUrl);
-    } catch {
-      // Green-API often sends a URL that is not ready yet. Ask downloadFile.
+      return await tryHttp(url);
+    } catch (error) {
+      lastError = error;
     }
   }
 
-  let audioUrl = await resolveGreenApiMediaUrl({
+  const resolved = await resolveGreenApiMediaUrl({
     downloadUrl: null,
     chatId: params.chatId,
     messageId: params.messageId,
     credentials: params.credentials,
     preferApi: true,
   });
-  if (!audioUrl) {
-    throw new Error("voice_audio_url_missing");
+  if (resolved) {
+    try {
+      return await tryHttp(resolved);
+    } catch (error) {
+      lastError = error;
+    }
   }
-  try {
-    return await tryHttp(audioUrl);
-  } catch (error) {
-    audioUrl = await resolveGreenApiMediaUrl({
-      downloadUrl: null,
-      chatId: params.chatId,
-      messageId: params.messageId,
-      credentials: params.credentials,
-      preferApi: true,
-    });
-    if (!audioUrl) throw error;
-    return await tryHttp(audioUrl);
-  }
+
+  throw lastError instanceof Error ? lastError : new Error("voice_audio_url_missing");
 }
 
 function isRetryableVoiceAsrError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /voice_audio_url_missing|audio_too_short|downloaded_not_audio|download|403|401|404|410|not found|failed to fetch|fetch failed|media/i.test(
+  return /voice_audio_url_missing|audio_too_short|downloaded_not_audio|download|403|401|404|410|429|not found|failed to fetch|fetch failed|media|ASR HTTP 5|timed? ?out|abort/i.test(
     message,
   );
 }
@@ -179,7 +193,7 @@ export async function transcribeVoiceMessageWithRetry(
   message: ParsedGreenApiMessage,
   gateway: VoiceGatewayCredentials | null,
   supabase?: AdminClient,
-  attempts = 3,
+  attempts = 4,
 ): Promise<{
   sourceType: "whatsapp_voice";
   title: string;
@@ -187,7 +201,7 @@ export async function transcribeVoiceMessageWithRetry(
   rawText: string;
   audioUrl: string | null;
 }> {
-  const delaysMs = [0, 900, 2200];
+  const delaysMs = [0, 800, 2000, 4000];
   let lastError: unknown;
   for (let index = 0; index < attempts; index += 1) {
     const delay = delaysMs[index] ?? 1600;
@@ -232,6 +246,7 @@ export async function transcribeVoiceMessage(
     fileName: audioFileName(message.messageId, downloaded.mimeType || "audio/ogg"),
     promptHint: "בבי מה המשימות היום מחר לשבוע הבא תפריט",
     hotPath: true,
+    sourceUrl: isPublicMediaUrl(downloaded.audioUrl) ? downloaded.audioUrl : undefined,
   });
   if (isVoicePlaceholderText(transcribed.correctedText)) {
     throw new Error("voice_placeholder_rejected");

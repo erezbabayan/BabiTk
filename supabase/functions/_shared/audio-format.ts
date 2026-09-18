@@ -46,6 +46,39 @@ export function mimeForContainer(
   return fallback.split(";")[0]?.trim() || "audio/ogg";
 }
 
+export function tightAudioBytes(audio: Uint8Array): Uint8Array {
+  const copy = new Uint8Array(audio.byteLength);
+  copy.set(audio);
+  return copy;
+}
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  const tight = tightAudioBytes(bytes);
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(tight).toString("base64");
+  }
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < tight.byteLength; i += chunk) {
+    binary += String.fromCharCode(...tight.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Groq accepts a data-URI (or Base64URL) in the JSON `url` field — no multipart. */
+export function audioDataUrl(audio: Uint8Array, mimeType: string): string {
+  const mime = (mimeType.split(";")[0]?.trim() || "audio/ogg").toLowerCase();
+  return `data:${mime};base64,${bytesToBase64(audio)}`;
+}
+
+export function isPublicMediaUrl(value: string | null | undefined): boolean {
+  const url = value?.trim() ?? "";
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (/\/downloadFile\//i.test(url)) return false;
+  if (/\/waInstance[^/]+\/downloadFile/i.test(url)) return false;
+  return true;
+}
+
 export function asrUploadVariants(
   fileName: string,
   mimeType: string,
@@ -62,10 +95,10 @@ export function asrUploadVariants(
     lowerName.endsWith(".oga") ||
     lowerName.endsWith(".opus");
   if (looksOgg || container === "unknown") {
+    // Groq's allow-list is ogg/opus, not .oga.
     return [
       { fileName: "audio.ogg", mimeType: "audio/ogg" },
       { fileName: "audio.opus", mimeType: "audio/opus" },
-      { fileName: "audio.oga", mimeType: "audio/ogg" },
     ];
   }
   if (container === "wav" || mime.includes("wav") || lowerName.endsWith(".wav")) {
