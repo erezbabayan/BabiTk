@@ -2,11 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
   answerWhatsAppSystemQuestion,
-  normalizeSpokenWhatsAppQuestion,
-  parseWhatsAppInboundQuestion,
   type SystemQuestionItem,
   type SystemQuestionParse,
 } from "./whatsapp-system-question.ts";
+import { classifyWhatsAppInbound, isWhatsAppCaptureLane } from "./whatsapp-inbound-route.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
 import {
   buildTaskBriefing,
@@ -14,8 +13,6 @@ import {
   builtInMenuQuestions,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
-  isWhatsAppMenuRequest,
-  isBareWhatsAppMenuPick,
   parseMenuSelection,
   parseWhatsAppQuery,
   type WhatsAppQuery,
@@ -165,6 +162,7 @@ export async function replyWhatsAppCannedQuery(params: {
   rawText: string;
   query: WhatsAppQuery;
 }): Promise<boolean> {
+  if (isWhatsAppCaptureLane(params.rawText)) return false;
   const items = await loadOpenActionableItems(params.supabase, params.userId);
   const matched = items.filter(
     (item) =>
@@ -204,6 +202,7 @@ export async function replyWhatsAppSystemQuestion(params: {
   rawText: string;
 }): Promise<boolean> {
   if (params.parsed.kind === "none") return false;
+  if (isWhatsAppCaptureLane(params.rawText)) return false;
   const items = await loadOpenItemsForSystemQuestion(params.supabase, params.userId);
   const message = answerWhatsAppSystemQuestion(params.parsed, items);
   const sent = await sendGreenApiText(params.gateway, params.chatId, message);
@@ -220,7 +219,10 @@ export async function replyWhatsAppSystemQuestion(params: {
 }
 
 export function parseIfSystemQuestion(text: string): SystemQuestionParse {
-  return parseWhatsAppInboundQuestion(text);
+  const route = classifyWhatsAppInbound(text);
+  if (route.lane === "help") return { kind: "help" };
+  if (route.lane === "question") return { kind: "question", question: route.question };
+  return { kind: "none" };
 }
 
 export async function resolveCaptureChatId(
@@ -255,20 +257,13 @@ export async function interceptRecordedWhatsAppTranscript(params: {
 }): Promise<boolean> {
   const raw = params.rawText.trim();
   if (!raw) return false;
-  const spoken = normalizeSpokenWhatsAppQuestion(raw);
-  const allowedTags = await loadAllowedTagNames(params.supabase, params.userId);
-  const parsed = parseWhatsAppInboundQuestion(raw);
-  const intentText =
-    parsed.kind === "question" ? parsed.question : spoken || raw;
-  const prefixed = parsed.kind !== "none";
+  const route = classifyWhatsAppInbound(raw);
+  if (route.lane === "capture" || route.lane === "command") return false;
 
+  const allowedTags = await loadAllowedTagNames(params.supabase, params.userId);
   const chatId = await resolveCaptureChatId(params.supabase, params.userId, params.chatId);
 
-  if (
-    parsed.kind === "help" ||
-    isWhatsAppMenuRequest(raw) ||
-    isWhatsAppMenuRequest(spoken)
-  ) {
+  if (route.lane === "help" || route.lane === "menu") {
     const sent = await sendGreenApiText(
       params.gateway,
       chatId,
@@ -286,13 +281,12 @@ export async function interceptRecordedWhatsAppTranscript(params: {
     return true;
   }
 
-  const numberedPick =
-    isBareWhatsAppMenuPick(raw) || isBareWhatsAppMenuPick(spoken)
-      ? parseMenuSelection(raw.trim() || spoken, builtInMenuQuestions(allowedTags))
-      : null;
-  const query = prefixed ? parseWhatsAppQuery(intentText, allowedTags) : numberedPick;
+  const query =
+    route.lane === "menu_pick"
+      ? parseMenuSelection(raw, builtInMenuQuestions(allowedTags))
+      : parseWhatsAppQuery(route.question, allowedTags);
   if (query) {
-    await replyWhatsAppCannedQuery({
+    return await replyWhatsAppCannedQuery({
       supabase: params.supabase,
       userId: params.userId,
       chatId,
@@ -302,10 +296,9 @@ export async function interceptRecordedWhatsAppTranscript(params: {
       rawText: raw,
       query,
     });
-    return true;
   }
 
-  if (!prefixed) return false;
+  if (route.lane !== "question") return false;
 
   await replyWhatsAppSystemQuestion({
     supabase: params.supabase,
@@ -313,7 +306,7 @@ export async function interceptRecordedWhatsAppTranscript(params: {
     chatId,
     messageId: params.messageId,
     sourceType: params.sourceType,
-    parsed,
+    parsed: { kind: "question", question: route.question },
     gateway: params.gateway,
     rawText: raw,
   });

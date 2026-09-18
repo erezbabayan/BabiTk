@@ -11,6 +11,11 @@ import {
   type SystemQuestionItem,
 } from "../lib/whatsapp-system-question.js";
 import { isBareWhatsAppMenuPick, parseWhatsAppQuery } from "../lib/whatsapp-query.js";
+import {
+  classifyWhatsAppInbound,
+  isWhatsAppCaptureLane,
+  isWhatsAppQuestionLane,
+} from "../lib/whatsapp-inbound-route.js";
 import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
 
 const NOW = new Date("2026-09-17T12:00:00+03:00");
@@ -217,6 +222,50 @@ describe("parseWhatsAppInboundQuestion capture vs בבי", () => {
     assert.equal(isBareWhatsAppMenuPick("query:week"), true);
     assert.equal(isBareWhatsAppMenuPick("מה המשימות לשבוע הבא"), false);
     assert.equal(isBareWhatsAppMenuPick(capture), false);
+  });
+});
+
+describe("classifyWhatsAppInbound hard split", () => {
+  it("sends spoken tasks to capture without treating them as questions", () => {
+    const capture =
+      "תכניס משימה, יום רביעי שבוע הבא, שיווקים שלום ציון בעבודה";
+    assert.deepEqual(classifyWhatsAppInbound(capture), { lane: "capture" });
+    assert.equal(isWhatsAppCaptureLane(capture), true);
+    assert.equal(isWhatsAppQuestionLane(capture), false);
+    assert.deepEqual(classifyWhatsAppInbound("מה המשימות לשבוע הבא"), {
+      lane: "capture",
+    });
+    assert.deepEqual(classifyWhatsAppInbound("לקנות חלב מחר"), { lane: "capture" });
+    assert.deepEqual(
+      classifyWhatsAppInbound("בבי תכניס משימה יום רביעי שבוע הבא"),
+      { lane: "capture" },
+    );
+  });
+
+  it("keeps בבי / * questions on the question lane", () => {
+    assert.deepEqual(classifyWhatsAppInbound("בבי מה המשימות לשבוע הבא?"), {
+      lane: "question",
+      question: "מה המשימות לשבוע הבא?",
+    });
+    assert.deepEqual(classifyWhatsAppInbound("בבי, מה המשימות?"), {
+      lane: "question",
+      question: "מה המשימות?",
+    });
+    assert.deepEqual(classifyWhatsAppInbound("* מה יש לי היום"), {
+      lane: "question",
+      question: "מה יש לי היום",
+    });
+    assert.equal(isWhatsAppQuestionLane("בבי מה המשימות"), true);
+    assert.equal(isWhatsAppCaptureLane("בבי מה המשימות"), false);
+  });
+
+  it("does not mix menu picks, commands, and capture", () => {
+    assert.deepEqual(classifyWhatsAppInbound("5"), { lane: "menu_pick" });
+    assert.deepEqual(classifyWhatsAppInbound("תפריט"), { lane: "menu" });
+    assert.deepEqual(classifyWhatsAppInbound("בבי"), { lane: "help" });
+    assert.deepEqual(classifyWhatsAppInbound("בוצע"), { lane: "command" });
+    assert.deepEqual(classifyWhatsAppInbound("מחר"), { lane: "command" });
+    assert.deepEqual(classifyWhatsAppInbound("query:week"), { lane: "menu_pick" });
   });
 });
 

@@ -217,7 +217,7 @@ async function tryReplyRecordedQuestion(params: {
   itemId?: string;
 }): Promise<boolean> {
   const parsed = parseWhatsAppInboundQuestion(params.transcript);
-  if (!params.itemId && parsed.kind === "none") return false;
+  if (parsed.kind === "none") return false;
   try {
     const supabase = requireSupabase();
     const accessToken = await currentAccessToken();
