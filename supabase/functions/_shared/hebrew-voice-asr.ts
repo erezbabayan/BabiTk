@@ -60,6 +60,36 @@ export function audioFileName(messageId: string, mimeType: string): string {
   return `${messageId}.ogg`;
 }
 
+export function normalizeAsrUpload(
+  fileName: string,
+  mimeType: string,
+): { fileName: string; mimeType: string } {
+  const mime = mimeType.toLowerCase().split(";")[0]?.trim() || "application/octet-stream";
+  const lowerName = fileName.toLowerCase();
+  if (mime.includes("wav") || lowerName.endsWith(".wav")) {
+    return { fileName: "recording.wav", mimeType: "audio/wav" };
+  }
+  if (
+    mime.includes("mp4") ||
+    mime.includes("m4a") ||
+    mime.includes("aac") ||
+    lowerName.endsWith(".m4a") ||
+    lowerName.endsWith(".mp4")
+  ) {
+    return { fileName: "recording.m4a", mimeType: "audio/mp4" };
+  }
+  if (mime.includes("mpeg") || mime.includes("mp3") || lowerName.endsWith(".mp3")) {
+    return { fileName: "recording.mp3", mimeType: "audio/mpeg" };
+  }
+  if (mime.includes("ogg") || lowerName.endsWith(".ogg") || lowerName.endsWith(".oga")) {
+    return { fileName: "recording.ogg", mimeType: "audio/ogg" };
+  }
+  if (mime.includes("webm") || lowerName.endsWith(".webm")) {
+    return { fileName: "recording.webm", mimeType: "audio/webm" };
+  }
+  return { fileName: audioFileName("recording", mime), mimeType: mime };
+}
+
 const ASR_TIMEOUT_MS = 12_000;
 const SHORT_ASR_TIMEOUT_MS = 8_000;
 const SHORT_AUDIO_BYTES = 80_000;
@@ -182,8 +212,12 @@ async function transcribeWithOpenAiCompatible(
   prompt = HEBREW_ASR_WHISPER_PROMPT,
   timeoutMs = ASR_TIMEOUT_MS,
 ): Promise<string> {
+  const upload = normalizeAsrUpload(fileName, mimeType);
+  const copy = new Uint8Array(audio.byteLength);
+  copy.set(audio);
+  const file = new File([copy], upload.fileName, { type: upload.mimeType });
   const form = new FormData();
-  form.append("file", new Blob([audio], { type: mimeType }), fileName);
+  form.append("file", file);
   form.append("model", model);
   form.append("language", "he");
   form.append("prompt", prompt);
