@@ -59,6 +59,8 @@ jobs:
 
   auth-config:
     runs-on: ubuntu-latest
+    # Pages deploy must stay green even if Google secrets are still missing.
+    continue-on-error: true
     permissions:
       contents: read
       id-token: write
@@ -81,23 +83,33 @@ jobs:
               *"?"*) ;;
               *) SEP="?" ;;
             esac
-            OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-              "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
-            JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
-            RESP="$(curl -sS -X POST \
-              "https://ghibfuinantybqidwadj.supabase.co/functions/v1/github-oidc-mint" \
-              -H "Authorization: Bearer ${JWT}" \
-              -H "Content-Type: application/json")"
-            TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$RESP")"
+            LAST_RESP=""
+            for attempt in 1 2 3 4; do
+              OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+                "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
+              JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
+              LAST_RESP="$(curl -sS -X POST \
+                "https://ghibfuinantybqidwadj.supabase.co/functions/v1/github-oidc-mint" \
+                -H "Authorization: Bearer ${JWT}" \
+                -H "Content-Type: application/json")"
+              TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$LAST_RESP")"
+              if [ -n "$TOKEN" ]; then
+                break
+              fi
+              echo "OIDC mint attempt ${attempt} failed; retrying..."
+              sleep $((attempt * 8))
+            done
             if [ -z "$TOKEN" ]; then
-              echo "::error::Could not mint a Supabase token via GitHub OIDC."
-              python3 -c 'import re,sys; print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", sys.stdin.read())[:800])' <<<"$RESP"
-              exit 1
+              echo "::warning::Could not mint a Supabase token via GitHub OIDC. Site URL/Google provider were not updated from this job."
+              python3 -c 'import re,sys; print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", sys.stdin.read())[:800])' <<<"$LAST_RESP"
+              echo "value=" >> "$GITHUB_OUTPUT"
+              exit 0
             fi
           fi
           echo "::add-mask::$TOKEN"
           echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
       - name: Configure Supabase Auth (Google + Pages URLs)
+        if: ${{ steps.token.outputs.value != '' }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ steps.token.outputs.value }}
           SUPABASE_PROJECT_REF: ghibfuinantybqidwadj
