@@ -1105,6 +1105,7 @@ function LoginGate({
   onSignIn,
   onSignUp,
   onMicrosoftSignIn,
+  onGoogleSignIn,
   onDemoEnter,
 }: {
   onSignIn: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
@@ -1114,6 +1115,7 @@ function LoginGate({
     details: { firstName: string; lastName: string; phone: string },
   ) => Promise<void>;
   onMicrosoftSignIn?: () => Promise<void>;
+  onGoogleSignIn?: () => Promise<void>;
   onDemoEnter?: () => Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
@@ -1123,6 +1125,7 @@ function LoginGate({
         onSignIn={onSignIn}
         onSignUp={onSignUp}
         onMicrosoftSignIn={onMicrosoftSignIn}
+        onGoogleSignIn={onGoogleSignIn}
         onDemoEnter={onDemoEnter}
         allowSignup={isSupabaseConfigured}
         showLocalDemoHint={!isSupabaseConfigured && isDemoMode}
@@ -1145,6 +1148,7 @@ function LegacyAuthAppRoot() {
     loading: authLoading,
     signIn,
     signUp,
+    signInWithGoogle,
     signInWithMicrosoft,
     signInDemoQuick,
     signOut,
@@ -1177,6 +1181,9 @@ function LegacyAuthAppRoot() {
             onSignUp={signUp}
             onMicrosoftSignIn={
               isSupabaseConfigured ? () => signInWithMicrosoft() : undefined
+            }
+            onGoogleSignIn={
+              isSupabaseConfigured ? () => signInWithGoogle() : undefined
             }
             onDemoEnter={() => signInDemoQuick()}
           />

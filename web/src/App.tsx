@@ -23,10 +23,17 @@ import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirect
 import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
+import { signInWithGoogle } from "./lib/google-auth";
+import {
+  formatOAuthSignInError,
+  readOAuthCallback,
+  stripOAuthParamsFromUrl,
+} from "./lib/auth-redirect";
 import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
 
 const DEMO_HEADER_NAME: UserNameParts = { firstName: "משתמש", lastName: "הדגמה" };
+const OAUTH_CODE_GUARD_KEY = "mindtasker:oauth-code";
 
 export default function App() {
   if (isSupabaseConfigured) {
@@ -179,6 +186,7 @@ function ConfiguredApp() {
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [captureTick, setCaptureTick] = useState(0);
   const [homeResetTick, setHomeResetTick] = useState(0);
+  const [oauthNotice, setOauthNotice] = useState<string | null>(null);
   const headerUserName = useHeaderUserName({ userId, userMetadata });
 
   const goHome = useCallback(() => {
@@ -267,28 +275,48 @@ function ConfiguredApp() {
   }, [refreshUsage]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    if (code) {
-      void supabase.auth
-        .exchangeCodeForSession(code)
-        .then(() => {
-          window.history.replaceState({}, "", window.location.pathname);
-        })
-        .catch((error) => {
-          console.warn(
-            "[auth] exchangeCodeForSession failed:",
-            error instanceof Error ? error.message : String(error),
-          );
-          window.history.replaceState({}, "", window.location.pathname);
-        });
+    const callback = readOAuthCallback(window.location.search, window.location.hash);
+    if (callback.error) {
+      setOauthNotice(
+        formatOAuthSignInError(callback.error, callback.errorDescription),
+      );
     }
+
+    const finishUrl = () => {
+      if (!callback.code && !callback.error) return;
+      window.history.replaceState(
+        {},
+        "",
+        stripOAuthParamsFromUrl(window.location.href),
+      );
+    };
 
     void supabase.auth
       .getSession()
-      .then(({ data }) => {
-        setUserId(data.session?.user.id ?? null);
-        setUserMetadata(data.session?.user.user_metadata ?? null);
+      .then(async ({ data }) => {
+        if (!data.session && callback.code) {
+          let alreadyTried = false;
+          try {
+            alreadyTried = sessionStorage.getItem(OAUTH_CODE_GUARD_KEY) === callback.code;
+            sessionStorage.setItem(OAUTH_CODE_GUARD_KEY, callback.code);
+          } catch {
+            alreadyTried = false;
+          }
+          if (!alreadyTried) {
+            const { error } = await supabase.auth.exchangeCodeForSession(callback.code);
+            if (error) {
+              setOauthNotice(formatOAuthSignInError(error, callback.errorDescription));
+            }
+          }
+        }
+        const { data: next } = await supabase.auth.getSession();
+        const nextUser = next.session?.user;
+        setUserId(nextUser?.id ?? null);
+        setUserMetadata(nextUser?.user_metadata ?? null);
+        if (callback.code && nextUser?.email) {
+          persistLoginDetails(true, nextUser.email);
+        }
+        finishUrl();
       })
       .catch((error) => {
         console.warn(
@@ -297,6 +325,7 @@ function ConfiguredApp() {
         );
         setUserId(null);
         setUserMetadata(null);
+        finishUrl();
       });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -404,7 +433,9 @@ function ConfiguredApp() {
       <LoginScreen
         mode="auth"
         onSubmit={handleAuth}
-        subtitle="התחברו עם המשתמש שלכם — כל חשבון עם לוח נפרד"
+        onGoogleSignIn={() => signInWithGoogle(supabase)}
+        notice={oauthNotice}
+        subtitle="התחברו עם Google או עם המשתמש שלכם — כל חשבון עם לוח נפרד"
         usernameLabel="שם משתמש או אימייל"
         signupAutoSignIn
         showRememberMe

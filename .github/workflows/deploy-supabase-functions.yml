@@ -108,3 +108,5 @@ jobs:
           npx supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
           npx supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt
+          SUPABASE_PROJECT_REF="$PROJECT_REF" node "$GITHUB_WORKSPACE/scripts/configure-supabase-auth.mjs"
+

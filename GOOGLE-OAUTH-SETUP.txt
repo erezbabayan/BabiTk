@@ -1,43 +1,66 @@
-﻿BabiTk — Google login + Google Calendar
+BabiTk — Google login + Google Calendar
 =======================================
 
-Live stack: GitHub Pages + Supabase Edge (not Convex / not Fastify).
+Live app:  https://erezbabayan.github.io/BabiTk/
+Supabase:  https://ghibfuinantybqidwadj.supabase.co
+
+GitHub is only hosting. User login is Google → Supabase Auth → the Pages app.
+Do NOT put the GitHub Pages URL as the Google redirect URI.
+
+1) Google Cloud Console → APIs & Services → Credentials → OAuth client ID
+   Application type: Web application
+   Name: BabiTk
+
+   Authorized JavaScript origins:
+     https://erezbabayan.github.io
+     http://localhost:5173
+
+   Authorized redirect URIs:
+     https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback
+     https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/callback
+
+2) Enable the Google Calendar API on the same project.
+   OAuth consent screen: add the test users if the app is in Testing.
+
+3) GitHub repo → Settings → Secrets and variables → Actions, add:
+     GOOGLE_CLIENT_ID
+     GOOGLE_CLIENT_SECRET
+
+   Never commit these values. After they exist, deploy-web and
+   deploy-supabase-functions enable the Auth provider and sync Edge secrets.
+
+   Site URL: https://erezbabayan.github.io/BabiTk/
+   Redirect allow-list: that URL, localhost:5173, mindtasker://**
+
+4) Local one-shot (optional):
+     Copy .google-oauth.local.env.example → .google-oauth.local.env
+     Fill GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+     SUPABASE_ACCESS_TOKEN=sbp_... node scripts/apply-google-oauth.mjs
+
+     Or: copy .supabase-local.env.example → .supabase-local.env
+     and run .\scripts\setup-google-auth.ps1
+
+5) Verify login:
+     GET https://ghibfuinantybqidwadj.supabase.co/auth/v1/authorize?provider=google
+     should 302 to accounts.google.com — not "provider is not enabled".
+
+6) Verify calendar:
+     https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/health
+     Then Settings → Google Calendar → חבר.
 
 Settings → Google Calendar always shows «חבר Google Calendar».
 Connect uses Edge OAuth when GOOGLE_* secrets exist, otherwise Supabase Auth
 linkIdentity (same Google client, calendar.events + offline refresh).
-
-1) Google Cloud Console → Credentials → OAuth client ID (Web application)
-
-2) Authorized JavaScript origins:
-   http://localhost:5173
-   https://erezbabayan.github.io
-
-3) Authorized redirect URIs (both):
-   https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback
-   https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/callback
-
-4) Enable the Google Calendar API on the same project.
-
-5) Save credentials (not in git) to .google-oauth.local.env:
-
-GOOGLE_CLIENT_ID=....apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-...
-
-6) Apply to Auth + Edge (needs SUPABASE_ACCESS_TOKEN):
-
-   SUPABASE_ACCESS_TOKEN=sbp_... node scripts/apply-google-oauth.mjs
-
-   GitHub Actions secrets GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are also
-   synced by deploy-supabase-functions.yml.
-
-7) After deploy, health check:
-   https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/health
-
-   Then Settings → Google Calendar → חבר.
 
 What syncs: dated actionable BabiTk tasks (1-hour events, Asia/Jerusalem, primary calendar).
 Notes without a date stay out of the calendar. Delete / convert to note / clear the date removes the event.
 
 First login: a settings questionnaire covers notifications, WhatsApp, capture
 channels, boards, and Calendar. The same screens stay in Settings afterwards.
+
+Known product notes:
+  - Existing email/password users with the same Gmail must sign in with
+    password first (Supabase does not auto-link identities). After login,
+    Settings → Google Calendar can link the Google account.
+  - New Google users get public.users from email; username/phone later
+    in settings. WhatsApp pairing is unchanged.

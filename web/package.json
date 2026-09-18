@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --experimental-strip-types --test src/lib/whatsapp-pairing.test.ts src/lib/fast-voice-asr.test.ts src/lib/voice-text.test.ts src/lib/voice-wav.test.ts src/lib/supabase-paginate.test.ts src/lib/realtime-items.test.ts src/lib/google-calendar-patch.test.ts src/lib/onboarding-steps.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/whatsapp-pairing.test.ts src/lib/fast-voice-asr.test.ts src/lib/voice-text.test.ts src/lib/voice-wav.test.ts src/lib/supabase-paginate.test.ts src/lib/realtime-items.test.ts src/lib/google-calendar-patch.test.ts src/lib/onboarding-steps.test.ts src/lib/auth-redirect.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
