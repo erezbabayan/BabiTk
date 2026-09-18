@@ -60,7 +60,7 @@ function GhostButton({
         reminder && styles.ghostBtnReminder,
       ]}
     >
-      <NotebookIcon name={icon} size={dense ? 14 : 22} tone={iconTone} />
+      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={iconTone} />
     </Pressable>
   );
 }
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ghostBtnDense: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   ghostBtnActive: {
     borderColor: "#94a3b8",

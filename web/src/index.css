@@ -385,13 +385,13 @@ body {
   border-radius: 8px;
 }
 
-/* Squares are narrow — keep a single compact row like list view */
+/* Squares — 28px tap targets, one row like list view */
 .board-notebook-item--squares .notebook-icon-btn {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
 }
 
 .notebook-icon-btn:hover {
@@ -513,11 +513,11 @@ body {
   @apply h-auto min-h-0 rounded-md shadow-none hover:shadow-sm;
 }
 
-/* Squares: soft gap; each row matches taller tile; grid must not stretch to board height. */
+/* Squares: uniform tile size; grid must not stretch to board height. */
 .board-items-squares {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-auto-rows: auto !important;
+  grid-auto-rows: 112px !important;
   gap: 6px !important;
   margin: 0 !important;
   padding: 6px !important;
@@ -527,7 +527,13 @@ body {
   flex: 0 0 auto !important;
   align-self: flex-start !important;
   align-content: start !important;
-  align-items: start !important;
+  align-items: stretch !important;
+}
+
+@media (max-width: 1023px) {
+  .board-items-squares {
+    grid-auto-rows: 124px !important;
+  }
 }
 
 .board-items-squares-empty {
@@ -539,6 +545,8 @@ body {
 .board-item-square-cell {
   box-sizing: border-box !important;
   min-width: 0 !important;
+  height: 112px !important;
+  min-height: 112px !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -548,6 +556,13 @@ body {
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04) !important;
   display: flex !important;
   flex-direction: column !important;
+}
+
+@media (max-width: 1023px) {
+  .board-item-square-cell {
+    height: 124px !important;
+    min-height: 124px !important;
+  }
 }
 
 .board-item-square-cell > * {
@@ -566,6 +581,7 @@ body {
   flex-direction: column !important;
   flex: 1 1 auto !important;
   width: 100% !important;
+  height: 100% !important;
   min-height: 0 !important;
   margin: 0 !important;
   border-radius: 10px !important;

@@ -112,7 +112,7 @@ function NotebookActionButton({
         active ? "notebook-icon-btn--active" : ""
       } ${reminder ? "notebook-icon-btn--reminder" : ""} ${accent ? "notebook-icon-btn--accent" : ""}`}
     >
-      <NotebookIcon name={icon} size={dense ? 14 : 22} tone={tone} />
+      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={tone} />
     </button>
   );
 }
@@ -464,7 +464,7 @@ export function ItemCard({
                 }`}
                 dir="rtl"
               >
-                <div className={`flex shrink-0 items-center ${isSquares ? "gap-0.5" : "gap-1"}`}>
+                <div className={`flex shrink-0 items-center ${isSquares ? "gap-1" : "gap-1"}`}>
                   {onTogglePriority ? (
                     <button
                       type="button"
@@ -483,17 +483,17 @@ export function ItemCard({
                       aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
                       aria-pressed={priority}
                     >
-                      <PriorityStar active={priority} size={isSquares ? 14 : dense ? 16 : 22} />
+                      <PriorityStar active={priority} size={isSquares ? 16 : dense ? 16 : 22} />
                     </button>
                   ) : priority ? (
                     <span
                       className={`flex items-center justify-center ${
-                        isSquares ? "h-6 w-6" : dense ? "h-7 w-7" : "h-9 w-9"
+                        isSquares ? "h-7 w-7" : dense ? "h-7 w-7" : "h-9 w-9"
                       }`}
                       title="עדיפות"
                       aria-label="עדיפות"
                     >
-                      <PriorityStar active size={isSquares ? 14 : dense ? 16 : 22} />
+                      <PriorityStar active size={isSquares ? 16 : dense ? 16 : 22} />
                     </span>
                   ) : null}
                   <SourceIndicator
@@ -527,7 +527,7 @@ export function ItemCard({
                 {hasActions && !showSource ? (
                   <div
                     className={`flex min-w-0 flex-nowrap items-center justify-end ${
-                      isSquares ? "gap-0.5" : "gap-1.5"
+                      isSquares ? "gap-1" : "gap-1.5"
                     }`}
                   >
                     {onTagPress ? (

@@ -31,7 +31,7 @@ export function SourceIndicator({
 }: SourceIndicatorProps) {
   const source = resolveItemSource(item);
   const iconTone = tone ?? sourceTone(isOpen, source.canOpen);
-  const iconSize = dense ? 14 : 20;
+  const iconSize = dense ? 16 : 20;
   const iconClass = `notebook-icon-btn${dense ? " notebook-icon-btn--dense" : ""}`;
 
   if (!source.canOpen) {

@@ -84,7 +84,7 @@ import { useDemoHybridSync } from "./src/lib/data-backend";
 import { useBoardItems } from "./src/hooks/useBoardItems";
 import { useTaskLists } from "./src/hooks/useTaskLists";
 import { BOARD_TAB_FONT, BOARD_TITLE_FONT } from "./src/lib/board-font";
-import { BOARD_SQUARE_GAP_PX, BOARD_SQUARE_HALF_GAP_PX, BOARD_SQUARE_RADIUS_PX, BOARD_CHROME_INSET_PX } from "./src/lib/board-item-layout";
+import { BOARD_SQUARE_GAP_PX, BOARD_SQUARE_HALF_GAP_PX, BOARD_SQUARE_RADIUS_PX, BOARD_SQUARE_TILE_HEIGHT_PX, BOARD_CHROME_INSET_PX } from "./src/lib/board-item-layout";
 import { ConvexAppProvider } from "./src/providers/ConvexAppProvider";
 import { ConvexAuthGate } from "./src/providers/ConvexAuthGate";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
@@ -1489,7 +1489,7 @@ const styles = StyleSheet.create({
   squaresRow: {
     // Half-gap padding inside cells (not row gap) keeps width:50% exact.
     marginHorizontal: -BOARD_SQUARE_HALF_GAP_PX,
-    alignItems: "flex-start",
+    alignItems: "stretch",
     justifyContent: "flex-start",
   },
   squaresCell: {
@@ -1502,7 +1502,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   squaresCellInner: {
-    flex: 1,
+    height: BOARD_SQUARE_TILE_HEIGHT_PX,
     overflow: "hidden",
     borderRadius: BOARD_SQUARE_RADIUS_PX,
     backgroundColor: "#ffffff",

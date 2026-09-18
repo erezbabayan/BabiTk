@@ -369,14 +369,14 @@ export function SwipeableItem({
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
                 >
-                  <PriorityStar active={priority} size={dense || isSquares ? 14 : 22} />
+                  <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
                 </TouchableOpacity>
               ) : priority ? (
                 <View
                   accessibilityLabel="עדיפות"
                   style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
                 >
-                  <PriorityStar active size={dense || isSquares ? 14 : 22} />
+                  <PriorityStar active size={dense || isSquares ? 16 : 22} />
                 </View>
               ) : null}
               {onViewSource ? (
@@ -465,6 +465,7 @@ const styles = StyleSheet.create({
   swipeClipSquares: {
     flex: 1,
     width: "100%",
+    height: "100%",
     marginBottom: 0,
     borderRadius: BOARD_SQUARE_RADIUS_PX,
     overflow: "hidden",
@@ -525,6 +526,7 @@ const styles = StyleSheet.create({
   cardSquares: {
     flex: 1,
     width: "100%",
+    height: "100%",
     flexDirection: "column",
     elevation: 0,
     shadowOpacity: 0,
@@ -694,9 +696,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   metaBtnDense: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   footerActionsOnly: {
     flexShrink: 1,

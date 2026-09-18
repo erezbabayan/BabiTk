@@ -15,6 +15,11 @@ export const BOARD_ITEM_LIST_GAP_CLASS = "space-y-px";
 /** Subtle gutter between square tiles (keep in sync with CSS / mobile). */
 export const BOARD_SQUARE_GAP_PX = 6;
 export const BOARD_SQUARE_RADIUS_PX = 10;
+/** Uniform square-tile height — fits 2-line title, tags, date, and 28px actions. */
+export const BOARD_SQUARE_TILE_HEIGHT_PX = 112;
+export const BOARD_SQUARE_TILE_HEIGHT_MOBILE_PX = 124;
+/** Tap target inside square tiles (same as dense list). */
+export const BOARD_SQUARE_ACTION_PX = 28;
 
 export const BOARD_ITEM_SQUARES_CLASS = "board-items-squares";
 export const BOARD_ITEM_SQUARE_CELL_CLASS = "board-item-square-cell";
@@ -28,11 +33,12 @@ export const BOARD_SQUARE_GRID_STYLE: CSSProperties = {
   // Prefer CSS class; these mirror it if class failed to load.
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gridAutoRows: BOARD_SQUARE_TILE_HEIGHT_PX,
   gap: BOARD_SQUARE_GAP_PX,
   padding: BOARD_SQUARE_GAP_PX,
   width: "100%",
   height: "fit-content",
-  alignItems: "start",
+  alignItems: "stretch",
   alignContent: "start",
   alignSelf: "flex-start",
   flex: "0 0 auto",
@@ -41,6 +47,8 @@ export const BOARD_SQUARE_GRID_STYLE: CSSProperties = {
 export const BOARD_SQUARE_CELL_STYLE: CSSProperties = {
   boxSizing: "border-box",
   minWidth: 0,
+  height: BOARD_SQUARE_TILE_HEIGHT_PX,
+  minHeight: BOARD_SQUARE_TILE_HEIGHT_PX,
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
