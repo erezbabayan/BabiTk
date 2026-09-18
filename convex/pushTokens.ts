@@ -23,8 +23,10 @@ export const register = mutation({
 
     const now = Date.now();
     if (existing) {
+      if (existing.userId !== userId) {
+        throw new Error("Push token already registered");
+      }
       await ctx.db.patch(existing._id, {
-        userId,
         platform: args.platform,
         updatedAt: now,
       });

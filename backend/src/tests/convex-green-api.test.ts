@@ -12,6 +12,10 @@ import {
 } from "../../../convex/lib/greenApiParser.js";
 import { isOwnerWhatsAppSender } from "../../../convex/lib/whatsappCaptureGroup.js";
 import { normalizePhone, phoneFromWhatsAppId } from "../../../convex/lib/phone.js";
+import {
+  greenApiSetSettingsBody,
+  webhookUrlHasQueryToken,
+} from "../../../convex/lib/greenApiWebhook.js";
 
 const OWNER_WID = "972526448067@c.us";
 const CAPTURE_GROUP = "120363000000000001@g.us";
@@ -185,5 +189,28 @@ describe("Convex Green-API parser", () => {
     const variants = phoneLookupVariants("+972501234567");
     assert.ok(variants.includes("+972501234567"));
     assert.ok(variants.includes("0501234567"));
+  });
+});
+
+describe("Green-API setSettings body", () => {
+  it("puts the webhook token in webhookUrlToken instead of the URL", () => {
+    const body = greenApiSetSettingsBody(
+      "https://example.convex.site/webhook/green-api",
+      "secret-token",
+    );
+    assert.equal(body.webhookUrl, "https://example.convex.site/webhook/green-api");
+    assert.equal(body.webhookUrlToken, "secret-token");
+    assert.equal(webhookUrlHasQueryToken(body.webhookUrl), false);
+  });
+
+  it("detects query-string tokens in webhook URLs", () => {
+    assert.equal(
+      webhookUrlHasQueryToken("https://example.com/webhook/green-api?token=secret"),
+      true,
+    );
+    assert.equal(
+      webhookUrlHasQueryToken("https://example.com/webhook/green-api"),
+      false,
+    );
   });
 });

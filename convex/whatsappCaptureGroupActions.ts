@@ -45,7 +45,9 @@ function pickMatchingGroup(
  * Does not block on yellowCard — list APIs often still work.
  */
 export const listCaptureGroups = action({
-  args: {},
+  args: {
+    query: v.string(),
+  },
   returns: v.object({
     ok: v.boolean(),
     groups: v.array(
@@ -56,7 +58,7 @@ export const listCaptureGroups = action({
     ),
     reason: v.optional(v.string()),
   }),
-  handler: async (ctx): Promise<{
+  handler: async (ctx, args): Promise<{
     ok: boolean;
     groups: Array<{ chatId: string; name: string }>;
     reason?: string;
@@ -64,6 +66,11 @@ export const listCaptureGroups = action({
     const userId = (await getAuthUserId(ctx)) as Id<"users"> | null;
     if (!userId) {
       return { ok: false, groups: [], reason: "Not authenticated" };
+    }
+
+    const needle = args.query.trim();
+    if (needle.length < 3) {
+      return { ok: true, groups: [], reason: "search_too_short" };
     }
 
     const greenApiCredentials: GreenApiCredentials | null = await ctx.runQuery(
@@ -80,21 +87,22 @@ export const listCaptureGroups = action({
 
     try {
       const rows = await fetchGreenApiCaptureChats(greenApiCredentials);
+      const lowered = needle.toLowerCase();
       return {
         ok: true,
-        groups: rows.map((row) => ({
-          chatId: normalizeGroupChatId(row.chatId),
-          name: row.name,
-        })),
+        groups: rows
+          .map((row) => ({
+            chatId: normalizeGroupChatId(row.chatId),
+            name: row.name,
+          }))
+          .filter((row) => row.name.toLowerCase().includes(lowered))
+          .slice(0, 20),
       };
-    } catch (error) {
+    } catch {
       return {
         ok: false,
         groups: [],
-        reason:
-          error instanceof Error
-            ? error.message
-            : "טעינת רשימת הקבוצות נכשלה",
+        reason: "טעינת רשימת הקבוצות נכשלה",
       };
     }
   },

@@ -1,10 +1,12 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
+import type { Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { phoneLookupVariants } from "./lib/greenApiParser";
 import { normalizePhone } from "./lib/phone";
-import { isGroupWhatsAppChat, normalizeGroupChatId } from "./lib/whatsappCaptureGroup";
+import { isGroupWhatsAppChat, normalizeGroupChatId, personalCaptureChatId } from "./lib/whatsappCaptureGroup";
 import {
   CALLMEBOT_ACTIVATE_URL,
   CALLMEBOT_BOT_NUMBERS,
@@ -22,6 +24,49 @@ import { resolveStoredUserNameParts, splitFullName } from "./lib/userDisplayName
 import { userTier } from "./validators";
 
 const DEFAULT_AUDIO_SECONDS = 1800;
+
+async function findOtherOwnerOfCaptureChat(
+  ctx: QueryCtx | MutationCtx,
+  userId: Id<"users">,
+  chatId: string,
+): Promise<boolean> {
+  const normalized = normalizeGroupChatId(chatId);
+  const rows = await ctx.db
+    .query("users")
+    .withIndex("by_capture_group", (q) =>
+      q.eq("whatsappCaptureGroupChatId", normalized),
+    )
+    .take(3);
+  return rows.some((row) => row._id !== userId);
+}
+
+async function assertExclusiveCaptureChat(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  chatId: string,
+): Promise<string> {
+  const trimmed = chatId.trim();
+  const isGroup = isGroupWhatsAppChat(trimmed);
+  const isPersonal = trimmed.endsWith("@c.us");
+  if (!isGroup && !isPersonal) {
+    throw new Error("מזהה צ'אט חייב להסתיים ב־@g.us (קבוצה) או @c.us (הודעה לעצמי)");
+  }
+  const normalized = normalizeGroupChatId(trimmed);
+  if (isPersonal) {
+    const owner = await ctx.db.get("users", userId);
+    if (!owner?.phone || owner.phoneVerified !== true) {
+      throw new Error("קודם אמתו מספר וואטסאפ");
+    }
+    const expected = personalCaptureChatId(owner.phone);
+    if (!expected || normalizeGroupChatId(expected) !== normalized) {
+      throw new Error("ניתן לחבר רק «הודעה לעצמי» של המספר המאומת");
+    }
+  }
+  if (await findOtherOwnerOfCaptureChat(ctx, userId, normalized)) {
+    throw new Error("קבוצת הקליטה כבר מחוברת לחשבון אחר");
+  }
+  return normalized;
+}
 
 export const getEmailInternal = internalQuery({
   args: { userId: v.id("users") },
@@ -293,14 +338,10 @@ export const saveWhatsAppCaptureGroup = mutation({
   returns: v.null(),
   handler: async (ctx, { chatId, name }) => {
     const userId = await requireAuthUserId(ctx);
-    const trimmed = chatId.trim();
-    const isGroup = isGroupWhatsAppChat(trimmed);
-    const isPersonal = trimmed.endsWith("@c.us");
-    if (!isGroup && !isPersonal) {
-      throw new Error("מזהה צ'אט חייב להסתיים ב־@g.us (קבוצה) או @c.us (הודעה לעצמי)");
-    }
+    const normalized = await assertExclusiveCaptureChat(ctx, userId, chatId);
+    const isPersonal = normalized.endsWith("@c.us");
     await ctx.db.patch(userId, {
-      whatsappCaptureGroupChatId: normalizeGroupChatId(trimmed),
+      whatsappCaptureGroupChatId: normalized,
       whatsappCaptureGroupName:
         name?.trim() || (isPersonal ? "הודעה לעצמי (BabiTk)" : "BabiTk"),
       updatedAt: Date.now(),
@@ -339,6 +380,7 @@ export const enablePersonalCapture = mutation({
     }
     const digits = normalizePhone(user.phone).replace(/\D/g, "");
     const chatId = `${digits}@c.us`;
+    await assertExclusiveCaptureChat(ctx, userId, chatId);
     await ctx.db.patch(userId, {
       whatsappCaptureGroupChatId: chatId,
       whatsappCaptureGroupName: "הודעה לעצמי (BabiTk)",
@@ -410,14 +452,10 @@ export const bindCaptureGroupInternal = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, { userId, chatId, name }) => {
-    const trimmed = chatId.trim();
-    const isGroup = isGroupWhatsAppChat(trimmed);
-    const isPersonal = trimmed.endsWith("@c.us");
-    if (!isGroup && !isPersonal) {
-      throw new Error("מזהה צ'אט חייב להסתיים ב־@g.us או @c.us");
-    }
+    const normalized = await assertExclusiveCaptureChat(ctx, userId, chatId);
+    const isPersonal = normalized.endsWith("@c.us");
     await ctx.db.patch(userId, {
-      whatsappCaptureGroupChatId: normalizeGroupChatId(trimmed),
+      whatsappCaptureGroupChatId: normalized,
       whatsappCaptureGroupName:
         name?.trim() || (isPersonal ? "הודעה לעצמי (BabiTk)" : BABITK_GROUP_NAME_FALLBACK),
       updatedAt: Date.now(),
@@ -449,7 +487,7 @@ export const setCaptureGroupByEmail = internalMutation({
     const users = await ctx.db.query("users").take(500);
     const user = users.find((u) => (u.email ?? "").toLowerCase() === email);
     if (!user) return { ok: false };
-    const normalized = normalizeGroupChatId(trimmed);
+    const normalized = await assertExclusiveCaptureChat(ctx, user._id, trimmed);
     await ctx.db.patch(user._id, {
       whatsappCaptureGroupChatId: normalized,
       whatsappCaptureGroupName:
@@ -800,11 +838,27 @@ export const getOrCreateByLegacyId = mutation({
     legacyId: v.string(),
     email: v.optional(v.string()),
   },
+  returns: v.object({
+    userId: v.id("users"),
+    legacyId: v.string(),
+    email: v.string(),
+    phoneVerified: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const authUserId = await requireAuthUserId(ctx);
     const user = await ctx.db.get("users", authUserId);
     if (!user) {
       throw new Error("User not found");
+    }
+
+    const allowArbitraryLegacy =
+      process.env.CONVEX_ALLOW_DEV_SEED === "true";
+    if (
+      !legacyIdMatchesAuthUser(authUserId, args.legacyId) &&
+      user.legacyId !== args.legacyId &&
+      !allowArbitraryLegacy
+    ) {
+      throw new Error("Unauthorized");
     }
 
     if (legacyIdMatchesAuthUser(authUserId, args.legacyId)) {
@@ -972,13 +1026,26 @@ export const linkVerifiedPhone = mutation({
     const normalized = normalizePhone(phone);
     const now = Date.now();
 
-    const conflict = await ctx.db
+    const conflicts = await ctx.db
       .query("users")
       .withIndex("phone", (q) => q.eq("phone", normalized))
-      .unique();
+      .take(8);
 
-    if (conflict && conflict._id !== userId) {
+    const verifiedOwner = conflicts.find(
+      (row) => row._id !== userId && row.phoneVerified === true,
+    );
+    if (verifiedOwner) {
       throw new Error("מספר הטלפון כבר מקושר לחשבון אחר");
+    }
+
+    for (const row of conflicts) {
+      if (row._id !== userId) {
+        await ctx.db.patch(row._id, {
+          phone: undefined,
+          phoneVerified: false,
+          updatedAt: now,
+        });
+      }
     }
 
     await ctx.db.patch(userId, {
@@ -986,17 +1053,6 @@ export const linkVerifiedPhone = mutation({
       phoneVerified: false,
       updatedAt: now,
     });
-
-    // Free-tier stable path: default capture to Message Yourself when unset.
-    const after = await ctx.db.get("users", userId);
-    if (after && !after.whatsappCaptureGroupChatId?.trim()) {
-      const digits = normalized.replace(/\D/g, "");
-      await ctx.db.patch(userId, {
-        whatsappCaptureGroupChatId: `${digits}@c.us`,
-        whatsappCaptureGroupName: "הודעה לעצמי (BabiTk)",
-        updatedAt: Date.now(),
-      });
-    }
 
     return normalized;
   },
@@ -1008,7 +1064,7 @@ export const checkAudioQuota = internalQuery({
     estimatedSeconds: v.number(),
   },
   handler: async (ctx, { userId, estimatedSeconds }) => {
-    const user = await ctx.db.get(userId);
+    const user = await ctx.db.get("users", userId);
     if (!user) {
       return { allowed: false, remaining: 0 };
     }
@@ -1033,7 +1089,7 @@ export const recordAudioUsage = internalMutation({
     seconds: v.number(),
   },
   handler: async (ctx, { userId, seconds }) => {
-    const user = await ctx.db.get(userId);
+    const user = await ctx.db.get("users", userId);
     if (!user) return;
 
     await ctx.db.patch(userId, {

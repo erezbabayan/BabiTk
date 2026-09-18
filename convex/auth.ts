@@ -160,16 +160,29 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
         }
       }
 
-      const {
-        emailVerified: _profileEmailVerified,
-        phoneVerified: _profilePhoneVerified,
-        ...profileFields
-      } = profile;
+      const profileFirst = readProfileString(profile, "firstName");
+      const profileLast = readProfileString(profile, "lastName");
+      const profileName = readProfileString(profile, "name");
+      const profilePhone = readProfileString(profile, "phone");
 
-      const userData = {
-        ...profileFields,
+      const userData: {
+        email?: string;
+        firstName?: string;
+        lastName?: string;
+        name?: string;
+        phone?: string;
+        phoneVerified: false;
+      } = {
         phoneVerified: false,
       };
+      if (email) userData.email = email;
+      if (profileFirst) userData.firstName = profileFirst;
+      if (profileLast) userData.lastName = profileLast;
+      if (profileName) userData.name = profileName;
+      else if (profileFirst || profileLast) {
+        userData.name = [profileFirst, profileLast].filter(Boolean).join(" ");
+      }
+      if (profilePhone) userData.phone = normalizePhone(profilePhone);
 
       let userId: Id<"users">;
       if (linkedUserId) {

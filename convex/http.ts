@@ -61,33 +61,9 @@ http.route({
 
     const parsed = parseGreenApiWebhook(body);
 
-    if (parsed.ignored) {
-      return jsonResponse({
-        received: true,
-        ignored: true,
-        reason: parsed.reason ?? "not_inbound",
-      });
+    if (parsed.ignored || parsed.messages.length === 0) {
+      return jsonResponse({ received: true });
     }
-
-    if (parsed.messages.length === 0) {
-      return jsonResponse({
-        received: true,
-        messages: [],
-        note: parsed.reason ?? "no_actionable_content",
-      });
-    }
-
-    const resolutions = [];
-    const scheduled: Array<{
-      messageId: string;
-      mediaType: string;
-      userId: string;
-    }> = [];
-    const skipped: Array<{
-      messageId: string;
-      reason: string;
-      chatId?: string;
-    }> = [];
 
     for (const message of parsed.messages) {
       const bodyObj = body as {
@@ -95,9 +71,7 @@ http.route({
         senderData?: { sender?: string; chatId?: string };
       };
       const fallbackPhones = [
-        bodyObj.instanceData?.wid,
         bodyObj.senderData?.sender,
-        // Prefer instance wid for phone match; skip @lid / group chatIds as phones.
         message.senderPhone,
       ].filter((p): p is string => {
         const t = p?.trim() ?? "";
@@ -107,7 +81,6 @@ http.route({
         return true;
       });
 
-      // Prefer instance-linked phone for Message Yourself (outgoing self-chat).
       const resolution = await ctx.runMutation(
         internal.whatsappWebhook.resolveGreenApiSender,
         {
@@ -115,23 +88,15 @@ http.route({
           senderId: message.senderId,
           senderPhone: message.senderPhone,
           messageType: message.type,
-          fallbackPhones: [
-            bodyObj.instanceData?.wid,
-            ...fallbackPhones,
-          ].filter((p): p is string => Boolean(p?.trim())),
+          fallbackPhones,
           instanceWid: bodyObj.instanceData?.wid,
+          chatId: message.chatId,
         },
       );
-      resolutions.push(resolution);
 
       // Never auto-reply to unlinked / unknown senders — that sent "מספר לא מקושר"
       // from the owner's WhatsApp to random contacts. Silently ignore instead.
       if (!resolution.resolved) {
-        skipped.push({
-          messageId: message.messageId,
-          reason: resolution.reason ?? "not_linked",
-          chatId: message.chatId,
-        });
         continue;
       }
 
@@ -144,11 +109,6 @@ http.route({
         },
       );
       if (!captureGate.allowed) {
-        skipped.push({
-          messageId: message.messageId,
-          reason: captureGate.reason ?? "capture_gated",
-          chatId: message.chatId,
-        });
         continue;
       }
 
@@ -168,24 +128,10 @@ http.route({
           imageUrl: message.imageUrl,
           mimeType: message.mimeType,
         });
-        scheduled.push({
-          messageId: message.messageId,
-          mediaType: message.type,
-          userId: resolution.userId,
-        });
       }
     }
 
-    return jsonResponse({
-      received: true,
-      provider: "green-api",
-      count: resolutions.length,
-      scheduled: scheduled.map(({ messageId, mediaType }) => ({
-        messageId,
-        mediaType,
-      })),
-      skipped: skipped.map(({ messageId, reason }) => ({ messageId, reason })),
-    });
+    return jsonResponse({ received: true });
   }),
 });
 
@@ -194,10 +140,7 @@ http.route({
   path: "/webhook/green-api",
   method: "GET",
   handler: httpAction(async () => {
-    return jsonResponse({
-      ok: true,
-      provider: "green-api",
-    });
+    return jsonResponse({ ok: true });
   }),
 });
 

@@ -183,7 +183,6 @@ export async function updateCloudUserProfile(
     Pick<
       CloudUserProfile,
       | "inbox_archive_hours"
-      | "google_calendar_enabled"
       | "whatsapp_capture_group_chat_id"
       | "whatsapp_capture_group_name"
       | "whatsapp_digest_hours"

@@ -18,9 +18,8 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function webhookPublicUrl(webhookToken: string): string {
-  const token = encodeURIComponent(webhookToken);
-  return `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook?token=${token}`;
+function webhookPublicUrl(): string {
+  return `${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/whatsapp-green-webhook`;
 }
 
 function greenUrl(baseUrl: string, instanceId: string, method: string, token: string): string {
@@ -63,6 +62,10 @@ async function configureWebhook(
   gateway: GatewayRow,
   webhookUrl: string,
 ): Promise<{ ok: boolean; saveSettings: unknown }> {
+  const token = gateway.webhook_token?.trim();
+  if (!token) {
+    return { ok: false, saveSettings: "missing_webhook_token" };
+  }
   const url = greenUrl(
     gateway.api_url,
     gateway.instance_id,
@@ -74,6 +77,7 @@ async function configureWebhook(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       webhookUrl,
+      webhookUrlToken: token,
       incomingWebhook: "yes",
       outgoingWebhook: "yes",
       outgoingMessageWebhook: "yes",
@@ -96,7 +100,7 @@ async function readConnectStatus(
   webhookUrl: string,
   webhookConfigured: boolean,
 ): Promise<ConnectStatus> {
-  const qrPageUrl = `https://qr.green-api.com/waInstance${gateway.instance_id}/${gateway.api_token}`;
+  const qrPageUrl = "https://console.green-api.com/";
   const stateRes = await fetch(
     greenUrl(gateway.api_url, gateway.instance_id, "getStateInstance", gateway.api_token),
   );
@@ -200,13 +204,13 @@ Deno.serve(async (req) => {
       qrBase64: null,
       qrPageUrl: null,
       instanceId: null,
-      webhookUrl: `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook`,
+      webhookUrl: webhookPublicUrl(),
       webhookConfigured: false,
       hint: "צרו instance חינמי ב-GREEN-API והדביקו כאן Instance ID ו-API Token.",
     } satisfies ConnectStatus);
   }
 
-  const webhookUrl = webhookPublicUrl(gateway.webhook_token || "missing");
+  const webhookUrl = webhookPublicUrl();
   let webhookConfigured = action !== "configureWebhook";
   if (action === "configureWebhook") {
     const result = await configureWebhook(gateway, webhookUrl);

@@ -107,7 +107,8 @@ export default defineSchema({
     .index("email", ["email"])
     .index("phone", ["phone"])
     .index("by_token", ["tokenIdentifier"])
-    .index("by_legacy_id", ["legacyId"]),
+    .index("by_legacy_id", ["legacyId"])
+    .index("by_capture_group", ["whatsappCaptureGroupChatId"]),
 
   tasks: defineTable({
     userId: v.id("users"),

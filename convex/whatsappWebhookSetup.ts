@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { GreenApiCredentials } from "./lib/greenApiSend";
+import { greenApiSetSettingsBody, webhookUrlHasQueryToken } from "./lib/greenApiWebhook";
 
 type SetSettingsResult = {
   ok: boolean;
@@ -43,24 +44,18 @@ export const configureGreenApiWebhooks = internalAction({
     if (!webhookUrl) {
       return { ok: false, webhookUrl: null, reason: "missing_convex_site_url" };
     }
+    if (webhookUrlHasQueryToken(webhookUrl)) {
+      return { ok: false, webhookUrl: null, reason: "webhook_url_must_not_include_token" };
+    }
+
+    const webhookUrlToken = process.env.GREEN_API_WEBHOOK_TOKEN?.trim();
+    if (!webhookUrlToken) {
+      return { ok: false, webhookUrl: null, reason: "webhook_not_configured" };
+    }
 
     const base = creds.baseUrl.replace(/\/$/, "");
     const url = `${base}/waInstance${creds.instanceId}/setSettings/${creds.token}`;
-    const body = {
-      webhookUrl,
-      incomingWebhook: "yes",
-      outgoingWebhook: "yes",
-      outgoingMessageWebhook: "yes",
-      // Required for backfill: lastOutgoingMessages uses stored history.
-      // Without it, `backfillRecentOutgoingCapture` can't find new outgoing messages.
-      enableMessagesHistory: "yes",
-      // Digests/API sends must NOT loop back into ingest.
-      outgoingAPIMessageWebhook: "no",
-      stateWebhook: "yes",
-      keepOnlineStatus: "yes",
-      markIncomingMessagesReaded: "no",
-      markIncomingMessagesReadedOnReply: "no",
-    };
+    const body = greenApiSetSettingsBody(webhookUrl, webhookUrlToken);
 
     const response = await fetch(url, {
       method: "POST",

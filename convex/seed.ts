@@ -292,9 +292,18 @@ export const importSyncDev = mutation({
   args: importSyncArgs,
   returns: importSyncReturns,
   handler: async (ctx, args) => {
-    await requireAuthUserId(ctx);
+    const authUserId = await requireAuthUserId(ctx);
     if (process.env.CONVEX_ALLOW_DEV_SEED !== "true") {
       throw new Error("Dev seed is disabled");
+    }
+    const user = await ctx.db.get("users", authUserId);
+    if (
+      !user ||
+      (user.legacyId !== args.legacyUserId &&
+        `${authUserId}` !== args.legacyUserId &&
+        authUserId !== args.legacyUserId)
+    ) {
+      throw new Error("Unauthorized");
     }
     return await importSyncHandler(ctx, args.legacyUserId, args.items);
   },

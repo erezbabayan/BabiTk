@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 
 import { internalMutation, internalQuery } from "./_generated/server";
-import { requireScopedUserId } from "./lib/requireAuth";
 import {
   deriveLessonsFromCorrection,
   type IngestLesson,
@@ -54,7 +53,7 @@ export const recordCorrection = internalMutation({
   },
   returns: v.object({ recorded: v.number() }),
   handler: async (ctx, args) => {
-    const userId = await requireScopedUserId(ctx, args.userId);
+    const userId = args.userId;
     const lessons = deriveLessonsFromCorrection({
       sourceText: args.sourceText,
       beforeTags: args.beforeTags,

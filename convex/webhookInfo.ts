@@ -53,7 +53,7 @@ export const greenApiInfo = query({
       provider: "green-api" as const,
       path: "/webhook/green-api",
       fullUrl: siteUrl ? `${siteUrl.replace(/\/$/, "")}/webhook/green-api` : null,
-      auth: "Authorization: Bearer GREEN_API_WEBHOOK_TOKEN (or ?token= / x-webhook-token)",
+      auth: "Authorization: Bearer GREEN_API_WEBHOOK_TOKEN (or x-webhook-token)",
       events: [
         "incomingMessageReceived",
         "outgoingMessageReceived (owner posts in capture group only)",

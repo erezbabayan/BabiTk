@@ -571,8 +571,15 @@ export const getLiveConnectionStatus = action({
     }
     const result = await ctx.runAction(internal.whatsappOps.checkGreenApiConnection, {});
     return {
-      ...result,
+      configured: result.configured,
+      stateInstance: result.stateInstance,
+      phone: null,
+      authorized: result.authorized,
+      restricted: result.restricted,
+      yellowCardUntil: result.yellowCardUntil,
+      webhookUrl: null,
       qrPageUrl: null,
+      hint: result.hint,
     };
   },
 });

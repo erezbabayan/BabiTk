@@ -19,21 +19,75 @@ const messageType = v.union(
   v.literal("unsupported"),
 );
 
+async function lookupUsersByPhone(
+  ctx: QueryCtx | MutationCtx,
+  phone: string,
+): Promise<Doc<"users">[]> {
+  const matches: Doc<"users">[] = [];
+  const seen = new Set<string>();
+  for (const candidate of phoneLookupVariants(phone)) {
+    const rows = await ctx.db
+      .query("users")
+      .withIndex("phone", (q) => q.eq("phone", candidate))
+      .take(8);
+    for (const row of rows) {
+      if (!seen.has(row._id)) {
+        seen.add(row._id);
+        matches.push(row);
+      }
+    }
+  }
+  return matches;
+}
+
 async function lookupVerifiedUser(
   ctx: QueryCtx | MutationCtx,
   phone: string,
 ): Promise<Doc<"users"> | null> {
-  for (const candidate of phoneLookupVariants(phone)) {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("phone", (q) => q.eq("phone", candidate))
-      .unique();
+  const matches = await lookupUsersByPhone(ctx, phone);
+  const verified = matches.filter((row) => row.phoneVerified === true);
+  return verified[0] ?? null;
+}
 
-    if (user?.phoneVerified) {
-      return user;
-    }
+async function confirmClaimedPhone(
+  ctx: MutationCtx,
+  phone: string,
+): Promise<Doc<"users"> | null> {
+  const matches = await lookupUsersByPhone(ctx, phone);
+  const verified = matches.filter((row) => row.phoneVerified === true);
+  if (verified.length === 1) {
+    return verified[0]!;
   }
+  if (verified.length > 1) {
+    return null;
+  }
+  const claimants = matches.filter((row) => row.phoneVerified !== true);
+  if (claimants.length !== 1) {
+    return null;
+  }
+  const user = claimants[0]!;
+  await ctx.db.patch(user._id, {
+    phoneVerified: true,
+    updatedAt: Date.now(),
+  });
+  return { ...user, phoneVerified: true };
+}
 
+async function lookupUserByCaptureChat(
+  ctx: QueryCtx | MutationCtx,
+  chatId: string,
+): Promise<Doc<"users"> | null> {
+  const normalized = normalizeGroupChatId(chatId);
+  const rows = await ctx.db
+    .query("users")
+    .withIndex("by_capture_group", (q) =>
+      q.eq("whatsappCaptureGroupChatId", normalized),
+    )
+    .take(3);
+  const verified = rows.filter((row) => row.phoneVerified === true);
+  if (verified.length === 1) {
+    return verified[0]!;
+  }
   return null;
 }
 
@@ -64,26 +118,83 @@ export const resolveGreenApiSender = internalMutation({
     /** Extra phones to try (e.g. instance wid) when senderPhone is LID / device-odd. */
     fallbackPhones: v.optional(v.array(v.string())),
     instanceWid: v.optional(v.string()),
+    chatId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const widDigits = args.instanceWid
+      ? normalizePhone(args.instanceWid).replace(/\D/g, "")
+      : "";
+
+    const isWidPhone = (value: string): boolean => {
+      if (!widDigits) return false;
+      const digits = normalizePhone(value).replace(/\D/g, "");
+      return digits.length >= 10 && digits === widDigits;
+    };
+
+    if (args.chatId && isGroupWhatsAppChat(args.chatId)) {
+      const byGroup = await lookupUserByCaptureChat(ctx, args.chatId);
+      if (byGroup) {
+        return {
+          messageId: args.messageId,
+          senderId: args.senderId,
+          senderPhone: byGroup.phone
+            ? normalizePhone(byGroup.phone)
+            : normalizePhone(args.senderPhone),
+          mediaType: args.messageType,
+          resolved: true,
+          reason: "linked" as const,
+          userId: byGroup._id,
+          tier: byGroup.tier ?? null,
+        };
+      }
+    }
+
     const candidates = [
       args.senderPhone,
       ...(args.fallbackPhones ?? []),
-    ].filter((p) => p.trim().length > 0);
+    ].filter((p) => {
+      const trimmed = p.trim();
+      if (!trimmed) return false;
+      if (trimmed.toLowerCase().endsWith("@lid")) return false;
+      if (trimmed.toLowerCase().endsWith("@g.us")) return false;
+      // Extra fallbacks must not be the shared instance number.
+      if (p !== args.senderPhone && isWidPhone(trimmed)) return false;
+      return true;
+    });
+
+    const isPersonalChat = Boolean(
+      args.chatId && isPersonalWhatsAppChat(args.chatId),
+    );
 
     let user: Doc<"users"> | null = null;
     let matchedPhone = normalizePhone(args.senderPhone);
     for (const candidate of candidates) {
       const normalized = normalizePhone(candidate);
       user = await lookupVerifiedUser(ctx, normalized);
+      if (!user && isPersonalChat) {
+        const expected = personalCaptureChatId(normalized);
+        if (
+          expected &&
+          args.chatId &&
+          normalizeGroupChatId(expected) === normalizeGroupChatId(args.chatId)
+        ) {
+          user = await confirmClaimedPhone(ctx, normalized);
+        }
+      }
       if (user) {
         matchedPhone = user.phone ? normalizePhone(user.phone) : normalized;
         break;
       }
     }
 
+    if (!user && args.chatId) {
+      user = await lookupUserByCaptureChat(ctx, args.chatId);
+      if (user?.phone) {
+        matchedPhone = normalizePhone(user.phone);
+      }
+    }
+
     if (!user) {
-      // Do not auto-verify by instance wid: anyone could store that number.
       return {
         messageId: args.messageId,
         senderId: args.senderId,
@@ -135,11 +246,26 @@ export const gateCaptureMessage = internalMutation({
     const incoming = normalizeGroupChatId(chatId);
     const configured = user.whatsappCaptureGroupChatId?.trim();
     const personalId = personalCaptureChatId(user.phone);
+    const others = await ctx.db
+      .query("users")
+      .withIndex("by_capture_group", (q) =>
+        q.eq("whatsappCaptureGroupChatId", incoming),
+      )
+      .take(3);
+    const takenByOther = others.some((row) => row._id !== userId);
 
     if (!configured) {
+      const expectedPersonal =
+        personalId && normalizeGroupChatId(personalId) === incoming;
+      if (!expectedPersonal || user.phoneVerified !== true) {
+        return { allowed: false, reason: "capture_group_not_configured" };
+      }
+      if (takenByOther) {
+        return { allowed: false, reason: "capture_group_taken" };
+      }
       await ctx.db.patch(userId, {
         whatsappCaptureGroupChatId: incoming,
-        whatsappCaptureGroupName: chatName?.trim() || undefined,
+        whatsappCaptureGroupName: chatName?.trim() || "הודעה לעצמי (BabiTk)",
         updatedAt: Date.now(),
       });
       return { allowed: true, captureGroupChatId: incoming };
@@ -159,8 +285,8 @@ export const gateCaptureMessage = internalMutation({
       return { allowed: true, captureGroupChatId: configured };
     }
 
-    // Stuck on auto Message Yourself after phone link: first owner group post
-    // becomes the capture group (UI already asks user to choose a group).
+    // Stuck on default Message Yourself: first exclusive owner group post
+    // may upgrade, but never steal another account's group.
     if (isPersonalWhatsAppChat(configuredNorm) && isGroupWhatsAppChat(incoming)) {
       const name = user.whatsappCaptureGroupName?.trim() ?? "";
       const isDefaultPersonal =
@@ -168,7 +294,7 @@ export const gateCaptureMessage = internalMutation({
         name.includes("הודעה לעצמי") ||
         name.toLowerCase().includes("babitk") ||
         name.toLowerCase().includes("message yourself");
-      if (isDefaultPersonal) {
+      if (isDefaultPersonal && !takenByOther) {
         await ctx.db.patch(userId, {
           whatsappCaptureGroupChatId: incoming,
           whatsappCaptureGroupName: chatName?.trim() || "קבוצת קליטה",

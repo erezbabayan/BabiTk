@@ -122,26 +122,35 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
 
   useEffect(() => {
     if (!visible || !useConvexPhone || !viewer?.phoneVerified) return;
+    const needle = groupSearch.trim();
+    if (needle.length < 3) {
+      setGroupOptions([]);
+      setLoadingGroups(false);
+      return;
+    }
     let cancelled = false;
-    void (async () => {
-      setLoadingGroups(true);
-      try {
-        const result = await listCaptureGroups({});
-        if (cancelled) return;
-        setGroupOptions(result.groups);
-        if (!result.ok && result.reason) {
-          setError(result.reason);
+    const timer = setTimeout(() => {
+      void (async () => {
+        setLoadingGroups(true);
+        try {
+          const result = await listCaptureGroups({ query: needle });
+          if (cancelled) return;
+          setGroupOptions(result.groups);
+          if (!result.ok && result.reason && result.reason !== "search_too_short") {
+            setError(result.reason);
+          }
+        } catch {
+          if (!cancelled) setGroupOptions([]);
+        } finally {
+          if (!cancelled) setLoadingGroups(false);
         }
-      } catch {
-        if (!cancelled) setGroupOptions([]);
-      } finally {
-        if (!cancelled) setLoadingGroups(false);
-      }
-    })();
+      })();
+    }, 300);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [visible, useConvexPhone, viewer?.phoneVerified, listCaptureGroups]);
+  }, [visible, useConvexPhone, viewer?.phoneVerified, groupSearch, listCaptureGroups]);
 
   const digestHours = viewer?.whatsappDigestHours ?? [9];
   const digestDays = viewer?.whatsappDigestDays ?? "everyday";
@@ -272,7 +281,9 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
       });
       if (result.ok) {
         setMessage(`חוברה הקבוצה «${result.name?.trim() || name}».`);
-        const refresh = await listCaptureGroups({}).catch(() => null);
+        const refresh = await listCaptureGroups({
+          query: name,
+        }).catch(() => null);
         if (refresh?.groups) setGroupOptions(refresh.groups);
       } else {
         setError(result.reason ?? "חיבור הקבוצה נכשל");

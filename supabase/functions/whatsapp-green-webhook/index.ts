@@ -65,12 +65,33 @@ async function maybeVerifyOwnerPhone(
   supabase: ReturnType<typeof adminClient>,
   owner: UserRow,
   senderPhones: string[],
+  chatId: string,
 ): Promise<void> {
   const stored = owner.phone?.trim() ?? "";
   if (!stored || owner.phone_verified === true) return;
+  if (!isPersonalWhatsAppChat(chatId)) return;
+  const expected = personalCaptureChatId(stored);
+  if (!expected || normalizeGroupChatId(expected) !== normalizeGroupChatId(chatId)) {
+    return;
+  }
   if (!phonesMatch(stored, senderPhones)) return;
   await supabase.from("users").update({ phone_verified: true }).eq("id", owner.id);
   owner.phone_verified = true;
+}
+
+async function captureTakenByOther(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+  chatId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("users")
+    .select("id")
+    .eq("whatsapp_capture_group_chat_id", chatId)
+    .neq("id", userId)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
 }
 
 async function gateCapture(
@@ -83,26 +104,22 @@ async function gateCapture(
   const configured = user.whatsapp_capture_group_chat_id?.trim() ?? "";
   const configuredName = user.whatsapp_capture_group_name?.trim() ?? "";
   const personalId = personalCaptureChatId(user.phone);
-
-  if (configuredName && chatName?.trim() && configuredName === chatName.trim()) {
-    if (configured !== incoming) {
-      await supabase
-        .from("users")
-        .update({
-          whatsapp_capture_group_chat_id: incoming,
-          whatsapp_capture_group_name: configuredName,
-        })
-        .eq("id", user.id);
-    }
-    return { allowed: true };
-  }
+  const takenByOther = await captureTakenByOther(supabase, user.id, incoming);
 
   if (!configured) {
+    const expectedPersonal =
+      personalId && normalizeGroupChatId(personalId) === incoming;
+    if (!expectedPersonal || user.phone_verified !== true) {
+      return { allowed: false, reason: "capture_group_not_configured" };
+    }
+    if (takenByOther) {
+      return { allowed: false, reason: "capture_group_taken" };
+    }
     await supabase
       .from("users")
       .update({
         whatsapp_capture_group_chat_id: incoming,
-        whatsapp_capture_group_name: chatName?.trim() || configuredName || null,
+        whatsapp_capture_group_name: chatName?.trim() || "הודעה לעצמי (BabiTk)",
       })
       .eq("id", user.id);
     return { allowed: true };
@@ -128,7 +145,7 @@ async function gateCapture(
       name.includes("הודעה לעצמי") ||
       name.toLowerCase().includes("babitk") ||
       name.toLowerCase().includes("message yourself");
-    if (isDefaultPersonal) {
+    if (isDefaultPersonal && !takenByOther) {
       await supabase
         .from("users")
         .update({
@@ -240,7 +257,7 @@ async function ingestMessage(
 
 Deno.serve(async (req) => {
   if (req.method === "GET") {
-    return json({ ok: true, provider: "green-api" });
+    return json({ ok: true });
   }
   if (req.method !== "POST") {
     return json({ error: "method_not_allowed" }, 405);
@@ -287,48 +304,27 @@ Deno.serve(async (req) => {
   }
 
   const parsed = parseGreenApiWebhook(body);
-  if (parsed.ignored) {
-    return json({ received: true, ignored: true, reason: parsed.reason ?? "not_inbound" });
+  if (parsed.ignored || parsed.messages.length === 0) {
+    return json({ received: true });
   }
-  if (parsed.messages.length === 0) {
-    return json({
-      received: true,
-      messages: [],
-      note: parsed.reason ?? "no_actionable_content",
-    });
-  }
-
-  const scheduled: Array<{ messageId: string }> = [];
-  const skipped: Array<{ messageId: string; reason: string }> = [];
 
   for (const message of parsed.messages) {
     const gate = await gateCapture(supabase, owner, message.chatId, message.chatName);
     if (!gate.allowed) {
-      skipped.push({
-        messageId: message.messageId,
-        reason: gate.reason ?? "capture_gated",
-      });
       continue;
     }
     try {
-      await maybeVerifyOwnerPhone(supabase, owner, [
-        message.senderPhone,
-        message.senderId,
-      ]);
+      await maybeVerifyOwnerPhone(
+        supabase,
+        owner,
+        [message.senderPhone],
+        message.chatId,
+      );
       await ingestMessage(supabase, owner.id, message);
-      scheduled.push({ messageId: message.messageId });
-    } catch (error) {
-      skipped.push({
-        messageId: message.messageId,
-        reason: "ingest_failed",
-      });
+    } catch {
+      // Keep processing remaining messages.
     }
   }
 
-  return json({
-    received: true,
-    provider: "green-api",
-    scheduled,
-    skipped,
-  });
+  return json({ received: true });
 });
