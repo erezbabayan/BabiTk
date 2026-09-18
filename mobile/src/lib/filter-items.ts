@@ -8,12 +8,21 @@ type DatedItem = { due_date: string | null; metadata?: unknown };
 
 export type BoardDateFilter = "all" | "today" | "tomorrow" | "overdue" | "undated";
 
-function isSameLocalDay(left: Date, right: Date): boolean {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
+const FILTER_TIMEZONE = "Asia/Jerusalem";
+
+function zonedDayKey(date: Date, timeZone = FILTER_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function addYmd(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day + days));
+  return utc.toISOString().slice(0, 10);
 }
 
 export function filterItemsByQuery(
@@ -52,15 +61,13 @@ export function itemDueTimestamp(
 export function isItemDueToday(item: DatedItem, now = new Date()): boolean {
   const ts = itemDueTimestamp(item, now);
   if (ts === null) return false;
-  return isSameLocalDay(new Date(ts), now);
+  return zonedDayKey(new Date(ts)) === zonedDayKey(now);
 }
 
 export function isItemDueTomorrow(item: DatedItem, now = new Date()): boolean {
   const ts = itemDueTimestamp(item, now);
   if (ts === null) return false;
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  return isSameLocalDay(new Date(ts), tomorrow);
+  return zonedDayKey(new Date(ts)) === addYmd(zonedDayKey(now), 1);
 }
 
 export function isItemOverdue(item: DatedItem, now = Date.now()): boolean {
