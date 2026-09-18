@@ -23,6 +23,14 @@ describe("GitHub OIDC deploy claims", () => {
       isAllowedGitHubOidcClaims({ ...valid, event_name: "workflow_dispatch" }),
       true,
     );
+    assert.equal(
+      isAllowedGitHubOidcClaims({
+        ...valid,
+        job_workflow_ref:
+          "erezbabayan/BabiTk/.github/workflows/deploy-web.yml@refs/heads/main",
+      }),
+      true,
+    );
   });
 
   it("rejects other repos, branches, and workflows", () => {
