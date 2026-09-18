@@ -221,7 +221,7 @@ async function tryReplyRecordedQuestion(params: {
   try {
     const supabase = requireSupabase();
     const accessToken = await currentAccessToken();
-    if (!accessToken) return parsed.kind !== "none";
+    if (!accessToken) return true;
     const invoked = await invokeWithTimeout(
       supabase.functions.invoke("whatsapp-green-connect", {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -241,7 +241,7 @@ async function tryReplyRecordedQuestion(params: {
   } catch {
     // Live connect may still be the old function.
   }
-  return parsed.kind !== "none";
+  return true;
 }
 
 async function softDeleteQuestionItem(item: VoiceRepairItem, content: string): Promise<void> {
