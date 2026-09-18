@@ -17,6 +17,7 @@ import {
   HEBREW_ASR_WHISPER_PROMPT,
   pickBestHebrewTranscript,
 } from "./hebrew-asr-proofread.ts";
+import { transcribeViaPublicWhisper } from "./hebrew-asr-gradio.ts";
 import {
   asrUploadVariants,
   audioDataUrl,
@@ -67,7 +68,7 @@ export interface VoiceTranscription {
   rawText: string;
   correctedText: string;
   title: string;
-  engine: "runpod" | "groq" | "openai";
+  engine: "runpod" | "groq" | "openai" | "gradio";
 }
 
 export function audioFileName(messageId: string, mimeType: string): string {
@@ -482,6 +483,20 @@ export async function transcribeAudio(
         `${engine}:${error instanceof Error ? error.message : "failed"}`,
       );
     }
+  }
+
+  try {
+    const text = await transcribeViaPublicWhisper(
+      audio,
+      fileName,
+      resolvedMime,
+      sourceUrl,
+    );
+    if (text.trim()) {
+      return { text: text.trim(), engine: "gradio" };
+    }
+  } catch (error) {
+    errors.push(`gradio:${error instanceof Error ? error.message : "failed"}`);
   }
 
   throw new Error(

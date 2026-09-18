@@ -9,6 +9,7 @@ import {
   sniffAudioContainer,
 } from "../../../supabase/functions/_shared/audio-format.ts";
 import { parseGreenApiDownloadFileBody } from "../../../supabase/functions/_shared/green-api-media.ts";
+import { parseGradioSseText } from "../../../supabase/functions/_shared/hebrew-asr-gradio.ts";
 
 function oggHeader(): Uint8Array {
   const bytes = new Uint8Array(80);
@@ -78,5 +79,11 @@ describe("WhatsApp audio sniff", () => {
     const ogg = parseGreenApiDownloadFileBody(oggHeader(), "application/octet-stream");
     assert.equal(ogg.bytes?.byteLength, 80);
     assert.equal(ogg.mimeType, "audio/ogg");
+  });
+
+  it("parses Gradio SSE transcription text", () => {
+    const sse =
+      'event: complete\ndata: ["בבי מה המשימות היום", "transcribing audio"]\n\n';
+    assert.equal(parseGradioSseText(sse), "בבי מה המשימות היום");
   });
 });
