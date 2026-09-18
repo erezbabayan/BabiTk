@@ -70,16 +70,21 @@ function filePayload(url: string, fileName: string): Record<string, unknown> {
   };
 }
 
+function audioBlob(audio: Uint8Array, mimeType: string): Blob {
+  const copy = tightAudioBytes(audio);
+  const standalone = new ArrayBuffer(copy.byteLength);
+  new Uint8Array(standalone).set(copy);
+  return new Blob([standalone], { type: mimeType });
+}
+
 async function gradioUpload(
   space: string,
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
 ): Promise<string> {
-  const copy = tightAudioBytes(audio);
-  const buffer = copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength);
   const form = new FormData();
-  form.append("files", new Blob([buffer], { type: mimeType }), fileName);
+  form.append("files", audioBlob(audio, mimeType), fileName);
   const response = await fetch(`${space}/gradio_api/upload`, {
     method: "POST",
     body: form,

@@ -231,8 +231,9 @@ function isAsrFormatError(error: unknown): boolean {
 
 function audioBlob(audio: Uint8Array, mimeType: string): Blob {
   const copy = tightAudioBytes(audio);
-  const buffer = copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength);
-  return new Blob([buffer], { type: mimeType });
+  const standalone = new ArrayBuffer(copy.byteLength);
+  new Uint8Array(standalone).set(copy);
+  return new Blob([standalone], { type: mimeType });
 }
 
 async function readTranscriptionText(response: Response): Promise<string> {
