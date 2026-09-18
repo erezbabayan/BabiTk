@@ -1,21 +1,14 @@
-import { phoneFromWhatsAppId } from "./phone";
+/**
+ * Capture-group gate for Edge Functions.
+ * Keep in sync with convex/lib/whatsappCaptureGroup.ts evaluateCaptureGate.
+ */
 
-/** Normalize WhatsApp group chat id (`120363…@g.us`). */
-export function normalizeGroupChatId(chatId: string): string {
-  return chatId.trim().toLowerCase();
-}
-
-export function isGroupWhatsAppChat(chatId: string): boolean {
-  return chatId.trim().endsWith("@g.us");
-}
-
-export function isWhatsAppLidId(id: string): boolean {
-  return id.trim().toLowerCase().endsWith("@lid");
-}
-
-export function isPersonalWhatsAppChat(chatId: string): boolean {
-  return chatId.trim().toLowerCase().endsWith("@c.us");
-}
+import {
+  isGroupWhatsAppChat,
+  isPersonalWhatsAppChat,
+  normalizeGroupChatId,
+  personalCaptureChatId,
+} from "./green-api.ts";
 
 export function isDefaultPersonalCaptureName(name: string | null | undefined): boolean {
   const trimmed = name?.trim() ?? "";
@@ -49,11 +42,6 @@ export type CaptureGateDecision =
   | { allowed: true; bind?: { chatId: string; name: string | null } }
   | { allowed: false; reason: string };
 
-/**
- * Fail-closed when no capture chat is configured: only the owner's
- * Message Yourself / personal chat may auto-bind. Random groups and 1:1
- * peers are rejected until the user picks a group in settings.
- */
 export function evaluateCaptureGate(
   user: CaptureGateUser,
   chatId: string,
@@ -113,29 +101,4 @@ export function evaluateCaptureGate(
   }
 
   return { allowed: false, reason: "wrong_capture_group" };
-}
-
-/** Personal Message Yourself chat id for a stored E.164 / raw phone. */
-export function personalCaptureChatId(phone: string | undefined | null): string | null {
-  if (!phone?.trim()) return null;
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  return `${digits}@c.us`;
-}
-
-function digitsOf(id: string): string {
-  return phoneFromWhatsAppId(id).replace(/\D/g, "");
-}
-
-/** True when the message sender is the Green-API linked phone (the account owner). */
-export function isOwnerWhatsAppSender(
-  senderPhoneOrId: string,
-  instanceWid: string,
-): boolean {
-  if (isWhatsAppLidId(senderPhoneOrId) || isWhatsAppLidId(instanceWid)) {
-    return false;
-  }
-  const sender = digitsOf(senderPhoneOrId);
-  const owner = digitsOf(instanceWid);
-  return sender.length >= 10 && owner.length >= 10 && sender === owner;
 }

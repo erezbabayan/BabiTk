@@ -1,27 +1,27 @@
-import type { ParsedItem, ParseInputResponse } from "./types";
+import type { ParsedItem, ParseInputResponse } from "./types.ts";
 import {
   resolveDueDateFromText,
   stripTemporalPhrases,
-} from "./hebrewDates";
+} from "./hebrewDates.ts";
 import {
   extractTimeOfDay,
   isConcreteClockMention,
-} from "./hebrewTimeWords";
-import { normalizeDueDateIso } from "./timezone";
-import { mergeInferredTags } from "./tagInference";
-import { DEFAULT_TAG_NAMES } from "./defaultTags";
+} from "./hebrewTimeWords.ts";
+import { normalizeDueDateIso } from "./timezone.ts";
+import { mergeInferredTags } from "./tagInference.ts";
+import { DEFAULT_TAG_NAMES } from "./defaultTags.ts";
 import {
   normalizeTaskPresentation,
   deriveShortTaskTitle,
   deriveTaskContent,
-} from "./taskPresentation";
-import { mergeContinuationParsedItems, splitInputSegments } from "./inputSegmentation";
-import { trySplitTopicActions, topicActionsToSegments } from "./topicTaskSplit";
+} from "./taskPresentation.ts";
+import { mergeContinuationParsedItems, splitInputSegments } from "./inputSegmentation.ts";
+import { trySplitTopicActions, topicActionsToSegments } from "./topicTaskSplit.ts";
 import {
   applyLearnedTagLessons,
   type IngestLesson,
-} from "./ingestLearning";
-import { formatStructuredNoteBody } from "./textStructure";
+} from "./ingestLearning.ts";
+import { formatStructuredNoteBody } from "./textStructure.ts";
 
 const FILLER_PREFIX =
   /^(?:תזכיר לי|תזכירי לי|שים לב|שימי לב|אמ+|אה+|שומע|שומעת|כאילו|בעצם)[,\s]*/iu;

@@ -31,6 +31,7 @@ import {
   rememberWhatsAppLastItemIds,
   resolveCaptureChatId,
 } from "./whatsapp-system-question-reply.ts";
+import { parseInboundText } from "./inbound-item.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -274,13 +275,31 @@ export async function applyVoiceTranscription(
     voice_refine_pending: false,
     ...(transcribed.engine ? { asr_engine: transcribed.engine } : {}),
   };
-  const allowedTags = await loadAllowedTagNames(
-    supabase,
-    row.user_id ?? "",
-  );
-  const parsed = row.user_id
-    ? parseIncomingMessage(transcribed.content, allowedTags)[0]
-    : undefined;
+  let parsed:
+    | {
+        title: string;
+        content: string;
+        is_actionable: boolean;
+        tags: string[];
+        due_date: string | null;
+        analysis: unknown;
+      }
+    | undefined;
+  try {
+    parsed = parseInboundText(transcribed.content, {
+      sourceType: "whatsapp_voice",
+      fallbackTitle: transcribed.title,
+    })[0];
+  } catch (error) {
+    console.error("voice inbound parse failed, falling back", error);
+  }
+  if (!parsed && row.user_id) {
+    const allowedTags = await loadAllowedTagNames(supabase, row.user_id);
+    const fallback = parseIncomingMessage(transcribed.content, allowedTags)[0];
+    if (fallback) {
+      parsed = { ...fallback, analysis: undefined };
+    }
+  }
   const { error: itemError } = await supabase
     .from("mindtasker_items")
     .update({
@@ -290,7 +309,10 @@ export async function applyVoiceTranscription(
       due_date: parsed?.due_date ?? null,
       tags: parsed?.tags ?? [],
       last_interacted_at: new Date().toISOString(),
-      metadata,
+      metadata: {
+        ...metadata,
+        ...(parsed?.analysis ? { analysis: parsed.analysis } : {}),
+      },
     })
     .eq("id", row.id);
   if (itemError) {
@@ -691,8 +713,31 @@ export async function ingestRecordedAudio(
     };
   }
 
-  const allowedTags = await loadAllowedTagNames(supabase, userId);
-  const parsed = parseIncomingMessage(transcribed.correctedText, allowedTags)[0];
+  let parsed:
+    | {
+        title: string;
+        content: string;
+        is_actionable: boolean;
+        tags: string[];
+        due_date: string | null;
+        analysis?: unknown;
+      }
+    | undefined;
+  try {
+    parsed = parseInboundText(transcribed.correctedText, {
+      sourceType: "whatsapp_voice",
+      fallbackTitle: transcribed.title,
+    })[0];
+  } catch (error) {
+    console.error("recorded voice inbound parse failed, falling back", error);
+  }
+  if (!parsed) {
+    const allowedTags = await loadAllowedTagNames(supabase, userId);
+    const fallback = parseIncomingMessage(transcribed.correctedText, allowedTags)[0];
+    if (fallback) {
+      parsed = { ...fallback, analysis: undefined };
+    }
+  }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")

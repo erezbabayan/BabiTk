@@ -212,23 +212,27 @@ async function backupStorage(workDir: string): Promise<BackupComponentResult> {
       env.backupStorageBucket,
     );
 
+    const concurrency = 4;
     let downloaded = 0;
-    for (const objectPath of objects) {
-      const { data, error } = await supabase.storage
-        .from(env.backupStorageBucket)
-        .download(objectPath);
-
-      if (error || !data) {
-        throw new Error(
-          `Failed to download ${objectPath}: ${error?.message ?? "empty file"}`,
-        );
-      }
-
-      const destination = path.join(storageDir, objectPath);
-      await ensureDir(path.dirname(destination));
-      const buffer = Buffer.from(await data.arrayBuffer());
-      await writeFile(destination, buffer);
-      downloaded += 1;
+    for (let i = 0; i < objects.length; i += concurrency) {
+      const chunk = objects.slice(i, i + concurrency);
+      await Promise.all(
+        chunk.map(async (objectPath) => {
+          const { data, error } = await supabase.storage
+            .from(env.backupStorageBucket)
+            .download(objectPath);
+          if (error || !data) {
+            throw new Error(
+              `Failed to download ${objectPath}: ${error?.message ?? "empty file"}`,
+            );
+          }
+          const destination = path.join(storageDir, objectPath);
+          await ensureDir(path.dirname(destination));
+          const buffer = Buffer.from(await data.arrayBuffer());
+          await writeFile(destination, buffer);
+        }),
+      );
+      downloaded += chunk.length;
     }
 
     const sizeBytes = await getPathSizeBytes(storageDir);

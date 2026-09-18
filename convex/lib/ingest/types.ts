@@ -1,4 +1,10 @@
-import type { SourceType } from "../../validators";
+export type SourceType =
+  | "whatsapp_voice"
+  | "whatsapp_text"
+  | "notebook_ocr"
+  | "typed_text"
+  | "image"
+  | "document";
 
 export type UrgencyLevel = "גבוהה" | "בינונית" | "נמוכה" | "חסר";
 
@@ -38,7 +44,7 @@ export interface ParseInputOptions {
   locale?: string;
   referenceDate?: Date;
   allowedTags?: string[];
-  lessons?: import("./ingestLearning").IngestLesson[];
+  lessons?: import("./ingestLearning.ts").IngestLesson[];
 }
 
 export const SOURCE_TYPE_LABELS: Record<SourceType, string> = {

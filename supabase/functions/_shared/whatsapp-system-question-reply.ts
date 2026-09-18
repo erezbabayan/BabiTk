@@ -140,7 +140,8 @@ async function loadOpenActionableItems(
     .eq("is_actionable", true)
     .in("status", ["inbox", "pending"])
     .is("deleted_at", null)
-    .order("due_date", { ascending: true, nullsFirst: false });
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .limit(80);
   return (data ?? []) as Array<{
     id: string;
     title: string;

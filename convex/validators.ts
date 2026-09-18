@@ -36,10 +36,4 @@ export type NotebookStatus = "inbox" | "pending" | "archived";
 
 export type UserTier = "free" | "premium";
 
-export type SourceType =
-  | "whatsapp_voice"
-  | "whatsapp_text"
-  | "notebook_ocr"
-  | "typed_text"
-  | "image"
-  | "document";
+export type { SourceType } from "./lib/ingest/types";

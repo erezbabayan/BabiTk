@@ -5,10 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   instanceIdFromPayload,
   isGroupWhatsAppChat,
-  isPersonalWhatsAppChat,
-  normalizeGroupChatId,
   parseGreenApiWebhook,
-  personalCaptureChatId,
   phoneLookupVariants,
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
@@ -49,6 +46,8 @@ import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
 } from "../_shared/whatsapp-system-question-reply.ts";
+import { evaluateCaptureGate } from "../_shared/capture-gate.ts";
+import { parseInboundText, type IngestSourceType } from "../_shared/inbound-item.ts";
 
 const ASR_FAIL_REPLY =
   "לא הצלחתי לתמלל את ההקלטה. כתבו את השאלה בטקסט, למשל: בבי מה המשימות היום";
@@ -220,9 +219,10 @@ async function handleGroupTextIntent(options: {
       .select("id, title, content, due_date, tags, status, is_actionable")
       .eq("user_id", options.user.id)
       .eq("is_actionable", true)
-      .in("status", ["inbox", "pending"])
-      .is("deleted_at", null)
-      .order("due_date", { ascending: true, nullsFirst: false });
+    .in("status", ["inbox", "pending"])
+    .is("deleted_at", null)
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .limit(80);
     const matched = (data ?? []).filter(
       (item) =>
         itemMatchesBriefingDay(item, query.day) && itemMatchesQueryTag(item, query.tag),
@@ -350,75 +350,33 @@ async function gateCapture(
   chatId: string,
   chatName?: string,
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const incoming = normalizeGroupChatId(chatId);
-  const configured = user.whatsapp_capture_group_chat_id?.trim() ?? "";
-  const configuredName = user.whatsapp_capture_group_name?.trim() ?? "";
-  const personalId = personalCaptureChatId(user.phone);
-
-  if (configuredName && chatName?.trim() && configuredName === chatName.trim()) {
-    if (configured !== incoming) {
-      await supabase
-        .from("users")
-        .update({
-          whatsapp_capture_group_chat_id: incoming,
-          whatsapp_capture_group_name: configuredName,
-          ...(incoming.toLowerCase().endsWith("@g.us")
-            ? { notify_whatsapp_group: true }
-            : {}),
-        })
-        .eq("id", user.id);
-    }
-    return { allowed: true };
+  const decision = evaluateCaptureGate(
+    {
+      phone: user.phone,
+      captureGroupChatId: user.whatsapp_capture_group_chat_id,
+      captureGroupName: user.whatsapp_capture_group_name,
+    },
+    chatId,
+    chatName,
+  );
+  if (!decision.allowed) {
+    return { allowed: false, reason: decision.reason };
   }
-
-  if (!configured) {
+  if (decision.bind) {
     await supabase
       .from("users")
       .update({
-        whatsapp_capture_group_chat_id: incoming,
-        whatsapp_capture_group_name: chatName?.trim() || configuredName || null,
-        ...(incoming.toLowerCase().endsWith("@g.us")
+        whatsapp_capture_group_chat_id: decision.bind.chatId,
+        whatsapp_capture_group_name: decision.bind.name,
+        ...(isGroupWhatsAppChat(decision.bind.chatId)
           ? { notify_whatsapp_group: true }
           : {}),
       })
       .eq("id", user.id);
-    return { allowed: true };
+    user.whatsapp_capture_group_chat_id = decision.bind.chatId;
+    user.whatsapp_capture_group_name = decision.bind.name;
   }
-
-  const configuredNorm = normalizeGroupChatId(configured);
-  if (configuredNorm === incoming) {
-    return { allowed: true };
-  }
-
-  if (
-    isGroupWhatsAppChat(configuredNorm) &&
-    personalId &&
-    normalizeGroupChatId(personalId) === incoming
-  ) {
-    return { allowed: true };
-  }
-
-  if (isPersonalWhatsAppChat(configuredNorm) && isGroupWhatsAppChat(incoming)) {
-    const name = configuredName;
-    const isDefaultPersonal =
-      !name ||
-      name.includes("הודעה לעצמי") ||
-      name.toLowerCase().includes("babitk") ||
-      name.toLowerCase().includes("message yourself");
-    if (isDefaultPersonal) {
-      await supabase
-        .from("users")
-        .update({
-          whatsapp_capture_group_chat_id: incoming,
-          whatsapp_capture_group_name: chatName?.trim() || "קבוצת קליטה",
-          notify_whatsapp_group: true,
-        })
-        .eq("id", user.id);
-      return { allowed: true };
-    }
-  }
-
-  return { allowed: false, reason: "wrong_capture_group" };
+  return { allowed: true };
 }
 
 async function alreadyIngested(
@@ -571,39 +529,80 @@ async function insertCapturedItem(
     throw new Error(sourceError.message);
   }
 
-  const allowedTags = await loadAllowedTagNames(supabase, user.id);
-  const parsed = parseIncomingMessage(item.content, allowedTags)[0];
+  const sourceType = item.sourceType as IngestSourceType;
+  const skipParse = needsVoiceTranscription(item.title, item.content);
+  let parsedRows: ReturnType<typeof parseInboundText> = [];
+  if (!skipParse && item.content.trim()) {
+    try {
+      parsedRows = parseInboundText(item.content, {
+        sourceType,
+        fallbackTitle: item.title,
+      });
+    } catch (error) {
+      console.error("inbound parse failed, falling back", error);
+    }
+  }
+  if (parsedRows.length === 0 && !skipParse) {
+    const allowedTags = await loadAllowedTagNames(supabase, user.id);
+    parsedRows = parseIncomingMessage(item.content, allowedTags).map((row) => ({
+      title: row.title,
+      content: row.content,
+      is_actionable: row.is_actionable,
+      tags: row.tags,
+      due_date: row.due_date,
+      analysis: undefined as ReturnType<typeof parseInboundText>[number]["analysis"],
+    }));
+  }
+  const rows =
+    parsedRows.length > 0
+      ? parsedRows
+      : [
+          {
+            title: item.title,
+            content: item.content,
+            is_actionable: true,
+            tags: [] as string[],
+            due_date: null as string | null,
+            analysis: undefined as unknown,
+          },
+        ];
 
-  const { data: inserted, error: itemError } = await supabase
+  const voiceMeta =
+    message.type === "audio"
+      ? {
+          whisper_transcription: item.rawText ?? item.content,
+          corrected_transcription: item.content,
+        }
+      : {};
+
+  const { data: insertedRows, error: itemError } = await supabase
     .from("mindtasker_items")
-    .insert({
-      user_id: user.id,
-      source_material_id: source?.id ?? null,
-      title: parsed?.title || item.title,
-      content: parsed?.content || item.content,
-      is_actionable: parsed?.is_actionable ?? true,
-      status: "inbox",
-      due_date: parsed?.due_date ?? null,
-      tags: parsed?.tags ?? [],
-      metadata: {
-        source: item.sourceType,
-        whatsapp_message_id: message.messageId,
-        chat_id: message.chatId,
-        ...(message.type === "audio"
-          ? {
-              whisper_transcription: item.rawText ?? item.content,
-              corrected_transcription: item.content,
-            }
-          : {}),
-      },
-      sort_order: now,
-      last_interacted_at: new Date(now).toISOString(),
-    })
-    .select("id, title")
-    .single();
-  if (itemError || !inserted) {
+    .insert(
+      rows.map((row, index) => ({
+        user_id: user.id,
+        source_material_id: source?.id ?? null,
+        title: row.title,
+        content: row.content,
+        is_actionable: row.is_actionable,
+        status: "inbox",
+        tags: row.tags,
+        due_date: row.due_date,
+        metadata: {
+          source: sourceType,
+          analysis: row.analysis,
+          whatsapp_message_id: message.messageId,
+          chat_id: message.chatId,
+          ...voiceMeta,
+        },
+        sort_order: now + index,
+        last_interacted_at: new Date(now).toISOString(),
+      })),
+    )
+    .select("id, title");
+  if (itemError || !insertedRows?.[0]) {
     throw new Error(itemError?.message ?? "item_insert_failed");
   }
+  const inserted = insertedRows[0];
   return { id: inserted.id as string, title: inserted.title as string };
 }
 

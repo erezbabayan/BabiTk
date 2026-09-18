@@ -5,12 +5,12 @@ import {
   getZonedParts,
   nextWeekdayIso,
   zonedLocalToIso,
-} from "./timezone";
+} from "./timezone.ts";
 import {
   extractTimeOfDay,
   isConcreteClockMention,
   stripHebrewTimePhrases,
-} from "./hebrewTimeWords";
+} from "./hebrewTimeWords.ts";
 
 const HEBREW_WEEKDAYS: Record<string, number> = {
   ראשון: 0,
