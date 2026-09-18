@@ -623,7 +623,7 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
-      asr: "inline-whisper-v5",
+      asr: "inline-whisper-v6",
       qa: "babi-v3",
     });
   }
