@@ -112,7 +112,7 @@ function NotebookActionButton({
         active ? "notebook-icon-btn--active" : ""
       } ${reminder ? "notebook-icon-btn--reminder" : ""} ${accent ? "notebook-icon-btn--accent" : ""}`}
     >
-      <NotebookIcon name={icon} size={dense ? 13 : 15} tone={tone} />
+      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={tone} />
     </button>
   );
 }
@@ -335,7 +335,7 @@ export function ItemCard({
             >
               {headlineText}
             </h3>
-            <div className="flex shrink-0 items-center gap-0.5">
+            <div className="flex shrink-0 items-center gap-1">
               {onTogglePriority ? (
                 <button
                   type="button"
@@ -348,21 +348,21 @@ export function ItemCard({
                     onTogglePriority();
                   }}
                   className={`notebook-icon-btn flex items-center justify-center ${
-                    dense || isSquares ? "notebook-icon-btn--dense" : "mt-0.5 h-6 w-6"
+                    dense || isSquares ? "notebook-icon-btn--dense" : "mt-0.5"
                   }`}
                   title={priority ? "הסר עדיפות" : "סמן כעדיפות"}
                   aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
                   aria-pressed={priority}
                 >
-                  <PriorityStar active={priority} size={dense || isSquares ? 12 : 15} />
+                  <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
                 </button>
               ) : priority ? (
                 <span
-                  className={`flex items-center justify-center ${dense || isSquares ? "h-4 w-4" : "mt-0.5 h-6 w-6"}`}
+                  className={`flex items-center justify-center ${dense || isSquares ? "h-7 w-7" : "mt-0.5 h-9 w-9"}`}
                   title="עדיפות"
                   aria-label="עדיפות"
                 >
-                  <PriorityStar active size={dense || isSquares ? 12 : 15} />
+                  <PriorityStar active size={dense || isSquares ? 16 : 22} />
                 </span>
               ) : null}
               <span className={dense ? "inline-flex scale-90" : undefined}>
@@ -516,7 +516,7 @@ export function ItemCard({
                     </span>
                   ) : null}
                   {hasActions ? (
-                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-0">
+                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5">
                       {onTagPress ? (
                         <NotebookActionButton
                           icon="tag"
@@ -558,11 +558,11 @@ export function ItemCard({
                             sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")
                           }
                           style={{ touchAction: "manipulation" }}
-                          className={`inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 font-semibold text-white ${
-                            dense || isSquares ? "h-4 text-[9px]" : "h-6 text-[10px]"
+                          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-semibold text-white ${
+                            dense || isSquares ? "h-7 text-[10px]" : "h-9 text-[11px]"
                           } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
                         >
-                          <NotebookIcon name="check" size={dense || isSquares ? 11 : 13} tone="white" />
+                          <NotebookIcon name="check" size={dense || isSquares ? 14 : 16} tone="white" />
                           {sendToBoardLabel ?? (display.isNote ? "להערות" : "למשימות")}
                         </button>
                       ) : null}

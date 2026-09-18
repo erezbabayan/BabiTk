@@ -51,7 +51,7 @@ function GhostButton({
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityState={{ selected: active || reminder }}
-      hitSlop={4}
+      hitSlop={8}
       style={[
         styles.ghostBtn,
         dense && styles.ghostBtnDense,
@@ -60,7 +60,7 @@ function GhostButton({
         reminder && styles.ghostBtnReminder,
       ]}
     >
-      <NotebookIcon name={icon} size={dense ? 12 : 14} tone={iconTone} />
+      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={iconTone} />
     </Pressable>
   );
 }
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row-reverse",
     flexWrap: "wrap",
-    gap: 4,
+    gap: 6,
     flexShrink: 1,
     width: "100%",
     maxWidth: "100%",
@@ -134,9 +134,9 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   ghostBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#e2e8f0",
     backgroundColor: "#fff",
@@ -144,9 +144,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ghostBtnDense: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   ghostBtnActive: {
     borderColor: "#94a3b8",

@@ -38,7 +38,7 @@ export function SourceIndicator({
           title={MANUAL_SOURCE_DISPLAY.label}
           aria-hidden
         >
-          <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={14} tone={iconTone} />
+          <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={20} tone={iconTone} />
         </span>
       );
     }
@@ -71,7 +71,7 @@ export function SourceIndicator({
         aria-label={isOpen ? "סגור מקור" : `${source.label} — צפייה במקור`}
         aria-pressed={isOpen}
       >
-        <NotebookIcon name={source.icon} size={14} tone={iconTone} />
+        <NotebookIcon name={source.icon} size={20} tone={iconTone} />
       </button>
     );
   }

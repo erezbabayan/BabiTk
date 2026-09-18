@@ -360,17 +360,29 @@ body {
   color: rgb(120 113 108 / 0.72);
 }
 
-/* Thin-line icon buttons on item cards */
+/* Icon action buttons on item cards — px so tap size stays stable at html 12px */
 .notebook-icon-btn {
-  @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-0 bg-transparent transition;
+  @apply inline-flex shrink-0 items-center justify-center rounded-lg border-0 bg-transparent p-0 transition;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
 }
 
 .notebook-icon-btn--dense {
-  @apply h-4 w-4;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
 }
 
 .board-notebook-item--dense .notebook-icon-btn {
-  @apply h-4 w-4;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
 }
 
 .notebook-icon-btn:hover {
