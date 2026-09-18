@@ -39,7 +39,7 @@ type NotifyPatch = Partial<
   >
 >;
 
-export function NotificationPrefs() {
+export function NotificationPrefs({ compact = false }: { compact?: boolean }) {
   const [profile, setProfile] = useState<CloudUserProfile | null>(null);
   const [recent, setRecent] = useState<RecentNotification[] | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +64,10 @@ export function NotificationPrefs() {
   }, []);
 
   useEffect(() => {
+    if (compact) {
+      setRecent([]);
+      return;
+    }
     let cancelled = false;
     async function loadRecent() {
       try {
@@ -91,7 +95,7 @@ export function NotificationPrefs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [compact]);
 
   async function patchPrefs(patch: NotifyPatch) {
     setError(null);
@@ -302,30 +306,32 @@ export function NotificationPrefs() {
         </label>
       </div>
 
-      <div className="rounded-xl border border-slate-200 p-4">
-        <p className="mb-2 text-sm font-medium text-slate-900">אחרונות בפעמון</p>
-        {recent === undefined ? (
-          <p className="text-xs text-slate-500">טוען…</p>
-        ) : recent.length === 0 ? (
-          <p className="text-xs text-slate-500">אין התראות עדיין</p>
-        ) : (
-          <ul className="space-y-2">
-            {recent.map((row) => (
-              <li
-                key={row.id}
-                className={`rounded-lg border px-3 py-2 text-right text-xs ${
-                  row.read
-                    ? "border-slate-200 bg-white"
-                    : "border-indigo-200 bg-indigo-50"
-                }`}
-              >
-                <p className="font-semibold text-slate-900">{row.title}</p>
-                <p className="mt-0.5 text-slate-600">{row.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {!compact ? (
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="mb-2 text-sm font-medium text-slate-900">אחרונות בפעמון</p>
+          {recent === undefined ? (
+            <p className="text-xs text-slate-500">טוען…</p>
+          ) : recent.length === 0 ? (
+            <p className="text-xs text-slate-500">אין התראות עדיין</p>
+          ) : (
+            <ul className="space-y-2">
+              {recent.map((row) => (
+                <li
+                  key={row.id}
+                  className={`rounded-lg border px-3 py-2 text-right text-xs ${
+                    row.read
+                      ? "border-slate-200 bg-white"
+                      : "border-indigo-200 bg-indigo-50"
+                  }`}
+                >
+                  <p className="font-semibold text-slate-900">{row.title}</p>
+                  <p className="mt-0.5 text-slate-600">{row.body}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -374,12 +374,23 @@ export async function storeGoogleRefreshToken(
   userId: string,
   refreshToken: string,
 ): Promise<void> {
+  await storeGoogleCalendarLink(supabase, userId, refreshToken);
+}
+
+export async function storeGoogleCalendarLink(
+  supabase: CalendarDb,
+  userId: string,
+  refreshToken?: string | null,
+): Promise<void> {
+  const values: Record<string, unknown> = {
+    google_calendar_enabled: true,
+  };
+  if (typeof refreshToken === "string" && refreshToken.trim().length > 8) {
+    values.google_refresh_token = refreshToken.trim();
+  }
   const { error } = await supabase
     .from("users")
-    .update({
-      google_refresh_token: refreshToken,
-      google_calendar_enabled: true,
-    })
+    .update(values)
     .eq("id", userId)
     .maybeSingle();
   if (error) {
@@ -407,7 +418,7 @@ export async function disconnectGoogleCalendar(
 export async function googleCalendarStatus(
   supabase: CalendarDb,
   userId: string,
-): Promise<{ linked: boolean; configured: boolean }> {
+): Promise<{ linked: boolean; configured: boolean; oauthConfigured: boolean }> {
   const config = googleCalendarConfig();
   const { data } = await supabase
     .from("users")
@@ -415,69 +426,65 @@ export async function googleCalendarStatus(
     .eq("id", userId)
     .maybeSingle();
   const enabled = data?.google_calendar_enabled === true;
-  const hasToken =
-    typeof data?.google_refresh_token === "string" && data.google_refresh_token.length > 8;
-  return { linked: enabled && hasToken, configured: config.configured };
+  return {
+    linked: enabled,
+    configured: true,
+    oauthConfigured: config.configured,
+  };
 }
 
 export type CalendarSyncResult = "created" | "updated" | "deleted" | "skipped";
 
-export async function syncItemToGoogleCalendar(
+function sanitizeAccessToken(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const token = value.trim();
+  if (token.length < 16 || token.length > 8192) return "";
+  return token;
+}
+
+async function resolveCalendarAccessToken(
   supabase: CalendarDb,
   userId: string,
-  itemId: string,
-): Promise<CalendarSyncResult> {
-  if (!userId.trim() || !itemId.trim()) {
-    throw new Error("missing_sync_ids");
-  }
+  refreshToken: string,
+  providedAccessToken?: string,
+): Promise<string | null> {
+  const fromClient = sanitizeAccessToken(providedAccessToken);
+  if (fromClient) return fromClient;
+
+  if (refreshToken.length < 8) return null;
   const config = googleCalendarConfig();
-  if (!config.configured) return "skipped";
+  if (!config.configured) return null;
 
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("google_refresh_token, google_calendar_enabled")
-    .eq("id", userId)
-    .maybeSingle();
-  if (userError) throw new Error(userError.message);
-  const refreshToken =
-    typeof user?.google_refresh_token === "string" ? user.google_refresh_token : "";
-  if (!user?.google_calendar_enabled || refreshToken.length < 8) {
-    return "skipped";
-  }
-
-  const { data: row, error: itemError } = await supabase
-    .from("mindtasker_items")
-    .select("title, content, is_actionable, due_date, deleted_at, calendar_event_id, user_id")
-    .eq("id", itemId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (itemError) throw new Error(itemError.message);
-  if (!row) return "skipped";
-
-  const item = asItemSnapshot(row);
-  let tokens: { accessToken: string; refreshToken: string };
   try {
-    tokens = await accessTokenFromRefresh(refreshToken);
+    const tokens = await accessTokenFromRefresh(refreshToken);
+    if (tokens.refreshToken !== refreshToken) {
+      await storeGoogleRefreshToken(supabase, userId, tokens.refreshToken);
+    }
+    return tokens.accessToken;
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("invalid_grant") || message.includes("invalid_token")) {
       await disableCalendarConnection(supabase, userId);
-      return "skipped";
+      return null;
     }
     throw error;
   }
-  if (tokens.refreshToken !== refreshToken) {
-    await storeGoogleRefreshToken(supabase, userId, tokens.refreshToken);
-  }
+}
 
+async function applyCalendarEventChange(
+  supabase: CalendarDb,
+  itemId: string,
+  item: CalendarItemSnapshot,
+  accessToken: string,
+): Promise<CalendarSyncResult> {
   if (shouldUpsertCalendarEvent(item)) {
     const body = calendarEventBody(item);
     if (item.calendar_event_id) {
       try {
-        const updated = await calendarApi(tokens.accessToken, "PUT", item.calendar_event_id, body);
-        return updated.id ? "updated" : "updated";
+        await calendarApi(accessToken, "PUT", item.calendar_event_id, body);
+        return "updated";
       } catch {
-        const created = await calendarApi(tokens.accessToken, "POST", null, body);
+        const created = await calendarApi(accessToken, "POST", null, body);
         if (created.id && created.id !== item.calendar_event_id) {
           await supabase
             .from("mindtasker_items")
@@ -488,7 +495,7 @@ export async function syncItemToGoogleCalendar(
         return "created";
       }
     }
-    const created = await calendarApi(tokens.accessToken, "POST", null, body);
+    const created = await calendarApi(accessToken, "POST", null, body);
     if (created.id) {
       await supabase
         .from("mindtasker_items")
@@ -500,7 +507,7 @@ export async function syncItemToGoogleCalendar(
   }
 
   if (item.calendar_event_id) {
-    await calendarApi(tokens.accessToken, "DELETE", item.calendar_event_id);
+    await calendarApi(accessToken, "DELETE", item.calendar_event_id);
     await supabase
       .from("mindtasker_items")
       .update({ calendar_event_id: null })
@@ -509,6 +516,48 @@ export async function syncItemToGoogleCalendar(
     return "deleted";
   }
   return "skipped";
+}
+
+export async function syncItemToGoogleCalendar(
+  supabase: CalendarDb,
+  userId: string,
+  itemId: string,
+  options: { accessToken?: string } = {},
+): Promise<CalendarSyncResult> {
+  if (!userId.trim() || !itemId.trim()) {
+    throw new Error("missing_sync_ids");
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("google_refresh_token, google_calendar_enabled")
+    .eq("id", userId)
+    .maybeSingle();
+  if (userError) throw new Error(userError.message);
+  if (user?.google_calendar_enabled !== true) {
+    return "skipped";
+  }
+  const refreshToken =
+    typeof user?.google_refresh_token === "string" ? user.google_refresh_token : "";
+
+  const { data: row, error: itemError } = await supabase
+    .from("mindtasker_items")
+    .select("title, content, is_actionable, due_date, deleted_at, calendar_event_id, user_id")
+    .eq("id", itemId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (itemError) throw new Error(itemError.message);
+  if (!row) return "skipped";
+
+  const accessToken = await resolveCalendarAccessToken(
+    supabase,
+    userId,
+    refreshToken,
+    options.accessToken,
+  );
+  if (!accessToken) return "skipped";
+
+  return applyCalendarEventChange(supabase, itemId, asItemSnapshot(row), accessToken);
 }
 
 export function queueCalendarSync(

@@ -7,7 +7,7 @@ import { Dashboard } from "./components/Dashboard";
 import { LoginScreen } from "./components/LoginScreen";
 import { PaywallModal } from "./components/PaywallModal";
 import { SettingsPanel } from "./components/SettingsPanel";
-import { OnboardingBanner } from "./components/OnboardingBanner";
+import { OnboardingWizard } from "./components/OnboardingWizard";
 import { useUsage } from "./hooks/useUsage";
 import { useHeaderUserName } from "./hooks/useHeaderUserName";
 import { ingestTextApi, registerPaywallHandler } from "./lib/api";
@@ -18,12 +18,8 @@ import {
   persistLoginDetails,
 } from "./lib/auth-storage";
 import { isSyncEnabled } from "./lib/sync-client";
-import {
-  isDemoMode,
-  isSupabaseConfigured,
-  requireSupabase,
-  supabaseAuthRedirectUrl,
-} from "./lib/supabase";
+import { persistGoogleCalendarSessionLink } from "./lib/google-calendar-client";
+import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./lib/supabase";
 import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
@@ -215,6 +211,12 @@ function ConfiguredApp() {
       setBillingNotice("Google Calendar מחובר. משימות עם תאריך יופיעו ביומן.");
       params.delete("calendar");
       replaced = true;
+      void persistGoogleCalendarSessionLink(true).catch((error) => {
+        console.warn(
+          "[calendar] persist link failed:",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
     } else if (calendar === "error") {
       setSettingsOpen(true);
       setSettingsSection("calendar");
@@ -300,6 +302,14 @@ function ConfiguredApp() {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user.id ?? null);
       setUserMetadata(session?.user.user_metadata ?? null);
+      if (session?.user.id) {
+        void persistGoogleCalendarSessionLink().catch((error) => {
+          console.warn(
+            "[calendar] persist link failed:",
+            error instanceof Error ? error.message : String(error),
+          );
+        });
+      }
     });
 
     return () => listener.subscription.unsubscribe();
@@ -430,7 +440,7 @@ function ConfiguredApp() {
               }}
             />
           ) : null}
-          <OnboardingBanner enabled={Boolean(userId)} />
+          <OnboardingWizard enabled={Boolean(userId)} userId={userId} summary={summary} />
           {billingNotice ? (
             <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm text-emerald-800">
               {billingNotice}

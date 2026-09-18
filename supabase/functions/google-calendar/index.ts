@@ -11,6 +11,7 @@ import {
   googleCalendarConfig,
   googleCalendarStatus,
   parseOAuthState,
+  storeGoogleCalendarLink,
   storeGoogleRefreshToken,
   syncItemToGoogleCalendar,
   withCalendarQuery,
@@ -42,13 +43,23 @@ function html(body: string, status = 200): Response {
   });
 }
 
-function adminClient(): CalendarDb {
+function fullAdminClient() {
   if (!SUPABASE_URL || !SERVICE_ROLE) {
     throw new Error("missing_supabase_env");
   }
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false, autoRefreshToken: false },
-  }) as unknown as CalendarDb;
+  });
+}
+
+function adminClient(): CalendarDb {
+  return fullAdminClient() as unknown as CalendarDb;
+}
+
+function readAccessToken(body: { accessToken?: unknown }): string | undefined {
+  if (typeof body.accessToken !== "string") return undefined;
+  const token = body.accessToken.trim();
+  return token.length > 0 ? token : undefined;
 }
 
 function routeAction(req: Request): string {
@@ -184,13 +195,52 @@ Deno.serve(async (req) => {
       return json({ ok: true, linked: false });
     }
 
-    if (req.method === "POST" && (action === "sync" || action === "")) {
-      const body = (await req.json().catch(() => ({}))) as { itemId?: string; action?: string };
+    if (req.method === "POST" && action === "link") {
+      const body = (await req.json().catch(() => ({}))) as { refreshToken?: unknown };
+      const refreshToken =
+        typeof body.refreshToken === "string" && body.refreshToken.trim().length > 8
+          ? body.refreshToken.trim()
+          : null;
+      await storeGoogleCalendarLink(adminClient(), userId, refreshToken);
+      return json({ ok: true, linked: true });
+    }
+
+    if (req.method === "POST" && (action === "sync" || action === "sync-all" || action === "")) {
+      const body = (await req.json().catch(() => ({}))) as {
+        itemId?: string;
+        action?: string;
+        syncAll?: boolean;
+        accessToken?: unknown;
+      };
+      const accessToken = readAccessToken(body);
+      const syncAll = action === "sync-all" || body.syncAll === true;
+      if (syncAll) {
+        const admin = fullAdminClient();
+        const { data, error } = await admin
+          .from("mindtasker_items")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("is_actionable", true)
+          .not("due_date", "is", null)
+          .is("deleted_at", null)
+          .limit(20);
+        if (error) throw new Error(error.message);
+        const ids = (data ?? []).map((row) => String(row.id));
+        const results: string[] = [];
+        for (const itemId of ids) {
+          results.push(
+            await syncItemToGoogleCalendar(adminClient(), userId, itemId, { accessToken }),
+          );
+        }
+        return json({ ok: true, count: results.length, results });
+      }
       const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
       if (!itemId) {
         return json({ error: "missing_item_id" }, 400);
       }
-      const result = await syncItemToGoogleCalendar(adminClient(), userId, itemId);
+      const result = await syncItemToGoogleCalendar(adminClient(), userId, itemId, {
+        accessToken,
+      });
       return json({ ok: true, result });
     }
 

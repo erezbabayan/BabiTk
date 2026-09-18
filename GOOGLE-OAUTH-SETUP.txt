@@ -3,6 +3,10 @@
 
 Live stack: GitHub Pages + Supabase Edge (not Convex / not Fastify).
 
+Settings → Google Calendar always shows «חבר Google Calendar».
+Connect uses Edge OAuth when GOOGLE_* secrets exist, otherwise Supabase Auth
+linkIdentity (same Google client, calendar.events + offline refresh).
+
 1) Google Cloud Console → Credentials → OAuth client ID (Web application)
 
 2) Authorized JavaScript origins:
@@ -15,19 +19,25 @@ Live stack: GitHub Pages + Supabase Edge (not Convex / not Fastify).
 
 4) Enable the Google Calendar API on the same project.
 
-5) Set Edge secrets (not in git):
-   GOOGLE_CLIENT_ID=....apps.googleusercontent.com
-   GOOGLE_CLIENT_SECRET=GOCSPX-...
+5) Save credentials (not in git) to .google-oauth.local.env:
 
-   npx supabase secrets set --project-ref ghibfuinantybqidwadj \
-     GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
+GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-...
 
-   The same values can also live in GitHub Actions secrets so deploy-supabase-functions.yml syncs them.
+6) Apply to Auth + Edge (needs SUPABASE_ACCESS_TOKEN):
 
-6) After deploy, health check:
+   SUPABASE_ACCESS_TOKEN=sbp_... node scripts/apply-google-oauth.mjs
+
+   GitHub Actions secrets GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET are also
+   synced by deploy-supabase-functions.yml.
+
+7) After deploy, health check:
    https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/health
 
-   configured=true means OAuth is ready. Then Settings → Google Calendar → חבר.
+   Then Settings → Google Calendar → חבר.
 
 What syncs: dated actionable BabiTk tasks (1-hour events, Asia/Jerusalem, primary calendar).
 Notes without a date stay out of the calendar. Delete / convert to note / clear the date removes the event.
+
+First login: a settings questionnaire covers notifications, WhatsApp, capture
+channels, boards, and Calendar. The same screens stay in Settings afterwards.

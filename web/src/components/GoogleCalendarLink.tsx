@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   disconnectGoogleCalendarApi,
-  getGoogleCalendarConnectUrl,
   getGoogleCalendarStatus,
 } from "../lib/api";
+import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
 import { isDemoMode } from "../lib/supabase";
 
 export function GoogleCalendarLink() {
   const [linked, setLinked] = useState(false);
-  const [configured, setConfigured] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +16,6 @@ export function GoogleCalendarLink() {
     try {
       const status = await getGoogleCalendarStatus();
       setLinked(status.linked);
-      setConfigured(status.configured);
       if (status.linked) setError(null);
     } catch {
       setLinked(false);
@@ -51,22 +49,10 @@ export function GoogleCalendarLink() {
     setError(null);
     setBusy(true);
     try {
-      const url = await getGoogleCalendarConnectUrl();
-      if (url.startsWith("#")) {
-        setLinked(true);
-        return;
-      }
-      const popup = window.open(url, "babitk-google-calendar", "noopener,noreferrer,width=520,height=720");
-      if (!popup) {
-        window.location.assign(url);
-      }
+      await startGoogleCalendarConnect();
+      await refreshStatus();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "חיבור היומן נכשל";
-      setError(
-        message === "google_not_configured"
-          ? "חיבור Google Calendar עדיין לא הוגדר בשרת."
-          : message,
-      );
+      setError(err instanceof Error ? err.message : "חיבור היומן נכשל");
     } finally {
       setBusy(false);
     }
@@ -92,9 +78,7 @@ export function GoogleCalendarLink() {
       <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
         {linked
           ? "📅 Google Calendar מחובר. משימות עם תאריך מופיעות ביומן שלכם."
-          : configured
-            ? "חברו את Google Calendar כדי שמשימות עם תאריך יופיעו ביומן Google."
-            : "חיבור Google Calendar עדיין לא הוגדר בשרת. אחרי ההגדרה אפשר לחבר מהמסך הזה."}
+          : "חברו את Google Calendar כדי שמשימות עם תאריך יופיעו ביומן Google. אפשר לשנות את החיבור בכל עת בהגדרות."}
       </p>
       {error ? <p className="text-red-600">{error}</p> : null}
       {isDemoMode ? (
@@ -112,7 +96,7 @@ export function GoogleCalendarLink() {
         <button
           type="button"
           onClick={() => void handleConnect()}
-          disabled={busy || !configured}
+          disabled={busy}
           className="border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
         >
           {busy ? "מתחבר..." : "📅 חבר Google Calendar"}
