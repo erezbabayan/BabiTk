@@ -20,6 +20,7 @@ import {
   needsVoiceTranscription,
   VOICE_PENDING_TITLE,
   VOICE_TRANSCRIBING_TITLE,
+  VOICE_UNAVAILABLE_TITLE,
 } from "./voice-text.ts";
 import { parseWhatsAppVoiceQuestion } from "./whatsapp-system-question.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
@@ -216,8 +217,10 @@ export async function transcribeVoiceMessage(
   });
   const transcribed = await transcribeAndProofreadVoice({
     audio: downloaded.bytes,
-    mimeType: downloaded.mimeType,
-    fileName: audioFileName(message.messageId, downloaded.mimeType),
+    mimeType: downloaded.mimeType || "audio/ogg",
+    fileName: audioFileName(message.messageId, downloaded.mimeType || "audio/ogg"),
+    promptHint: "בבי מה המשימות היום מחר לשבוע הבא תפריט",
+    hotPath: true,
   });
   if (isVoicePlaceholderText(transcribed.correctedText)) {
     throw new Error("voice_placeholder_rejected");
@@ -504,8 +507,50 @@ export async function repairOnePlaceholderVoiceItem(
   try {
     await transcribeStoredVoiceItem(supabase, row, gateway);
     return true;
-  } catch {
+  } catch (error) {
+    console.error("placeholder voice repair failed", error);
+    await markVoiceItemUnavailable(supabase, row);
     return false;
+  }
+}
+
+export async function markVoiceItemUnavailable(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+): Promise<void> {
+  const { error } = await supabase
+    .from("mindtasker_items")
+    .update({
+      title: VOICE_UNAVAILABLE_TITLE,
+      last_interacted_at: new Date().toISOString(),
+      metadata: {
+        ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
+        voice_transcribe_started_at: null,
+        voice_refine_pending: false,
+      },
+    })
+    .eq("id", row.id);
+  if (error) {
+    console.error("mark voice unavailable failed", error);
+  }
+}
+
+/** Finish ASR in the same request. waitUntil is killed before Groq returns. */
+export async function awaitStoredVoiceTranscription(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+  gateway: VoiceGatewayCredentials | null,
+): Promise<{ answered?: boolean; title: string } | null> {
+  if (!needsVoiceTranscription(row.title, row.content)) {
+    return { title: row.title };
+  }
+  try {
+    const transcribed = await transcribeStoredVoiceItem(supabase, row, gateway);
+    return { answered: transcribed.answered, title: transcribed.title };
+  } catch (error) {
+    console.error("stored voice transcription failed", error);
+    await markVoiceItemUnavailable(supabase, row);
+    return null;
   }
 }
 

@@ -199,6 +199,18 @@ describe("answerWhatsAppSystemQuestion", () => {
     assert.doesNotMatch(reply, /לקנות חלב/);
   });
 
+  it("answers next-week task questions", () => {
+    const reply = answerWhatsAppSystemQuestion(
+      { kind: "question", question: "מה המשימות לשבוע הבא" },
+      ITEMS,
+      NOW,
+    );
+    assert.match(reply, /לשבוע הבא/);
+    assert.match(reply, /לקנות חלב/);
+    assert.match(reply, /להתקשר לרועי/);
+    assert.doesNotMatch(reply, /לשלם חשבון/);
+  });
+
   it("explains the prefix when only * is sent", () => {
     const reply = answerWhatsAppSystemQuestion({ kind: "help" }, ITEMS, NOW);
     assert.match(reply, /לא נרשם פריט/);
@@ -274,6 +286,33 @@ describe("spoken overdue questions", () => {
       parseWhatsAppQuery("שלח לי את המשימות שלי שהתאריך שלהן עבר"),
       { type: "query", day: "overdue", tag: null },
     );
+  });
+
+  it("strips spoken בבי then matches today and next-week briefings", () => {
+    const week = parseWhatsAppVoiceQuestion("בבי, מה המשימות לשבוע הבא?");
+    assert.deepEqual(week, {
+      kind: "question",
+      question: "מה המשימות לשבוע הבא?",
+    });
+    if (week.kind === "question") {
+      assert.deepEqual(parseWhatsAppQuery(week.question), {
+        type: "query",
+        day: "week",
+        tag: null,
+      });
+    }
+    const today = parseWhatsAppVoiceQuestion("בבי, מה המשימות?");
+    assert.deepEqual(today, {
+      kind: "question",
+      question: "מה המשימות?",
+    });
+    if (today.kind === "question") {
+      assert.deepEqual(parseWhatsAppQuery(today.question), {
+        type: "query",
+        day: "today",
+        tag: null,
+      });
+    }
   });
 });
 

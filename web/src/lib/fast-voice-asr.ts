@@ -27,7 +27,7 @@ export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;
 const HEBREW_ASR_WHISPER_PROMPT =
   "עברית מדוברת. משימות יומיום: לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
   "סלנג: יאללה, סבבה, וואלה, תכלס, אחלה, אוקיי. " +
-  "זמנים: מחר, מחרתיים, בצהריים, אחה״צ, סופ״ש.";
+  "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, בצהריים, אחה״צ, סופ״ש.";
 
 export function hasHebrewLetters(text: string): boolean {
   return /[\u0590-\u05FF]/.test(text);

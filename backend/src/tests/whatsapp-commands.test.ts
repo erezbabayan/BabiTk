@@ -121,6 +121,26 @@ describe("WhatsApp structured menu and queries", () => {
       day: "overdue",
       tag: null,
     });
+    assert.deepEqual(parseWhatsAppQuery("מה המשימות לשבוע הבא", tags), {
+      type: "query",
+      day: "week",
+      tag: null,
+    });
+    assert.deepEqual(parseWhatsAppQuery("מה המשימות לשבוע הבא?", tags), {
+      type: "query",
+      day: "week",
+      tag: null,
+    });
+    assert.deepEqual(parseWhatsAppQuery("מה המשימות", tags), {
+      type: "query",
+      day: "today",
+      tag: null,
+    });
+    assert.deepEqual(parseWhatsAppQuery("מה המשימות להיום", tags), {
+      type: "query",
+      day: "today",
+      tag: null,
+    });
     assert.equal(parseWhatsAppQuery("לקנות חלב מחר", tags), null);
   });
 

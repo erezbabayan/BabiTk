@@ -234,6 +234,25 @@ export function isOverdueOnLocalDay(
   return localDateKey(new Date(ms), timeZone) < localDateKey(now, timeZone);
 }
 
+function addLocalDateDays(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const utc = new Date(Date.UTC(year!, month! - 1, day! + days));
+  return utc.toISOString().slice(0, 10);
+}
+
+export function isDueInLocalWeek(
+  dueDate: string | null | undefined,
+  now = new Date(),
+  timeZone = WHATSAPP_SYSTEM_QUESTION_TIMEZONE,
+): boolean {
+  if (!dueDate) return false;
+  const ms = Date.parse(dueDate);
+  if (!Number.isFinite(ms)) return false;
+  const today = localDateKey(now, timeZone);
+  const dueDay = localDateKey(new Date(ms), timeZone);
+  return dueDay >= today && dueDay < addLocalDateDays(today, 7);
+}
+
 function systemQuestionDueIso(item: SystemQuestionItem, now: Date): string | null {
   return nextActiveDueDate(
     { due_date: item.dueDate, metadata: item.metadata },
@@ -318,6 +337,7 @@ export function answerWhatsAppSystemQuestion(
   );
   const tokens = searchTokens(question);
   const asksToday = /היום|להיום/.test(question);
+  const asksWeek = /שבוע\s+הבא|השבוע|this week|next week/.test(question);
   const asksOverdue = ASKS_OVERDUE.test(question);
   const asksNotes = /הערות|הערה|פתקים|פנקס/.test(question) && !/משימ/.test(question);
   const asksTasks = /משימ|לעשות/.test(question) && !/הערות|הערה/.test(question);
@@ -334,6 +354,12 @@ export function answerWhatsAppSystemQuestion(
   } else if (asksNotes) {
     matched = open.filter((item) => !item.isActionable);
     heading = "הערות פתוחות:";
+  } else if (asksWeek) {
+    matched = open.filter(
+      (item) =>
+        item.isActionable && isDueInLocalWeek(systemQuestionDueIso(item, now), now),
+    );
+    heading = /שבוע\s+הבא/.test(question) ? "לשבוע הבא:" : "השבוע:";
   } else if (asksToday) {
     matched = open.filter((item) => isDueOnLocalDay(systemQuestionDueIso(item, now), now));
     heading = "להיום:";
