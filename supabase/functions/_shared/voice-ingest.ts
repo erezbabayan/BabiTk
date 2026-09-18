@@ -268,6 +268,7 @@ export async function applyVoiceTranscription(
     whisper_transcription: transcribed.rawText,
     corrected_transcription: transcribed.content,
     voice_transcribe_started_at: null,
+    voice_refine_pending: false,
     ...(transcribed.engine ? { asr_engine: transcribed.engine } : {}),
   };
   const allowedTags = await loadAllowedTagNames(
@@ -518,82 +519,26 @@ export async function loadVoiceItemForUser(
   return data as VoiceItemRow;
 }
 
+async function loadVoiceItemForUserWithRetry(
+  supabase: AdminClient,
+  userId: string,
+  itemId: string,
+): Promise<VoiceItemRow | null> {
+  for (const delayMs of [0, 160, 400]) {
+    if (delayMs > 0) await waitMs(delayMs);
+    const row = await loadVoiceItemForUser(supabase, userId, itemId);
+    if (row) return row;
+  }
+  return null;
+}
+
 export type IngestRecordedAudioResult = {
   itemId?: string;
   answered?: boolean;
-  pending?: boolean;
   title: string;
   content: string;
   rawText: string;
 };
-
-async function insertPendingRecordedItem(
-  supabase: AdminClient,
-  userId: string,
-  params: {
-    storagePath: string;
-    durationSeconds?: number;
-  },
-): Promise<VoiceItemRow> {
-  const now = Date.now();
-  const { data: source, error: sourceError } = await supabase
-    .from("source_materials")
-    .insert({
-      user_id: userId,
-      source_type: "whatsapp_voice",
-      raw_text: "",
-      storage_url: params.storagePath,
-      metadata: {
-        channel: "app",
-        duration_seconds: params.durationSeconds ?? null,
-        asr_engine: "pending",
-      },
-    })
-    .select("id")
-    .single();
-  if (sourceError) {
-    throw new Error(sourceError.message);
-  }
-  const { data: inserted, error: itemError } = await supabase
-    .from("mindtasker_items")
-    .insert({
-      user_id: userId,
-      source_material_id: source?.id ?? null,
-      title: VOICE_TRANSCRIBING_TITLE,
-      content: "",
-      is_actionable: true,
-      status: "inbox",
-      due_date: null,
-      tags: [],
-      metadata: {
-        source: "app_voice",
-        asr_engine: "pending",
-        duration_seconds: params.durationSeconds ?? null,
-      },
-      sort_order: now,
-      last_interacted_at: new Date(now).toISOString(),
-    })
-    .select("id")
-    .single();
-  if (itemError || !inserted) {
-    throw new Error(itemError?.message ?? "item_insert_failed");
-  }
-  return {
-    id: inserted.id as string,
-    user_id: userId,
-    title: VOICE_TRANSCRIBING_TITLE,
-    content: "",
-    metadata: {
-      source: "app_voice",
-      asr_engine: "pending",
-      duration_seconds: params.durationSeconds ?? null,
-    },
-    source_material_id: source?.id ?? null,
-    source_materials: source?.id
-      ? { id: source.id as string, storage_url: params.storagePath, metadata: {} }
-      : null,
-  };
-}
 
 export async function ingestRecordedAudio(
   supabase: AdminClient,
@@ -605,185 +550,157 @@ export async function ingestRecordedAudio(
     durationSeconds?: number;
     promptHint?: string;
     itemId?: string;
-    respondImmediately?: boolean;
   },
 ): Promise<IngestRecordedAudioResult> {
   const storagePath = `${userId}/${Date.now()}-${params.fileName}`;
-  const uploadPromise = supabase.storage
-    .from("source-materials")
-    .upload(storagePath, new Blob([params.bytes], { type: params.mimeType }), {
-      contentType: params.mimeType,
-      upsert: false,
-    });
+  const audioBlob = new Blob([new Uint8Array(params.bytes)], { type: params.mimeType });
+  const uploadPromise = supabase.storage.from("source-materials").upload(storagePath, audioBlob, {
+    contentType: params.mimeType,
+    upsert: false,
+  });
   const gatewayPromise = loadUserGateway(supabase, userId);
   const chatIdPromise = resolveCaptureChatId(supabase, userId);
+  const existingPromise = params.itemId
+    ? loadVoiceItemForUserWithRetry(supabase, userId, params.itemId)
+    : Promise.resolve(null);
 
-  const finalize = async (existing: VoiceItemRow | null): Promise<IngestRecordedAudioResult> => {
-    const transcribed = await transcribeAndProofreadVoice({
-      audio: params.bytes,
-      mimeType: params.mimeType,
-      fileName: params.fileName,
-      promptHint: params.promptHint,
-      hotPath: true,
+  const transcribed = await transcribeAndProofreadVoice({
+    audio: params.bytes,
+    mimeType: params.mimeType,
+    fileName: params.fileName,
+    promptHint: params.promptHint,
+    hotPath: true,
+  });
+  if (isVoicePlaceholderText(transcribed.correctedText)) {
+    throw new Error("voice_placeholder_rejected");
+  }
+
+  const [gateway, chatId, existing] = await Promise.all([
+    gatewayPromise,
+    chatIdPromise,
+    existingPromise,
+  ]);
+
+  if (parseWhatsAppVoiceQuestion(transcribed.correctedText).kind !== "none") {
+    const handled = await interceptRecordedWhatsAppTranscript({
+      supabase,
+      userId,
+      chatId,
+      messageId: `app-voice-${Date.now()}`,
+      sourceType: "whatsapp_voice",
+      gateway,
+      rawText: transcribed.correctedText,
     });
-    if (isVoicePlaceholderText(transcribed.correctedText)) {
-      throw new Error("voice_placeholder_rejected");
-    }
-
-    const [gateway, chatId] = await Promise.all([gatewayPromise, chatIdPromise]);
-    if (parseWhatsAppVoiceQuestion(transcribed.correctedText).kind !== "none") {
-      const handled = await interceptRecordedWhatsAppTranscript({
-        supabase,
-        userId,
-        chatId,
-        messageId: `app-voice-${Date.now()}`,
-        sourceType: "whatsapp_voice",
-        gateway,
-        rawText: transcribed.correctedText,
-      });
-      if (handled) {
-        if (existing) {
-          try {
-            await softDeleteVoiceItemAsQuestion(supabase, existing, transcribed);
-          } catch (error) {
-            console.error("voice question placeholder delete failed", error);
-          }
+    if (handled) {
+      if (existing) {
+        try {
+          await softDeleteVoiceItemAsQuestion(supabase, existing, transcribed);
+        } catch (error) {
+          console.error("voice question placeholder delete failed", error);
         }
-        return {
-          answered: true,
-          title: transcribed.title,
-          content: transcribed.correctedText,
-          rawText: transcribed.rawText,
-        };
       }
-    }
-
-    let storedPath: string | null = storagePath;
-    const { error: uploadError } = await uploadPromise;
-    if (uploadError) {
-      console.error("voice storage upload failed", uploadError.message);
-      storedPath = null;
-    }
-
-    if (existing) {
-      await applyVoiceTranscription(supabase, existing, {
-        title: transcribed.title,
-        content: transcribed.correctedText,
-        rawText: transcribed.rawText,
-        audioUrl: storedPath,
-        engine: transcribed.engine,
-      });
       return {
-        itemId: existing.id,
+        answered: true,
+        itemId: existing?.id ?? params.itemId,
         title: transcribed.title,
         content: transcribed.correctedText,
         rawText: transcribed.rawText,
       };
     }
+  }
 
-    const allowedTags = await loadAllowedTagNames(supabase, userId);
-    const parsed = parseIncomingMessage(transcribed.correctedText, allowedTags)[0];
-    const now = Date.now();
-    const { data: source, error: sourceError } = await supabase
-      .from("source_materials")
-      .insert({
-        user_id: userId,
-        source_type: "whatsapp_voice",
-        raw_text: transcribed.rawText,
-        storage_url: storedPath,
-        metadata: {
-          channel: "app",
-          duration_seconds: params.durationSeconds ?? null,
-          whisper_transcription: transcribed.rawText,
-          corrected_transcription: transcribed.correctedText,
-          asr_engine: transcribed.engine,
-        },
-      })
-      .select("id")
-      .single();
-    if (sourceError) {
-      throw new Error(sourceError.message);
-    }
+  let storedPath: string | null = storagePath;
+  const { error: uploadError } = await uploadPromise;
+  if (uploadError) {
+    console.error("voice storage upload failed", uploadError.message);
+    storedPath = null;
+  }
 
-    const { data: inserted, error: itemError } = await supabase
-      .from("mindtasker_items")
-      .insert({
-        user_id: userId,
-        source_material_id: source?.id ?? null,
-        title: parsed?.title || transcribed.title,
-        content: parsed?.content || transcribed.correctedText,
-        is_actionable: parsed?.is_actionable ?? true,
-        status: "inbox",
-        due_date: parsed?.due_date ?? null,
-        tags: parsed?.tags ?? [],
-        metadata: {
-          source: "app_voice",
-          whisper_transcription: transcribed.rawText,
-          corrected_transcription: transcribed.correctedText,
-          asr_engine: transcribed.engine,
-          duration_seconds: params.durationSeconds ?? null,
-        },
-        sort_order: now,
-        last_interacted_at: new Date(now).toISOString(),
-      })
-      .select("id")
-      .single();
-    if (itemError || !inserted) {
-      throw new Error(itemError?.message ?? "item_insert_failed");
-    }
+  const row =
+    existing ??
+    (params.itemId
+      ? {
+          id: params.itemId,
+          user_id: userId,
+          title: params.promptHint?.trim() || VOICE_TRANSCRIBING_TITLE,
+          content: params.promptHint?.trim() || "",
+          metadata: { source: "app_voice" },
+          source_material_id: null,
+          source_materials: null,
+        }
+      : null);
 
+  if (row) {
+    await applyVoiceTranscription(supabase, row, {
+      title: transcribed.title,
+      content: transcribed.correctedText,
+      rawText: transcribed.rawText,
+      audioUrl: storedPath,
+      engine: transcribed.engine,
+    });
     return {
-      itemId: inserted.id as string,
+      itemId: row.id,
       title: transcribed.title,
       content: transcribed.correctedText,
       rawText: transcribed.rawText,
     };
-  };
-
-  if (params.respondImmediately) {
-    if (params.itemId) {
-      scheduleBackgroundWork(
-        (async () => {
-          const existing = await loadVoiceItemForUser(supabase, userId, params.itemId!);
-          try {
-            await finalize(existing);
-          } catch (error) {
-            const { error: uploadError } = await uploadPromise;
-            const sourceId = existing ? firstSourceMaterial(existing)?.id : null;
-            if (!uploadError && sourceId) {
-              await supabase
-                .from("source_materials")
-                .update({ storage_url: storagePath })
-                .eq("id", sourceId);
-            }
-            throw error;
-          }
-        })(),
-      );
-      return {
-        itemId: params.itemId,
-        pending: true,
-        title: params.promptHint?.trim() || VOICE_TRANSCRIBING_TITLE,
-        content: params.promptHint?.trim() || "",
-        rawText: "",
-      };
-    }
-    const pending = await insertPendingRecordedItem(supabase, userId, {
-      storagePath,
-      durationSeconds: params.durationSeconds,
-    });
-    scheduleBackgroundWork(finalize(pending));
-    return {
-      itemId: pending.id,
-      pending: true,
-      title: pending.title,
-      content: pending.content,
-      rawText: "",
-    };
   }
 
-  const existing = params.itemId
-    ? await loadVoiceItemForUser(supabase, userId, params.itemId)
-    : null;
-  return finalize(existing);
+  const allowedTags = await loadAllowedTagNames(supabase, userId);
+  const parsed = parseIncomingMessage(transcribed.correctedText, allowedTags)[0];
+  const now = Date.now();
+  const { data: source, error: sourceError } = await supabase
+    .from("source_materials")
+    .insert({
+      user_id: userId,
+      source_type: "whatsapp_voice",
+      raw_text: transcribed.rawText,
+      storage_url: storedPath,
+      metadata: {
+        channel: "app",
+        duration_seconds: params.durationSeconds ?? null,
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+      },
+    })
+    .select("id")
+    .single();
+  if (sourceError) {
+    throw new Error(sourceError.message);
+  }
+
+  const { data: inserted, error: itemError } = await supabase
+    .from("mindtasker_items")
+    .insert({
+      user_id: userId,
+      source_material_id: source?.id ?? null,
+      title: parsed?.title || transcribed.title,
+      content: parsed?.content || transcribed.correctedText,
+      is_actionable: parsed?.is_actionable ?? true,
+      status: "inbox",
+      due_date: parsed?.due_date ?? null,
+      tags: parsed?.tags ?? [],
+      metadata: {
+        source: "app_voice",
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+        duration_seconds: params.durationSeconds ?? null,
+      },
+      sort_order: now,
+      last_interacted_at: new Date(now).toISOString(),
+    })
+    .select("id")
+    .single();
+  if (itemError || !inserted) {
+    throw new Error(itemError?.message ?? "item_insert_failed");
+  }
+
+  return {
+    itemId: inserted.id as string,
+    title: transcribed.title,
+    content: transcribed.correctedText,
+    rawText: transcribed.rawText,
+  };
 }

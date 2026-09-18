@@ -61,7 +61,7 @@ export function audioFileName(messageId: string, mimeType: string): string {
 }
 
 const ASR_TIMEOUT_MS = 12_000;
-const SHORT_ASR_TIMEOUT_MS = 5_000;
+const SHORT_ASR_TIMEOUT_MS = 8_000;
 const SHORT_AUDIO_BYTES = 80_000;
 const RUNPOD_TIMEOUT_MS = 8_000;
 const DOWNLOAD_TIMEOUT_MS = 8_000;
@@ -232,7 +232,7 @@ export async function transcribeAudio(
       : ASR_TIMEOUT_MS;
 
   const engines: Array<"runpod" | "groq" | "openai"> = hotPath
-    ? ["groq", "openai"]
+    ? ["groq", "openai", "runpod"]
     : prefer === "runpod"
       ? ["runpod", "groq", "openai"]
       : prefer === "groq"
@@ -263,7 +263,7 @@ export async function transcribeAudio(
       }
       if (engine === "openai") {
         if (!openAiKey) continue;
-        const models = (hotPath ? [openAiModel] : [openAiModel, "whisper-1"]).filter(
+        const models = [openAiModel, "whisper-1"].filter(
           (model, index, all) => all.indexOf(model) === index,
         );
         let lastOpenAiError: unknown;

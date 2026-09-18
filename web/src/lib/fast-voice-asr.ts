@@ -18,10 +18,11 @@ export const FAST_VOICE_ASR_CASCADE = [
 
 /** Stay under the typical Supabase Edge JSON body limit. */
 export const MAX_EDGE_AUDIO_BYTES = 4_500_000;
-export const EDGE_INGEST_TIMEOUT_MS = 12_000;
+/** Long enough for Groq + one fallback; the capture UI does not await this. */
+export const EDGE_INGEST_TIMEOUT_MS = 25_000;
 /** Capture UI must never wait for Groq / OpenAI / Gradio. */
 export const AWAIT_EDGE_ON_CAPTURE = false;
-export const EDGE_TRANSCRIBE_TIMEOUT_MS = 16_000;
+export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;
 
 const HEBREW_ASR_WHISPER_PROMPT =
   "עברית מדוברת. משימות יומיום: לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
