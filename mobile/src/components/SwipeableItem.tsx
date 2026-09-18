@@ -331,18 +331,6 @@ export function SwipeableItem({
                 singleLine={isSquares}
               />
             ) : null}
-
-            {scheduleLine ? (
-              <Text
-                style={[
-                  styles.scheduleInBody,
-                  dense || isSquares ? styles.scheduleDense : null,
-                ]}
-                numberOfLines={1}
-              >
-                {scheduleLine}
-              </Text>
-            ) : null}
           </View>
         </TouchableOpacity>
 
@@ -357,6 +345,17 @@ export function SwipeableItem({
         >
           {dense && !isSquares && visibleTags.length > 0 ? (
             <ItemTagDots tags={visibleTags} userTags={userTags} dense />
+          ) : null}
+          {scheduleLine ? (
+            <Text
+              style={[
+                styles.scheduleInFooter,
+                dense || isSquares ? styles.scheduleDense : null,
+              ]}
+              numberOfLines={1}
+            >
+              {scheduleLine}
+            </Text>
           ) : null}
           <View style={styles.footerBar}>
             <View style={styles.footerMeta}>
@@ -487,6 +486,7 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     backgroundColor: "#fff",
     overflow: "hidden",
+    flexDirection: "column",
     shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -638,11 +638,12 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     textDecorationLine: "line-through",
   },
-  scheduleInBody: {
+  scheduleInFooter: {
     fontSize: 10,
     lineHeight: 12,
     color: "#94a3b8",
     textAlign: "right",
+    width: "100%",
     maxWidth: "100%",
   },
   scheduleDense: {
@@ -650,17 +651,16 @@ const styles = StyleSheet.create({
     lineHeight: 11,
   },
   cardFooter: {
+    marginTop: "auto",
     paddingHorizontal: 8,
-    paddingTop: 2,
+    paddingTop: ITEM_STACK_GAP_PX,
     paddingBottom: 3,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#f1f5f9",
     width: "100%",
     overflow: "hidden",
   },
   cardFooterDense: {
     paddingHorizontal: 6,
-    paddingTop: 2,
+    paddingTop: ITEM_STACK_GAP_PX,
     paddingBottom: 2,
     borderTopWidth: 0,
   },
@@ -673,6 +673,7 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "flex-end",
+    gap: ITEM_STACK_GAP_PX,
   },
   footerBar: {
     flexDirection: "row-reverse",

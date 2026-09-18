@@ -301,8 +301,8 @@ export function ItemCard({
             isSquares
               ? "box-border flex min-h-0 w-full flex-1 flex-col px-1.5 pb-0.5 pt-0.5"
               : dense
-                ? "px-1.5 py-0.5"
-                : "px-2 py-1.5"
+                ? "flex flex-col px-1.5 py-0.5"
+                : "flex h-full min-h-0 flex-col px-2 py-1.5"
           } ${accentSide === "right" ? "pr-3" : "pl-3"}`}
         >
           <div
@@ -420,31 +420,31 @@ export function ItemCard({
                   singleLine={isSquares}
                 />
               ) : null}
-
-              {scheduleLine ? (
-                <span
-                  className={`min-w-0 truncate leading-tight text-slate-400 ${
-                    dense ? "text-[9px]" : "text-[10px]"
-                  }`}
-                >
-                  {scheduleLine}
-                </span>
-              ) : null}
             </>
           )}
             </div>
           </div>
 
-          {(hasActions || !isSquares) ? (
+          {(hasActions || scheduleLine || !isSquares) ? (
             <div
               className={`w-full ${
                 isSquares
-                  ? "mt-auto flex shrink-0 flex-col pt-[6px]"
+                  ? "mt-auto flex shrink-0 flex-col gap-[6px] pt-[6px]"
                   : dense
-                    ? "mt-1 flex flex-col"
-                    : "mt-[6px] flex flex-col"
+                    ? "mt-auto flex flex-col gap-1 pt-1"
+                    : "mt-auto flex shrink-0 flex-col gap-[6px] pt-[6px]"
               }`}
             >
+              {scheduleLine ? (
+                <span
+                  dir="rtl"
+                  className={`block min-w-0 w-full truncate text-right leading-tight text-slate-400 ${
+                    dense || isSquares ? "text-[9px]" : "text-[10px]"
+                  }`}
+                >
+                  {scheduleLine}
+                </span>
+              ) : null}
               <div
                 className={`flex w-full min-w-0 flex-nowrap items-center justify-between ${
                   isSquares ? "board-square-actions gap-0.5" : "gap-1.5"

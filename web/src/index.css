@@ -511,7 +511,7 @@ body {
 }
 
 .board-notebook-item {
-  @apply rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
+  @apply flex flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
 }
 
 .board-notebook-item--dense {
