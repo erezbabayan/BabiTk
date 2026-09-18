@@ -72,15 +72,22 @@ npx supabase db push
 
 ## Mobile app
 
-Set in `mobile/.env` or EAS secrets:
+The Expo app is a WebView shell around GitHub Pages (`https://erezbabayan.github.io/BabiTk/`). Push to `main` updates the in-app UI automatically.
+
+Set in `mobile/.env` or rely on `mobile/app.json` extra / EAS env:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_WEB_URL=https://erezbabayan.github.io/BabiTk/
+EXPO_PUBLIC_SUPABASE_URL=https://ghibfuinantybqidwadj.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-EXPO_PUBLIC_API_URL=https://api.yourdomain.com
 ```
 
-Build with EAS: `cd mobile && npx eas build`
+```bash
+cd mobile
+npx eas build --profile preview --platform android
+```
+
+Google sign-in in the app uses the system browser (`mindtasker://` redirect). Enable the Google provider in Supabase and add `mindtasker://**` to redirect URLs.
 
 ## Premium tier
 

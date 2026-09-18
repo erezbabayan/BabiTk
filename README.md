@@ -83,15 +83,50 @@ docker compose up -d --build
 | `scripts/check-env.mjs` | מאמת קבצי הגדרות סביבה |
 | `scripts/check-integrations.mjs` | בודק תשלומים, וואטסאפ ויומן |
 
+## איך לפתוח את המערכת
+
+**קישור קבוע (GitHub Pages, מתעדכן אחרי כל push ל-`main`):**  
+**https://erezbabayan.github.io/BabiTk/**
+
+1. פתחו את הקישור במחשב או בטלפון.
+2. הירשמו באימייל וסיסמה, או לחצו **התחבר עם Google** (לבחינה).
+3. כל חשבון רואה רק את הלוח שלו.
+
+### כניסת Google לבחינה
+
+הכפתור מופיע במסך הכניסה. כדי שיעבוד צריך ספק Google ב-Supabase:
+
+1. [Google Cloud → Credentials](https://console.cloud.google.com/apis/credentials) → OAuth client מסוג **Web**.
+2. Authorized JavaScript origins:
+   - `https://erezbabayan.github.io`
+   - `http://localhost:5173`
+3. Authorized redirect URIs:
+   - `https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback`
+   - `mindtasker://`
+4. ב-[Supabase Auth Providers](https://supabase.com/dashboard/project/ghibfuinantybqidwadj/auth/providers) הפעילו Google והדביקו Client ID + Secret.
+5. ב-URL Configuration הוסיפו:
+   - Site URL: `https://erezbabayan.github.io/BabiTk/`
+   - Redirect URLs: `https://erezbabayan.github.io/BabiTk/**`, `mindtasker://**`
+
 ## אפליקציית מובייל
+
+האפליקציה היא מעטפת שטוענת את **אותו אתר** מגיטהאב. שינוי בקוד הווב מופיע באפליקציה בלי שחרור חנות.
 
 ```powershell
 cd mobile
 copy .env.example .env
 npm install
-npm run android
-npx eas build --profile production
+npx expo start
 ```
+
+בנייה לבדיקה (APK) / חנות:
+
+```powershell
+cd mobile
+npx eas build --profile preview --platform android
+npx eas build --profile production --platform all
+```
+
 
 ## מבנה הפרויקט
 

@@ -42,7 +42,10 @@ export async function ensureBrowserNotificationPermission(): Promise<boolean> {
   return result === "granted";
 }
 
+import { isNativeApp } from "./native-bridge";
+
 export function showBrowserReminderNotification(title: string, body: string): void {
+  if (isNativeApp()) return;
   if (typeof Notification === "undefined") return;
   if (Notification.permission !== "granted") return;
   try {
