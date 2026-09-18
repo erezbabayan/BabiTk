@@ -42,6 +42,15 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["ב בי", "בבי"],
   ["babi tk", "בבי"],
   ["babi-tk", "בבי"],
+  ["ת זכיר", "תזכיר"],
+  ["ת רשום", "תרשום"],
+  ["ל סגור", "לסגור"],
+  ["ל בדוק", "לבדוק"],
+  ["ל עדכן", "לעדכן"],
+  ["ל שלם", "לשלם"],
+  ["ב יום", "ביום"],
+  ["ל יום", "ליום"],
+  ["עוד מ עט", "עוד מעט"],
 ];
 
 const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]> = [
@@ -82,6 +91,9 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["להתקשרה", "להתקשר"],
   ["לשלוחח", "לשלוח"],
   ["לשלח", "לשלוח"],
+  ["תזכירר", "תזכיר"],
+  ["תרשוםם", "תרשום"],
+  ["לבדוקק", "לבדוק"],
   ["לדבאר", "לדבר"],
   ["לסייםם", "לסיים"],
   ["לפגושש", "לפגוש"],

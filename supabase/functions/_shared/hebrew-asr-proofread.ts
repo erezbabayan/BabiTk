@@ -65,6 +65,15 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["ב בי", "בבי"],
   ["babi tk", "בבי"],
   ["babi-tk", "בבי"],
+  ["ת זכיר", "תזכיר"],
+  ["ת רשום", "תרשום"],
+  ["ל סגור", "לסגור"],
+  ["ל בדוק", "לבדוק"],
+  ["ל עדכן", "לעדכן"],
+  ["ל שלם", "לשלם"],
+  ["ב יום", "ביום"],
+  ["ל יום", "ליום"],
+  ["עוד מ עט", "עוד מעט"],
 ];
 
 /**
@@ -112,6 +121,9 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["להתקשרה", "להתקשר"],
   ["לשלוחח", "לשלוח"],
   ["לשלח", "לשלוח"],
+  ["תזכירר", "תזכיר"],
+  ["תרשוםם", "תרשום"],
+  ["לבדוקק", "לבדוק"],
   ["לדבאר", "לדבר"],
   ["לסייםם", "לסיים"],
   ["לפגושש", "לפגוש"],
@@ -216,6 +228,34 @@ export function applyHebrewAsrSpellingFixes(text: string): string {
     out = replaceTokenForm(out, wrong, right);
   }
   return normalizeWhitespaceAndMarks(out);
+}
+
+function hasHebrewLetters(text: string): boolean {
+  return /[\u0590-\u05FF]/.test(text);
+}
+
+/**
+ * Prefer the hosted ASR text, but keep a live caption if Groq drifted
+ * to English or dropped most of the utterance.
+ */
+export function pickBestHebrewTranscript(primary: string, hint?: string): string {
+  const hosted = applyHebrewAsrSpellingFixes(primary).trim();
+  const live = applyHebrewAsrSpellingFixes(hint ?? "").trim();
+  if (!hosted) return live;
+  if (!live) return hosted;
+  const hostedHebrew = hasHebrewLetters(hosted);
+  const liveHebrew = hasHebrewLetters(live);
+  if (hostedHebrew && !liveHebrew) return hosted;
+  if (liveHebrew && !hostedHebrew) return live;
+  if (
+    hostedHebrew &&
+    liveHebrew &&
+    live.length >= hosted.length * 2 &&
+    live.length - hosted.length >= 8
+  ) {
+    return live;
+  }
+  return hosted;
 }
 
 export { HEBREW_PHRASE_FIXES, HEBREW_TOKEN_FIXES };

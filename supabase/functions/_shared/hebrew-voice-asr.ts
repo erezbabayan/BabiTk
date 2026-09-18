@@ -15,9 +15,15 @@ import {
   applyHebrewAsrSpellingFixes,
   composeHebrewWhisperPrompt,
   HEBREW_ASR_WHISPER_PROMPT,
+  pickBestHebrewTranscript,
 } from "./hebrew-asr-proofread.ts";
 
-export { applyHebrewAsrSpellingFixes, composeHebrewWhisperPrompt, HEBREW_ASR_WHISPER_PROMPT };
+export {
+  applyHebrewAsrSpellingFixes,
+  composeHebrewWhisperPrompt,
+  HEBREW_ASR_WHISPER_PROMPT,
+  pickBestHebrewTranscript,
+};
 
 export const inboundHebrewProofreadPrompt = `אתה עורך לשוני לעברית מודרנית. תקן את הטקסט כך שיהיה כתוב נכון, ברור וקריא — בלי לשנות את כוונת הכותב.
 
@@ -55,7 +61,9 @@ export function audioFileName(messageId: string, mimeType: string): string {
 }
 
 const ASR_TIMEOUT_MS = 12_000;
-const RUNPOD_TIMEOUT_MS = 10_000;
+const SHORT_ASR_TIMEOUT_MS = 5_000;
+const SHORT_AUDIO_BYTES = 80_000;
+const RUNPOD_TIMEOUT_MS = 8_000;
 const DOWNLOAD_TIMEOUT_MS = 8_000;
 const IVRIT_WHISPER_MODEL = "ivrit-ai/whisper-large-v3-turbo-ct2";
 
@@ -172,17 +180,22 @@ async function transcribeWithOpenAiCompatible(
   fileName: string,
   mimeType: string,
   prompt = HEBREW_ASR_WHISPER_PROMPT,
+  timeoutMs = ASR_TIMEOUT_MS,
 ): Promise<string> {
   const form = new FormData();
   form.append("file", new Blob([audio], { type: mimeType }), fileName);
   form.append("model", model);
   form.append("language", "he");
   form.append("prompt", prompt);
+  if (model.includes("whisper")) {
+    form.append("temperature", "0");
+    form.append("response_format", "json");
+  }
   const response = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
-    signal: timeoutSignal(ASR_TIMEOUT_MS),
+    signal: timeoutSignal(timeoutMs),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
@@ -203,7 +216,7 @@ export async function transcribeAudio(
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   const groqModel = Deno.env.get("GROQ_WHISPER_MODEL")?.trim() || "whisper-large-v3-turbo";
-  const openAiModel = Deno.env.get("OPENAI_WHISPER_MODEL")?.trim() || "whisper-1";
+  const openAiModel = Deno.env.get("OPENAI_WHISPER_MODEL")?.trim() || "gpt-4o-mini-transcribe";
   const prompt = composeHebrewWhisperPrompt(promptHint);
   const prefer = (Deno.env.get("HEBREW_ASR_ENGINE")?.trim().toLowerCase() || "auto") as
     | "runpod"
@@ -211,6 +224,10 @@ export async function transcribeAudio(
     | "openai"
     | "auto";
   const errors: string[] = [];
+  const asrTimeout =
+    audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES
+      ? SHORT_ASR_TIMEOUT_MS
+      : ASR_TIMEOUT_MS;
 
   const engines: Array<"runpod" | "groq" | "openai"> =
     prefer === "runpod"
@@ -219,7 +236,7 @@ export async function transcribeAudio(
         ? ["groq", "openai"]
         : prefer === "openai"
           ? ["openai"]
-          : ["groq", "runpod", "openai"];
+          : ["groq", "openai", "runpod"];
 
   for (const engine of engines) {
     try {
@@ -233,6 +250,7 @@ export async function transcribeAudio(
           fileName,
           mimeType,
           prompt,
+          asrTimeout,
         );
         return { text, engine: "groq" };
       }
@@ -242,16 +260,30 @@ export async function transcribeAudio(
       }
       if (engine === "openai") {
         if (!openAiKey) continue;
-        const text = await transcribeWithOpenAiCompatible(
-          "https://api.openai.com/v1/audio/transcriptions",
-          openAiKey,
-          openAiModel,
-          audio,
-          fileName,
-          mimeType,
-          prompt,
+        const models = [openAiModel, "whisper-1"].filter(
+          (model, index, all) => all.indexOf(model) === index,
         );
-        return { text, engine: "openai" };
+        let lastOpenAiError: unknown;
+        for (const model of models) {
+          try {
+            const text = await transcribeWithOpenAiCompatible(
+              "https://api.openai.com/v1/audio/transcriptions",
+              openAiKey,
+              model,
+              audio,
+              fileName,
+              mimeType,
+              prompt,
+              asrTimeout,
+            );
+            return { text, engine: "openai" };
+          } catch (error) {
+            lastOpenAiError = error;
+          }
+        }
+        throw lastOpenAiError instanceof Error
+          ? lastOpenAiError
+          : new Error("openai_failed");
       }
     } catch (error) {
       errors.push(
@@ -280,7 +312,7 @@ export async function transcribeAndProofreadVoice(params: {
     params.promptHint,
   );
   const rawText = applyHebrewAsrSpellingFixes(asr.text);
-  const correctedText = applyHebrewAsrSpellingFixes(rawText.trim());
+  const correctedText = pickBestHebrewTranscript(rawText, params.promptHint);
   if (!correctedText) {
     throw new Error("empty_transcription");
   }

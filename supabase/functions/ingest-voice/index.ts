@@ -31,6 +31,90 @@ function adminClient() {
   });
 }
 
+function optionalString(value: FormDataEntryValue | null): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function optionalNumber(value: FormDataEntryValue | null): number | undefined {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : undefined;
+}
+
+async function readIngestRequest(req: Request): Promise<{
+  bytes: Uint8Array;
+  mimeType: string;
+  fileName: string;
+  durationSeconds?: number;
+  promptHint: string;
+  itemId: string;
+}> {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+    const file = form.get("file");
+    const mimeType =
+      optionalString(form.get("mimeType")) ||
+      (file instanceof File && file.type) ||
+      "audio/webm";
+    const fileName =
+      optionalString(form.get("fileName")) ||
+      (file instanceof File ? file.name : "") ||
+      audioFileName(`rec-${Date.now()}`, mimeType);
+    if (!(file instanceof File) && typeof file !== "string") {
+      throw new Error("audio_required");
+    }
+    const bytes =
+      file instanceof File
+        ? new Uint8Array(await file.arrayBuffer())
+        : decodeAudioBase64(file);
+    if (bytes.byteLength < 64) {
+      throw new Error("audio_too_short");
+    }
+    return {
+      bytes,
+      mimeType,
+      fileName,
+      durationSeconds: optionalNumber(form.get("durationSeconds")),
+      promptHint: optionalString(form.get("promptHint")),
+      itemId: optionalString(form.get("itemId")),
+    };
+  }
+
+  const body = (await req.json()) as {
+    audioBase64?: unknown;
+    mimeType?: unknown;
+    fileName?: unknown;
+    durationSeconds?: unknown;
+    promptHint?: unknown;
+    itemId?: unknown;
+  };
+  const audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64 : "";
+  if (!audioBase64) {
+    throw new Error("audio_required");
+  }
+  const mimeType =
+    typeof body.mimeType === "string" && body.mimeType.trim()
+      ? body.mimeType.trim()
+      : "audio/webm";
+  const fileName =
+    typeof body.fileName === "string" && body.fileName.trim()
+      ? body.fileName.trim()
+      : audioFileName(`rec-${Date.now()}`, mimeType);
+  const durationSeconds =
+    typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)
+      ? Math.max(1, Math.round(body.durationSeconds))
+      : undefined;
+  return {
+    bytes: decodeAudioBase64(audioBase64),
+    mimeType,
+    fileName,
+    durationSeconds,
+    promptHint: typeof body.promptHint === "string" ? body.promptHint.trim() : "",
+    itemId: typeof body.itemId === "string" ? body.itemId.trim() : "",
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return json({ ok: true });
@@ -54,58 +138,25 @@ Deno.serve(async (req) => {
   }
   const userId = userData.user.id;
 
-  let audioBase64 = "";
-  let mimeType = "audio/webm";
-  let fileName = "";
-  let durationSeconds: number | undefined;
-  let promptHint = "";
+  let payload: Awaited<ReturnType<typeof readIngestRequest>>;
   try {
-    const body = (await req.json()) as {
-      audioBase64?: unknown;
-      mimeType?: unknown;
-      fileName?: unknown;
-      durationSeconds?: unknown;
-      promptHint?: unknown;
-    };
-    audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64 : "";
-    if (typeof body.mimeType === "string" && body.mimeType.trim()) {
-      mimeType = body.mimeType.trim();
-    }
-    if (typeof body.fileName === "string") {
-      fileName = body.fileName.trim();
-    }
-    if (typeof body.durationSeconds === "number" && Number.isFinite(body.durationSeconds)) {
-      durationSeconds = Math.max(1, Math.round(body.durationSeconds));
-    }
-    if (typeof body.promptHint === "string") {
-      promptHint = body.promptHint.trim();
-    }
-  } catch {
-    return json({ error: "invalid_json" }, 400);
-  }
-  if (!audioBase64) {
-    return json({ error: "audio_required" }, 400);
-  }
-
-  let bytes: Uint8Array;
-  try {
-    bytes = decodeAudioBase64(audioBase64);
+    payload = await readIngestRequest(req);
   } catch (error) {
+    const reason = error instanceof Error ? error.message : "invalid_audio";
     return json(
-      { error: "invalid_audio", reason: error instanceof Error ? error.message : "decode_failed" },
+      { error: reason === "audio_required" ? "audio_required" : "invalid_audio", reason },
       400,
     );
   }
 
-  const resolvedName = fileName || audioFileName(`rec-${Date.now()}`, mimeType);
-
   try {
     const result = await ingestRecordedAudio(adminClient(), userId, {
-      bytes,
-      mimeType,
-      fileName: resolvedName,
-      durationSeconds,
-      promptHint: promptHint || undefined,
+      bytes: payload.bytes,
+      mimeType: payload.mimeType,
+      fileName: payload.fileName,
+      durationSeconds: payload.durationSeconds,
+      promptHint: payload.promptHint || undefined,
+      itemId: payload.itemId || undefined,
     });
     return json({
       ok: true,

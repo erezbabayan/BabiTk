@@ -1,12 +1,15 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { formatIngestError, ingestTextForUser } from "../lib/ingest-text";
 import {
+  createVoiceRecorder,
   ingestImageBlobForUser,
   ingestVoiceBlobForUser,
   isWebMediaCaptureSupported,
   pickSupportedAudioMimeType,
+  VOICE_AUDIO_CONSTRAINTS,
 } from "../lib/ingest-media";
 import { startLiveHebrewSpeech, type LiveHebrewSpeechHandle } from "../lib/live-hebrew-speech";
+import { prefetchVoiceAuth } from "../lib/transcribe-voice-item";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { NotebookIcon } from "./NotebookIcons";
 
@@ -90,13 +93,13 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
       return;
     }
     setError(null);
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    void prefetchVoiceAuth();
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: VOICE_AUDIO_CONSTRAINTS,
+    });
     mediaStreamRef.current = stream;
 
-    const mimeType = pickSupportedAudioMimeType();
-    const recorder = mimeType
-      ? new MediaRecorder(stream, { mimeType })
-      : new MediaRecorder(stream);
+    const recorder = createVoiceRecorder(stream);
     chunksRef.current = [];
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) chunksRef.current.push(event.data);

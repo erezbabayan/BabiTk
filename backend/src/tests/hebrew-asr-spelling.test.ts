@@ -45,6 +45,7 @@ describe("hebrew ASR slang and ktiv male", () => {
 
   it("joins Whisper clitic splits", () => {
     assert.equal(applyHebrewAsrSpellingFixes("ל קנות חלב מחר ב צהריים"), "לקנות חלב מחר בצהריים");
+    assert.equal(applyHebrewAsrSpellingFixes("ת זכיר לי ל בדוק מחר"), "תזכיר לי לבדוק מחר");
     assert.equal(applyHebrewAsrSpellingFixes("ב בקשה תזכרת ב שעה שש"), "בבקשה תזכורת בשעה שש");
     assert.equal(applyHebrewAsrSpellingFixes("ל התקשר לרואי"), "להתקשר לרועי");
   });

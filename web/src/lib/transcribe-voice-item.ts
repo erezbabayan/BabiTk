@@ -1,4 +1,8 @@
-import { currentAccessToken, currentUserId } from "./whatsapp-gateway";
+import {
+  currentAccessToken,
+  currentUserId,
+  peekAccessToken,
+} from "./whatsapp-gateway";
 import { requireSupabase } from "./supabase";
 import {
   transcribeHebrewAudioBlob,
@@ -13,9 +17,9 @@ import {
 import { parseWhatsAppVoiceQuestion } from "../../../convex/lib/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 import {
-  blobToBase64,
   canSendAudioToEdge,
   EDGE_INGEST_TIMEOUT_MS,
+  EDGE_REFINE_WAIT_MS,
   EDGE_TRANSCRIBE_TIMEOUT_MS,
   isUsableLiveTranscript,
   parseEdgeVoicePayload,
@@ -61,25 +65,41 @@ async function invokeWithTimeout<T>(
   }
 }
 
-async function invokeEdgeJson(
+let cachedVoiceToken: string | null = null;
+
+export async function prefetchVoiceAuth(): Promise<void> {
+  cachedVoiceToken = await peekAccessToken();
+}
+
+async function voiceAccessToken(): Promise<string> {
+  const token =
+    cachedVoiceToken ?? (await peekAccessToken()) ?? (await currentAccessToken());
+  if (!token) throw new Error("Not authenticated");
+  cachedVoiceToken = token;
+  return token;
+}
+
+async function invokeEdge(
   functionName: string,
-  body: Record<string, unknown>,
+  body: BodyInit,
   timeoutMs: number,
+  contentType?: string,
 ): Promise<unknown> {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
-  const accessToken = await currentAccessToken();
-  if (!accessToken) throw new Error("Not authenticated");
+  const accessToken = await voiceAccessToken();
   if (!supabaseUrl) throw new Error("Supabase is not configured");
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    apikey: anonKey || accessToken,
+  };
+  if (contentType) headers["Content-Type"] = contentType;
 
   const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/${functionName}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: anonKey || accessToken,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers,
+    body,
     signal: AbortSignal.timeout(timeoutMs),
   });
   const data: unknown = await response.json().catch(() => null);
@@ -92,6 +112,45 @@ async function invokeEdgeJson(
     throw new Error(reason);
   }
   return data;
+}
+
+async function invokeEdgeJson(
+  functionName: string,
+  body: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<unknown> {
+  return invokeEdge(functionName, JSON.stringify(body), timeoutMs, "application/json");
+}
+
+async function invokeIngestVoice(params: {
+  blob: Blob;
+  mimeType: string;
+  fileName: string;
+  durationSeconds?: number;
+  hintTranscript?: string;
+  itemId?: string;
+}): Promise<TranscribeVoiceItemResult | null> {
+  const form = new FormData();
+  form.append("file", params.blob, params.fileName);
+  form.append("mimeType", params.mimeType);
+  form.append("fileName", params.fileName);
+  if (params.durationSeconds != null) {
+    form.append("durationSeconds", String(params.durationSeconds));
+  }
+  if (params.hintTranscript?.trim()) {
+    form.append("promptHint", params.hintTranscript.trim());
+  }
+  if (params.itemId) {
+    form.append("itemId", params.itemId);
+  }
+  const data = await invokeEdge("ingest-voice", form, EDGE_INGEST_TIMEOUT_MS);
+  return parseTranscribePayload(data, params.itemId ?? "");
+}
+
+function waitMs(ms: number): Promise<null> {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(null), ms);
+  });
 }
 
 function firstSource(item: VoiceRepairItem): SourceMaterial | null {
@@ -426,30 +485,10 @@ export async function persistRecordedVoiceTranscript(params: {
   const userId = await currentUserId();
   if (!userId) throw new Error("Not authenticated");
 
-  if (canSendAudioToEdge(params.blob.size)) {
-    try {
-      const audioBase64 = await blobToBase64(params.blob);
-      const data = await invokeEdgeJson(
-        "ingest-voice",
-        {
-          audioBase64,
-          mimeType: params.mimeType,
-          fileName: params.fileName,
-          durationSeconds: params.durationSeconds,
-          promptHint: params.hintTranscript?.trim() || undefined,
-        },
-        EDGE_INGEST_TIMEOUT_MS,
-      );
-      const parsed = parseTranscribePayload(data, "");
-      if (parsed) return parsed;
-    } catch {
-      // Groq Edge unavailable — use live caption or Gradio.
-    }
-  }
-
-  if (isUsableLiveTranscript(params.hintTranscript)) {
-    const hint = params.hintTranscript!.replace(/\s+/g, " ").trim();
-    return persistClientRecording(
+  const hint = params.hintTranscript?.replace(/\s+/g, " ").trim() ?? "";
+  let early: TranscribeVoiceItemResult | null = null;
+  if (isUsableLiveTranscript(hint)) {
+    early = await persistClientRecording(
       userId,
       {
         title: titleFromInboundText(hint),
@@ -460,6 +499,28 @@ export async function persistRecordedVoiceTranscript(params: {
       params.durationSeconds,
     );
   }
+
+  if (canSendAudioToEdge(params.blob.size)) {
+    const ingest = invokeIngestVoice({
+      blob: params.blob,
+      mimeType: params.mimeType,
+      fileName: params.fileName,
+      durationSeconds: params.durationSeconds,
+      hintTranscript: hint,
+      itemId: early?.itemId,
+    });
+    try {
+      const refined = early
+        ? await Promise.race([ingest, waitMs(EDGE_REFINE_WAIT_MS)])
+        : await ingest;
+      if (refined) return refined;
+      void ingest.catch(() => undefined);
+    } catch {
+      if (early) return early;
+    }
+  }
+
+  if (early) return early;
 
   const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
   return persistClientRecording(

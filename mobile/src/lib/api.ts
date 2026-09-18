@@ -494,7 +494,8 @@ async function uploadMultipart(path: string, uri: string, mimeType: string, name
 
 async function ingestVoiceViaEdge(params: {
   token: string;
-  audioBase64: string;
+  fileUri: string;
+  audioBase64?: string;
   mimeType: string;
   fileName: string;
   durationSeconds?: number;
@@ -503,23 +504,54 @@ async function ingestVoiceViaEdge(params: {
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!supabaseUrl) return false;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 18_000);
+  const timer = setTimeout(() => controller.abort(), 12_000);
   try {
+    const form = new FormData();
+    form.append("file", {
+      uri: params.fileUri,
+      name: params.fileName,
+      type: params.mimeType,
+    } as unknown as Blob);
+    form.append("mimeType", params.mimeType);
+    form.append("fileName", params.fileName);
+    if (params.durationSeconds != null) {
+      form.append("durationSeconds", String(params.durationSeconds));
+    }
     const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-voice`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${params.token}`,
         apikey: anonKey || params.token,
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        audioBase64: params.audioBase64,
-        mimeType: params.mimeType,
-        fileName: params.fileName,
-        durationSeconds: params.durationSeconds,
-      }),
+      body: form,
       signal: controller.signal,
     });
+    if (!response.ok && params.audioBase64) {
+      const jsonResponse = await fetch(
+        `${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-voice`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${params.token}`,
+            apikey: anonKey || params.token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            audioBase64: params.audioBase64,
+            mimeType: params.mimeType,
+            fileName: params.fileName,
+            durationSeconds: params.durationSeconds,
+          }),
+          signal: controller.signal,
+        },
+      );
+      if (!jsonResponse.ok) return false;
+      const jsonData = (await jsonResponse.json().catch(() => null)) as
+        | { ok?: unknown; title?: unknown; answered?: unknown; error?: unknown }
+        | null;
+      if (!jsonData || jsonData.error) return false;
+      return jsonData.ok === true || jsonData.answered === true || typeof jsonData.title === "string";
+    }
     if (!response.ok) return false;
     const data = (await response.json().catch(() => null)) as
       | { ok?: unknown; title?: unknown; answered?: unknown; error?: unknown }
@@ -555,11 +587,29 @@ export async function uploadVoiceNote(
   if (isSupabaseConfigured) {
     const token = await getAccessToken();
     if (!token) throw new Error("Not authenticated");
-    const { readLocalAudioAsBase64 } = await import("./voice-upload");
-    const audio = await readLocalAudioAsBase64(uri);
+    const { materializeLocalAudioUri, guessAudioMimeType, readLocalAudioAsBase64 } = await import(
+      "./voice-upload"
+    );
+    const fileUri = await materializeLocalAudioUri(uri);
+    const mimeType = guessAudioMimeType(fileUri);
+    let audio: { base64: string; mimeType: string; byteLength: number } | null = null;
     try {
       const ingested = await ingestVoiceViaEdge({
         token,
+        fileUri,
+        mimeType,
+        fileName: "recording.m4a",
+        durationSeconds: options?.durationSeconds,
+      });
+      if (ingested) return;
+    } catch {
+      // Fall through to JSON, public ASR, then Express.
+    }
+    try {
+      audio = await readLocalAudioAsBase64(fileUri);
+      const ingested = await ingestVoiceViaEdge({
+        token,
+        fileUri,
         audioBase64: audio.base64,
         mimeType: audio.mimeType,
         fileName: "recording.m4a",
@@ -568,6 +618,9 @@ export async function uploadVoiceNote(
       if (ingested) return;
     } catch {
       // Fall through to public ASR, then Express.
+    }
+    if (!audio) {
+      audio = await readLocalAudioAsBase64(fileUri);
     }
     try {
       const { transcribeHebrewAudioBlob } = await import(

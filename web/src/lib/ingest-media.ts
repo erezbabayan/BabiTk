@@ -92,6 +92,13 @@ export async function ingestImageBlobForUser(
   await uploadNotebookOcrApi(file);
 }
 
+export const VOICE_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+};
+
 export function pickSupportedAudioMimeType(): string {
   if (typeof MediaRecorder === "undefined") return "audio/webm";
   const candidates = [
@@ -104,6 +111,19 @@ export function pickSupportedAudioMimeType(): string {
     if (MediaRecorder.isTypeSupported(type)) return type;
   }
   return "";
+}
+
+export function createVoiceRecorder(stream: MediaStream): MediaRecorder {
+  const mimeType = pickSupportedAudioMimeType();
+  const options: MediaRecorderOptions = {
+    audioBitsPerSecond: 24_000,
+  };
+  if (mimeType) options.mimeType = mimeType;
+  try {
+    return new MediaRecorder(stream, options);
+  } catch {
+    return mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  }
 }
 
 export function isWebMediaCaptureSupported(): boolean {
