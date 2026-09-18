@@ -32,16 +32,16 @@ import {
   builtInMenuQuestions,
   formatClockFromIso,
   isSystemWhatsAppReply,
-  isWhatsAppMenuRequest,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
+  parseMenuSelection,
   parseWhatsAppCommand,
   parseWhatsAppQuery,
   replyChatId,
   resolveCommandItemId,
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
-import { parseWhatsAppVoiceQuestion, normalizeSpokenWhatsAppQuestion } from "../_shared/whatsapp-system-question.ts";
+import { classifyWhatsAppInbound } from "../_shared/whatsapp-inbound-route.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -192,16 +192,81 @@ async function handleGroupTextIntent(options: {
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw || isSystemWhatsAppReply(raw)) return true;
+  const route = classifyWhatsAppInbound(raw);
+  if (route.lane === "capture") return false;
+
   const replyTo = replyChatId(options.message);
+
+  if (route.lane === "command") {
+    const command = parseWhatsAppCommand(raw);
+    if (!command) return false;
+    const { data: fresh, error: lastIdsError } = await options.supabase
+      .from("users")
+      .select("whatsapp_last_item_ids")
+      .eq("id", options.user.id)
+      .maybeSingle();
+    if (lastIdsError && !isMissingSchemaError(lastIdsError)) throw lastIdsError;
+    const lastIds = Array.isArray(fresh?.whatsapp_last_item_ids)
+      ? fresh.whatsapp_last_item_ids.map(String)
+      : Array.isArray(options.user.whatsapp_last_item_ids)
+        ? options.user.whatsapp_last_item_ids.map(String)
+        : [];
+    const itemId = resolveCommandItemId(command, lastIds);
+    if (!itemId) {
+      await sendGreenApiText(
+        options.gateway,
+        replyTo,
+        "לא מצאתי פריט אחרון. כתבו «תפריט» או בחרו מספר אחרי הקליטה.",
+      );
+      return true;
+    }
+
+    const { data: item } = await options.supabase
+      .from("mindtasker_items")
+      .select("id, title, due_date, metadata")
+      .eq("id", itemId)
+      .eq("user_id", options.user.id)
+      .maybeSingle();
+    if (!item) {
+      await sendGreenApiText(options.gateway, replyTo, "הפריט כבר לא זמין. כתבו «תפריט».");
+      return true;
+    }
+
+    if (command.type === "complete") {
+      await options.supabase
+        .from("mindtasker_items")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          last_interacted_at: new Date().toISOString(),
+        })
+        .eq("id", itemId)
+        .eq("user_id", options.user.id);
+      await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}`);
+      return true;
+    }
+
+    const due =
+      command.type === "snooze"
+        ? addHoursIso(command.hours)
+        : tomorrowAtHourIso(command.hour);
+    await options.supabase
+      .from("mindtasker_items")
+      .update({ due_date: due, last_interacted_at: new Date().toISOString() })
+      .eq("id", itemId)
+      .eq("user_id", options.user.id);
+    const label =
+      command.type === "snooze"
+        ? `נדחה ל-${formatClockFromIso(due)}`
+        : `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00`;
+    await sendGreenApiText(options.gateway, replyTo, `${label}: ${item.title}`);
+    return true;
+  }
+
   const allowedTags = await loadAllowedTagNames(options.supabase, options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
-  const systemQuestion = parseWhatsAppVoiceQuestion(raw);
-  const spoken = normalizeSpokenWhatsAppQuestion(raw);
-  const intentText =
-    systemQuestion.kind === "question" ? systemQuestion.question : spoken || raw;
-  const prefixed = systemQuestion.kind !== "none";
 
-  if (systemQuestion.kind === "help" || isWhatsAppMenuRequest(intentText) || isWhatsAppMenuRequest(raw)) {
+  if (route.lane === "help" || route.lane === "menu") {
     await sendGreenApiText(options.gateway, replyTo, buildWhatsAppMenuText(menu));
     const { error } = await options.supabase
       .from("users")
@@ -212,7 +277,10 @@ async function handleGroupTextIntent(options: {
     return true;
   }
 
-  const query = parseWhatsAppQuery(intentText, allowedTags);
+  const query =
+    route.lane === "menu_pick"
+      ? parseMenuSelection(raw, menu)
+      : parseWhatsAppQuery(route.question, allowedTags);
   if (query) {
     const { data } = await options.supabase
       .from("mindtasker_items")
@@ -236,84 +304,21 @@ async function handleGroupTextIntent(options: {
     return true;
   }
 
-  if (prefixed) {
+  if (route.lane === "question") {
     await replyWhatsAppSystemQuestion({
       supabase: options.supabase,
       userId: options.user.id,
       chatId: replyTo,
       messageId: options.message.messageId,
       sourceType: options.sourceType ?? "whatsapp_text",
-      parsed: systemQuestion,
+      parsed: { kind: "question", question: route.question },
       gateway: options.gateway,
       rawText: raw,
     });
     return true;
   }
 
-  const command = parseWhatsAppCommand(raw);
-  if (!command) return false;
-
-  const { data: fresh, error: lastIdsError } = await options.supabase
-    .from("users")
-    .select("whatsapp_last_item_ids")
-    .eq("id", options.user.id)
-    .maybeSingle();
-  if (lastIdsError && !isMissingSchemaError(lastIdsError)) throw lastIdsError;
-  const lastIds = Array.isArray(fresh?.whatsapp_last_item_ids)
-    ? fresh.whatsapp_last_item_ids.map(String)
-    : Array.isArray(options.user.whatsapp_last_item_ids)
-      ? options.user.whatsapp_last_item_ids.map(String)
-      : [];
-  const itemId = resolveCommandItemId(command, lastIds);
-  if (!itemId) {
-    await sendGreenApiText(
-      options.gateway,
-      replyTo,
-      "לא מצאתי פריט אחרון. כתבו «תפריט» או בחרו מספר אחרי הקליטה.",
-    );
-    return true;
-  }
-
-  const { data: item } = await options.supabase
-    .from("mindtasker_items")
-    .select("id, title, due_date, metadata")
-    .eq("id", itemId)
-    .eq("user_id", options.user.id)
-    .maybeSingle();
-  if (!item) {
-    await sendGreenApiText(options.gateway, replyTo, "הפריט כבר לא זמין. כתבו «תפריט».");
-    return true;
-  }
-
-  if (command.type === "complete") {
-    await options.supabase
-      .from("mindtasker_items")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        last_interacted_at: new Date().toISOString(),
-      })
-      .eq("id", itemId)
-      .eq("user_id", options.user.id);
-    await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}`);
-    return true;
-  }
-
-  const due =
-    command.type === "snooze"
-      ? addHoursIso(command.hours)
-      : tomorrowAtHourIso(command.hour);
-  await options.supabase
-    .from("mindtasker_items")
-    .update({ due_date: due, last_interacted_at: new Date().toISOString() })
-    .eq("id", itemId)
-    .eq("user_id", options.user.id);
-  const label =
-    command.type === "snooze"
-      ? `נדחה ל-${formatClockFromIso(due)}`
-      : `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00`;
-  await sendGreenApiText(options.gateway, replyTo, `${label}: ${item.title}`);
-  return true;
+  return false;
 }
 
 async function maybeSendGroupMenu(options: {
@@ -624,7 +629,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v8",
-      qa: "babi-v3",
+      qa: "babi-v5",
       engines: {
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),

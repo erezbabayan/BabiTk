@@ -7,12 +7,13 @@ import {
   builtInMenuQuestions,
   buildTaskBriefing,
   buildWhatsAppMenuText,
-  isWhatsAppMenuRequest,
   itemMatchesBriefingDay,
   itemMatchesQueryTag,
+  parseMenuSelection,
   parseWhatsAppQuery,
   type WhatsAppQuery,
 } from "../lib/whatsapp-query.js";
+import { classifyWhatsAppInbound } from "../lib/whatsapp-inbound-route.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { env } from "../config/env.js";
 import {
@@ -101,16 +102,58 @@ export async function handleWhatsAppTextIntent(options: {
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw) return false;
+  const route = classifyWhatsAppInbound(raw);
+  if (route.lane === "capture") return false;
+
+  if (route.lane === "command") {
+    const command = parseWhatsAppCommand(raw);
+    if (!command) return false;
+    const lastIds = await loadLastWhatsAppItemIds(options.user.id);
+    const itemId = resolveCommandItemId(command, lastIds);
+    if (!itemId) {
+      await sendWhatsAppText(
+        options.replyTo,
+        "לא מצאתי פריט אחרון. כתבו «תפריט» או בחרו מספר אחרי הקליטה.",
+      );
+      return true;
+    }
+
+    const now = new Date();
+    if (command.type === "complete") {
+      const item = await completeItem(options.user.id, itemId);
+      await sendWhatsAppText(options.replyTo, `סומן כבוצע: ${item.title}`);
+      return true;
+    }
+
+    if (command.type === "snooze") {
+      const due = addZonedMinutes(TIMEZONE, now, command.hours * 60);
+      const item = await snoozeItem(options.user.id, itemId, due);
+      await sendWhatsAppText(options.replyTo, `נדחה ל-${formatClock(due)}: ${item.title}`);
+      return true;
+    }
+
+    const due = addZonedDays(TIMEZONE, now, 1, command.hour, 0);
+    const item = await snoozeItem(options.user.id, itemId, due);
+    await sendWhatsAppText(
+      options.replyTo,
+      `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00: ${item.title}`,
+    );
+    return true;
+  }
+
   const allowedTags = await getUserTagNames(options.user.id);
   const menu = builtInMenuQuestions(allowedTags);
 
-  if (isWhatsAppMenuRequest(raw)) {
+  if (route.lane === "help" || route.lane === "menu") {
     await sendWhatsAppText(options.replyTo, buildWhatsAppMenuText(menu));
     await markWhatsAppOnboardingComplete(options.user.id);
     return true;
   }
 
-  const query = parseWhatsAppQuery(raw, allowedTags);
+  const query =
+    route.lane === "menu_pick"
+      ? parseMenuSelection(raw, menu)
+      : parseWhatsAppQuery(route.question, allowedTags);
   if (query) {
     const tasks = filterTasksForQuery(await listOpenTasks(options.user.id), query);
     await rememberLastWhatsAppItems(
@@ -121,37 +164,7 @@ export async function handleWhatsAppTextIntent(options: {
     return true;
   }
 
-  const command = parseWhatsAppCommand(raw);
-  if (!command) return false;
-
-  const lastIds = await loadLastWhatsAppItemIds(options.user.id);
-  const itemId = resolveCommandItemId(command, lastIds);
-  if (!itemId) {
-    await sendWhatsAppText(
-      options.replyTo,
-      "לא מצאתי פריט אחרון. כתבו «תפריט» או בחרו מספר אחרי הקליטה.",
-    );
-    return true;
-  }
-
-  const now = new Date();
-  if (command.type === "complete") {
-    const item = await completeItem(options.user.id, itemId);
-    await sendWhatsAppText(options.replyTo, `סומן כבוצע: ${item.title}`);
-    return true;
-  }
-
-  if (command.type === "snooze") {
-    const due = addZonedMinutes(TIMEZONE, now, command.hours * 60);
-    const item = await snoozeItem(options.user.id, itemId, due);
-    await sendWhatsAppText(options.replyTo, `נדחה ל-${formatClock(due)}: ${item.title}`);
-    return true;
-  }
-
-  const due = addZonedDays(TIMEZONE, now, 1, command.hour, 0);
-  const item = await snoozeItem(options.user.id, itemId, due);
-  await sendWhatsAppText(options.replyTo, `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00: ${item.title}`);
-  return true;
+  return false;
 }
 
 function formatClock(iso: string): string {

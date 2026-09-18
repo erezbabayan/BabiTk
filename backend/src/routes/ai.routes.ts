@@ -9,7 +9,7 @@ import { parseInputWithAI, processNotebookOCR, transcribeAudio } from "../servic
 import { getUserTagNames } from "../services/user-tags.service.js";
 import { assertAiParseQuota, incrementAiParseUsage, estimateTextParseUnits, incrementAudioUsage } from "../services/usage.service.js";
 import { requireAudioQuota } from "../middleware/usage.js";
-import { parseWhatsAppVoiceQuestion } from "../lib/whatsapp-system-question.js";
+import { parseWhatsAppInboundQuestion } from "../lib/whatsapp-system-question.js";
 
 const parseBodySchema = z.object({
   text: z.string().trim().min(3, "Text must be at least 3 characters"),
@@ -141,7 +141,7 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
 
       await incrementAudioUsage(request.user.id, durationSeconds);
 
-      const question = parseWhatsAppVoiceQuestion(text);
+      const question = parseWhatsAppInboundQuestion(text);
       if (question.kind !== "none") {
         return reply.send({
           text,

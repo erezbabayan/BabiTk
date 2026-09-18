@@ -46,7 +46,7 @@ export function formatPairingCode(code: string): string {
 }
 
 export const WHATSAPP_WELCOME_MESSAGE =
-  "BabiTk מחובר לוואטסאפ שלך. הודעה רגילה לקבוצת הקליטה נכנסת כמשימה או הערה. שאלה למערכת: אמרו «בבי» ואז השאלה, למשל «בבי מה יש לי היום» — המענה יישאר בקבוצה בלי ליצור פריט.";
+  "BabiTk מחובר לוואטסאפ שלך. שאלה למערכת מתחילה ב-בבי, למשל «בבי מה המשימות לשבוע הבא». משימה או הערה — בלי בבי, למשל «תכניס משימה יום רביעי שבוע הבא».";
 
 export function preferPhonePairingOnThisDevice(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {

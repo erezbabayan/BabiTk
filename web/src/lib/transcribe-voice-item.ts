@@ -13,7 +13,7 @@ import {
   parsedItemInsertFields,
   resolveAllowedTagNames,
 } from "./parse-incoming-message";
-import { parseWhatsAppVoiceQuestion } from "../../../convex/lib/whatsappSystemQuestion";
+import { parseWhatsAppInboundQuestion } from "../../../convex/lib/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 import {
   canSendAudioToEdge,
@@ -216,12 +216,12 @@ async function tryReplyRecordedQuestion(params: {
   transcript: string;
   itemId?: string;
 }): Promise<boolean> {
-  const parsed = parseWhatsAppVoiceQuestion(params.transcript);
-  if (!params.itemId && parsed.kind === "none") return false;
+  const parsed = parseWhatsAppInboundQuestion(params.transcript);
+  if (parsed.kind === "none") return false;
   try {
     const supabase = requireSupabase();
     const accessToken = await currentAccessToken();
-    if (!accessToken) return parsed.kind !== "none";
+    if (!accessToken) return true;
     const invoked = await invokeWithTimeout(
       supabase.functions.invoke("whatsapp-green-connect", {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -241,7 +241,7 @@ async function tryReplyRecordedQuestion(params: {
   } catch {
     // Live connect may still be the old function.
   }
-  return parsed.kind !== "none";
+  return true;
 }
 
 async function softDeleteQuestionItem(item: VoiceRepairItem, content: string): Promise<void> {

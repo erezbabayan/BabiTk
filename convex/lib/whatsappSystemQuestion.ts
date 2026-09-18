@@ -185,18 +185,35 @@ export function isWhatsAppVoiceQuestion(text: string): boolean {
   return parseWhatsAppVoiceQuestion(text).kind !== "none";
 }
 
+/** Spoken capture: «תכניס משימה…» is never a system question, even if ASR leaked «בבי». */
+const CAPTURE_DICTATE =
+  /(?:^|[\s,;])(?:תכניס|תכניסי|תוסיף|תוסיפי|תוסיפו|תרשום|תרשמי|רשום|רשמי|שימי|שים)(?:\s+לי)?[,:]?\s+(?:משימ|הער|תזכור|פריט)/iu;
+
+export function isWhatsAppCaptureDictate(text: string): boolean {
+  const spoken = normalizeSpokenWhatsAppQuestion(text);
+  if (!spoken) return false;
+  if (CAPTURE_DICTATE.test(spoken)) return true;
+  return /^(?:משימה|הערה)\s*[:\-–—,]/iu.test(spoken);
+}
+
+/**
+ * System Q&A only with an explicit wake word (בבי / * / ?).
+ * Everything else, including «תכניס משימה לשבוע הבא…», is capture.
+ */
+export function parseWhatsAppInboundQuestion(text: string): SystemQuestionParse {
+  if (isWhatsAppCaptureDictate(text)) return { kind: "none" };
+  return parseWhatsAppVoiceQuestion(text);
+}
+
 export function buildWhatsAppSystemQuestionHelp(): string {
   return [
     "BabiTk · שאלה למערכת (לא נרשם פריט)",
     "",
-    "הודעה רגילה נכנסת כמשימה או הערה.",
-    "שאלה למערכת מתחילה ב-* ואז השאלה, למשל:",
-    "* מה יש לי היום",
-    "* חלב",
+    "שני מסלולים נפרדים:",
+    "1) שאלה — מתחילים ב-בבי, למשל: בבי מה המשימות לשבוע הבא",
+    "2) משימה / הערה — בלי בבי, למשל: תכניס משימה יום רביעי שבוע הבא",
     "",
-    "בהקלטה: אמרו «בבי» ואז שאלו, למשל «בבי מה יש לי היום».",
-    "אפשר גם babi-מה יש לי היום",
-    "בהקלדה אפשר להתחיל ב-* או ב-?.",
+    "בהקלדה אפשר גם * או ? לפני השאלה.",
   ].join("\n");
 }
 

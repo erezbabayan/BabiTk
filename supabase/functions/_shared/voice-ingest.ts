@@ -25,7 +25,7 @@ import {
   VOICE_TRANSCRIBING_TITLE,
   VOICE_UNAVAILABLE_TITLE,
 } from "./voice-text.ts";
-import { parseWhatsAppVoiceQuestion } from "./whatsapp-system-question.ts";
+import { classifyWhatsAppInbound } from "./whatsapp-inbound-route.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
 import { buildCaptureConfirmation } from "./whatsapp-intents.ts";
@@ -244,7 +244,6 @@ export async function transcribeVoiceMessage(
     audio: downloaded.bytes,
     mimeType: downloaded.mimeType || "audio/ogg",
     fileName: audioFileName(message.messageId, downloaded.mimeType || "audio/ogg"),
-    promptHint: "בבי מה המשימות היום מחר לשבוע הבא תפריט",
     hotPath: true,
     sourceUrl: isPublicMediaUrl(downloaded.audioUrl) ? downloaded.audioUrl : undefined,
   });
@@ -421,6 +420,9 @@ export async function interceptVoiceItemQuestion(
   gateway: VoiceGatewayCredentials | null,
 ): Promise<boolean> {
   if (!row.user_id) return false;
+  const rawText = transcribed.content || transcribed.rawText;
+  const route = classifyWhatsAppInbound(rawText);
+  if (route.lane === "capture" || route.lane === "command") return false;
   const chatId = metadataString(row.metadata, "chat_id");
   const messageId = metadataString(row.metadata, "whatsapp_message_id") || row.id;
   const handled = await interceptRecordedWhatsAppTranscript({
@@ -662,6 +664,7 @@ export async function ingestRecordedAudio(
     mimeType: params.mimeType,
     fileName: params.fileName,
     promptHint: params.promptHint,
+    liveCaption: params.promptHint,
     hotPath: true,
   });
   if (isVoicePlaceholderText(transcribed.correctedText)) {
@@ -674,7 +677,8 @@ export async function ingestRecordedAudio(
     existingPromise,
   ]);
 
-  if (parseWhatsAppVoiceQuestion(transcribed.correctedText).kind !== "none") {
+  const route = classifyWhatsAppInbound(transcribed.correctedText);
+  if (route.lane !== "capture" && route.lane !== "command") {
     const handled = await interceptRecordedWhatsAppTranscript({
       supabase,
       userId,

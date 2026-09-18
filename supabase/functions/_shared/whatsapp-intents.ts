@@ -47,6 +47,12 @@ export function isWhatsAppMenuRequest(raw: string): boolean {
   return MENU_REQUEST_RE.test(raw.trim());
 }
 
+/** Number / query: payload after «תפריט». Labels like «מה יש לי היום» need בבי. */
+export function isBareWhatsAppMenuPick(raw: string): boolean {
+  const text = raw.trim();
+  return /^(?:1[0-2]|[1-9])$/.test(text) || /^query:[a-z]+(?::.+)?$/i.test(text);
+}
+
 export function builtInMenuQuestions(allowedTags: string[] = []): MenuQuestion[] {
   const items: MenuQuestion[] = [
     { id: "today", number: 1, label: "מה יש לי היום", query: { type: "query", day: "today", tag: null } },
@@ -118,9 +124,10 @@ export function parseMenuSelection(raw: string, menu: MenuQuestion[]): WhatsAppQ
 export function buildWhatsAppMenuText(menu: MenuQuestion[]): string {
   const lines = menu.map((row) => `${row.number}. ${row.label}`);
   return (
-    `אפשר לשאול אותי שאלות מובנות — הקלידו מספר או את השאלה:\n` +
+    `אפשר לשאול אותי שאלות מובנות — אמרו «בבי» ואז השאלה, או הקלידו מספר:\n` +
     `${lines.join("\n")}\n\n` +
-    `או כתבו חופשי, למשל: «מה המשימות מחר בעבודה»\n` +
+    `שאלה: «בבי מה המשימות מחר בעבודה»\n` +
+    `משימה חדשה: בלי בבי, למשל «תכניס משימה יום רביעי שבוע הבא»\n` +
     `לסימון משימה מהרשימה: «בוצע 1»`
   );
 }

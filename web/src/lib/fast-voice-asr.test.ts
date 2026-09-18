@@ -104,5 +104,12 @@ describe("fast Hebrew ASR helpers", () => {
     assert.equal(pickBestHebrewTranscript("לקנות חלב", "לקנות מים"), "לקנות חלב");
     assert.equal(pickBestHebrewTranscript("buy milk please", "לקנות חלב"), "לקנות חלב");
     assert.equal(pickBestHebrewTranscript("חלב", "לקנות חלב מחר בבוקר"), "לקנות חלב מחר בבוקר");
+    assert.equal(
+      pickBestHebrewTranscript(
+        "תכניס משימה",
+        "בבי מה המשימות היום מחר לשבוע הבא תפריט",
+      ),
+      "תכניס משימה",
+    );
   });
 });
