@@ -259,26 +259,6 @@ export function SwipeableItem({
               >
                 {headlineText}
               </Text>
-              <View style={styles.headlineActions}>
-                {onTogglePriority ? (
-                  <TouchableOpacity
-                    onPress={onTogglePriority}
-                    accessibilityRole="button"
-                    accessibilityLabel={priority ? "הסר עדיפות" : "סמן כעדיפות"}
-                    accessibilityState={{ selected: priority }}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <PriorityStar active={priority} size={dense || isSquares ? 12 : 15} />
-                  </TouchableOpacity>
-                ) : priority ? (
-                  <View accessibilityLabel="עדיפות">
-                    <PriorityStar active size={dense || isSquares ? 12 : 15} />
-                  </View>
-                ) : null}
-                {onViewSource ? (
-                  <SourceIndicator item={item} onPress={onViewSource} iconOnly />
-                ) : null}
-              </View>
             </View>
 
             {showBody ||
@@ -378,22 +358,53 @@ export function SwipeableItem({
           {dense && !isSquares && visibleTags.length > 0 ? (
             <ItemTagDots tags={visibleTags} userTags={userTags} dense />
           ) : null}
-          <View style={styles.footerActionsOnly}>
-            <ItemActionBar
-              item={item}
-              tab={tab}
-              listView={listView}
-              onEdit={onEdit}
-              onToggleType={onToggleType}
-              onComplete={onComplete}
-              onSnooze={onSnooze}
-              showUndoAction={showUndoAction && doneStrike}
-              onUndo={onUndo}
-              showCompleteAction={showCompleteAction && !doneStrike}
-              onTagPress={onTagPress}
-              tagPickerOpen={tagPickerOpen}
-              dense={dense || isSquares}
-            />
+          <View style={styles.footerBar}>
+            <View style={styles.footerMeta}>
+              {onTogglePriority ? (
+                <TouchableOpacity
+                  onPress={onTogglePriority}
+                  accessibilityRole="button"
+                  accessibilityLabel={priority ? "הסר עדיפות" : "סמן כעדיפות"}
+                  accessibilityState={{ selected: priority }}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
+                >
+                  <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
+                </TouchableOpacity>
+              ) : priority ? (
+                <View
+                  accessibilityLabel="עדיפות"
+                  style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
+                >
+                  <PriorityStar active size={dense || isSquares ? 16 : 22} />
+                </View>
+              ) : null}
+              {onViewSource ? (
+                <SourceIndicator
+                  item={item}
+                  onPress={onViewSource}
+                  iconOnly
+                  dense={dense || isSquares}
+                />
+              ) : null}
+            </View>
+            <View style={styles.footerActionsOnly}>
+              <ItemActionBar
+                item={item}
+                tab={tab}
+                listView={listView}
+                onEdit={onEdit}
+                onToggleType={onToggleType}
+                onComplete={onComplete}
+                onSnooze={onSnooze}
+                showUndoAction={showUndoAction && doneStrike}
+                onUndo={onUndo}
+                showCompleteAction={showCompleteAction && !doneStrike}
+                onTagPress={onTagPress}
+                tagPickerOpen={tagPickerOpen}
+                dense={dense || isSquares}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -535,14 +546,7 @@ const styles = StyleSheet.create({
   headlineRow: {
     flexDirection: "row-reverse",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 6,
-  },
-  headlineActions: {
-    flexDirection: "row-reverse",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
   },
   headline: {
     flex: 1,
@@ -666,9 +670,34 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     justifyContent: "flex-end",
   },
-  footerActionsOnly: {
+  footerBar: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
     width: "100%",
+    gap: 8,
+  },
+  footerMeta: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  metaBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  metaBtnDense: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+  },
+  footerActionsOnly: {
+    flexShrink: 1,
     maxWidth: "100%",
-    alignItems: "stretch",
+    alignItems: "flex-end",
   },
 });

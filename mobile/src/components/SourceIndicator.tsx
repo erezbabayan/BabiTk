@@ -7,23 +7,34 @@ interface SourceIndicatorProps {
   item: MindtaskerItem;
   onPress: () => void;
   iconOnly?: boolean;
+  dense?: boolean;
 }
 
-export function SourceIndicator({ item, onPress, iconOnly = false }: SourceIndicatorProps) {
+export function SourceIndicator({
+  item,
+  onPress,
+  iconOnly = false,
+  dense = false,
+}: SourceIndicatorProps) {
   const source = resolveItemSource(item);
   const iconTone: NotebookIconTone = source.canOpen ? "slate" : "muted";
+  const iconSize = dense ? 16 : 20;
 
   if (iconOnly) {
     if (!source.canOpen) {
       return (
-        <View style={[styles.ghostCircle, styles.ghostStatic]}>
-          <NotebookIcon name={source.icon} size={12} tone="muted" />
+        <View style={[styles.ghostCircle, dense && styles.ghostCircleDense, styles.ghostStatic]}>
+          <NotebookIcon name={source.icon} size={iconSize} tone="muted" />
         </View>
       );
     }
     return (
-      <Pressable onPress={onPress} hitSlop={6} style={styles.ghostCircle}>
-        <NotebookIcon name={source.icon} size={12} tone={iconTone} />
+      <Pressable
+        onPress={onPress}
+        hitSlop={6}
+        style={[styles.ghostCircle, dense && styles.ghostCircleDense]}
+      >
+        <NotebookIcon name={source.icon} size={iconSize} tone={iconTone} />
       </Pressable>
     );
   }
@@ -47,14 +58,19 @@ export function SourceIndicator({ item, onPress, iconOnly = false }: SourceIndic
 
 const styles = StyleSheet.create({
   ghostCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: "#e2e8f0",
     backgroundColor: "#fff",
     alignItems: "center",
     justifyContent: "center",
+  },
+  ghostCircleDense: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
   },
   ghostStatic: { borderColor: "#e2e8f0" },
   chip: {

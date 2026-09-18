@@ -126,8 +126,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 6,
     flexShrink: 1,
-    width: "100%",
-    maxWidth: "100%",
     justifyContent: "flex-end",
   },
   rowDense: {

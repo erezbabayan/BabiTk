@@ -207,7 +207,7 @@ export function ItemCard({
   const contentCollapsed = isItemContentCollapsed(display.isItemExpandable, itemExpanded);
   const headlineText = display.body ? display.headline : display.fullHeadline;
   const hasActions = Boolean(
-    onEdit || onToggleType || onSendToBoard || onComplete || onSnooze || onTagPress,
+    onEdit || onToggleType || onSendToBoard || onComplete || onSnooze || onTagPress || onTaskListUndo,
   );
   const visibleTags = tagsOverride ?? display.tags;
   const hasTags = visibleTags.length > 0;
@@ -325,76 +325,15 @@ export function ItemCard({
                 isSquares ? "flex min-h-0 flex-1 flex-col" : ""
               }`}
             >
-          <div className={`flex justify-between gap-1 ${dense ? "items-center" : "items-start"}`}>
-            <h3
-              className={`min-w-0 flex-1 ${
-                dense
-                  ? "truncate text-right text-xs font-semibold leading-none text-slate-900"
-                  : ITEM_HEADLINE_CLASS
-              } ${!dense && (contentCollapsed || isSquares) ? "line-clamp-2" : ""} ${strikeClass}`}
-            >
-              {headlineText}
-            </h3>
-            <div className="flex shrink-0 items-center gap-1">
-              {onTogglePriority ? (
-                <button
-                  type="button"
-                  {...{ [ITEM_ACTION_ATTR]: "" }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTogglePriority();
-                  }}
-                  className={`notebook-icon-btn flex items-center justify-center ${
-                    dense || isSquares ? "notebook-icon-btn--dense" : "mt-0.5"
-                  }`}
-                  title={priority ? "הסר עדיפות" : "סמן כעדיפות"}
-                  aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
-                  aria-pressed={priority}
-                >
-                  <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
-                </button>
-              ) : priority ? (
-                <span
-                  className={`flex items-center justify-center ${dense || isSquares ? "h-7 w-7" : "mt-0.5 h-9 w-9"}`}
-                  title="עדיפות"
-                  aria-label="עדיפות"
-                >
-                  <PriorityStar active size={dense || isSquares ? 16 : 22} />
-                </span>
-              ) : null}
-              <span className={dense ? "inline-flex scale-90" : undefined}>
-                <SourceIndicator
-                  item={item}
-                  compact
-                  iconOnly
-                  isOpen={showSource}
-                  onOpen={toggleSource}
-                />
-              </span>
-              {draggable ? (
-                <span
-                  {...{ [ITEM_DRAG_HANDLE_ATTR]: "" }}
-                  draggable={!showSource}
-                  onDragStart={(e) => {
-                    e.stopPropagation();
-                    onDragStart?.(e);
-                  }}
-                  onDragEnd={(e) => {
-                    e.stopPropagation();
-                    onDragEnd?.(e);
-                  }}
-                  className="notebook-icon-btn notebook-icon-btn--muted mt-0.5 hidden h-5 w-4 cursor-grab select-none items-center justify-center active:cursor-grabbing lg:flex"
-                  title="גרור"
-                  aria-label="גרור"
-                >
-                  <NotebookIcon name="grip" size={14} tone="muted" />
-                </span>
-              ) : null}
-            </div>
-          </div>
+          <h3
+            className={`min-w-0 w-full ${
+              dense
+                ? "truncate text-right text-xs font-semibold leading-none text-slate-900"
+                : ITEM_HEADLINE_CLASS
+            } ${!dense && (contentCollapsed || isSquares) ? "line-clamp-2" : ""} ${strikeClass}`}
+          >
+            {headlineText}
+          </h3>
 
           {showSource ? (
             <div className="mt-0.5">
@@ -473,13 +412,13 @@ export function ItemCard({
                 </button>
               ) : null}
 
-              {!showSource && hasTags && !isSquares ? (
+              {hasTags && !isSquares ? (
                 <div className={dense ? "mt-0.5" : "mt-1"}>
                   <ItemTagDots tags={visibleTags} userTags={userTags} dense={dense} />
                 </div>
               ) : null}
 
-              {!showSource && isSquares && (hasTags || scheduleLine) ? (
+              {isSquares && (hasTags || scheduleLine) ? (
                 <div className="mt-0.5 flex min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
                   {hasTags ? (
                     <ItemTagDots tags={visibleTags} userTags={userTags} singleLine />
@@ -491,105 +430,168 @@ export function ItemCard({
                   ) : null}
                 </div>
               ) : null}
-
-              {!showSource && (hasActions || (!isSquares && scheduleLine)) ? (
-                <div
-                  className={`w-full ${
-                    isSquares
-                      ? "mt-0.5 flex shrink-0 flex-col pb-0 pt-0.5"
-                      : scheduleLine
-                        ? "mt-1 flex flex-col gap-1 border-t border-slate-100/80 pt-1"
-                        : `flex items-center gap-1 ${
-                            dense
-                              ? "mt-0 min-h-0 leading-none"
-                              : "mt-1 min-h-0 border-t border-slate-100/80 pt-1"
-                          }`
-                  }`}
-                >
-                  {!isSquares && scheduleLine ? (
-                    <span
-                      className={`min-w-0 truncate leading-none text-slate-400 ${
-                        dense ? "text-[9px]" : "text-[10px]"
-                      }`}
-                    >
-                      {scheduleLine}
-                    </span>
-                  ) : null}
-                  {hasActions ? (
-                    <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5">
-                      {onTagPress ? (
-                        <NotebookActionButton
-                          icon="tag"
-                          label="תיוג"
-                          onClick={onTagPress}
-                          active={tagPickerOpen}
-                          dense={dense || isSquares}
-                        />
-                      ) : null}
-                      {onEdit ? (
-                        <NotebookActionButton
-                          icon="edit"
-                          label="עריכה"
-                          onClick={() => setEditing(true)}
-                          dense={dense || isSquares}
-                        />
-                      ) : null}
-                      {onToggleType ? (
-                        <NotebookActionButton
-                          icon="swap"
-                          label={display.isNote ? "הפוך למשימה" : "הפוך להערה"}
-                          onClick={onToggleType}
-                          dense={dense || isSquares}
-                        />
-                      ) : null}
-                      {onSendToBoard ? (
-                        <button
-                          type="button"
-                          {...{ [ITEM_ACTION_ATTR]: "" }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onPointerUp={(e) => e.stopPropagation()}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSendToBoard();
-                          }}
-                          title={sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")}
-                          aria-label={
-                            sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")
-                          }
-                          style={{ touchAction: "manipulation" }}
-                          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-semibold text-white ${
-                            dense || isSquares ? "h-7 text-[10px]" : "h-9 text-[11px]"
-                          } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
-                        >
-                          <NotebookIcon name="check" size={dense || isSquares ? 14 : 16} tone="white" />
-                          {sendToBoardLabel ?? (display.isNote ? "להערות" : "למשימות")}
-                        </button>
-                      ) : null}
-                      {onSnooze ? (
-                        <NotebookActionButton
-                          icon="bell"
-                          label="תזכורת"
-                          onClick={onSnooze}
-                          reminder={display.reminderActive}
-                          dense={dense || isSquares}
-                        />
-                      ) : null}
-                      {onTaskListUndo ? (
-                        <NotebookActionButton
-                          icon="undo"
-                          label="שחזר"
-                          onClick={onTaskListUndo}
-                          active
-                          dense={dense || isSquares}
-                        />
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
             </>
           )}
+
+          {(hasActions || !isSquares) ? (
+            <div
+              className={`w-full ${
+                isSquares
+                  ? "mt-0.5 flex shrink-0 flex-col pb-0 pt-0.5"
+                  : scheduleLine && !showSource
+                    ? "mt-1 flex flex-col gap-1 border-t border-slate-100/80 pt-1"
+                    : `flex flex-col ${
+                        dense
+                          ? "mt-0 min-h-0 leading-none"
+                          : "mt-1 min-h-0 border-t border-slate-100/80 pt-1"
+                      }`
+              }`}
+            >
+              {!isSquares && scheduleLine && !showSource ? (
+                <span
+                  className={`min-w-0 truncate leading-none text-slate-400 ${
+                    dense ? "text-[9px]" : "text-[10px]"
+                  }`}
+                >
+                  {scheduleLine}
+                </span>
+              ) : null}
+              <div className="flex w-full min-w-0 items-center justify-between gap-1.5" dir="rtl">
+                <div className="flex shrink-0 items-center gap-1">
+                  {onTogglePriority ? (
+                    <button
+                      type="button"
+                      {...{ [ITEM_ACTION_ATTR]: "" }}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onPointerUp={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onTogglePriority();
+                      }}
+                      className={`notebook-icon-btn flex items-center justify-center ${
+                        dense || isSquares ? "notebook-icon-btn--dense" : ""
+                      }`}
+                      title={priority ? "הסר עדיפות" : "סמן כעדיפות"}
+                      aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
+                      aria-pressed={priority}
+                    >
+                      <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
+                    </button>
+                  ) : priority ? (
+                    <span
+                      className={`flex items-center justify-center ${
+                        dense || isSquares ? "h-7 w-7" : "h-9 w-9"
+                      }`}
+                      title="עדיפות"
+                      aria-label="עדיפות"
+                    >
+                      <PriorityStar active size={dense || isSquares ? 16 : 22} />
+                    </span>
+                  ) : null}
+                  <span className={dense ? "inline-flex scale-90" : undefined}>
+                    <SourceIndicator
+                      item={item}
+                      compact
+                      iconOnly
+                      isOpen={showSource}
+                      onOpen={toggleSource}
+                    />
+                  </span>
+                  {draggable ? (
+                    <span
+                      {...{ [ITEM_DRAG_HANDLE_ATTR]: "" }}
+                      draggable={!showSource}
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        onDragStart?.(e);
+                      }}
+                      onDragEnd={(e) => {
+                        e.stopPropagation();
+                        onDragEnd?.(e);
+                      }}
+                      className="notebook-icon-btn notebook-icon-btn--muted hidden h-5 w-4 cursor-grab select-none items-center justify-center active:cursor-grabbing lg:flex"
+                      title="גרור"
+                      aria-label="גרור"
+                    >
+                      <NotebookIcon name="grip" size={14} tone="muted" />
+                    </span>
+                  ) : null}
+                </div>
+                {hasActions && !showSource ? (
+                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                    {onTagPress ? (
+                      <NotebookActionButton
+                        icon="tag"
+                        label="תיוג"
+                        onClick={onTagPress}
+                        active={tagPickerOpen}
+                        dense={dense || isSquares}
+                      />
+                    ) : null}
+                    {onEdit ? (
+                      <NotebookActionButton
+                        icon="edit"
+                        label="עריכה"
+                        onClick={() => setEditing(true)}
+                        dense={dense || isSquares}
+                      />
+                    ) : null}
+                    {onToggleType ? (
+                      <NotebookActionButton
+                        icon="swap"
+                        label={display.isNote ? "הפוך למשימה" : "הפוך להערה"}
+                        onClick={onToggleType}
+                        dense={dense || isSquares}
+                      />
+                    ) : null}
+                    {onSendToBoard ? (
+                      <button
+                        type="button"
+                        {...{ [ITEM_ACTION_ATTR]: "" }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSendToBoard();
+                        }}
+                        title={sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")}
+                        aria-label={
+                          sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")
+                        }
+                        style={{ touchAction: "manipulation" }}
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-semibold text-white ${
+                          dense || isSquares ? "h-7 text-[10px]" : "h-9 text-[11px]"
+                        } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                      >
+                        <NotebookIcon name="check" size={dense || isSquares ? 14 : 16} tone="white" />
+                        {sendToBoardLabel ?? (display.isNote ? "להערות" : "למשימות")}
+                      </button>
+                    ) : null}
+                    {onSnooze ? (
+                      <NotebookActionButton
+                        icon="bell"
+                        label="תזכורת"
+                        onClick={onSnooze}
+                        reminder={display.reminderActive}
+                        dense={dense || isSquares}
+                      />
+                    ) : null}
+                    {onTaskListUndo ? (
+                      <NotebookActionButton
+                        icon="undo"
+                        label="שחזר"
+                        onClick={onTaskListUndo}
+                        active
+                        dense={dense || isSquares}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
             </div>
           </div>
         </div>
