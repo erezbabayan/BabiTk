@@ -522,7 +522,7 @@ body {
 .board-items-squares {
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  grid-auto-rows: 112px !important;
+  grid-auto-rows: 120px !important;
   gap: 6px !important;
   margin: 0 !important;
   padding: 6px !important;
@@ -537,7 +537,7 @@ body {
 
 @media (max-width: 1023px) {
   .board-items-squares {
-    grid-auto-rows: 124px !important;
+    grid-auto-rows: 132px !important;
   }
 }
 
@@ -550,8 +550,8 @@ body {
 .board-item-square-cell {
   box-sizing: border-box !important;
   min-width: 0 !important;
-  height: 112px !important;
-  min-height: 112px !important;
+  height: 120px !important;
+  min-height: 120px !important;
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
@@ -565,8 +565,8 @@ body {
 
 @media (max-width: 1023px) {
   .board-item-square-cell {
-    height: 124px !important;
-    min-height: 124px !important;
+    height: 132px !important;
+    min-height: 132px !important;
   }
 }
 

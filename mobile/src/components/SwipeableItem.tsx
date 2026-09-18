@@ -23,7 +23,7 @@ import { parseChecklist } from "../lib/checklist";
 import { PriorityStar } from "./PriorityStar";
 import type { SwipeSideAction } from "../lib/item-swipe-actions";
 import type { BoardItemView } from "../lib/board-item-view";
-import { BOARD_SQUARE_RADIUS_PX } from "../lib/board-item-layout";
+import { BOARD_SQUARE_RADIUS_PX, ITEM_STACK_GAP_PX } from "../lib/board-item-layout";
 import { SwipeActionSlot } from "./SwipeActionStrip";
 import {
   boardAccentColor,
@@ -239,7 +239,7 @@ export function SwipeableItem({
             accentSide === "right" ? styles.cardInnerAccentRight : styles.cardInnerAccentLeft,
           ]}
         >
-          <View>
+          <View style={[styles.contentStack, dense && styles.contentStackDense]}>
             <View style={styles.headlineRow}>
               {selecting ? (
                 <TouchableOpacity
@@ -546,6 +546,12 @@ const styles = StyleSheet.create({
   cardInnerSquares: { flexGrow: 1, flexShrink: 1 },
   cardInnerAccentRight: { paddingRight: 10 },
   cardInnerAccentLeft: { paddingLeft: 10 },
+  contentStack: {
+    gap: ITEM_STACK_GAP_PX,
+  },
+  contentStackDense: {
+    gap: 4,
+  },
   headlineRow: {
     flexDirection: "row-reverse",
     alignItems: "flex-start",
@@ -567,7 +573,7 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
     color: "#94a3b8",
   },
-  bodyBlock: { marginTop: 2, gap: 1 },
+  bodyBlock: { gap: ITEM_STACK_GAP_PX },
   bodyBlockCollapsed: {},
   bodyPrimary: {
     fontSize: ITEM_BODY_FONT_SIZE,
@@ -588,14 +594,12 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   expandBtn: {
-    marginTop: 1,
     fontSize: 10,
     fontWeight: "600",
     color: "#94a3b8",
     textAlign: "right",
   },
   activeLineCount: {
-    marginTop: 4,
     width: "100%",
     fontSize: 10,
     fontWeight: "600",
@@ -605,12 +609,10 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
   },
   activeLineCountDense: {
-    marginTop: 2,
     fontSize: 9,
     lineHeight: 11,
   },
   checkRow: {
-    marginTop: 2,
     alignSelf: "stretch",
     width: "100%",
     flexDirection: "row",
@@ -637,7 +639,6 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   scheduleInBody: {
-    marginTop: 4,
     fontSize: 10,
     lineHeight: 12,
     color: "#94a3b8",
@@ -647,7 +648,6 @@ const styles = StyleSheet.create({
   scheduleDense: {
     fontSize: 9,
     lineHeight: 11,
-    marginTop: 3,
   },
   cardFooter: {
     paddingHorizontal: 8,
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
   },
   cardFooterSquares: {
     marginTop: "auto",
-    paddingTop: 2,
+    paddingTop: ITEM_STACK_GAP_PX,
     paddingBottom: 2,
   },
   cardFooterActionsOnly: {

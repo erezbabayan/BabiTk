@@ -15,9 +15,11 @@ export const BOARD_ITEM_LIST_GAP_CLASS = "space-y-px";
 /** Subtle gutter between square tiles (keep in sync with CSS / mobile). */
 export const BOARD_SQUARE_GAP_PX = 6;
 export const BOARD_SQUARE_RADIUS_PX = 10;
+/** Equal vertical gap between title / tags / date rows on item cards. */
+export const ITEM_STACK_GAP_PX = 6;
 /** Uniform square-tile height — fits 2-line title, tags, date, and 28px actions. */
-export const BOARD_SQUARE_TILE_HEIGHT_PX = 112;
-export const BOARD_SQUARE_TILE_HEIGHT_MOBILE_PX = 124;
+export const BOARD_SQUARE_TILE_HEIGHT_PX = 120;
+export const BOARD_SQUARE_TILE_HEIGHT_MOBILE_PX = 132;
 /** Tap target inside square tiles (same as dense list). */
 export const BOARD_SQUARE_ACTION_PX = 28;
 

@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     alignSelf: "flex-start",
     gap: 3,
-    marginTop: 3,
+    marginTop: 0,
     flexShrink: 0,
   },
   rowSingleLine: {

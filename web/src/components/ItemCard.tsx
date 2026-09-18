@@ -321,9 +321,9 @@ export function ItemCard({
               <TaskCheckbox onClick={onComplete} dense={dense || isSquares} />
             ) : null}
             <div
-              className={`min-w-0 flex-1 ${dense ? "flex flex-col gap-0" : ""} ${
-                isSquares ? "flex min-w-0 flex-col" : ""
-              }`}
+              className={`min-w-0 flex-1 flex flex-col ${
+                dense ? "gap-1" : "gap-[6px]"
+              } ${isSquares ? "min-w-0" : ""}`}
             >
           <h3
             className={`min-w-0 w-full ${
@@ -336,13 +336,13 @@ export function ItemCard({
           </h3>
 
           {showSource ? (
-            <div className="mt-0.5">
+            <div>
               <SourceInlinePanel item={item} onClose={() => setShowSource(false)} />
             </div>
           ) : (
             <>
               {showBody ? (
-                <div className="mt-0.5 text-right">
+                <div className="text-right">
                   <p
                     className={`whitespace-pre-wrap ${
                       dense ? "text-[11px] font-normal leading-snug text-slate-600" : ITEM_BODY_CLASS
@@ -357,7 +357,7 @@ export function ItemCard({
                 <p
                   dir="rtl"
                   className={`w-full text-right font-medium text-amber-700 ${
-                    dense || isSquares ? "mt-0.5 text-[9px] leading-none" : "mt-1 text-[10px] leading-tight"
+                    dense || isSquares ? "text-[9px] leading-none" : "text-[10px] leading-tight"
                   }`}
                 >
                   {display.subtaskCount}
@@ -365,7 +365,7 @@ export function ItemCard({
               ) : null}
 
               {showChecklist ? (
-                <ul className={`${dense ? "mt-0.5" : "mt-1"} w-full space-y-0.5`} dir="rtl">
+                <ul className="w-full space-y-1" dir="rtl">
                   {visibleChecklist.map((entry) => (
                     <li key={entry.id} className="w-full">
                       <label
@@ -405,30 +405,30 @@ export function ItemCard({
                     e.stopPropagation();
                     setItemExpanded((value) => !value);
                   }}
-                  className="mt-0.5 shrink-0 text-[10px] font-medium text-slate-400 hover:text-slate-600"
+                  className="shrink-0 text-[10px] font-medium text-slate-400 hover:text-slate-600"
                   aria-expanded={itemExpanded}
                 >
                   {itemExpanded ? "צמצם" : "הרחב"}
                 </button>
               ) : null}
 
-              {hasTags && !isSquares ? (
-                <div className={dense ? "mt-0.5" : "mt-1"}>
-                  <ItemTagDots tags={visibleTags} userTags={userTags} dense={dense} />
-                </div>
+              {hasTags ? (
+                <ItemTagDots
+                  tags={visibleTags}
+                  userTags={userTags}
+                  dense={dense}
+                  singleLine={isSquares}
+                />
               ) : null}
 
-              {isSquares && (hasTags || scheduleLine) ? (
-                <div className="mt-0.5 flex min-h-0 min-w-0 flex-col gap-0 overflow-hidden">
-                  {hasTags ? (
-                    <ItemTagDots tags={visibleTags} userTags={userTags} singleLine />
-                  ) : null}
-                  {scheduleLine ? (
-                    <span className="truncate text-[9px] leading-none text-slate-400">
-                      {scheduleLine}
-                    </span>
-                  ) : null}
-                </div>
+              {scheduleLine ? (
+                <span
+                  className={`min-w-0 truncate leading-tight text-slate-400 ${
+                    dense ? "text-[9px]" : "text-[10px]"
+                  }`}
+                >
+                  {scheduleLine}
+                </span>
               ) : null}
             </>
           )}
@@ -439,25 +439,12 @@ export function ItemCard({
             <div
               className={`w-full ${
                 isSquares
-                  ? "mt-auto flex shrink-0 flex-col pt-0.5"
-                  : scheduleLine && !showSource
-                    ? "mt-1 flex flex-col gap-1 border-t border-slate-100/80 pt-1"
-                    : `flex flex-col ${
-                        dense
-                          ? "mt-0 min-h-0 leading-none"
-                          : "mt-1 min-h-0 border-t border-slate-100/80 pt-1"
-                      }`
+                  ? "mt-auto flex shrink-0 flex-col pt-[6px]"
+                  : dense
+                    ? "mt-1 flex flex-col"
+                    : "mt-[6px] flex flex-col"
               }`}
             >
-              {!isSquares && scheduleLine && !showSource ? (
-                <span
-                  className={`min-w-0 truncate leading-none text-slate-400 ${
-                    dense ? "text-[9px]" : "text-[10px]"
-                  }`}
-                >
-                  {scheduleLine}
-                </span>
-              ) : null}
               <div
                 className={`flex w-full min-w-0 flex-nowrap items-center justify-between ${
                   isSquares ? "board-square-actions gap-0.5" : "gap-1.5"
