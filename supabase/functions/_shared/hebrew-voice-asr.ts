@@ -17,6 +17,14 @@ import {
   HEBREW_ASR_WHISPER_PROMPT,
   pickBestHebrewTranscript,
 } from "./hebrew-asr-proofread.ts";
+import {
+  asrUploadVariants,
+  isLikelyAudioBytes,
+  mimeForContainer,
+  sniffAudioContainer,
+} from "./audio-format.ts";
+
+export { asrUploadVariants, isLikelyAudioBytes, mimeForContainer, sniffAudioContainer };
 
 export {
   applyHebrewAsrSpellingFixes,
@@ -208,6 +216,61 @@ async function transcribeViaRunPod(audio: Uint8Array): Promise<string> {
   return text;
 }
 
+function utf8Bytes(value: string): Uint8Array {
+  return new TextEncoder().encode(value);
+}
+
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const part of parts) total += part.byteLength;
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.byteLength;
+  }
+  return out;
+}
+
+/**
+ * Raw multipart — Deno FormData/File often produces an empty or unnamed
+ * part, which Groq/OpenAI then reject as an unrecognized WhatsApp ogg.
+ */
+function buildWhisperMultipart(
+  audio: Uint8Array,
+  fileName: string,
+  mimeType: string,
+  fields: Record<string, string>,
+): { body: Uint8Array; contentType: string } {
+  const boundary = `----BabitkAsr${Date.now().toString(16)}`;
+  const parts: Uint8Array[] = [
+    utf8Bytes(
+      `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType}\r\n\r\n`,
+    ),
+    audio,
+    utf8Bytes("\r\n"),
+  ];
+  for (const [name, value] of Object.entries(fields)) {
+    parts.push(
+      utf8Bytes(
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`,
+      ),
+    );
+  }
+  parts.push(utf8Bytes(`--${boundary}--\r\n`));
+  return {
+    body: concatBytes(parts),
+    contentType: `multipart/form-data; boundary=${boundary}`,
+  };
+}
+
+function isAsrFormatError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /ASR HTTP 400|unrecognized|invalid file|could not process|unsupported|format/i.test(
+    message,
+  );
+}
+
 async function transcribeWithOpenAiCompatible(
   url: string,
   apiKey: string,
@@ -218,33 +281,48 @@ async function transcribeWithOpenAiCompatible(
   prompt = HEBREW_ASR_WHISPER_PROMPT,
   timeoutMs = ASR_TIMEOUT_MS,
 ): Promise<string> {
-  const upload = normalizeAsrUpload(fileName, mimeType);
-  const copy = new Uint8Array(audio.byteLength);
-  copy.set(audio);
-  const file = new File([copy], upload.fileName, { type: upload.mimeType });
-  const form = new FormData();
-  form.append("file", file);
-  form.append("model", model);
-  form.append("language", "he");
-  form.append("prompt", prompt);
+  const fields: Record<string, string> = {
+    model,
+    language: "he",
+    prompt,
+  };
   if (model.includes("whisper")) {
-    form.append("temperature", "0");
-    form.append("response_format", "json");
+    fields.temperature = "0";
+    fields.response_format = "json";
   }
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-    signal: timeoutSignal(timeoutMs),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`ASR HTTP ${response.status}: ${body.slice(0, 200)}`);
+  const variants = asrUploadVariants(fileName, mimeType, audio);
+  let lastError: unknown;
+  for (const upload of variants) {
+    try {
+      const { body, contentType } = buildWhisperMultipart(
+        audio,
+        upload.fileName,
+        upload.mimeType,
+        fields,
+      );
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": contentType,
+        },
+        body,
+        signal: timeoutSignal(timeoutMs),
+      });
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`ASR HTTP ${response.status}: ${text.slice(0, 200)}`);
+      }
+      const data = (await response.json()) as { text?: string };
+      const text = data.text?.trim() ?? "";
+      if (!text) throw new Error("empty_transcription");
+      return text;
+    } catch (error) {
+      lastError = error;
+      if (!isAsrFormatError(error)) throw error;
+    }
   }
-  const data = (await response.json()) as { text?: string };
-  const text = data.text?.trim() ?? "";
-  if (!text) throw new Error("empty_transcription");
-  return text;
+  throw lastError instanceof Error ? lastError : new Error("asr_upload_failed");
 }
 
 export async function transcribeAudio(
@@ -266,10 +344,17 @@ export async function transcribeAudio(
     | "auto";
   const errors: string[] = [];
   const hotPath = options?.hotPath === true;
+  const container = sniffAudioContainer(audio);
+  const oggLike = container === "ogg" || mimeType.toLowerCase().includes("ogg") || mimeType.toLowerCase().includes("opus");
   const asrTimeout =
-    hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
+    hotPath && !oggLike
       ? SHORT_ASR_TIMEOUT_MS
-      : ASR_TIMEOUT_MS;
+      : oggLike
+        ? Math.max(ASR_TIMEOUT_MS, 15_000)
+        : hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
+          ? SHORT_ASR_TIMEOUT_MS
+          : ASR_TIMEOUT_MS;
+  const resolvedMime = mimeForContainer(container, mimeType);
 
   const engines: Array<"runpod" | "groq" | "openai"> = hotPath
     ? ["groq", "openai", "runpod"]
@@ -291,7 +376,7 @@ export async function transcribeAudio(
           groqModel,
           audio,
           fileName,
-          mimeType,
+          resolvedMime,
           prompt,
           asrTimeout,
         );
@@ -303,11 +388,12 @@ export async function transcribeAudio(
       }
       if (engine === "openai") {
         if (!openAiKey) continue;
-        const models = [openAiModel, "whisper-1"].filter(
-          (model, index, all) => all.indexOf(model) === index,
-        );
+        const models = oggLike
+          ? ["whisper-1", openAiModel]
+          : [openAiModel, "whisper-1"];
+        const uniqueModels = models.filter((model, index, all) => all.indexOf(model) === index);
         let lastOpenAiError: unknown;
-        for (const model of models) {
+        for (const model of uniqueModels) {
           try {
             const text = await transcribeWithOpenAiCompatible(
               "https://api.openai.com/v1/audio/transcriptions",
@@ -315,7 +401,7 @@ export async function transcribeAudio(
               model,
               audio,
               fileName,
-              mimeType,
+              resolvedMime,
               prompt,
               asrTimeout,
             );
@@ -373,17 +459,27 @@ export async function downloadAudioBytes(url: string): Promise<{
   bytes: Uint8Array;
   mimeType: string;
 }> {
-  const response = await fetch(url, { signal: timeoutSignal(DOWNLOAD_TIMEOUT_MS) });
+  const response = await fetch(url, {
+    headers: {
+      Accept: "audio/*,application/octet-stream,*/*",
+      "User-Agent": "BabiTk-whatsapp-asr/1.0",
+    },
+    signal: timeoutSignal(DOWNLOAD_TIMEOUT_MS),
+  });
   if (!response.ok) {
     throw new Error(`audio_download_failed:${response.status}`);
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength < 64) {
-    throw new Error("audio_too_short");
+  if (!isLikelyAudioBytes(bytes)) {
+    throw new Error("downloaded_not_audio");
   }
+  const sniffed = sniffAudioContainer(bytes);
   return {
     bytes,
-    mimeType: response.headers.get("content-type") || "audio/ogg",
+    mimeType: mimeForContainer(
+      sniffed,
+      response.headers.get("content-type") || "audio/ogg",
+    ),
   };
 }
 

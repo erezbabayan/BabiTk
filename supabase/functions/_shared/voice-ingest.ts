@@ -13,6 +13,8 @@ import {
   downloadAudioBytes,
   isHttpUrl,
   isStorageObjectPath,
+  mimeForContainer,
+  sniffAudioContainer,
   transcribeAndProofreadVoice,
 } from "./hebrew-voice-asr.ts";
 import {
@@ -98,9 +100,10 @@ async function downloadFromStorage(
   if (bytes.byteLength < 64) {
     throw new Error("audio_too_short");
   }
+  const sniffed = sniffAudioContainer(bytes);
   return {
     bytes,
-    mimeType: mimeTypeHint || data.type || "audio/webm",
+    mimeType: mimeForContainer(sniffed, mimeTypeHint || data.type || "audio/ogg"),
     audioUrl: path,
   };
 }
@@ -117,44 +120,52 @@ async function downloadVoiceAudio(params: {
     return downloadFromStorage(params.supabase, params.downloadUrl!.trim(), params.mimeType);
   }
 
+  const tryHttp = async (url: string) => {
+    const downloaded = await downloadAudioBytes(url);
+    return {
+      bytes: downloaded.bytes,
+    mimeType: downloaded.mimeType || params.mimeType || "audio/ogg",
+      audioUrl: url,
+    };
+  };
+
+  const directUrl = isHttpUrl(params.downloadUrl) ? params.downloadUrl!.trim() : "";
+  if (directUrl) {
+    try {
+      return await tryHttp(directUrl);
+    } catch {
+      // Green-API often sends a URL that is not ready yet. Ask downloadFile.
+    }
+  }
+
   let audioUrl = await resolveGreenApiMediaUrl({
-    downloadUrl: isHttpUrl(params.downloadUrl) ? params.downloadUrl : null,
+    downloadUrl: null,
     chatId: params.chatId,
     messageId: params.messageId,
     credentials: params.credentials,
+    preferApi: true,
   });
   if (!audioUrl) {
     throw new Error("voice_audio_url_missing");
   }
-
   try {
-    const downloaded = await downloadAudioBytes(audioUrl);
-    return {
-      bytes: downloaded.bytes,
-      mimeType: params.mimeType || downloaded.mimeType,
-      audioUrl,
-    };
+    return await tryHttp(audioUrl);
   } catch (error) {
-    if (!params.credentials) throw error;
     audioUrl = await resolveGreenApiMediaUrl({
       downloadUrl: null,
       chatId: params.chatId,
       messageId: params.messageId,
       credentials: params.credentials,
+      preferApi: true,
     });
     if (!audioUrl) throw error;
-    const downloaded = await downloadAudioBytes(audioUrl);
-    return {
-      bytes: downloaded.bytes,
-      mimeType: params.mimeType || downloaded.mimeType,
-      audioUrl,
-    };
+    return await tryHttp(audioUrl);
   }
 }
 
 function isRetryableVoiceAsrError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /voice_audio_url_missing|audio_too_short|download|404|not found|failed to fetch|fetch failed|media/i.test(
+  return /voice_audio_url_missing|audio_too_short|downloaded_not_audio|download|403|401|404|410|not found|failed to fetch|fetch failed|media/i.test(
     message,
   );
 }
@@ -176,7 +187,7 @@ export async function transcribeVoiceMessageWithRetry(
   rawText: string;
   audioUrl: string | null;
 }> {
-  const delaysMs = [0, 700, 1600];
+  const delaysMs = [0, 900, 2200];
   let lastError: unknown;
   for (let index = 0; index < attempts; index += 1) {
     const delay = delaysMs[index] ?? 1600;

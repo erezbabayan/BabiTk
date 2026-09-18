@@ -132,6 +132,7 @@ export function isSystemWhatsAppReply(text: string): boolean {
     t.startsWith("נפתחו ") ||
     t.startsWith("קלטתי") ||
     t.startsWith("לא הצלחתי לזהות") ||
+    t.startsWith("לא הצלחתי לתמלל") ||
     t.startsWith("חרגת ממכסת") ||
     t.startsWith("הגעת למכסת") ||
     t.startsWith("מספר הטלפון שלך לא מקושר") ||
