@@ -35,9 +35,10 @@ const WEEKDAY_LETTERS: Record<string, number> = {
 
 const WEEKDAY_NAME = "ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת";
 
-/** ביום ראשון / יום ראשון / בראשון / ליום ראשון / ביום הראשון / … הקרוב|הבא
+/** ביום/בימי ראשון / יום/ימי ראשון / בראשון / … הקרוב|הבא
  * Note: bare "לשבת" is NOT matched (false positive with "לשבת על זה"). */
-const WEEKDAY_PHRASE = `(?:עד\\s+)?(?:ביום\\s+ה?|יום\\s+ה?|ליום\\s+ה?|ב)(?:${WEEKDAY_NAME})(?:\\s+ה(?:בא|קרוב))?`;
+const WEEKDAY_LEAD = String.raw`בימי\s+ה?|ביום\s+ה?|ימי\s+ה?|יום\s+ה?|ליום\s+ה?|ב`;
+const WEEKDAY_PHRASE = `(?:עד\\s+)?(?:${WEEKDAY_LEAD})(?:${WEEKDAY_NAME})(?:\\s+ה(?:בא|קרוב))?`;
 
 const WEEKEND_RE = /(?:בסוף\s+השבוע|ב?סופ["״']?ש|ב?סופש)/u;
 
@@ -345,7 +346,7 @@ function matchTodayWithTime(
 function matchWeekday(text: string, timezone: string, referenceDate: Date): string | null {
   const match = text.match(
     new RegExp(
-      `(?:עד\\s+)?(?:ביום\\s+ה?|יום\\s+ה?|ליום\\s+ה?|ב)(${WEEKDAY_NAME})(?:\\s+ה(?:בא|קרוב))?`,
+      `(?:עד\\s+)?(?:${WEEKDAY_LEAD})(${WEEKDAY_NAME})(?:\\s+ה(?:בא|קרוב))?`,
       "u",
     ),
   );
@@ -355,7 +356,30 @@ function matchWeekday(text: string, timezone: string, referenceDate: Date): stri
   if (weekday === undefined) return null;
 
   const { hour, minute } = resolveClockTime(text, 9, 0);
-  return nextWeekdayIso(timezone, referenceDate, weekday, hour, minute);
+  const iso = nextWeekdayIso(timezone, referenceDate, weekday, hour, minute);
+  return shiftToNextCalendarWeekIfRequested(text, iso, timezone, referenceDate, hour, minute);
+}
+
+function zonedDayOrdinal(parts: { year: number; month: number; day: number }): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day) / 86_400_000;
+}
+
+/** «יום רביעי שבוע הבא» means that weekday in the next Sunday-start week. */
+function shiftToNextCalendarWeekIfRequested(
+  text: string,
+  iso: string,
+  timezone: string,
+  referenceDate: Date,
+  hour: number,
+  minute: number,
+): string {
+  if (!NEXT_WEEK_RE.test(text)) return iso;
+  const dueParts = getZonedParts(new Date(iso), timezone);
+  const refParts = getZonedParts(referenceDate, timezone);
+  const dueWeekStart = zonedDayOrdinal(dueParts) - dueParts.weekday;
+  const refWeekStart = zonedDayOrdinal(refParts) - refParts.weekday;
+  if (dueWeekStart > refWeekStart) return iso;
+  return addZonedDays(timezone, new Date(iso), 7, hour, minute);
 }
 
 function matchWeekdayLetter(
@@ -463,13 +487,7 @@ export function stripTemporalPhrases(text: string): string {
       .replace(/\s*הבוקר\s*/giu, " ")
       .replace(/\s*בערב\s*/giu, " ")
       .replace(/\s*בבוקר\s*/giu, " ")
-      .replace(
-        new RegExp(
-          `\\s*(?:עד\\s+)?(?:ביום\\s+ה?|יום\\s+ה?|ליום\\s+ה?|ב)(?:${WEEKDAY_NAME})(?:\\s+ה(?:בא|קרוב))?\\s*`,
-          "giu",
-        ),
-        " ",
-      )
+      .replace(new RegExp(`\\s*${WEEKDAY_PHRASE}\\s*`, "giu"), " ")
       .replace(/\s*(?:עד\s+)?(?:ביום\s+|יום\s+|ליום\s+)[א-וש]['׳]?\s*/giu, " ")
       .replace(/\s*(?:בעוד|עוד)\s+\d+\s+(?:ימים?|שעות?|דקות?)\s*/giu, " ")
       .replace(/\s*(?:בעוד|עוד)\s+(?:שעתיים|שעה|חצי\s+שעה|רבע\s+שעה|דקה)\s*/giu, " ")

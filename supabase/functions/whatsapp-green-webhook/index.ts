@@ -47,7 +47,7 @@ import {
   replyWhatsAppSystemQuestion,
 } from "../_shared/whatsapp-system-question-reply.ts";
 import { evaluateCaptureGate } from "../_shared/capture-gate.ts";
-import { parseInboundText, type IngestSourceType } from "../_shared/inbound-item.ts";
+import { parseInboundText, type IngestSourceType, layoutMetadataFromParsed } from "../_shared/inbound-item.ts";
 
 const ASR_FAIL_REPLY =
   "לא הצלחתי לתמלל את ההקלטה. כתבו את השאלה בטקסט, למשל: בבי מה המשימות היום";
@@ -556,6 +556,8 @@ async function insertCapturedItem(
       tags: row.tags,
       due_date: row.due_date,
       analysis: undefined as ReturnType<typeof parseInboundText>[number]["analysis"],
+      reminder_recurrence: undefined as ReturnType<typeof parseInboundText>[number]["reminder_recurrence"],
+      checklist: undefined as ReturnType<typeof parseInboundText>[number]["checklist"],
     }));
   }
   const rows =
@@ -569,6 +571,8 @@ async function insertCapturedItem(
             tags: [] as string[],
             due_date: null as string | null,
             analysis: undefined as unknown,
+            reminder_recurrence: null,
+            checklist: undefined,
           },
         ];
 
@@ -597,6 +601,7 @@ async function insertCapturedItem(
           analysis: row.analysis,
           whatsapp_message_id: message.messageId,
           chat_id: message.chatId,
+          ...layoutMetadataFromParsed(row),
           ...voiceMeta,
         },
         sort_order: now + index,
@@ -630,6 +635,7 @@ Deno.serve(async (req) => {
       method: "POST",
       asr: "inline-whisper-v8",
       qa: "babi-v5",
+      layout: "task-v1",
       engines: {
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),

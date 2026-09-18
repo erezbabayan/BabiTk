@@ -25,4 +25,14 @@ describe("parseInboundText", () => {
   it("returns no items for empty text", () => {
     assert.deepEqual(parseInboundText("   ", { sourceType: "whatsapp_text" }), []);
   });
+
+  it("does not copy the full dictation into content for a title+schedule capture", () => {
+    const items = parseInboundText("מחר ב-10 להתקשר למוסך", {
+      sourceType: "whatsapp_text",
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.equal(items[0]?.content, "");
+    assert.equal(items[0]?.title, "להתקשר למוסך");
+  });
 });

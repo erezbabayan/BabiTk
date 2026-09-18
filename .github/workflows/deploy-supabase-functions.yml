@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "supabase/functions/**"
+      - "convex/lib/ingest/**"
       - "supabase/config.toml"
       - ".github/workflows/deploy-supabase-functions.yml"
   workflow_dispatch:

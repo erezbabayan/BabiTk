@@ -9,6 +9,7 @@ import {
   deriveShortTaskTitle,
   deriveTaskContent,
 } from "./taskPresentation.ts";
+import { stripCaptureLead } from "./taskLayout.ts";
 import {
   extractTimeMention,
   hasTemporalHint,
@@ -75,7 +76,7 @@ function buildAnalysis(
 }
 
 function cleanSegmentLead(text: string): string {
-  return text
+  return stripCaptureLead(text)
     .replace(/^(?:וגם|תזכיר לי|תזכירי לי)\s+/iu, "")
     .replace(/[ \t\u00a0]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
