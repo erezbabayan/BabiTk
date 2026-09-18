@@ -3,6 +3,11 @@ import { requireSupabase, isDemoMode, isSupabaseConfigured } from "./supabase";
 import { isDemoPremium, searchDemoNotes, setDemoPremium } from "./demo-store";
 import { getCloudUserProfile, setCloudUserTier } from "./user-profile";
 import { listUserTagsFromSupabase, saveUserTagsToSupabase } from "./user-tags-cloud";
+import {
+  disconnectGoogleCalendarFromEdge,
+  getGoogleCalendarConnectUrlFromEdge,
+  getGoogleCalendarStatusFromEdge,
+} from "./google-calendar-client";
 
 export class PaywallError extends Error {
   readonly code: "audio_quota" | "ai_parse_quota";
@@ -235,24 +240,35 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
     return "#demo-calendar";
   }
   if (isSupabaseConfigured) {
-    throw new Error("חיבור Google Calendar באתר הסטטי נשמר בחשבון, בלי שרת OAuth נפרד.");
+    return getGoogleCalendarConnectUrlFromEdge();
   }
 
   const data = await apiFetch<{ url: string }>("/api/integrations/google/connect");
   return data.url;
 }
 
-export async function getGoogleCalendarStatus(): Promise<boolean> {
+export async function getGoogleCalendarStatus(): Promise<{
+  linked: boolean;
+  configured: boolean;
+}> {
   if (isDemoMode) {
-    return false;
+    return { linked: false, configured: false };
   }
   if (isSupabaseConfigured) {
-    const profile = await getCloudUserProfile();
-    return profile.google_calendar_enabled;
+    return getGoogleCalendarStatusFromEdge();
   }
 
   const data = await apiFetch<{ linked: boolean }>("/api/integrations/google/status");
-  return data.linked;
+  return { linked: Boolean(data.linked), configured: true };
+}
+
+export async function disconnectGoogleCalendarApi(): Promise<void> {
+  if (isDemoMode) return;
+  if (isSupabaseConfigured) {
+    await disconnectGoogleCalendarFromEdge();
+    return;
+  }
+  await apiFetch("/api/integrations/google/disconnect", { method: "POST" });
 }
 
 export async function setSubscriptionTierApi(

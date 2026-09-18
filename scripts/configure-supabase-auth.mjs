@@ -115,6 +115,7 @@ async function main() {
     patch.external_google_client_id = google.clientId;
     patch.external_google_secret = google.secret;
     patch.external_google_skip_nonce_check = true;
+    patch.security_manual_linking_enabled = true;
   }
 
   await api("PATCH", patch);

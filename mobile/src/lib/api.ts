@@ -724,8 +724,47 @@ export async function uploadVoiceNote(
   await uploadMultipart("/api/ai/voice-ingest", uri, "audio/m4a", "recording.m4a");
 }
 
+async function invokeGoogleCalendar<T>(
+  action: string,
+  options: { method?: "GET" | "POST"; body?: Record<string, unknown> } = {},
+): Promise<T> {
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+  const token = await getAccessToken();
+  if (!supabaseUrl || !token) {
+    throw new Error("Not authenticated");
+  }
+  const response = await fetch(
+    `${supabaseUrl.replace(/\/$/, "")}/functions/v1/google-calendar/${action}`,
+    {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey || token,
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    },
+  );
+  const data = (await response.json().catch(() => null)) as T | { message?: string; error?: string } | null;
+  if (!response.ok) {
+    const record = data && typeof data === "object" ? data : null;
+    const message =
+      (record && "message" in record && typeof record.message === "string" && record.message) ||
+      (record && "error" in record && typeof record.error === "string" && record.error) ||
+      "calendar_request_failed";
+    throw new Error(message);
+  }
+  return data as T;
+}
+
 export async function getGoogleCalendarConnectUrl(): Promise<string> {
   if (isDemoMode) return "#demo-calendar";
+  if (isSupabaseConfigured) {
+    const data = await invokeGoogleCalendar<{ url: string }>("connect");
+    if (!data.url) throw new Error("Calendar connect failed");
+    return data.url;
+  }
   const res = await apiFetch("/api/integrations/google/connect");
   if (!res.ok) throw new Error("Calendar connect failed");
   const data = (await res.json()) as { url: string };
@@ -734,10 +773,24 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
 
 export async function getGoogleCalendarStatus(): Promise<boolean> {
   if (isDemoMode) return false;
+  if (isSupabaseConfigured) {
+    const data = await invokeGoogleCalendar<{ linked: boolean }>("status");
+    return Boolean(data.linked);
+  }
   const res = await apiFetch("/api/integrations/google/status");
   if (!res.ok) return false;
   const data = (await res.json()) as { linked: boolean };
   return data.linked;
+}
+
+export async function disconnectGoogleCalendar(): Promise<void> {
+  if (isDemoMode) return;
+  if (isSupabaseConfigured) {
+    await invokeGoogleCalendar("disconnect", { method: "POST", body: {} });
+    return;
+  }
+  const res = await apiFetch("/api/integrations/google/disconnect", { method: "POST" });
+  if (!res.ok) throw new Error("Calendar disconnect failed");
 }
 
 export async function createBillingPortal(): Promise<string> {

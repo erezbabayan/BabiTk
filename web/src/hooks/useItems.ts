@@ -46,6 +46,7 @@ import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { collectPagedRows } from "../lib/supabase-paginate";
 import { applyItemRealtimeChange } from "../lib/realtime-items";
 import { completeItemApi } from "../lib/api";
+import { queueGoogleCalendarItemSync } from "../lib/google-calendar-client";
 
 import { useConvexBackend } from "../lib/data-backend";
 
@@ -291,6 +292,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
         if (error) throw error;
         if (!data) throw new Error("העדכון לא נשמר");
+        queueGoogleCalendarItemSync(id, patch);
       } catch (error) {
         await refresh();
         throw error;
@@ -350,6 +352,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
           normalized.map(async ({ id, patch }) => {
             const { error } = await supabase.from("mindtasker_items").update(patch).eq("id", id);
             if (error) throw error;
+            queueGoogleCalendarItemSync(id, patch);
           }),
         );
       } catch (error) {

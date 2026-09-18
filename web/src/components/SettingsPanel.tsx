@@ -16,7 +16,7 @@ import { NotificationPrefs } from "./NotificationPrefs";
 import type { UsageSummary } from "../lib/api";
 import { isSupabaseConfigured } from "../lib/supabase";
 
-type SettingsSection =
+export type SettingsSection =
   | "menu"
   | "user"
   | "notifications"
@@ -39,13 +39,14 @@ interface SettingsPanelProps {
   onUsageChanged?: () => void;
   /** When true, User / WhatsApp / Calendar use the Supabase cloud account. */
   cloudAccount?: boolean;
+  initialSection?: SettingsSection;
 }
 
 function hasCloudAccount(cloudAccount: boolean | undefined): boolean {
   return cloudAccount ?? isSupabaseConfigured;
 }
 
-const MENU_ITEMS: { id: SettingsSection; label: string }[] = [
+export const SETTINGS_MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "user", label: "👤 משתמש" },
   { id: "notifications", label: "🔔 התראות" },
   { id: "whatsapp", label: "💬 וואטסאפ — חיבור" },
@@ -74,15 +75,16 @@ export function SettingsPanel({
   onClose,
   onUsageChanged,
   cloudAccount,
+  initialSection = "menu",
 }: SettingsPanelProps) {
-  const [section, setSection] = useState<SettingsSection>("menu");
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const isAdmin = false;
   const cloudBackend = hasCloudAccount(cloudAccount);
   const showNotifications = cloudBackend;
 
   const menuItems = (showNotifications
-    ? MENU_ITEMS
-    : MENU_ITEMS.filter((item) => item.id !== "notifications")
+    ? SETTINGS_MENU_ITEMS
+    : SETTINGS_MENU_ITEMS.filter((item) => item.id !== "notifications")
   ).concat(isAdmin ? [{ id: "admin" as const, label: "🛡 ניהול משתמשים" }] : []);
 
   return (
@@ -105,7 +107,7 @@ export function SettingsPanel({
                 ? "הגדרות בורדים"
                 : section === "notifications"
                   ? "התראות"
-                  : MENU_ITEMS.find((item) => item.id === section)?.label ??
+                  : SETTINGS_MENU_ITEMS.find((item) => item.id === section)?.label ??
                     (section === "admin" ? "🛡 ניהול משתמשים" : "")}
           </h2>
           <div className="flex gap-2">
@@ -182,7 +184,9 @@ export function SettingsPanel({
         {section === "calendar" ? (
           cloudBackend ? (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">חבר את Google Calendar כדי לסנכרן משימות עם היומן.</p>
+              <p className="text-sm text-slate-600">
+                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
+              </p>
               <GoogleCalendarLink />
             </div>
           ) : (

@@ -6,7 +6,7 @@ import {
 } from "../types/nlu-task.js";
 import type { DbMindtaskerItem } from "../types/database.js";
 import { createSourceMaterial, findInboxUserByPhone } from "./items.service.js";
-import { syncTaskToCalendar } from "./calendar.service.js";
+import { reconcileItemCalendar } from "./calendar.service.js";
 
 const DEFAULT_TIMEZONE = "Asia/Jerusalem";
 
@@ -226,15 +226,27 @@ export async function createTaskFromNluPayload(
   }
 
   const item = data as DbMindtaskerItem;
-  if (item.due_date) {
-    await syncTaskToCalendar({
+  try {
+    const eventId = await reconcileItemCalendar({
       userId: item.user_id,
       itemId: item.id,
-      title: item.title,
-      content: item.content,
-      dueDate: item.due_date,
-      existingEventId: item.calendar_event_id,
-    }).catch(() => undefined);
+      item: {
+        title: item.title,
+        content: item.content,
+        is_actionable: item.is_actionable,
+        due_date: item.due_date,
+        calendar_event_id: item.calendar_event_id,
+      },
+    });
+    if (eventId) {
+      await supabase
+        .from("mindtasker_items")
+        .update({ calendar_event_id: eventId })
+        .eq("id", item.id);
+      item.calendar_event_id = eventId;
+    }
+  } catch {
+    // Best-effort: task creation succeeds even if Google Calendar is unavailable
   }
 
   const responseText = buildTaskCreatedConfirmation(params.payload.task, dueDate, {

@@ -1,6 +1,13 @@
 import { google } from "googleapis";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import {
+  calendarEventBody,
+  createOAuthState,
+  parseOAuthState,
+  shouldUpsertCalendarEvent,
+  type CalendarItemSnapshot,
+} from "../lib/google-calendar.js";
 
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
 
@@ -16,20 +23,25 @@ export function getGoogleOAuthClient() {
   );
 }
 
-export function buildGoogleAuthUrl(userId: string): string {
+export async function buildGoogleAuthUrl(userId: string): Promise<string> {
   const client = getGoogleOAuthClient();
+  const state = await createOAuthState(userId, env.googleClientSecret ?? "");
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: CALENDAR_SCOPES,
-    state: userId,
+    state,
   });
 }
 
 export async function exchangeGoogleCode(
-  userId: string,
+  state: string,
   code: string,
 ): Promise<void> {
+  if (!env.googleClientSecret) {
+    throw new Error("Google Calendar is not configured");
+  }
+  const userId = await parseOAuthState(state, env.googleClientSecret);
   const client = getGoogleOAuthClient();
   const { tokens } = await client.getToken(code);
 
@@ -51,6 +63,20 @@ export async function exchangeGoogleCode(
   }
 }
 
+export async function disconnectGoogleCalendar(userId: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from("users")
+    .update({
+      google_refresh_token: null,
+      google_calendar_enabled: false,
+    })
+    .eq("id", userId);
+  if (error) {
+    throw new Error(`Failed to disconnect Google Calendar: ${error.message}`);
+  }
+}
+
 async function getCalendarClientForUser(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -68,6 +94,23 @@ async function getCalendarClientForUser(userId: string) {
   return google.calendar({ version: "v3", auth: client });
 }
 
+export async function deleteCalendarEvent(
+  userId: string,
+  eventId: string | null | undefined,
+): Promise<void> {
+  if (!eventId) return;
+  const calendar = await getCalendarClientForUser(userId);
+  if (!calendar) return;
+  try {
+    await calendar.events.delete({
+      calendarId: "primary",
+      eventId,
+    });
+  } catch {
+    // Missing events are fine — the local id will be cleared by the caller.
+  }
+}
+
 export async function syncTaskToCalendar(params: {
   userId: string;
   itemId: string;
@@ -79,24 +122,26 @@ export async function syncTaskToCalendar(params: {
   const calendar = await getCalendarClientForUser(params.userId);
   if (!calendar) return null;
 
-  const start = new Date(params.dueDate);
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
-  const timeZone = env.cronTimezone;
-
-  const eventBody = {
-    summary: params.title,
-    description: `${params.content}\n\n— BabiTk`.trim(),
-    start: { dateTime: start.toISOString(), timeZone },
-    end: { dateTime: end.toISOString(), timeZone },
-  };
+  const eventBody = calendarEventBody(
+    {
+      title: params.title,
+      content: params.content,
+      due_date: params.dueDate,
+    },
+    env.cronTimezone,
+  );
 
   if (params.existingEventId) {
-    const updated = await calendar.events.update({
-      calendarId: "primary",
-      eventId: params.existingEventId,
-      requestBody: eventBody,
-    });
-    return updated.data.id ?? params.existingEventId;
+    try {
+      const updated = await calendar.events.update({
+        calendarId: "primary",
+        eventId: params.existingEventId,
+        requestBody: eventBody,
+      });
+      return updated.data.id ?? params.existingEventId;
+    } catch {
+      // Recreate when the stored event was removed in Google Calendar.
+    }
   }
 
   const created = await calendar.events.insert({
@@ -105,4 +150,23 @@ export async function syncTaskToCalendar(params: {
   });
 
   return created.data.id ?? null;
+}
+
+export async function reconcileItemCalendar(params: {
+  userId: string;
+  itemId: string;
+  item: CalendarItemSnapshot;
+}): Promise<string | null> {
+  if (shouldUpsertCalendarEvent(params.item) && params.item.due_date) {
+    return await syncTaskToCalendar({
+      userId: params.userId,
+      itemId: params.itemId,
+      title: params.item.title,
+      content: params.item.content,
+      dueDate: params.item.due_date,
+      existingEventId: params.item.calendar_event_id,
+    });
+  }
+  await deleteCalendarEvent(params.userId, params.item.calendar_event_id);
+  return null;
 }

@@ -12,7 +12,7 @@ import {
 import { getUserTagNames } from "./user-tags.service.js";
 import type { DbMindtaskerItem, DbSourceMaterial, SourceType } from "../types/database.js";
 import { syncNoteEmbedding } from "./search.service.js";
-import { syncTaskToCalendar } from "./calendar.service.js";
+import { reconcileItemCalendar } from "./calendar.service.js";
 import { resolveRestoreFromArchivePatch } from "../lib/item-restore.js";
 
 export interface CreateSourceMaterialInput {
@@ -191,7 +191,33 @@ export async function toggleItemType(
     await syncNoteEmbedding(itemId);
   }
 
-  return data as DbMindtaskerItem;
+  const next = data as DbMindtaskerItem;
+  try {
+    const eventId = await reconcileItemCalendar({
+      userId,
+      itemId,
+      item: {
+        title: next.title,
+        content: next.content,
+        is_actionable: next.is_actionable,
+        due_date: next.due_date,
+        calendar_event_id: item.calendar_event_id,
+      },
+    });
+    if (eventId !== (item.calendar_event_id ?? null)) {
+      const { error: calError } = await supabase
+        .from("mindtasker_items")
+        .update({ calendar_event_id: eventId })
+        .eq("id", itemId);
+      if (!calError) {
+        next.calendar_event_id = eventId;
+      }
+    }
+  } catch {
+    // Best-effort: type toggle succeeds even if Google Calendar is unavailable
+  }
+
+  return next;
 }
 
 export async function approveItem(
@@ -220,30 +246,29 @@ export async function approveItem(
     throw new Error(`Failed to approve item: ${error?.message ?? itemId}`);
   }
 
-  if (item.is_actionable && item.due_date) {
-    try {
-      const eventId = await syncTaskToCalendar({
-        userId,
-        itemId,
+  try {
+    const eventId = await reconcileItemCalendar({
+      userId,
+      itemId,
+      item: {
         title: item.title,
         content: item.content,
-        dueDate: item.due_date,
-        existingEventId: item.calendar_event_id,
-      });
-
-      if (eventId) {
-        const { error: calError } = await supabase
-          .from("mindtasker_items")
-          .update({ calendar_event_id: eventId })
-          .eq("id", itemId);
-
-        if (!calError) {
-          (data as DbMindtaskerItem).calendar_event_id = eventId;
-        }
+        is_actionable: item.is_actionable,
+        due_date: item.due_date,
+        calendar_event_id: item.calendar_event_id,
+      },
+    });
+    if (eventId !== (item.calendar_event_id ?? null)) {
+      const { error: calError } = await supabase
+        .from("mindtasker_items")
+        .update({ calendar_event_id: eventId })
+        .eq("id", itemId);
+      if (!calError) {
+        (data as DbMindtaskerItem).calendar_event_id = eventId;
       }
-    } catch {
-      // Best-effort: approval succeeds even if Google Calendar is unavailable
     }
+  } catch {
+    // Best-effort: approval succeeds even if Google Calendar is unavailable
   }
 
   return data as DbMindtaskerItem;
@@ -320,7 +345,33 @@ export async function snoozeItem(
     throw new Error(`Failed to snooze item: ${error?.message ?? itemId}`);
   }
 
-  return data as DbMindtaskerItem;
+  const next = data as DbMindtaskerItem;
+  try {
+    const eventId = await reconcileItemCalendar({
+      userId,
+      itemId,
+      item: {
+        title: next.title,
+        content: next.content,
+        is_actionable: next.is_actionable,
+        due_date: next.due_date,
+        calendar_event_id: next.calendar_event_id,
+      },
+    });
+    if (eventId !== (next.calendar_event_id ?? null)) {
+      const { error: calError } = await supabase
+        .from("mindtasker_items")
+        .update({ calendar_event_id: eventId })
+        .eq("id", itemId);
+      if (!calError) {
+        next.calendar_event_id = eventId;
+      }
+    }
+  } catch {
+    // Best-effort: snooze succeeds even if Google Calendar is unavailable
+  }
+
+  return next;
 }
 
 export async function restoreFromArchive(

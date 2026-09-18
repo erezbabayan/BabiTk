@@ -28,6 +28,7 @@ import {
 import { classifyWhatsAppInbound } from "./whatsapp-inbound-route.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
+import { queueCalendarSync } from "./google-calendar.ts";
 import { buildCaptureConfirmation } from "./whatsapp-intents.ts";
 import {
   interceptRecordedWhatsAppTranscript,
@@ -345,6 +346,9 @@ export async function applyVoiceTranscription(
     .eq("id", row.id);
   if (itemError) {
     throw new Error(itemError.message);
+  }
+  if (row.user_id) {
+    queueCalendarSync(supabase, row.user_id, row.id);
   }
   if (!source?.id) return;
   await supabase
@@ -823,6 +827,8 @@ export async function ingestRecordedAudio(
   if (itemError || !inserted) {
     throw new Error(itemError?.message ?? "item_insert_failed");
   }
+
+  queueCalendarSync(supabase, userId, inserted.id as string);
 
   return {
     itemId: inserted.id as string,

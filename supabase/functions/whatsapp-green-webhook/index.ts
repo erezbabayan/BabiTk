@@ -48,6 +48,7 @@ import {
 } from "../_shared/whatsapp-system-question-reply.ts";
 import { evaluateCaptureGate } from "../_shared/capture-gate.ts";
 import { parseInboundText, type IngestSourceType, layoutMetadataFromParsed } from "../_shared/inbound-item.ts";
+import { queueCalendarSync } from "../_shared/google-calendar.ts";
 
 const ASR_FAIL_REPLY =
   "לא הצלחתי לתמלל את ההקלטה. כתבו את השאלה בטקסט, למשל: בבי מה המשימות היום";
@@ -255,6 +256,7 @@ async function handleGroupTextIntent(options: {
       .update({ due_date: due, last_interacted_at: new Date().toISOString() })
       .eq("id", itemId)
       .eq("user_id", options.user.id);
+    queueCalendarSync(options.supabase, options.user.id, itemId);
     const label =
       command.type === "snooze"
         ? `נדחה ל-${formatClockFromIso(due)}`
@@ -611,6 +613,9 @@ async function insertCapturedItem(
     .select("id, title");
   if (itemError || !insertedRows?.[0]) {
     throw new Error(itemError?.message ?? "item_insert_failed");
+  }
+  for (const row of insertedRows) {
+    queueCalendarSync(supabase, user.id, String(row.id));
   }
   const inserted = insertedRows[0];
   return { id: inserted.id as string, title: inserted.title as string };
