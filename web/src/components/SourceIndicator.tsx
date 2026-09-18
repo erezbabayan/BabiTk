@@ -10,6 +10,7 @@ interface SourceIndicatorProps {
   onOpen: () => void;
   compact?: boolean;
   iconOnly?: boolean;
+  dense?: boolean;
   isOpen?: boolean;
   tone?: NotebookIconTone;
 }
@@ -24,21 +25,24 @@ export function SourceIndicator({
   onOpen,
   compact = false,
   iconOnly = false,
+  dense = false,
   isOpen = false,
   tone,
 }: SourceIndicatorProps) {
   const source = resolveItemSource(item);
   const iconTone = tone ?? sourceTone(isOpen, source.canOpen);
+  const iconSize = dense ? 14 : 20;
+  const iconClass = `notebook-icon-btn${dense ? " notebook-icon-btn--dense" : ""}`;
 
   if (!source.canOpen) {
     if (iconOnly) {
       return (
         <span
-          className="notebook-icon-btn notebook-icon-btn--muted"
+          className={`${iconClass} notebook-icon-btn--muted`}
           title={MANUAL_SOURCE_DISPLAY.label}
           aria-hidden
         >
-          <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={20} tone={iconTone} />
+          <NotebookIcon name={MANUAL_SOURCE_DISPLAY.icon} size={iconSize} tone={iconTone} />
         </span>
       );
     }
@@ -66,12 +70,12 @@ export function SourceIndicator({
           e.stopPropagation();
           onOpen();
         }}
-        className={`notebook-icon-btn ${isOpen ? "notebook-icon-btn--active" : ""}`}
+        className={`${iconClass} ${isOpen ? "notebook-icon-btn--active" : ""}`}
         title={isOpen ? "סגור מקור" : `${source.label} — צפייה במקור`}
         aria-label={isOpen ? "סגור מקור" : `${source.label} — צפייה במקור`}
         aria-pressed={isOpen}
       >
-        <NotebookIcon name={source.icon} size={20} tone={iconTone} />
+        <NotebookIcon name={source.icon} size={iconSize} tone={iconTone} />
       </button>
     );
   }

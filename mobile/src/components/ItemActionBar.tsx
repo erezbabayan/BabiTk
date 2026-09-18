@@ -60,7 +60,7 @@ function GhostButton({
         reminder && styles.ghostBtnReminder,
       ]}
     >
-      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={iconTone} />
+      <NotebookIcon name={icon} size={dense ? 14 : 22} tone={iconTone} />
     </Pressable>
   );
 }
@@ -123,7 +123,7 @@ export function ItemActionBar({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row-reverse",
-    flexWrap: "wrap",
+    flexWrap: "nowrap",
     gap: 6,
     flexShrink: 1,
     justifyContent: "flex-end",
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ghostBtnDense: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
   },
   ghostBtnActive: {
     borderColor: "#94a3b8",

@@ -112,7 +112,7 @@ function NotebookActionButton({
         active ? "notebook-icon-btn--active" : ""
       } ${reminder ? "notebook-icon-btn--reminder" : ""} ${accent ? "notebook-icon-btn--accent" : ""}`}
     >
-      <NotebookIcon name={icon} size={dense ? 16 : 22} tone={tone} />
+      <NotebookIcon name={icon} size={dense ? 14 : 22} tone={tone} />
     </button>
   );
 }
@@ -307,7 +307,7 @@ export function ItemCard({
         >
           <div
             className={`flex ${dense ? "items-center gap-1" : "items-start gap-2"} ${
-              isSquares ? "min-h-0 shrink" : ""
+              isSquares ? "min-h-0 w-full shrink-0" : ""
             }`}
           >
             {selecting && onToggleSelect ? (
@@ -322,7 +322,7 @@ export function ItemCard({
             ) : null}
             <div
               className={`min-w-0 flex-1 ${dense ? "flex flex-col gap-0" : ""} ${
-                isSquares ? "flex min-h-0 flex-1 flex-col" : ""
+                isSquares ? "flex min-w-0 flex-col" : ""
               }`}
             >
           <h3
@@ -432,12 +432,14 @@ export function ItemCard({
               ) : null}
             </>
           )}
+            </div>
+          </div>
 
           {(hasActions || !isSquares) ? (
             <div
               className={`w-full ${
                 isSquares
-                  ? "mt-0.5 flex shrink-0 flex-col pb-0 pt-0.5"
+                  ? "mt-auto flex shrink-0 flex-col pt-0.5"
                   : scheduleLine && !showSource
                     ? "mt-1 flex flex-col gap-1 border-t border-slate-100/80 pt-1"
                     : `flex flex-col ${
@@ -456,8 +458,13 @@ export function ItemCard({
                   {scheduleLine}
                 </span>
               ) : null}
-              <div className="flex w-full min-w-0 items-center justify-between gap-1.5" dir="rtl">
-                <div className="flex shrink-0 items-center gap-1">
+              <div
+                className={`flex w-full min-w-0 flex-nowrap items-center justify-between ${
+                  isSquares ? "gap-0.5" : "gap-1.5"
+                }`}
+                dir="rtl"
+              >
+                <div className={`flex shrink-0 items-center ${isSquares ? "gap-0.5" : "gap-1"}`}>
                   {onTogglePriority ? (
                     <button
                       type="button"
@@ -476,29 +483,28 @@ export function ItemCard({
                       aria-label={priority ? "הסר עדיפות" : "סמן כעדיפות"}
                       aria-pressed={priority}
                     >
-                      <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
+                      <PriorityStar active={priority} size={isSquares ? 14 : dense ? 16 : 22} />
                     </button>
                   ) : priority ? (
                     <span
                       className={`flex items-center justify-center ${
-                        dense || isSquares ? "h-7 w-7" : "h-9 w-9"
+                        isSquares ? "h-6 w-6" : dense ? "h-7 w-7" : "h-9 w-9"
                       }`}
                       title="עדיפות"
                       aria-label="עדיפות"
                     >
-                      <PriorityStar active size={dense || isSquares ? 16 : 22} />
+                      <PriorityStar active size={isSquares ? 14 : dense ? 16 : 22} />
                     </span>
                   ) : null}
-                  <span className={dense ? "inline-flex scale-90" : undefined}>
-                    <SourceIndicator
-                      item={item}
-                      compact
-                      iconOnly
-                      isOpen={showSource}
-                      onOpen={toggleSource}
-                    />
-                  </span>
-                  {draggable ? (
+                  <SourceIndicator
+                    item={item}
+                    compact
+                    iconOnly
+                    dense={dense || isSquares}
+                    isOpen={showSource}
+                    onOpen={toggleSource}
+                  />
+                  {draggable && !isSquares ? (
                     <span
                       {...{ [ITEM_DRAG_HANDLE_ATTR]: "" }}
                       draggable={!showSource}
@@ -519,7 +525,11 @@ export function ItemCard({
                   ) : null}
                 </div>
                 {hasActions && !showSource ? (
-                  <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                  <div
+                    className={`flex min-w-0 flex-nowrap items-center justify-end ${
+                      isSquares ? "gap-0.5" : "gap-1.5"
+                    }`}
+                  >
                     {onTagPress ? (
                       <NotebookActionButton
                         icon="tag"
@@ -592,8 +602,6 @@ export function ItemCard({
               </div>
             </div>
           ) : null}
-            </div>
-          </div>
         </div>
       </article>
 

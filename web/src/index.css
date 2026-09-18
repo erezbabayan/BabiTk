@@ -385,6 +385,15 @@ body {
   border-radius: 8px;
 }
 
+/* Squares are narrow — keep a single compact row like list view */
+.board-notebook-item--squares .notebook-icon-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+}
+
 .notebook-icon-btn:hover {
   @apply bg-slate-50;
 }

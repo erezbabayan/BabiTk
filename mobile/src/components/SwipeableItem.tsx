@@ -369,14 +369,14 @@ export function SwipeableItem({
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
                 >
-                  <PriorityStar active={priority} size={dense || isSquares ? 16 : 22} />
+                  <PriorityStar active={priority} size={dense || isSquares ? 14 : 22} />
                 </TouchableOpacity>
               ) : priority ? (
                 <View
                   accessibilityLabel="עדיפות"
                   style={[styles.metaBtn, (dense || isSquares) && styles.metaBtnDense]}
                 >
-                  <PriorityStar active size={dense || isSquares ? 16 : 22} />
+                  <PriorityStar active size={dense || isSquares ? 14 : 22} />
                 </View>
               ) : null}
               {onViewSource ? (
@@ -525,6 +525,7 @@ const styles = StyleSheet.create({
   cardSquares: {
     flex: 1,
     width: "100%",
+    flexDirection: "column",
     elevation: 0,
     shadowOpacity: 0,
     borderRadius: BOARD_SQUARE_RADIUS_PX,
@@ -540,7 +541,7 @@ const styles = StyleSheet.create({
   accentBarLeft: { left: 0 },
   cardInner: { paddingHorizontal: 8, paddingVertical: 4 },
   cardInnerDense: { paddingHorizontal: 6, paddingVertical: 2 },
-  cardInnerSquares: { flexShrink: 1 },
+  cardInnerSquares: { flexGrow: 1, flexShrink: 1 },
   cardInnerAccentRight: { paddingRight: 10 },
   cardInnerAccentLeft: { paddingLeft: 10 },
   headlineRow: {
@@ -662,7 +663,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
   },
   cardFooterSquares: {
-    marginTop: 2,
+    marginTop: "auto",
+    paddingTop: 2,
     paddingBottom: 2,
   },
   cardFooterActionsOnly: {
@@ -674,13 +676,14 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
+    flexWrap: "nowrap",
     width: "100%",
-    gap: 8,
+    gap: 4,
   },
   footerMeta: {
     flexDirection: "row-reverse",
     alignItems: "center",
-    gap: 6,
+    gap: 2,
     flexShrink: 0,
   },
   metaBtn: {
@@ -691,9 +694,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   metaBtnDense: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
   },
   footerActionsOnly: {
     flexShrink: 1,

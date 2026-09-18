@@ -18,7 +18,7 @@ export function SourceIndicator({
 }: SourceIndicatorProps) {
   const source = resolveItemSource(item);
   const iconTone: NotebookIconTone = source.canOpen ? "slate" : "muted";
-  const iconSize = dense ? 16 : 20;
+  const iconSize = dense ? 14 : 20;
 
   if (iconOnly) {
     if (!source.canOpen) {
@@ -68,9 +68,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ghostCircleDense: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
   },
   ghostStatic: { borderColor: "#e2e8f0" },
   chip: {
