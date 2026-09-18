@@ -24,6 +24,11 @@ import {
   stampWhatsAppReminderFireAt,
   whatsappReminderFireStamp,
 } from "../_shared/whatsapp-reminders.ts";
+import {
+  digestDueWindowIso,
+  isReminderOverdueBeyondWindow,
+  reminderDueQueryCutoffIso,
+} from "../_shared/task-reminder-due.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -231,11 +236,14 @@ Deno.serve(async (req) => {
     }
   }
 
+  const nowMs = now.getTime();
   let itemsQuery = admin
     .from("mindtasker_items")
     .select("id, user_id, title, metadata, due_date, is_actionable")
     .in("status", ["inbox", "pending"])
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .not("due_date", "is", null)
+    .lte("due_date", reminderDueQueryCutoffIso(nowMs));
   if (scopedUserId) itemsQuery = itemsQuery.eq("user_id", scopedUserId);
 
   const { data: items, error: itemsError } = await itemsQuery;
@@ -248,6 +256,7 @@ Deno.serve(async (req) => {
     if (metadata.reminder_sent === true) continue;
     const notifyAt = resolveItemNotifyAt(item);
     if (!notifyAt || notifyAt > nowIso) continue;
+    if (isReminderOverdueBeyondWindow(notifyAt, nowMs)) continue;
     if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
     const context = await contextFor(item.user_id);
     if (!context) continue;
@@ -318,14 +327,19 @@ Deno.serve(async (req) => {
   const digestDate = localDateKey(now);
   const slotKey = digestSlotKey(digestDate, hour);
   const weekdayNum = localWeekday(now);
-  const { data: digestUsers, error: digestUsersError } = await admin
-    .from("users")
-    .select(
-      "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots",
-    );
+  const digestSelect =
+    "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots";
+  let digestUsersQuery = admin.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
+  let { data: digestUsers, error: digestUsersError } = await digestUsersQuery;
+  if (digestUsersError) {
+    const fallback = await admin.from("users").select(digestSelect);
+    digestUsers = fallback.data;
+    digestUsersError = fallback.error;
+  }
   if (digestUsersError) {
     return json({ error: digestUsersError.message, sent, digests }, 500);
   }
+  const dueWindow = digestDueWindowIso(now.getTime());
 
   for (const row of digestUsers ?? []) {
     const hours = resolveDigestHours(row.whatsapp_digest_hours);
@@ -341,7 +355,10 @@ Deno.serve(async (req) => {
         .select("title, metadata, due_date, is_actionable")
         .eq("user_id", row.id)
         .in("status", ["inbox", "pending"])
-        .is("deleted_at", null),
+        .is("deleted_at", null)
+        .not("due_date", "is", null)
+        .gte("due_date", dueWindow.start)
+        .lte("due_date", dueWindow.end),
       admin
         .from("task_lists")
         .select("name, reminder_at")

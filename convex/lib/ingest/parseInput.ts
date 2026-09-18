@@ -1,5 +1,5 @@
-import type { ParseInputOptions, ParseInputResponse } from "./types";
-import { parseInputLocally } from "./localParse";
+import type { ParseInputOptions, ParseInputResponse } from "./types.ts";
+import { parseInputLocally } from "./localParse.ts";
 
 const PLACEHOLDER_KEY_MARKERS = [
   "placeholder",

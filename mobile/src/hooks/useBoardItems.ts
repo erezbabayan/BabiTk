@@ -23,6 +23,8 @@ import {
   updateDemoItem,
 } from "../lib/demo-store";
 import { isDemoMode, normalizeMindtaskerRows, requireSupabase, type MindtaskerItem } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
+import { applyItemRealtimeChange } from "../lib/realtime-items";
 import { isSyncEnabled } from "../lib/sync-client";
 import {
   applyOptimistic,
@@ -56,15 +58,21 @@ export interface ItemEditInput {
   checklist?: ChecklistEntry[];
 }
 
-async function fetchAllFromServer(): Promise<MindtaskerItem[]> {
-  const { data, error } = await requireSupabase()
-    .from("mindtasker_items")
-    .select(ITEM_SELECT)
-    .is("deleted_at", null)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
+async function fetchAllFromServer(userId?: string): Promise<MindtaskerItem[]> {
+  const client = requireSupabase();
+  const data = await collectPagedRows((from, to) => {
+    let query = client
+      .from("mindtasker_items")
+      .select(ITEM_SELECT)
+      .is("deleted_at", null)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (userId) {
+      query = query.eq("user_id", userId);
+    }
+    return query;
+  });
   return normalizeMindtaskerRows(data);
 }
 
@@ -189,7 +197,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       }
 
       try {
-        const data = await fetchAllFromServer();
+        const data = await fetchAllFromServer(userId);
         setItems(data);
         await writeCache(CACHE_KEYS.inbox, data);
         setSyncError(null);
@@ -206,7 +214,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
     } finally {
       refreshInFlightRef.current = false;
     }
-  }, [enabled, isOnline]);
+  }, [enabled, isOnline, userId]);
 
   const syncQueue = useCallback(async () => {
     if (!enabled || !isOnline || isDemoMode) return;
@@ -239,20 +247,27 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   }, [enabled, isOnline, refresh, syncQueue]);
 
   useEffect(() => {
-    if (!enabled || !isOnline || isDemoMode) return;
+    if (!enabled || !isOnline || isDemoMode || !userId) return;
     const supabase = requireSupabase();
     const channel = supabase
-      .channel("mobile-board")
+      .channel(`mobile-board-${userId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "mindtasker_items" },
-        () => void refresh(),
+        {
+          event: "*",
+          schema: "public",
+          table: "mindtasker_items",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          setItems((prev) => applyItemRealtimeChange(prev, payload));
+        },
       )
       .subscribe();
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [enabled, isOnline, refresh]);
+  }, [enabled, isOnline, userId]);
 
   const patchItem = useCallback(
     async (item: MindtaskerItem, patch: Partial<MindtaskerItem>) => {

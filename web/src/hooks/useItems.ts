@@ -43,6 +43,8 @@ import {
 } from "../lib/demo-store";
 
 import { isDemoMode, requireSupabase } from "../lib/supabase";
+import { collectPagedRows } from "../lib/supabase-paginate";
+import { applyItemRealtimeChange } from "../lib/realtime-items";
 import { completeItemApi } from "../lib/api";
 
 import { useConvexBackend } from "../lib/data-backend";
@@ -58,23 +60,10 @@ import { buildPriorityTogglePatch } from "../lib/item-priority";
 
 
 const ITEM_SELECT = `
-
-  *,
-
-  source_materials (
-
-    id,
-
-    source_type,
-
-    storage_url,
-
-    raw_text,
-
-    metadata
-
-  )
-
+  id, user_id, title, content, is_actionable, status, due_date, tags,
+  source_material_id, sort_order, created_at, updated_at, last_interacted_at,
+  completed_at, calendar_event_id, deleted_at, metadata,
+  source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
 
 
@@ -155,37 +144,24 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
     const supabase = requireSupabase();
+    const data = await collectPagedRows((from, to) =>
+      supabase
+        .from("mindtasker_items")
+        .select(ITEM_SELECT)
+        .eq("user_id", userId)
+        .is("deleted_at", null)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    );
 
-    const { data, error } = await supabase
-
-      .from("mindtasker_items")
-
-      .select(ITEM_SELECT)
-
-      .is("deleted_at", null)
-
-      .order("sort_order", { ascending: true })
-
-      .order("created_at", { ascending: false });
-
-
-
-    if (error) {
-
-      console.error(error);
-
-      setLoading(false);
-
-      return;
-
-    }
-
-
-
-    setItems((data ?? []) as MindtaskerItem[]);
+    setItems(data as unknown as MindtaskerItem[]);
 
     setLoading(false);
 
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
     } finally {
 
       refreshInFlightRef.current = false;
@@ -223,32 +199,27 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
     const supabase = requireSupabase();
-
     const channel = supabase
-
-      .channel("mindtasker-items")
-
+      .channel(`mindtasker-items-${userId}`)
       .on(
-
         "postgres_changes",
-
-        { event: "*", schema: "public", table: "mindtasker_items" },
-
-        () => void refresh(),
-
+        {
+          event: "*",
+          schema: "public",
+          table: "mindtasker_items",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          setItems((prev) => applyItemRealtimeChange(prev, payload));
+        },
       )
-
       .subscribe();
 
-
-
     return () => {
-
       void supabase.removeChannel(channel);
-
     };
 
-  }, [enabled, userId, refresh]);
+  }, [enabled, userId]);
 
 
 
@@ -374,16 +345,17 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
       const supabase = requireSupabase();
-
-      for (const { id, patch } of normalized) {
-
-        const { error } = await supabase.from("mindtasker_items").update(patch).eq("id", id);
-
-        if (error) throw error;
-
+      try {
+        await Promise.all(
+          normalized.map(async ({ id, patch }) => {
+            const { error } = await supabase.from("mindtasker_items").update(patch).eq("id", id);
+            if (error) throw error;
+          }),
+        );
+      } catch (error) {
+        await refresh();
+        throw error;
       }
-
-      await refresh();
 
     },
 

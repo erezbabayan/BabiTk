@@ -1,8 +1,8 @@
-import type { ParsedItem } from "./types";
+import type { ParsedItem } from "./types.ts";
 import {
   trySplitTopicActions,
   topicActionsToSegments,
-} from "./topicTaskSplit";
+} from "./topicTaskSplit.ts";
 
 /** Clause that schedules or advances the *same* task — not a new one. */
 const TASK_CONTINUATION_LEAD =
