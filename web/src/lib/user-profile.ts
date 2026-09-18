@@ -1,5 +1,6 @@
 import { isMissingSchemaError } from "./schema-compat";
 import { requireSupabase } from "./supabase";
+import { formatUserHeaderName, resolveUserNameParts } from "./user-display-name";
 
 export type DigestDays = "weekdays" | "everyday";
 
@@ -150,20 +151,9 @@ export interface AuthAccountView {
 }
 
 function metadataDisplayName(metadata: Record<string, unknown> | undefined): string | null {
-  if (!metadata) return null;
-  const first =
-    typeof metadata.first_name === "string" ? metadata.first_name.trim() : "";
-  const last =
-    typeof metadata.last_name === "string" ? metadata.last_name.trim() : "";
-  const combined = [first, last].filter(Boolean).join(" ");
-  if (combined) return combined;
-  const full =
-    typeof metadata.full_name === "string"
-      ? metadata.full_name.trim()
-      : typeof metadata.name === "string"
-        ? metadata.name.trim()
-        : "";
-  return full || null;
+  const parts = resolveUserNameParts({ userMetadata: metadata ?? null });
+  if (!parts) return null;
+  return formatUserHeaderName(parts) || null;
 }
 
 /** Session + profile for Settings, without a network auth check that can sign the user out. */

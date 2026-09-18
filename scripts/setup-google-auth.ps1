@@ -100,8 +100,13 @@ if (-not $ProjectRef) {
   throw "Missing SUPABASE_PROJECT_REF"
 }
 
+if ($ProjectRef -eq "ghibfuinantybqidwadj") {
+  $SiteUrl = "https://erezbabayan.github.io/BabiTk/"
+}
+
 $callbackUrl = "https://$ProjectRef.supabase.co/auth/v1/callback"
-$redirectAllowList = "$SiteUrl/**,BabiTk://**"
+$pagesUrl = "https://erezbabayan.github.io/BabiTk/"
+$redirectAllowList = "$pagesUrl,$pagesUrl**,$SiteUrl,$SiteUrl/**,http://localhost:5173,http://localhost:5173/**,http://127.0.0.1:5173/**,mindtasker://**"
 
 Write-Host ""
 Write-Host "=== BabiTk Google login setup ===" -ForegroundColor Cyan

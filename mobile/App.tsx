@@ -1145,6 +1145,7 @@ function LegacyAuthAppRoot() {
     loading: authLoading,
     signIn,
     signUp,
+    signInWithGoogle,
     signInWithMicrosoft,
     signInDemoQuick,
     signOut,
@@ -1177,6 +1178,9 @@ function LegacyAuthAppRoot() {
             onSignUp={signUp}
             onMicrosoftSignIn={
               isSupabaseConfigured ? () => signInWithMicrosoft() : undefined
+            }
+            onGoogleSignIn={
+              isSupabaseConfigured ? () => signInWithGoogle() : undefined
             }
             onDemoEnter={() => signInDemoQuick()}
           />

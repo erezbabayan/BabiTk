@@ -21,6 +21,7 @@ interface AuthLoginScreenProps {
   ) => Promise<void>;
   onGoogleSignIn?: () => Promise<void>;
   onMicrosoftSignIn?: () => Promise<void>;
+  notice?: string | null;
   subtitle?: string;
   showEmailForm?: boolean;
   usernameLabel?: string;
@@ -106,6 +107,7 @@ function AuthForm({
   onSubmit,
   onGoogleSignIn,
   onMicrosoftSignIn,
+  notice,
   subtitle,
   showEmailForm = true,
   usernameLabel = "שם משתמש או אימייל",
@@ -116,6 +118,7 @@ function AuthForm({
   onSubmit: AuthLoginScreenProps["onSubmit"];
   onGoogleSignIn?: AuthLoginScreenProps["onGoogleSignIn"];
   onMicrosoftSignIn?: AuthLoginScreenProps["onMicrosoftSignIn"];
+  notice?: string | null;
   subtitle?: AuthLoginScreenProps["subtitle"];
   showEmailForm?: AuthLoginScreenProps["showEmailForm"];
   usernameLabel?: AuthLoginScreenProps["usernameLabel"];
@@ -222,6 +225,10 @@ function AuthForm({
         {error ? (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
             {error}
+          </p>
+        ) : notice ? (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+            {notice}
           </p>
         ) : null}
 
@@ -491,6 +498,7 @@ export function LoginScreen(props: LoginScreenProps) {
       onSubmit={props.onSubmit}
       onGoogleSignIn={props.onGoogleSignIn}
       onMicrosoftSignIn={props.onMicrosoftSignIn}
+      notice={props.notice}
       subtitle={props.subtitle}
       showEmailForm={props.showEmailForm}
       usernameLabel={props.usernameLabel}

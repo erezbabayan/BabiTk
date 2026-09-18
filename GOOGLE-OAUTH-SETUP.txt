@@ -1,27 +1,47 @@
-﻿BabiTk ג€” Google login setup
-============================
+﻿BabiTk — Google login (GitHub Pages + Supabase)
+==============================================
 
-1) Open Google Cloud credentials (browser will open).
-2) Click: Create credentials -> OAuth client ID
-3) Application type: Web application
-4) Name: BabiTk (or MindTasker)
-5) Authorized JavaScript origins:
-   http://localhost:5173
-6) Authorized redirect URIs:
-   https://scintillating-fly-225.convex.site/api/auth/callback/google
-7) Click Create ג€” copy Client ID and Client Secret
+Live app:  https://erezbabayan.github.io/BabiTk/
+Supabase:  https://ghibfuinantybqidwadj.supabase.co
 
-8) Create file: .google-oauth.local.env  (in repo root) with:
+GitHub is only hosting. User login is Google → Supabase Auth → the Pages app.
+Do NOT put the GitHub Pages URL as the Google redirect URI.
 
-GOOGLE_CLIENT_ID=YOUR_ID.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-...
+1) Google Cloud Console → APIs & Services → Credentials → OAuth client ID
+   Application type: Web application
+   Name: BabiTk
 
-# Redirect URI for Convex Auth:
-#   https://scintillating-fly-225.convex.site/api/auth/callback/google
-# JavaScript origin:
-#   http://localhost:5173
+   Authorized JavaScript origins:
+     https://erezbabayan.github.io
+     http://localhost:5173
 
-9) Run in terminal:
-   node scripts/apply-google-oauth.mjs
+   Authorized redirect URIs (exactly this, nothing else for login):
+     https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback
 
-Then refresh http://localhost:5173 and click Sign in with Google.
+2) OAuth consent screen: add the test users if the app is in Testing.
+
+3) GitHub repo → Settings → Secrets and variables → Actions, add:
+     GOOGLE_CLIENT_ID
+     GOOGLE_CLIENT_SECRET
+
+   Never commit these values. After they exist, the deploy-web job
+   "Configure Supabase Auth (Google + Pages URLs)" enables the provider
+   and sets:
+     Site URL: https://erezbabayan.github.io/BabiTk/
+     Redirect allow-list: that URL, localhost:5173, mindtasker://**
+
+4) Local one-shot (optional):
+     Copy .supabase-local.env.example → .supabase-local.env
+     Fill SUPABASE_ACCESS_TOKEN, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+     .\scripts\setup-google-auth.ps1
+
+5) Verify:
+     GET https://ghibfuinantybqidwadj.supabase.co/auth/v1/authorize?provider=google
+     should 302 to accounts.google.com — not "provider is not enabled".
+
+Known product notes:
+  - Existing email/password users with the same Gmail must sign in with
+    password first (Supabase does not auto-link identities).
+  - New Google users get public.users from email; username/phone later
+    in settings. WhatsApp pairing is unchanged.
+  - Calendar OAuth is a separate backend path and is not used on Pages.

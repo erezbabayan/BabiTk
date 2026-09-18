@@ -56,3 +56,51 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  auth-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Resolve Supabase access token
+        id: token
+        env:
+          SECRET_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          TOKEN="${SECRET_TOKEN:-}"
+          if [ -z "$TOKEN" ]; then
+            REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL}"
+            SEP="&"
+            case "$REQUEST_URL" in
+              *"?"*) ;;
+              *) SEP="?" ;;
+            esac
+            OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
+            JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
+            RESP="$(curl -sS -X POST \
+              "https://ghibfuinantybqidwadj.supabase.co/functions/v1/github-oidc-mint" \
+              -H "Authorization: Bearer ${JWT}" \
+              -H "Content-Type: application/json")"
+            TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$RESP")"
+            if [ -z "$TOKEN" ]; then
+              echo "::error::Could not mint a Supabase token via GitHub OIDC."
+              python3 -c 'import re,sys; print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", sys.stdin.read())[:800])' <<<"$RESP"
+              exit 1
+            fi
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
+      - name: Configure Supabase Auth (Google + Pages URLs)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ steps.token.outputs.value }}
+          SUPABASE_PROJECT_REF: ghibfuinantybqidwadj
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: node scripts/configure-supabase-auth.mjs

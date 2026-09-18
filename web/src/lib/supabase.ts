@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabaseAuthStorage } from "./auth-storage";
+import { buildAuthRedirectUrl } from "./auth-redirect";
 import { readForcedLocalMode, writeForcedLocalMode } from "./runtime-mode";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
@@ -44,7 +45,7 @@ export function clearForcedLocalMode(): void {
 
 export function supabaseAuthRedirectUrl(): string {
   if (typeof window === "undefined") return "";
-  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+  return buildAuthRedirectUrl(window.location.origin, import.meta.env.BASE_URL || "/");
 }
 
 export function retryCloudBackend(): void {
