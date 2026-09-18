@@ -212,6 +212,7 @@ export async function transcribeAudio(
   fileName: string,
   mimeType: string,
   promptHint?: string,
+  options?: { hotPath?: boolean },
 ): Promise<{ text: string; engine: VoiceTranscription["engine"] }> {
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim();
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
@@ -224,13 +225,15 @@ export async function transcribeAudio(
     | "openai"
     | "auto";
   const errors: string[] = [];
+  const hotPath = options?.hotPath === true;
   const asrTimeout =
-    audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES
+    hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
       ? SHORT_ASR_TIMEOUT_MS
       : ASR_TIMEOUT_MS;
 
-  const engines: Array<"runpod" | "groq" | "openai"> =
-    prefer === "runpod"
+  const engines: Array<"runpod" | "groq" | "openai"> = hotPath
+    ? ["groq", "openai"]
+    : prefer === "runpod"
       ? ["runpod", "groq", "openai"]
       : prefer === "groq"
         ? ["groq", "openai"]
@@ -260,7 +263,7 @@ export async function transcribeAudio(
       }
       if (engine === "openai") {
         if (!openAiKey) continue;
-        const models = [openAiModel, "whisper-1"].filter(
+        const models = (hotPath ? [openAiModel] : [openAiModel, "whisper-1"]).filter(
           (model, index, all) => all.indexOf(model) === index,
         );
         let lastOpenAiError: unknown;
@@ -304,12 +307,14 @@ export async function transcribeAndProofreadVoice(params: {
   mimeType: string;
   fileName: string;
   promptHint?: string;
+  hotPath?: boolean;
 }): Promise<VoiceTranscription> {
   const asr = await transcribeAudio(
     params.audio,
     params.fileName,
     params.mimeType,
     params.promptHint,
+    { hotPath: params.hotPath },
   );
   const rawText = applyHebrewAsrSpellingFixes(asr.text);
   const correctedText = pickBestHebrewTranscript(rawText, params.promptHint);

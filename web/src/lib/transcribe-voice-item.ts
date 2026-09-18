@@ -8,7 +8,6 @@ import {
   transcribeHebrewAudioBlob,
   transcribeHebrewAudioUrl,
 } from "../../../convex/lib/ingest/hebrewAsrPublicClient";
-import { titleFromInboundText } from "./voice-text";
 import {
   parseIncomingMessage,
   parsedItemInsertFields,
@@ -19,11 +18,11 @@ import type { MindtaskerItem, SourceMaterial } from "../types";
 import {
   canSendAudioToEdge,
   EDGE_INGEST_TIMEOUT_MS,
-  EDGE_REFINE_WAIT_MS,
   EDGE_TRANSCRIBE_TIMEOUT_MS,
   isUsableLiveTranscript,
   parseEdgeVoicePayload,
 } from "./fast-voice-asr";
+import { titleFromInboundText, VOICE_TRANSCRIBING_TITLE } from "./voice-text";
 
 export interface TranscribeVoiceItemResult {
   ok: boolean;
@@ -145,12 +144,6 @@ async function invokeIngestVoice(params: {
   }
   const data = await invokeEdge("ingest-voice", form, EDGE_INGEST_TIMEOUT_MS);
   return parseTranscribePayload(data, params.itemId ?? "");
-}
-
-function waitMs(ms: number): Promise<null> {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(null), ms);
-  });
 }
 
 function firstSource(item: VoiceRepairItem): SourceMaterial | null {
@@ -398,8 +391,12 @@ async function persistClientRecording(
     engine: string;
   },
   durationSeconds?: number,
+  options?: { skipQuestionIntercept?: boolean; skipParse?: boolean },
 ): Promise<TranscribeVoiceItemResult> {
-  if (await tryReplyRecordedQuestion({ transcript: transcribed.correctedText })) {
+  if (
+    !options?.skipQuestionIntercept &&
+    (await tryReplyRecordedQuestion({ transcript: transcribed.correctedText }))
+  ) {
     return {
       ok: true,
       answered: true,
@@ -409,8 +406,15 @@ async function persistClientRecording(
     };
   }
   const supabase = requireSupabase();
-  const allowedTags = await loadAllowedTagNamesForUser(userId);
-  const parsed = parseIncomingMessage(transcribed.correctedText, { allowedTags })[0];
+  const shouldParse =
+    !options?.skipParse &&
+    transcribed.engine !== "pending" &&
+    Boolean(transcribed.correctedText.trim());
+  const parsed = shouldParse
+    ? parseIncomingMessage(transcribed.correctedText, {
+        allowedTags: await loadAllowedTagNamesForUser(userId),
+      })[0]
+    : undefined;
   const fields = parsed
     ? parsedItemInsertFields(parsed, {
         source: "app_voice",
@@ -486,18 +490,28 @@ export async function persistRecordedVoiceTranscript(params: {
   if (!userId) throw new Error("Not authenticated");
 
   const hint = params.hintTranscript?.replace(/\s+/g, " ").trim() ?? "";
-  let early: TranscribeVoiceItemResult | null = null;
-  if (isUsableLiveTranscript(hint)) {
-    early = await persistClientRecording(
-      userId,
-      {
+  const snapshot = isUsableLiveTranscript(hint)
+    ? {
         title: titleFromInboundText(hint),
         rawText: hint,
         correctedText: hint,
         engine: "web-speech",
-      },
-      params.durationSeconds,
-    );
+      }
+    : {
+        title: VOICE_TRANSCRIBING_TITLE,
+        rawText: "",
+        correctedText: "",
+        engine: "pending",
+      };
+
+  let early: TranscribeVoiceItemResult | null = null;
+  try {
+    early = await persistClientRecording(userId, snapshot, params.durationSeconds, {
+      skipQuestionIntercept: true,
+      skipParse: true,
+    });
+  } catch {
+    early = null;
   }
 
   if (canSendAudioToEdge(params.blob.size)) {
@@ -509,14 +523,15 @@ export async function persistRecordedVoiceTranscript(params: {
       hintTranscript: hint,
       itemId: early?.itemId,
     });
-    try {
-      const refined = early
-        ? await Promise.race([ingest, waitMs(EDGE_REFINE_WAIT_MS)])
-        : await ingest;
-      if (refined) return refined;
+    if (early) {
       void ingest.catch(() => undefined);
+      return early;
+    }
+    try {
+      const refined = await ingest;
+      if (refined) return refined;
     } catch {
-      if (early) return early;
+      // Fall through to Gradio only when nothing was persisted.
     }
   }
 
