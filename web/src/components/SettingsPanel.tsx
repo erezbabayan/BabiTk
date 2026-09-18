@@ -39,6 +39,7 @@ interface SettingsPanelProps {
   onUsageChanged?: () => void;
   /** When true, User / WhatsApp / Calendar use the Supabase cloud account. */
   cloudAccount?: boolean;
+  initialSection?: SettingsSection;
 }
 
 function hasCloudAccount(cloudAccount: boolean | undefined): boolean {
@@ -74,8 +75,9 @@ export function SettingsPanel({
   onClose,
   onUsageChanged,
   cloudAccount,
+  initialSection = "menu",
 }: SettingsPanelProps) {
-  const [section, setSection] = useState<SettingsSection>("menu");
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const isAdmin = false;
   const cloudBackend = hasCloudAccount(cloudAccount);
   const showNotifications = cloudBackend;
@@ -182,7 +184,9 @@ export function SettingsPanel({
         {section === "calendar" ? (
           cloudBackend ? (
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">חבר את Google Calendar כדי לסנכרן משימות עם היומן.</p>
+              <p className="text-sm text-slate-600">
+                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
+              </p>
               <GoogleCalendarLink />
             </div>
           ) : (

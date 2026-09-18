@@ -20,6 +20,7 @@ import {
   getGoogleCalendarConnectUrl,
 
   getGoogleCalendarStatus,
+  disconnectGoogleCalendar,
 
   getProfile,
 
@@ -181,6 +182,15 @@ export function SettingsScreen({
 
 
   async function connectCalendar() {
+    if (calendarLinked) {
+      try {
+        await disconnectGoogleCalendar();
+        setCalendarLinked(false);
+      } catch {
+        setCalendarLinked(false);
+      }
+      return;
+    }
 
     const url = await getGoogleCalendarConnectUrl();
 
@@ -248,9 +258,8 @@ export function SettingsScreen({
             <SettingsMenuRow icon="edit" label="קליטת טקסט" onPress={() => setTextVisible(true)} />
             <SettingsMenuRow
               icon="calendar"
-              label={calendarLinked ? "יומן מחובר" : "Google Calendar"}
+              label={calendarLinked ? "יומן מחובר — נתק" : "Google Calendar"}
               onPress={() => void connectCalendar()}
-              disabled={calendarLinked}
             />
             <SettingsMenuRow
               icon="star"

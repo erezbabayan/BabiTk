@@ -176,6 +176,7 @@ function ConfiguredApp() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userMetadata, setUserMetadata] = useState<Record<string, unknown> | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<"menu" | "calendar">("menu");
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallCode, setPaywallCode] = useState<"audio_quota" | "ai_parse_quota" | null>(null);
   const { summary, refresh: refreshUsage } = useUsage(Boolean(userId));
@@ -186,6 +187,7 @@ function ConfiguredApp() {
 
   const goHome = useCallback(() => {
     setSettingsOpen(false);
+    setSettingsSection("menu");
     setPaywallOpen(false);
     setHomeResetTick((tick) => tick + 1);
   }, []);
@@ -193,14 +195,41 @@ function ConfiguredApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const billing = params.get("billing");
+    const calendar = params.get("calendar");
+    let replaced = false;
 
     if (billing === "success") {
       setBillingNotice("המנוי הופעל בהצלחה! ברוך הבא ל-Premium.");
       void refreshUsage();
-      window.history.replaceState({}, "", window.location.pathname);
+      params.delete("billing");
+      replaced = true;
     } else if (billing === "cancel") {
       setBillingNotice("התשלום בוטל.");
-      window.history.replaceState({}, "", window.location.pathname);
+      params.delete("billing");
+      replaced = true;
+    }
+
+    if (calendar === "connected") {
+      setSettingsOpen(true);
+      setSettingsSection("calendar");
+      setBillingNotice("Google Calendar מחובר. משימות עם תאריך יופיעו ביומן.");
+      params.delete("calendar");
+      replaced = true;
+    } else if (calendar === "error") {
+      setSettingsOpen(true);
+      setSettingsSection("calendar");
+      setBillingNotice("חיבור Google Calendar לא הושלם. אפשר לנסות שוב בהגדרות.");
+      params.delete("calendar");
+      replaced = true;
+    }
+
+    if (replaced) {
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`,
+      );
     }
   }, [refreshUsage]);
 
@@ -389,12 +418,16 @@ function ConfiguredApp() {
               userId={userId}
               summary={summary}
               cloudAccount
+              initialSection={settingsSection}
               onOpenPaywall={() => {
                 setPaywallCode(null);
                 setPaywallOpen(true);
               }}
               onUsageChanged={() => void refreshUsage()}
-              onClose={() => setSettingsOpen(false)}
+              onClose={() => {
+                setSettingsOpen(false);
+                setSettingsSection("menu");
+              }}
             />
           ) : null}
           <OnboardingBanner enabled={Boolean(userId)} />

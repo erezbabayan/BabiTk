@@ -71,6 +71,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN is empty — schema and Edge Functions were NOT deployed."
@@ -97,9 +99,12 @@ jobs:
           sync_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
           sync_secret RUNPOD_API_KEY "${RUNPOD_API_KEY:-}"
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
+          sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-}"
+          sync_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-}"
           npx supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
           npx supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
           npx supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
           npx supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt

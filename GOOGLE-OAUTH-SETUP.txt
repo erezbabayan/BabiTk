@@ -1,27 +1,33 @@
-﻿BabiTk ג€” Google login setup
-============================
+﻿BabiTk — Google login + Google Calendar
+=======================================
 
-1) Open Google Cloud credentials (browser will open).
-2) Click: Create credentials -> OAuth client ID
-3) Application type: Web application
-4) Name: BabiTk (or MindTasker)
-5) Authorized JavaScript origins:
+Live stack: GitHub Pages + Supabase Edge (not Convex / not Fastify).
+
+1) Google Cloud Console → Credentials → OAuth client ID (Web application)
+
+2) Authorized JavaScript origins:
    http://localhost:5173
-6) Authorized redirect URIs:
-   https://scintillating-fly-225.convex.site/api/auth/callback/google
-7) Click Create ג€” copy Client ID and Client Secret
+   https://erezbabayan.github.io
 
-8) Create file: .google-oauth.local.env  (in repo root) with:
+3) Authorized redirect URIs (both):
+   https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback
+   https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/callback
 
-GOOGLE_CLIENT_ID=YOUR_ID.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=GOCSPX-...
+4) Enable the Google Calendar API on the same project.
 
-# Redirect URI for Convex Auth:
-#   https://scintillating-fly-225.convex.site/api/auth/callback/google
-# JavaScript origin:
-#   http://localhost:5173
+5) Set Edge secrets (not in git):
+   GOOGLE_CLIENT_ID=....apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-...
 
-9) Run in terminal:
-   node scripts/apply-google-oauth.mjs
+   npx supabase secrets set --project-ref ghibfuinantybqidwadj \
+     GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
 
-Then refresh http://localhost:5173 and click Sign in with Google.
+   The same values can also live in GitHub Actions secrets so deploy-supabase-functions.yml syncs them.
+
+6) After deploy, health check:
+   https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/health
+
+   configured=true means OAuth is ready. Then Settings → Google Calendar → חבר.
+
+What syncs: dated actionable BabiTk tasks (1-hour events, Asia/Jerusalem, primary calendar).
+Notes without a date stay out of the calendar. Delete / convert to note / clear the date removes the event.

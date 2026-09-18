@@ -2,9 +2,12 @@ import type { FastifyPluginAsync } from "fastify";
 import { requireAuth } from "../middleware/auth.js";
 import {
   buildGoogleAuthUrl,
+  disconnectGoogleCalendar,
   exchangeGoogleCode,
 } from "../services/calendar.service.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import { calendarCallbackHtml, withCalendarQuery, DEFAULT_WEB_APP_URL } from "../lib/google-calendar.js";
+import { env } from "../config/env.js";
 
 export const integrationsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/google/connect", { preHandler: requireAuth }, async (request, reply) => {
@@ -13,7 +16,7 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      const url = buildGoogleAuthUrl(request.user.id);
+      const url = await buildGoogleAuthUrl(request.user.id);
       return reply.send({ url });
     } catch (error) {
       return reply.status(503).send({
@@ -25,23 +28,38 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/google/callback", async (request, reply) => {
     const query = request.query as { code?: string; state?: string; error?: string };
+    const webAppUrl = env.webAppUrl || DEFAULT_WEB_APP_URL;
 
     if (query.error || !query.code || !query.state) {
-      return reply.status(400).send({ error: "oauth_failed" });
+      return reply
+        .status(400)
+        .type("text/html")
+        .send(
+          calendarCallbackHtml({
+            ok: false,
+            webAppUrl: withCalendarQuery(webAppUrl, "error"),
+            message: "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.",
+          }),
+        );
     }
 
     try {
       await exchangeGoogleCode(query.state, query.code);
       return reply.type("text/html").send(
-        "<html><body style='font-family:sans-serif;text-align:center;padding:40px'>" +
-          "<h2>Google Calendar מחובר בהצלחה!</h2>" +
-          "<p>אפשר לסגור את החלון ולחזור ל-BabiTk.</p></body></html>",
+        calendarCallbackHtml({
+          ok: true,
+          webAppUrl: withCalendarQuery(webAppUrl, "connected"),
+          message: "אפשר לסגור את החלון. משימות עם תאריך יופיעו עכשיו ביומן Google.",
+        }),
       );
     } catch (error) {
-      return reply.status(400).send({
-        error: "token_exchange_failed",
-        message: error instanceof Error ? error.message : "OAuth failed",
-      });
+      return reply.status(400).type("text/html").send(
+        calendarCallbackHtml({
+          ok: false,
+          webAppUrl: withCalendarQuery(webAppUrl, "error"),
+          message: error instanceof Error ? error.message : "OAuth failed",
+        }),
+      );
     }
   });
 
@@ -53,10 +71,22 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from("users")
-      .select("google_calendar_enabled")
+      .select("google_calendar_enabled, google_refresh_token")
       .eq("id", request.user.id)
       .single();
 
-    return reply.send({ linked: Boolean(data?.google_calendar_enabled) });
+    const linked =
+      Boolean(data?.google_calendar_enabled) &&
+      typeof data?.google_refresh_token === "string" &&
+      data.google_refresh_token.length > 8;
+    return reply.send({ linked });
+  });
+
+  app.post("/google/disconnect", { preHandler: requireAuth }, async (request, reply) => {
+    if (!request.user) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    await disconnectGoogleCalendar(request.user.id);
+    return reply.send({ ok: true, linked: false });
   });
 };

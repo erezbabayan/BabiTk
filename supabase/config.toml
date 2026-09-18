@@ -44,6 +44,9 @@ verify_jwt = true
 [functions.github-oidc-mint]
 verify_jwt = false
 
+[functions.google-calendar]
+verify_jwt = false
+
 [realtime]
 enabled = true
 
