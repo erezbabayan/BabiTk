@@ -1487,9 +1487,9 @@ const styles = StyleSheet.create({
   },
   boardList: { flex: 1 },
   squaresRow: {
-    // Half-gap padding inside cells (not row gap) keeps width:50% exact + equal stretch.
+    // Half-gap padding inside cells (not row gap) keeps width:50% exact.
     marginHorizontal: -BOARD_SQUARE_HALF_GAP_PX,
-    alignItems: "stretch",
+    alignItems: "flex-start",
     justifyContent: "flex-start",
   },
   squaresCell: {

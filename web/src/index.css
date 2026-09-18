@@ -527,7 +527,7 @@ body {
   flex: 0 0 auto !important;
   align-self: flex-start !important;
   align-content: start !important;
-  align-items: stretch !important;
+  align-items: start !important;
 }
 
 .board-items-squares-empty {

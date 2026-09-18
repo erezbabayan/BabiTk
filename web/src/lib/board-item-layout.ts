@@ -32,7 +32,7 @@ export const BOARD_SQUARE_GRID_STYLE: CSSProperties = {
   padding: BOARD_SQUARE_GAP_PX,
   width: "100%",
   height: "fit-content",
-  alignItems: "stretch",
+  alignItems: "start",
   alignContent: "start",
   alignSelf: "flex-start",
   flex: "0 0 auto",
