@@ -65,7 +65,9 @@ function metadataTranscription(item: Pick<MindtaskerItem, "metadata" | "source_m
 export function hasVoiceAudioSource(item: Pick<MindtaskerItem, "metadata" | "source_materials">): boolean {
   if (item.source_materials?.storage_url?.trim()) return true;
   const metadata = item.metadata ?? {};
-  return Boolean(stringField(metadata.whatsapp_message_id));
+  return Boolean(
+    stringField(metadata.whatsapp_message_id) || stringField(metadata.voice_storage_path),
+  );
 }
 
 export interface VoiceDisplayText {

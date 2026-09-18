@@ -7,7 +7,7 @@ import {
   resolveVoiceDisplayText,
   VOICE_TRANSCRIBING_TITLE,
   VOICE_UNAVAILABLE_TITLE,
-} from "./voice-text.js";
+} from "./voice-text.ts";
 
 describe("voice-text display", () => {
   it("never returns the WhatsApp voice placeholder as a headline", () => {
@@ -56,5 +56,17 @@ describe("voice-text display", () => {
       metadata: {},
       source_materials: null,
     }), false);
+  });
+
+  it("repairs in-app pending voice when audio was stored", () => {
+    assert.equal(
+      itemNeedsVoiceRepair({
+        title: VOICE_TRANSCRIBING_TITLE,
+        content: "",
+        metadata: { source: "app_voice", voice_storage_path: "user/1.webm" },
+        source_materials: null,
+      }),
+      true,
+    );
   });
 });
