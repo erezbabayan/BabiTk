@@ -11,6 +11,7 @@ export const WHATSAPP_VOICE_PLACEHOLDERS = [
 
 export const VOICE_PENDING_TITLE = "ממתין לתמלול";
 export const VOICE_TRANSCRIBING_TITLE = "מתמלל…";
+export const VOICE_UNAVAILABLE_TITLE = "לא ניתן לתמלל כרגע";
 
 const VOICE_PENDING_TITLES = [VOICE_PENDING_TITLE, VOICE_TRANSCRIBING_TITLE] as const;
 

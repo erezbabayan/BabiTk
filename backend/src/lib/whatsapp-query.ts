@@ -29,7 +29,8 @@ const DAY_TOMORROW = /(?:מחר(?:תיים)?|tomorrow)/iu;
 const DAY_OVERDUE =
   /(?:ב?איחור|שעבר(?:ו)?\s*זמנ|overdue|פג(?:ה|ו)\s*המועד|(?:ש)?(?:ה)?תארי[ךכל]\s+של(?:הם|הן|ה|ו)?\s+עבר|(?:ש)?(?:ה)?תארי[ךכל].{0,32}עבר|עבר(?:ו)?\s*(?:ה)?תארי[ךכל])/iu;
 const DAY_INBOX = /(?:תיב(?:ה|ת)\s*הכניסה|בתיבה|inbox|עדיין לא אושר)/iu;
-const DAY_WEEK = /(?:השבוע|השבוע הקרוב|this week|7 ימים)/iu;
+const DAY_WEEK =
+  /(?:השבוע(?:\s+הקרוב)?|שבוע\s+הבא|לשבוע\s+הבא|בשבוע\s+הבא|this week|next week|7 ימים)/iu;
 const DAY_PLAN = /(?:תכנ(?:ן|ני)\s+לי\s+את\s+היום|סדר לי את היום|plan my day)/iu;
 
 export function isWhatsAppMenuRequest(raw: string): boolean {

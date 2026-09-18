@@ -19,13 +19,12 @@ import {
   parseIncomingMessage,
 } from "../_shared/parse-incoming-message.ts";
 import {
+  awaitStoredVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
   pendingVoiceItem,
-  scheduleBackgroundWork,
-  transcribeStoredVoiceItem,
+  repairOnePlaceholderVoiceItem,
   transcribeVoiceMessageWithRetry,
   type VoiceGatewayCredentials,
-  type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
 import { sendGreenApiText } from "../_shared/green-api-send.ts";
 import {
@@ -51,6 +50,8 @@ import {
   replyWhatsAppSystemQuestion,
 } from "../_shared/whatsapp-system-question-reply.ts";
 
+const ASR_FAIL_REPLY =
+  "לא הצלחתי לתמלל את ההקלטה. כתבו את השאלה בטקסט, למשל: בבי מה המשימות היום";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
@@ -431,7 +432,7 @@ async function alreadyIngested(
   }
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
   if (!existing) return false;
-  queueVoiceTranscription(supabase, existing, gateway);
+  await awaitStoredVoiceTranscription(supabase, existing, gateway);
   return true;
 }
 
@@ -466,6 +467,7 @@ async function voiceItemFromMessage(
   content: string;
   rawText: string;
   audioUrl: string | null;
+  failed?: boolean;
 }> {
   try {
     const transcribed = await transcribeVoiceMessageWithRetry(message, gateway, supabase);
@@ -475,16 +477,7 @@ async function voiceItemFromMessage(
   } catch (error) {
     console.error("inline whatsapp asr failed", error);
   }
-  return pendingVoiceItem(message.audioUrl ?? null);
-}
-
-function queueVoiceTranscription(
-  supabase: ReturnType<typeof adminClient>,
-  row: VoiceItemRow,
-  gateway: GatewayRow | null,
-): void {
-  if (!needsVoiceTranscription(row.title, row.content)) return;
-  scheduleBackgroundWork(transcribeStoredVoiceItem(supabase, row, gateway));
+  return { ...pendingVoiceItem(message.audioUrl ?? null), failed: true };
 }
 
 async function ingestMessage(
@@ -496,13 +489,32 @@ async function ingestMessage(
   if (await alreadyIngested(supabase, user.id, message.messageId, gateway)) {
     return null;
   }
-  const item =
-    message.type === "audio"
-      ? await voiceItemFromMessage(message, gateway, supabase)
-      : itemFromMessage(message);
-  const questionText = item.content || ("rawText" in item ? item.rawText : "");
+  if (message.type === "audio") {
+    const voice = await voiceItemFromMessage(message, gateway, supabase);
+    if (voice.failed) {
+      await sendGreenApiText(gateway, replyChatId(message), ASR_FAIL_REPLY);
+      return "answered";
+    }
+    const questionText = voice.content || voice.rawText;
+    if (
+      questionText.trim() &&
+      (await handleGroupTextIntent({
+        supabase,
+        user,
+        gateway,
+        message,
+        text: questionText,
+        sourceType: "whatsapp_voice",
+      }))
+    ) {
+      return "answered";
+    }
+    return await insertCapturedItem(supabase, user, message, voice);
+  }
+
+  const item = itemFromMessage(message);
+  const questionText = item.content;
   if (
-    !needsVoiceTranscription(item.title, item.content) &&
     questionText.trim() &&
     (await handleGroupTextIntent({
       supabase,
@@ -510,21 +522,36 @@ async function ingestMessage(
       gateway,
       message,
       text: questionText,
-      sourceType: message.type === "audio" ? "whatsapp_voice" : "whatsapp_text",
+      sourceType: "whatsapp_text",
     }))
   ) {
     return "answered";
   }
+  return await insertCapturedItem(supabase, user, message, item);
+}
+
+async function insertCapturedItem(
+  supabase: ReturnType<typeof adminClient>,
+  user: UserRow,
+  message: ParsedGreenApiMessage,
+  item: {
+    sourceType: "whatsapp_text" | "whatsapp_voice" | "image";
+    title: string;
+    content: string;
+    rawText?: string;
+    audioUrl?: string | null;
+  },
+): Promise<{ id: string; title: string } | null> {
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
     .insert({
       user_id: user.id,
       source_type: item.sourceType,
-      raw_text: "rawText" in item ? item.rawText : item.content,
+      raw_text: item.rawText ?? item.content,
       storage_url:
         message.type === "audio"
-          ? ("audioUrl" in item ? item.audioUrl : message.audioUrl) ?? null
+          ? item.audioUrl ?? message.audioUrl ?? null
           : message.imageUrl ?? null,
       metadata: {
         whatsapp_message_id: message.messageId,
@@ -532,7 +559,7 @@ async function ingestMessage(
         channel: "whatsapp",
         ...(message.type === "audio"
           ? {
-              whisper_transcription: "rawText" in item ? item.rawText : item.content,
+              whisper_transcription: item.rawText ?? item.content,
               corrected_transcription: item.content,
             }
           : {}),
@@ -545,8 +572,7 @@ async function ingestMessage(
   }
 
   const allowedTags = await loadAllowedTagNames(supabase, user.id);
-  const skipParse = needsVoiceTranscription(item.title, item.content);
-  const parsed = skipParse ? undefined : parseIncomingMessage(item.content, allowedTags)[0];
+  const parsed = parseIncomingMessage(item.content, allowedTags)[0];
 
   const { data: inserted, error: itemError } = await supabase
     .from("mindtasker_items")
@@ -565,7 +591,7 @@ async function ingestMessage(
         chat_id: message.chatId,
         ...(message.type === "audio"
           ? {
-              whisper_transcription: "rawText" in item ? item.rawText : item.content,
+              whisper_transcription: item.rawText ?? item.content,
               corrected_transcription: item.content,
             }
           : {}),
@@ -573,37 +599,10 @@ async function ingestMessage(
       sort_order: now,
       last_interacted_at: new Date(now).toISOString(),
     })
-    .select("id, user_id, title, content, metadata, source_material_id")
+    .select("id, title")
     .single();
   if (itemError || !inserted) {
     throw new Error(itemError?.message ?? "item_insert_failed");
-  }
-
-  if (message.type === "audio") {
-    const storageUrl =
-      ("audioUrl" in item ? item.audioUrl : message.audioUrl) ?? null;
-    queueVoiceTranscription(
-      supabase,
-      {
-        id: inserted.id as string,
-        user_id: user.id,
-        title: inserted.title as string,
-        content: inserted.content as string,
-        metadata: (inserted.metadata as Record<string, unknown> | null) ?? null,
-        source_material_id: source?.id ?? null,
-        source_materials: source?.id
-          ? {
-              id: source.id,
-              storage_url: storageUrl,
-              metadata: {
-                whatsapp_message_id: message.messageId,
-                chat_id: message.chatId,
-              },
-            }
-          : null,
-      },
-      gateway,
-    );
   }
   return { id: inserted.id as string, title: inserted.title as string };
 }
@@ -625,8 +624,8 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
-      asr: "inline-whisper-v4",
-      qa: "babi-v2",
+      asr: "inline-whisper-v5",
+      qa: "babi-v3",
     });
   }
   if (req.method !== "POST") {
@@ -720,6 +719,7 @@ Deno.serve(async (req) => {
             gateway,
             chatId: message.chatId,
           });
+          await repairOnePlaceholderVoiceItem(supabase, user.id, gateway);
           continue;
         }
       }
@@ -728,25 +728,23 @@ Deno.serve(async (req) => {
         answered.push({ messageId: message.messageId, userId: user.id });
       } else if (inserted) {
         await rememberLastItemIds(supabase, user.id, [inserted.id]);
-        const pendingVoice = needsVoiceTranscription(inserted.title, inserted.title);
-        if (!pendingVoice) {
-          await sendGreenApiText(
-            gateway,
-            replyChatId(message),
-            buildCaptureConfirmation([{ title: inserted.title }]),
-          );
-          await maybeSendGroupMenu({
-            supabase,
-            user,
-            gateway,
-            chatId: message.chatId,
-          });
-        }
+        await sendGreenApiText(
+          gateway,
+          replyChatId(message),
+          buildCaptureConfirmation([{ title: inserted.title }]),
+        );
+        await maybeSendGroupMenu({
+          supabase,
+          user,
+          gateway,
+          chatId: message.chatId,
+        });
         scheduled.push({
           messageId: message.messageId,
           userId: user.id,
         });
       }
+      await repairOnePlaceholderVoiceItem(supabase, user.id, gateway);
     } catch (error) {
       skipped.push({
         messageId: message.messageId,

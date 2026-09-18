@@ -81,7 +81,13 @@ export function normalizeAsrUpload(
   if (mime.includes("mpeg") || mime.includes("mp3") || lowerName.endsWith(".mp3")) {
     return { fileName: "recording.mp3", mimeType: "audio/mpeg" };
   }
-  if (mime.includes("ogg") || lowerName.endsWith(".ogg") || lowerName.endsWith(".oga")) {
+  if (
+    mime.includes("ogg") ||
+    mime.includes("opus") ||
+    lowerName.endsWith(".ogg") ||
+    lowerName.endsWith(".oga") ||
+    lowerName.endsWith(".opus")
+  ) {
     return { fileName: "recording.ogg", mimeType: "audio/ogg" };
   }
   if (mime.includes("webm") || lowerName.endsWith(".webm")) {
