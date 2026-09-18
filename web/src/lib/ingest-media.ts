@@ -33,8 +33,9 @@ async function ingestVoiceViaExpress(
 }
 
 /**
- * Transcribe via Edge `ingest-voice` (Groq whisper-large-v3-turbo, ~0.5–3s).
- * Hugging Face Gradio is a last-resort fallback inside persistRecordedVoiceTranscript.
+ * Persist the inbox row immediately, then refine via Edge `ingest-voice`
+ * (Groq whisper-large-v3-turbo) in the background. Gradio is last-resort
+ * only if the insert and Edge call both fail.
  */
 export async function ingestVoiceBlobForUser(
   _legacyUserId: string,

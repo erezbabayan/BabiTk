@@ -157,10 +157,12 @@ Deno.serve(async (req) => {
       durationSeconds: payload.durationSeconds,
       promptHint: payload.promptHint || undefined,
       itemId: payload.itemId || undefined,
+      respondImmediately: true,
     });
     return json({
       ok: true,
       answered: result.answered === true,
+      pending: result.pending === true,
       itemId: result.itemId,
       title: result.title,
       content: result.content,

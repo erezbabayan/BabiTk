@@ -6,21 +6,21 @@
  *  2. A hosted turbo Whisper (Groq whisper-large-v3-turbo) for the canonical text
  *  3. A slow public model only as last resort
  *
- * BabiTk's Edge `ingest-voice` already runs Groq (~0.5–3s). The browser must
- * call that first — not Hugging Face Gradio Spaces (cold start, 45s).
+ * BabiTk persists the inbox row immediately (live caption or «מתמלל…»),
+ * then refines with Edge Groq in the background. Gradio is repair-only.
  */
 
 export const FAST_VOICE_ASR_CASCADE = [
-  "live-caption",
-  "edge-groq",
-  "web-speech",
-  "gradio-last-resort",
+  "persist-now",
+  "background-edge-groq",
+  "repair-gradio",
 ] as const;
 
 /** Stay under the typical Supabase Edge JSON body limit. */
 export const MAX_EDGE_AUDIO_BYTES = 4_500_000;
 export const EDGE_INGEST_TIMEOUT_MS = 12_000;
-export const EDGE_REFINE_WAIT_MS = 4_500;
+/** Capture UI must never wait for Groq / OpenAI / Gradio. */
+export const AWAIT_EDGE_ON_CAPTURE = false;
 export const EDGE_TRANSCRIBE_TIMEOUT_MS = 16_000;
 
 const HEBREW_ASR_WHISPER_PROMPT =

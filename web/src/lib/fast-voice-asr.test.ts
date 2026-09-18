@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  AWAIT_EDGE_ON_CAPTURE,
   canSendAudioToEdge,
   composeHebrewWhisperPrompt,
   FAST_VOICE_ASR_CASCADE,
@@ -14,13 +15,13 @@ import {
 } from "./fast-voice-asr.ts";
 
 describe("fast Hebrew ASR helpers", () => {
-  it("shows a live caption first, then Groq, then fallbacks", () => {
+  it("persists immediately and refines Groq in the background", () => {
     assert.deepEqual(FAST_VOICE_ASR_CASCADE, [
-      "live-caption",
-      "edge-groq",
-      "web-speech",
-      "gradio-last-resort",
+      "persist-now",
+      "background-edge-groq",
+      "repair-gradio",
     ]);
+    assert.equal(AWAIT_EDGE_ON_CAPTURE, false);
   });
 
   it("accepts short recordings and rejects empty or oversized blobs", () => {
