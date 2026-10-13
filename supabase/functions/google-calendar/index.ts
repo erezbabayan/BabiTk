@@ -3,6 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
+  GOOGLE_OAUTH_INTEGRATION_KEY,
   buildGoogleAuthUrl,
   calendarCallbackHtml,
   createOAuthState,
@@ -11,7 +12,11 @@ import {
   googleCalendarConfig,
   googleCalendarStatus,
   googleOAuthSetupPublic,
+  isGoogleOAuthOwner,
+  looksLikeGoogleClientId,
+  looksLikeGoogleClientSecret,
   parseOAuthState,
+  setGoogleOAuthOverride,
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
   syncItemToGoogleCalendar,
@@ -86,7 +91,26 @@ function routeAction(req: Request): string {
   return (url.searchParams.get("action") ?? "").trim();
 }
 
-async function requireUserId(req: Request): Promise<string> {
+type AuthedUser = {
+  id: string;
+  email: string | null;
+  username: string | null;
+};
+
+function projectRefFromUrl(url: string): string {
+  try {
+    const host = new URL(url).hostname;
+    return host.split(".")[0] ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function managementToken(): string {
+  return (Deno.env.get("BABITK_MANAGEMENT_TOKEN") ?? "").trim();
+}
+
+async function requireUser(req: Request): Promise<AuthedUser> {
   const authHeader = req.headers.get("Authorization") ?? "";
   if (!authHeader.startsWith("Bearer ")) {
     throw new Error("not_authenticated");
@@ -102,7 +126,129 @@ async function requireUserId(req: Request): Promise<string> {
   if (error || !data.user?.id) {
     throw new Error("not_authenticated");
   }
-  return data.user.id;
+  const admin = fullAdminClient();
+  const { data: row } = await admin
+    .from("users")
+    .select("email, username")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  const metaUsername =
+    typeof data.user.user_metadata?.username === "string"
+      ? data.user.user_metadata.username
+      : null;
+  return {
+    id: data.user.id,
+    email:
+      data.user.email ??
+      (typeof row?.email === "string" ? row.email : null),
+    username:
+      (typeof row?.username === "string" ? row.username : null) ?? metaUsername,
+  };
+}
+
+async function hydrateGoogleConfig(): Promise<void> {
+  try {
+    const admin = fullAdminClient();
+    const { data, error } = await admin
+      .from("app_integrations")
+      .select("google_client_id, google_client_secret")
+      .eq("key", GOOGLE_OAUTH_INTEGRATION_KEY)
+      .maybeSingle();
+    if (error || !data) return;
+    const clientId =
+      typeof data.google_client_id === "string" ? data.google_client_id.trim() : "";
+    const clientSecret =
+      typeof data.google_client_secret === "string"
+        ? data.google_client_secret.trim()
+        : "";
+    if (looksLikeGoogleClientId(clientId) && looksLikeGoogleClientSecret(clientSecret)) {
+      setGoogleOAuthOverride(clientId, clientSecret);
+    }
+  } catch (error) {
+    console.error("hydrate google oauth", error);
+  }
+}
+
+async function persistGoogleOAuthRow(clientId: string, clientSecret: string): Promise<void> {
+  const admin = fullAdminClient();
+  const { error } = await admin.from("app_integrations").upsert({
+    key: GOOGLE_OAUTH_INTEGRATION_KEY,
+    google_client_id: clientId,
+    google_client_secret: clientSecret,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    throw new Error(error.message || "oauth_store_failed");
+  }
+}
+
+async function patchAuthGoogleProvider(
+  clientId: string,
+  clientSecret: string,
+): Promise<boolean> {
+  const token = managementToken();
+  const ref = projectRefFromUrl(SUPABASE_URL);
+  if (!token || !ref) return false;
+  const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      external_google_enabled: true,
+      external_google_client_id: clientId,
+      external_google_secret: clientSecret,
+      external_google_skip_nonce_check: true,
+      security_manual_linking_enabled: true,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    console.error("auth google patch failed", response.status, detail.slice(0, 200));
+    return false;
+  }
+  return true;
+}
+
+async function syncGoogleEdgeSecrets(
+  clientId: string,
+  clientSecret: string,
+): Promise<boolean> {
+  const token = managementToken();
+  const ref = projectRefFromUrl(SUPABASE_URL);
+  if (!token || !ref) return false;
+  const response = await fetch(`https://api.supabase.com/v1/projects/${ref}/secrets`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify([
+      { name: "GOOGLE_CLIENT_ID", value: clientId },
+      { name: "GOOGLE_CLIENT_SECRET", value: clientSecret },
+    ]),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    console.error("google secrets sync failed", response.status, detail.slice(0, 200));
+    return false;
+  }
+  return true;
+}
+
+function readGoogleCredentials(body: {
+  clientId?: unknown;
+  clientSecret?: unknown;
+}): { clientId: string; clientSecret: string } {
+  const clientId = typeof body.clientId === "string" ? body.clientId.trim() : "";
+  const clientSecret = typeof body.clientSecret === "string" ? body.clientSecret.trim() : "";
+  if (!looksLikeGoogleClientId(clientId) || !looksLikeGoogleClientSecret(clientSecret)) {
+    throw new Error("invalid_google_client");
+  }
+  return { clientId, clientSecret };
 }
 
 async function handleCallback(req: Request): Promise<Response> {
@@ -160,6 +306,7 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers: CORS });
   }
 
+  await hydrateGoogleConfig();
   const action = routeAction(req);
 
   if (req.method === "GET" && (action === "callback" || action === "oauth")) {
@@ -183,8 +330,46 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const userId = await requireUserId(req);
+    const user = await requireUser(req);
+    const userId = user.id;
     const config = googleCalendarConfig();
+    const canConfigure = isGoogleOAuthOwner({
+      email: user.email,
+      username: user.username,
+    });
+
+    if (req.method === "POST" && action === "configure") {
+      if (!canConfigure) {
+        return json(
+          {
+            error: "not_owner",
+            message: "רק בעל החשבון יכול להפעיל את חיבור Google Calendar מההגדרות.",
+          },
+          403,
+        );
+      }
+      const body = (await req.json().catch(() => ({}))) as {
+        clientId?: unknown;
+        clientSecret?: unknown;
+      };
+      const credentials = readGoogleCredentials(body);
+      await persistGoogleOAuthRow(credentials.clientId, credentials.clientSecret);
+      setGoogleOAuthOverride(credentials.clientId, credentials.clientSecret);
+      const [authPatched, secretsSynced] = await Promise.all([
+        patchAuthGoogleProvider(credentials.clientId, credentials.clientSecret),
+        syncGoogleEdgeSecrets(credentials.clientId, credentials.clientSecret),
+      ]);
+      const authProviderEnabled = authPatched
+        ? true
+        : await probeGoogleAuthProvider(SUPABASE_URL);
+      return json({
+        ok: true,
+        configured: true,
+        authProviderEnabled,
+        secretsSynced,
+        canConfigure: true,
+      });
+    }
 
     if (req.method === "GET" && (action === "connect" || action === "start")) {
       if (!config.configured) {
@@ -192,12 +377,14 @@ Deno.serve(async (req) => {
         return json(
           {
             error: "google_not_configured",
-            message:
-              "חיבור Google Calendar עדיין לא הוגדר בשרת. צרו לקוח OAuth ב-Google Cloud עם כתובות ההפניה שמופיעות בהגדרות.",
+            message: canConfigure
+              ? "חיבור Google Calendar עדיין לא הוגדר. צרו לקוח OAuth ב-Google Cloud, הדביקו Client ID ו-Secret בהגדרות, ואז לחצו הפעל וחבר."
+              : "חיבור Google Calendar עדיין לא הוגדר בשרת. צרו לקוח OAuth ב-Google Cloud עם כתובות ההפניה שמופיעות בהגדרות.",
             redirectUri: config.redirectUri,
             authRedirectUri: setup.authRedirectUri,
             calendarRedirectUri: setup.calendarRedirectUri,
             javascriptOrigins: setup.javascriptOrigins,
+            canConfigure,
           },
           503,
         );
@@ -213,7 +400,7 @@ Deno.serve(async (req) => {
 
     if (req.method === "GET" && action === "status") {
       const status = await googleCalendarStatus(adminClient(), userId);
-      return json(status);
+      return json({ ...status, canConfigure });
     }
 
     if (req.method === "POST" && action === "disconnect") {
@@ -275,6 +462,19 @@ Deno.serve(async (req) => {
     const message = error instanceof Error ? error.message : "calendar_failed";
     if (message === "not_authenticated") {
       return json({ error: "not_authenticated" }, 401);
+    }
+    if (message === "not_owner") {
+      return json({ error: "not_owner", message: "רק בעל החשבון יכול להפעיל את חיבור Google Calendar מההגדרות." }, 403);
+    }
+    if (message === "invalid_google_client") {
+      return json(
+        {
+          error: "invalid_google_client",
+          message:
+            "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
+        },
+        400,
+      );
     }
     console.error("google-calendar", error);
     return json({ error: message }, 400);

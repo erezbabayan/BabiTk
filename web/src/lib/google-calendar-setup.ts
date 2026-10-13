@@ -4,6 +4,21 @@ export const GOOGLE_OAUTH_JAVASCRIPT_ORIGINS = [
   "https://erezbabayan.github.io",
   "http://localhost:5173",
 ] as const;
+export const GOOGLE_CLOUD_CALENDAR_API_URL =
+  "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com";
+export const GOOGLE_CLOUD_CREDENTIALS_URL =
+  "https://console.cloud.google.com/apis/credentials";
+
+export function looksLikeGoogleClientId(value: string): boolean {
+  return (
+    value.includes(".apps.googleusercontent.com") &&
+    !/your-client|placeholder|YOUR_ID/i.test(value)
+  );
+}
+
+export function looksLikeGoogleClientSecret(value: string): boolean {
+  return value.length >= 12 && !/placeholder|GOCSPX-\.\.\./i.test(value);
+}
 
 export type GoogleCalendarSetup = {
   javascriptOrigins: string[];

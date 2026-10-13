@@ -4,11 +4,16 @@ import {
   getGoogleCalendarStatus,
 } from "../lib/api";
 import {
+  configureGoogleCalendarOAuth,
   getGoogleCalendarHealth,
   startGoogleCalendarConnect,
 } from "../lib/google-calendar-client";
 import {
+  GOOGLE_CLOUD_CALENDAR_API_URL,
+  GOOGLE_CLOUD_CREDENTIALS_URL,
   googleOAuthSetupPublic,
+  looksLikeGoogleClientId,
+  looksLikeGoogleClientSecret,
   type GoogleCalendarHealth,
 } from "../lib/google-calendar-setup";
 import { isDemoMode } from "../lib/supabase";
@@ -53,6 +58,8 @@ export function GoogleCalendarLink() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
 
   async function refreshStatus() {
     try {
@@ -109,6 +116,29 @@ export function GoogleCalendarLink() {
     }
   }
 
+  async function handleActivateAndConnect() {
+    setError(null);
+    const id = clientId.trim();
+    const secret = clientSecret.trim();
+    if (!looksLikeGoogleClientId(id) || !looksLikeGoogleClientSecret(secret)) {
+      setError(
+        "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      await configureGoogleCalendarOAuth(id, secret);
+      setClientSecret("");
+      await startGoogleCalendarConnect();
+      await refreshStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "הפעלת חיבור היומן נכשלה");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleDisconnect() {
     setError(null);
     setBusy(true);
@@ -145,7 +175,7 @@ export function GoogleCalendarLink() {
         >
           {busy ? "מנתק..." : "נתק יומן"}
         </button>
-      ) : (
+      ) : needsServerSetup ? null : (
         <button
           type="button"
           onClick={() => void handleConnect()}
@@ -158,18 +188,71 @@ export function GoogleCalendarLink() {
       {needsServerSetup ? (
         <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-slate-800">
           <p>
-            כדי ש-Google יאשר את החיבור צריך לקוח OAuth מסוג Web application עם
-            הכתובות האלה (פעם אחת):
+            כדי לחבר את היומן צרו לקוח OAuth מסוג Web application ב-Google Cloud
+            (פעם אחת), הדביקו כאן את Client ID ו-Secret, ואז לחצו «הפעל וחבר».
           </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <a
+              href={GOOGLE_CLOUD_CALENDAR_API_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50"
+            >
+              הפעלת Calendar API
+            </a>
+            <a
+              href={GOOGLE_CLOUD_CREDENTIALS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50"
+            >
+              יצירת לקוח OAuth
+            </a>
+          </div>
           <CopyRow label="מקור JavaScript" value={health.javascriptOrigins[0] ?? ""} />
           <CopyRow label="מקור מקומי" value={health.javascriptOrigins[1] ?? ""} />
           <CopyRow label="כתובת הפניה לכניסה" value={health.authRedirectUri} />
           <CopyRow label="כתובת הפניה ליומן" value={health.calendarRedirectUri} />
-          <p className="text-xs text-slate-600">
-            {health.authProviderEnabled
-              ? "אחרי יצירת הלקוח שמרו GOOGLE_CLIENT_ID ו-GOOGLE_CLIENT_SECRET ב-GitHub Secrets או ב-Deploy Supabase Functions."
-              : "ספק Google בשרת עדיין כבוי. אחרי שמירת Client ID ו-Secret לחצו חבר שוב — ייפתח מסך Google."}
-          </p>
+          <form
+            className="space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleActivateAndConnect();
+            }}
+          >
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600">Client ID</span>
+              <input
+                type="text"
+                dir="ltr"
+                autoComplete="off"
+                spellCheck={false}
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+                placeholder="....apps.googleusercontent.com"
+                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs font-medium text-slate-600">Client Secret</span>
+              <input
+                type="password"
+                dir="ltr"
+                autoComplete="off"
+                value={clientSecret}
+                onChange={(event) => setClientSecret(event.target.value)}
+                placeholder="GOCSPX-..."
+                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={busy}
+              className="relative z-10 border border-slate-800 bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {busy ? "מפעיל..." : "הפעל וחבר"}
+            </button>
+          </form>
         </div>
       ) : null}
     </div>

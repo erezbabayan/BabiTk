@@ -7,6 +7,9 @@ import {
   createOAuthState,
   googleOAuthSetupPublic,
   isCalendarRelevantPatch,
+  isGoogleOAuthOwner,
+  looksLikeGoogleClientId,
+  looksLikeGoogleClientSecret,
   parseOAuthState,
   shouldDeleteCalendarEvent,
   shouldUpsertCalendarEvent,
@@ -136,6 +139,16 @@ describe("Google Calendar OAuth helpers", () => {
       url,
       "https://erezbabayan.github.io/BabiTk/?calendar=connected",
     );
+  });
+
+  it("recognizes the owner and real Google OAuth client values", () => {
+    assert.equal(isGoogleOAuthOwner({ email: "erezbabayan@gmail.com" }), true);
+    assert.equal(isGoogleOAuthOwner({ username: "erezbababan" }), true);
+    assert.equal(isGoogleOAuthOwner({ email: "other@example.com", username: "guest" }), false);
+    assert.equal(looksLikeGoogleClientId("123-abc.apps.googleusercontent.com"), true);
+    assert.equal(looksLikeGoogleClientId("YOUR_ID.apps.googleusercontent.com"), false);
+    assert.equal(looksLikeGoogleClientSecret("GOCSPX-real-secret-value"), true);
+    assert.equal(looksLikeGoogleClientSecret("GOCSPX-..."), false);
   });
 
   it("exposes the live Google Cloud redirect URIs", () => {

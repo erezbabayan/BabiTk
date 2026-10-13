@@ -13,6 +13,39 @@ export const GOOGLE_OAUTH_JAVASCRIPT_ORIGINS = [
   "http://localhost:5173",
 ] as const;
 
+export const GOOGLE_OAUTH_OWNER_EMAILS = ["erezbabayan@gmail.com"] as const;
+export const GOOGLE_OAUTH_OWNER_USERNAMES = ["erezbabayan", "erezbababan"] as const;
+export const GOOGLE_OAUTH_INTEGRATION_KEY = "google_oauth";
+
+export function looksLikeGoogleClientId(value: string): boolean {
+  return (
+    value.includes(".apps.googleusercontent.com") &&
+    !/your-client|placeholder|YOUR_ID/i.test(value)
+  );
+}
+
+export function looksLikeGoogleClientSecret(value: string): boolean {
+  return value.length >= 12 && !/placeholder|GOCSPX-\.\.\./i.test(value);
+}
+
+export function isGoogleOAuthOwner(input: {
+  email?: string | null;
+  username?: string | null;
+}): boolean {
+  const email = (input.email ?? "").trim().toLowerCase();
+  if ((GOOGLE_OAUTH_OWNER_EMAILS as readonly string[]).includes(email)) {
+    return true;
+  }
+  const username = (input.username ?? "").trim().toLowerCase();
+  return (GOOGLE_OAUTH_OWNER_USERNAMES as readonly string[]).includes(username);
+}
+
+let oauthOverride: { clientId: string; clientSecret: string } | null = null;
+
+export function setGoogleOAuthOverride(clientId: string, clientSecret: string): void {
+  oauthOverride = { clientId, clientSecret };
+}
+
 export function googleOAuthSetupPublic(supabaseUrl = DEFAULT_SUPABASE_URL): {
   javascriptOrigins: string[];
   authRedirectUri: string;
@@ -246,8 +279,12 @@ export function googleCalendarConfig(): {
   webAppUrl: string;
   configured: boolean;
 } {
-  const clientId = (Deno.env.get("GOOGLE_CLIENT_ID") ?? "").trim();
-  const clientSecret = (Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "").trim();
+  const clientId = (oauthOverride?.clientId || Deno.env.get("GOOGLE_CLIENT_ID") || "").trim();
+  const clientSecret = (
+    oauthOverride?.clientSecret ||
+    Deno.env.get("GOOGLE_CLIENT_SECRET") ||
+    ""
+  ).trim();
   const supabaseUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/$/, "");
   const redirectUri = (
     Deno.env.get("GOOGLE_CALENDAR_REDIRECT_URI") ??

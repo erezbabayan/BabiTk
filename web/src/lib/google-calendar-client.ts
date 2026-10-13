@@ -4,6 +4,8 @@ import { isCalendarRelevantPatch } from "./google-calendar-patch";
 import {
   googleCalendarHealthFromUnknown,
   googleOAuthSetupPublic,
+  looksLikeGoogleClientId,
+  looksLikeGoogleClientSecret,
   type GoogleCalendarHealth,
 } from "./google-calendar-setup";
 
@@ -81,8 +83,29 @@ export async function getGoogleCalendarConnectUrlFromEdge(): Promise<string> {
 export async function getGoogleCalendarStatusFromEdge(): Promise<{
   linked: boolean;
   configured: boolean;
+  canConfigure?: boolean;
 }> {
-  return invokeCalendar<{ linked: boolean; configured: boolean }>("status");
+  return invokeCalendar<{ linked: boolean; configured: boolean; canConfigure?: boolean }>(
+    "status",
+  );
+}
+
+export async function configureGoogleCalendarOAuth(
+  clientId: string,
+  clientSecret: string,
+): Promise<{ configured: boolean; authProviderEnabled?: boolean }> {
+  const id = clientId.trim();
+  const secret = clientSecret.trim();
+  if (!looksLikeGoogleClientId(id) || !looksLikeGoogleClientSecret(secret)) {
+    throw new Error(
+      "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
+    );
+  }
+  return invokeCalendar<{ configured: boolean; authProviderEnabled?: boolean }>("configure", {
+    method: "POST",
+    timeoutMs: 20_000,
+    body: { clientId: id, clientSecret: secret },
+  });
 }
 
 export async function getGoogleCalendarHealth(): Promise<GoogleCalendarHealth> {
@@ -137,14 +160,24 @@ function openCalendarPopup(url: string): void {
 }
 
 function hebrewGoogleAuthError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
+  const err = error instanceof Error ? error : null;
+  const message = err?.message ?? String(error);
+  const name = err?.name ?? "";
+  if (name === "not_owner" || message === "not_owner") {
+    return new Error("רק בעל החשבון יכול להפעיל את חיבור Google Calendar מההגדרות.");
+  }
+  if (name === "invalid_google_client" || message === "invalid_google_client") {
+    return new Error(
+      "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
+    );
+  }
   if (
     message.includes("provider is not enabled") ||
     message.includes("Unsupported provider") ||
     message.toLowerCase().includes("validation_failed")
   ) {
     return new Error(
-      "חיבור Google Calendar עדיין לא הוגדר בשרת. צרו לקוח OAuth ב-Google Cloud עם כתובות ההפניה שמופיעות בהגדרות, ואז לחצו חבר שוב.",
+      "חיבור Google Calendar עדיין לא הוגדר. צרו לקוח OAuth ב-Google Cloud, הדביקו Client ID ו-Secret בהגדרות, ואז לחצו הפעל וחבר.",
     );
   }
   if (message.includes("manual linking") || message.toLowerCase().includes("identity")) {
