@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  isInsertableInboundText,
   isVoicePlaceholderText,
   itemNeedsVoiceRepair,
   resolveVoiceDisplayText,
@@ -68,5 +69,12 @@ describe("voice-text display", () => {
       }),
       true,
     );
+  });
+
+  it("rejects placeholders before they can be inserted", () => {
+    assert.equal(isInsertableInboundText("לקנות חלב", "לקנות חלב מחר"), true);
+    assert.equal(isInsertableInboundText(VOICE_TRANSCRIBING_TITLE, ""), false);
+    assert.equal(isInsertableInboundText("הודעה קולית מוואטסאפ", "הודעה קולית מוואטסאפ"), false);
+    assert.equal(isInsertableInboundText("תמונה מוואטסאפ", "תמונה מוואטסאפ"), false);
   });
 });

@@ -41,6 +41,26 @@ export function needsVoiceTranscription(
   );
 }
 
+export const GENERIC_INBOUND_PLACEHOLDERS = [
+  "פריט מוואטסאפ",
+  "תמונה מוואטסאפ",
+] as const;
+
+export function isGenericInboundPlaceholder(value: string | null | undefined): boolean {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return false;
+  return (GENERIC_INBOUND_PLACEHOLDERS as readonly string[]).includes(normalized);
+}
+
+/** Real prose only — never a voice/image stub — before a board row is created. */
+export function isInsertableInboundText(title: string, content: string): boolean {
+  const body = content.trim() || title.trim();
+  if (!body) return false;
+  if (needsVoiceTranscription(title, content)) return false;
+  if (isGenericInboundPlaceholder(title) || isGenericInboundPlaceholder(content)) return false;
+  return true;
+}
+
 export function titleFromInboundText(text: string): string {
   const trimmed = text.trim();
   const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim()) ?? trimmed;

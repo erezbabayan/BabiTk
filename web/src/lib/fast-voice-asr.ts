@@ -6,22 +6,22 @@
  *  2. A hosted turbo Whisper (Groq whisper-large-v3-turbo) for the canonical text
  *  3. A slow public model only as last resort
  *
- * BabiTk persists the inbox row immediately (live caption or «מתמלל…»),
- * then refines with Edge Groq in the background. Gradio is repair-only.
+ * BabiTk transcribes to Hebrew prose first, then inserts the inbox row.
+ * Never persist «מתמלל…» / voice placeholders. Gradio is last-resort ASR.
  */
 
 export const FAST_VOICE_ASR_CASCADE = [
-  "persist-now",
-  "background-edge-groq",
+  "transcribe-first",
+  "insert-prose",
   "repair-gradio",
 ] as const;
 
 /** Stay under the typical Supabase Edge JSON body limit. */
 export const MAX_EDGE_AUDIO_BYTES = 4_500_000;
-/** Long enough for Groq + one fallback; the capture UI does not await this. */
+/** Long enough for Groq + one fallback; capture waits for real text. */
 export const EDGE_INGEST_TIMEOUT_MS = 25_000;
-/** Capture UI must never wait for Groq / OpenAI / Gradio. */
-export const AWAIT_EDGE_ON_CAPTURE = false;
+/** Capture waits for a transcript before creating a board item. */
+export const AWAIT_EDGE_ON_CAPTURE = true;
 export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;
 
 const HEBREW_ASR_WHISPER_PROMPT =

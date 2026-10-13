@@ -27,8 +27,8 @@ import {
 import {
   titleFromInboundText,
   needsVoiceTranscription,
-  VOICE_TRANSCRIBING_TITLE,
-  VOICE_UNAVAILABLE_TITLE,
+  isInsertableInboundText,
+  isVoicePlaceholderText,
 } from "./voice-text";
 
 export interface TranscribeVoiceItemResult {
@@ -433,11 +433,15 @@ async function persistClientRecording(
       content: transcribed.correctedText,
     };
   }
+  if (
+    transcribed.engine === "pending" ||
+    !isInsertableInboundText(transcribed.title, transcribed.correctedText)
+  ) {
+    throw new Error("inbound_text_required");
+  }
   const supabase = requireSupabase();
   const shouldParse =
-    !options?.skipParse &&
-    transcribed.engine !== "pending" &&
-    Boolean(transcribed.correctedText.trim());
+    !options?.skipParse && Boolean(transcribed.correctedText.trim());
   const parsed = shouldParse
     ? parseIncomingMessage(transcribed.correctedText, {
         allowedTags: await loadAllowedTagNamesForUser(userId),
@@ -509,150 +513,12 @@ async function persistClientRecording(
   };
 }
 
-async function attachRecordingAudio(params: {
-  sourceId: string;
-  userId: string;
-  blob: Blob;
-  fileName: string;
-  mimeType: string;
-}): Promise<string | null> {
-  try {
-    const supabase = requireSupabase();
-    const path = `${params.userId}/${Date.now()}-${params.fileName}`;
-    const { error } = await supabase.storage.from("source-materials").upload(path, params.blob, {
-      contentType: params.mimeType,
-      upsert: false,
-    });
-    if (error) return null;
-    await supabase.from("source_materials").update({ storage_url: path }).eq("id", params.sourceId);
-    return path;
-  } catch {
-    return null;
-  }
-}
-
-function isFinishedTranscript(result: TranscribeVoiceItemResult | null): boolean {
+function isFinishedTranscript(
+  result: TranscribeVoiceItemResult | null,
+): result is TranscribeVoiceItemResult {
   if (!result?.ok) return false;
   if (result.answered) return true;
   return !needsVoiceTranscription(result.title, result.content);
-}
-
-async function markVoiceTranscriptionFailed(itemId: string, currentTitle: string): Promise<void> {
-  try {
-    const supabase = requireSupabase();
-    const nextTitle = isUsableLiveTranscript(currentTitle)
-      ? currentTitle
-      : VOICE_UNAVAILABLE_TITLE;
-    await supabase
-      .from("mindtasker_items")
-      .update({
-        title: nextTitle,
-        last_interacted_at: new Date().toISOString(),
-      })
-      .eq("id", itemId);
-  } catch {
-    /* ignore */
-  }
-}
-
-async function refineRecordedVoiceInBackground(params: {
-  userId: string;
-  blob: Blob;
-  mimeType: string;
-  fileName: string;
-  durationSeconds?: number;
-  hintTranscript: string;
-  itemId?: string;
-  sourceId?: string;
-}): Promise<TranscribeVoiceItemResult | null> {
-  const storagePromise = params.sourceId
-    ? attachRecordingAudio({
-        sourceId: params.sourceId,
-        userId: params.userId,
-        blob: params.blob,
-        fileName: params.fileName,
-        mimeType: params.mimeType,
-      })
-    : Promise.resolve(null);
-
-  if (canSendAudioToEdge(params.blob.size)) {
-    try {
-      const refined = await invokeIngestVoice({
-        blob: params.blob,
-        mimeType: params.mimeType,
-        fileName: params.fileName,
-        durationSeconds: params.durationSeconds,
-        hintTranscript: params.hintTranscript,
-        itemId: params.itemId,
-      });
-      if (isFinishedTranscript(refined)) {
-        void storagePromise;
-        return refined;
-      }
-    } catch {
-      // Fall through to stored-item repair, then Gradio.
-    }
-  }
-
-  const storagePath = await storagePromise;
-  if (params.itemId && storagePath) {
-    try {
-      const repaired = await invokeTranscribeVoiceItem({
-        id: params.itemId,
-        title: VOICE_TRANSCRIBING_TITLE,
-        content: "",
-        metadata: { source: "app_voice", voice_storage_path: storagePath },
-        source_material_id: params.sourceId ?? null,
-        source_materials: params.sourceId
-          ? {
-              id: params.sourceId,
-              source_type: "whatsapp_voice",
-              storage_url: storagePath,
-              raw_text: "",
-            }
-          : null,
-      });
-      if (isFinishedTranscript(repaired)) return repaired;
-    } catch {
-      // Last resort: public Gradio ASR.
-    }
-  }
-
-  const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
-  if (params.itemId) {
-    const saved = await persistClientTranscript(
-      {
-        id: params.itemId,
-        title: VOICE_TRANSCRIBING_TITLE,
-        content: "",
-        metadata: { source: "app_voice" },
-        source_material_id: params.sourceId ?? null,
-        source_materials: params.sourceId
-          ? {
-              id: params.sourceId,
-              source_type: "whatsapp_voice",
-              storage_url: storagePath,
-              raw_text: transcribed.rawText,
-            }
-          : null,
-      },
-      transcribed.title,
-      transcribed.correctedText,
-      transcribed.engine,
-    );
-    return {
-      ok: true,
-      itemId: params.itemId,
-      title: saved.title,
-      content: saved.content,
-    };
-  }
-  return persistClientRecording(params.userId, {
-    title: transcribed.title,
-    rawText: transcribed.rawText,
-    correctedText: transcribed.correctedText,
-    engine: transcribed.engine,
-  }, params.durationSeconds);
 }
 
 export async function persistRecordedVoiceTranscript(params: {
@@ -666,47 +532,53 @@ export async function persistRecordedVoiceTranscript(params: {
   if (!userId) throw new Error("Not authenticated");
 
   const hint = params.hintTranscript?.replace(/\s+/g, " ").trim() ?? "";
-  const snapshot = isUsableLiveTranscript(hint)
-    ? {
+
+  if (canSendAudioToEdge(params.blob.size)) {
+    try {
+      const refined = await invokeIngestVoice({
+        blob: params.blob,
+        mimeType: params.mimeType,
+        fileName: params.fileName,
+        durationSeconds: params.durationSeconds,
+        hintTranscript: hint,
+      });
+      if (refined?.answered) return refined;
+      if (
+        isFinishedTranscript(refined) &&
+        isInsertableInboundText(refined.title, refined.content)
+      ) {
+        return refined;
+      }
+    } catch {
+      // Fall through to local ASR, then to a usable live caption.
+    }
+  }
+
+  try {
+    const transcribed = await transcribeHebrewAudioBlob(params.blob, params.fileName);
+    if (
+      transcribed.correctedText.trim() &&
+      !isVoicePlaceholderText(transcribed.correctedText) &&
+      isInsertableInboundText(transcribed.title, transcribed.correctedText)
+    ) {
+      return persistClientRecording(userId, transcribed, params.durationSeconds);
+    }
+  } catch {
+    // Fall through to a usable live caption.
+  }
+
+  if (isUsableLiveTranscript(hint)) {
+    return persistClientRecording(
+      userId,
+      {
         title: titleFromInboundText(hint),
         rawText: hint,
         correctedText: hint,
         engine: "web-speech",
-      }
-    : {
-        title: VOICE_TRANSCRIBING_TITLE,
-        rawText: "",
-        correctedText: "",
-        engine: "pending",
-      };
-
-  let early: PersistRecordingResult | null = null;
-  try {
-    early = await persistClientRecording(userId, snapshot, params.durationSeconds, {
-      skipQuestionIntercept: true,
-      skipParse: true,
-    });
-  } catch {
-    early = null;
+      },
+      params.durationSeconds,
+    );
   }
 
-  const refine = refineRecordedVoiceInBackground({
-    userId,
-    blob: params.blob,
-    mimeType: params.mimeType,
-    fileName: params.fileName,
-    durationSeconds: params.durationSeconds,
-    hintTranscript: hint,
-    itemId: early?.itemId,
-    sourceId: early?.sourceId,
-  });
-
-  if (early) {
-    void refine.catch(() => markVoiceTranscriptionFailed(early.itemId, early.title));
-    return early;
-  }
-
-  const refined = await refine;
-  if (refined) return refined;
   throw new Error("תמלול ההקלטה נכשל");
 }

@@ -35,9 +35,8 @@ async function ingestVoiceViaExpress(
 }
 
 /**
- * Persist the inbox row immediately, then refine via Edge `ingest-voice`
- * (Groq whisper-large-v3-turbo) in the background. Gradio is last-resort
- * only if the insert and Edge call both fail.
+ * Transcribe to Hebrew prose first, then insert the inbox row.
+ * Never persist "מתמלל…" / voice placeholders as board items.
  */
 export async function ingestVoiceBlobForUser(
   _legacyUserId: string,

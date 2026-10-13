@@ -16,13 +16,13 @@ import {
 } from "./fast-voice-asr.ts";
 
 describe("fast Hebrew ASR helpers", () => {
-  it("persists immediately and refines Groq in the background", () => {
+  it("transcribes to prose before inserting a board item", () => {
     assert.deepEqual(FAST_VOICE_ASR_CASCADE, [
-      "persist-now",
-      "background-edge-groq",
+      "transcribe-first",
+      "insert-prose",
       "repair-gradio",
     ]);
-    assert.equal(AWAIT_EDGE_ON_CAPTURE, false);
+    assert.equal(AWAIT_EDGE_ON_CAPTURE, true);
   });
 
   it("accepts short recordings and rejects empty or oversized blobs", () => {

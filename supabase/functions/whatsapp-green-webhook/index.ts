@@ -10,7 +10,10 @@ import {
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
 } from "../_shared/green-api.ts";
-import { titleFromInboundText, needsVoiceTranscription } from "../_shared/voice-text.ts";
+import {
+  titleFromInboundText,
+  isInsertableInboundText,
+} from "../_shared/voice-text.ts";
 import {
   loadAllowedTagNames,
   parseIncomingMessage,
@@ -18,7 +21,6 @@ import {
 import {
   awaitStoredVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
-  pendingVoiceItem,
   repairOnePlaceholderVoiceItem,
   transcribeVoiceMessageWithRetry,
   type VoiceGatewayCredentials,
@@ -405,16 +407,22 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
   sourceType: "whatsapp_text" | "whatsapp_voice" | "image";
   title: string;
   content: string;
-} {
+} | null {
   if (message.type === "image") {
-    const content = message.text?.trim() || "תמונה מוואטסאפ";
+    const content = message.text?.trim() ?? "";
+    if (!isInsertableInboundText(titleFromInboundText(content), content)) {
+      return null;
+    }
     return {
       sourceType: "image",
       title: titleFromInboundText(content),
       content,
     };
   }
-  const content = message.text?.trim() || "פריט מוואטסאפ";
+  const content = message.text?.trim() ?? "";
+  if (!isInsertableInboundText(titleFromInboundText(content), content)) {
+    return null;
+  }
   return {
     sourceType: "whatsapp_text",
     title: titleFromInboundText(content),
@@ -432,17 +440,17 @@ async function voiceItemFromMessage(
   content: string;
   rawText: string;
   audioUrl: string | null;
-  failed?: boolean;
-}> {
+} | null> {
   try {
     const transcribed = await transcribeVoiceMessageWithRetry(message, gateway, supabase);
-    if (!needsVoiceTranscription(transcribed.title, transcribed.content)) {
-      return transcribed;
+    if (!isInsertableInboundText(transcribed.title, transcribed.content)) {
+      return null;
     }
+    return transcribed;
   } catch (error) {
     console.error("inline whatsapp asr failed", error);
+    return null;
   }
-  return { ...pendingVoiceItem(message.audioUrl ?? null), failed: true };
 }
 
 async function ingestMessage(
@@ -456,7 +464,7 @@ async function ingestMessage(
   }
   if (message.type === "audio") {
     const voice = await voiceItemFromMessage(message, gateway, supabase);
-    if (voice.failed) {
+    if (!voice) {
       await sendGreenApiText(gateway, replyChatId(message), ASR_FAIL_REPLY);
       return "answered";
     }
@@ -478,6 +486,9 @@ async function ingestMessage(
   }
 
   const item = itemFromMessage(message);
+  if (!item) {
+    return null;
+  }
   const questionText = item.content;
   if (
     questionText.trim() &&
@@ -507,6 +518,9 @@ async function insertCapturedItem(
     audioUrl?: string | null;
   },
 ): Promise<{ id: string; title: string } | null> {
+  if (!isInsertableInboundText(item.title, item.content)) {
+    throw new Error("inbound_text_required");
+  }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -537,9 +551,8 @@ async function insertCapturedItem(
   }
 
   const sourceType = item.sourceType as IngestSourceType;
-  const skipParse = needsVoiceTranscription(item.title, item.content);
   let parsedRows: ReturnType<typeof parseInboundText> = [];
-  if (!skipParse && item.content.trim()) {
+  if (item.content.trim()) {
     try {
       parsedRows = parseInboundText(item.content, {
         sourceType,
@@ -549,7 +562,7 @@ async function insertCapturedItem(
       console.error("inbound parse failed, falling back", error);
     }
   }
-  if (parsedRows.length === 0 && !skipParse) {
+  if (parsedRows.length === 0) {
     const allowedTags = await loadAllowedTagNames(supabase, user.id);
     parsedRows = parseIncomingMessage(item.content, allowedTags).map((row) => ({
       title: row.title,
