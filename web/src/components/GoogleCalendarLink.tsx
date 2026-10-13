@@ -133,30 +133,6 @@ export function GoogleCalendarLink() {
           ? "📅 Google Calendar מחובר. משימות עם תאריך יופיעו ביומן שלכם."
           : "חברו את Google Calendar כדי שמשימות עם תאריך יופיעו ביומן Google. אפשר לשנות את החיבור בכל עת בהגדרות."}
       </p>
-      {needsServerSetup ? (
-        <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-slate-800">
-          <p>
-            כפתור החיבור פעיל. כדי ש-Google יאשר את ההרשאה צריך לקוח OAuth מסוג
-            Web application עם הכתובות האלה (פעם אחת):
-          </p>
-          <CopyRow label="מקור JavaScript" value={health.javascriptOrigins[0] ?? ""} />
-          <CopyRow label="מקור מקומי" value={health.javascriptOrigins[1] ?? ""} />
-          <CopyRow label="כתובת הפניה לכניסה" value={health.authRedirectUri} />
-          <CopyRow label="כתובת הפניה ליומן" value={health.calendarRedirectUri} />
-          {!health.authProviderEnabled ? (
-            <p className="text-xs text-slate-600">
-              ספק Google בשרת עדיין כבוי. אחרי שמירת Client ID ו-Secret הוא יופעל
-              אוטומטית, ואז לחיצה על חבר תפתח את מסך Google.
-            </p>
-          ) : null}
-          <p className="text-xs text-slate-600">
-            אחרי יצירת הלקוח הוסיפו ב-GitHub Secrets את{" "}
-            <code>GOOGLE_CLIENT_ID</code> ו-<code>GOOGLE_CLIENT_SECRET</code>, או
-            הריצו Deploy Supabase Functions עם אותם ערכים. אל תשתפו את הסוד בצ׳אט
-            ציבורי.
-          </p>
-        </div>
-      ) : null}
       {error ? <p className="text-red-600">{error}</p> : null}
       {isDemoMode ? (
         <p className="text-slate-500">במצב הדגמה אין חיבור ליומן אמיתי.</p>
@@ -165,7 +141,7 @@ export function GoogleCalendarLink() {
           type="button"
           onClick={() => void handleDisconnect()}
           disabled={busy}
-          className="border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
         >
           {busy ? "מנתק..." : "נתק יומן"}
         </button>
@@ -174,11 +150,28 @@ export function GoogleCalendarLink() {
           type="button"
           onClick={() => void handleConnect()}
           disabled={busy}
-          className="border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
         >
           {busy ? "מתחבר..." : "📅 חבר Google Calendar"}
         </button>
       )}
+      {needsServerSetup ? (
+        <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-slate-800">
+          <p>
+            כדי ש-Google יאשר את החיבור צריך לקוח OAuth מסוג Web application עם
+            הכתובות האלה (פעם אחת):
+          </p>
+          <CopyRow label="מקור JavaScript" value={health.javascriptOrigins[0] ?? ""} />
+          <CopyRow label="מקור מקומי" value={health.javascriptOrigins[1] ?? ""} />
+          <CopyRow label="כתובת הפניה לכניסה" value={health.authRedirectUri} />
+          <CopyRow label="כתובת הפניה ליומן" value={health.calendarRedirectUri} />
+          <p className="text-xs text-slate-600">
+            {health.authProviderEnabled
+              ? "אחרי יצירת הלקוח שמרו GOOGLE_CLIENT_ID ו-GOOGLE_CLIENT_SECRET ב-GitHub Secrets או ב-Deploy Supabase Functions."
+              : "ספק Google בשרת עדיין כבוי. אחרי שמירת Client ID ו-Secret לחצו חבר שוב — ייפתח מסך Google."}
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }
