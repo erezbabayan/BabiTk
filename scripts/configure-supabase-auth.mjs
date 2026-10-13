@@ -87,9 +87,24 @@ async function api(method, body) {
   return parsed;
 }
 
+function firstEnv(names) {
+  for (const name of names) {
+    const value = process.env[name]?.trim() || "";
+    if (value) return value;
+  }
+  return "";
+}
+
 function googleCredentialsFromEnv() {
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || "";
-  const secret = process.env.GOOGLE_CLIENT_SECRET?.trim() || "";
+  const clientId = firstEnv([
+    "GOOGLE_CLIENT_ID",
+    "SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID",
+  ]);
+  const secret = firstEnv([
+    "GOOGLE_CLIENT_SECRET",
+    "SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET",
+    "SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET",
+  ]);
   if (!looksLikeGoogleClientId(clientId) || !looksLikeGoogleSecret(secret)) {
     return null;
   }
@@ -147,6 +162,11 @@ async function main() {
     console.warn(
       "google_provider=disabled — add GitHub secrets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then re-run this job.",
     );
+    if (process.env.GITHUB_ACTIONS) {
+      console.log(
+        "::notice title=Google login::Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then re-run Deploy Web or Deploy Supabase Functions.",
+      );
+    }
     return;
   }
   console.warn(`google_provider=unknown probe=${probe.status} ${probeBody}`);
