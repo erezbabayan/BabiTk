@@ -1,6 +1,11 @@
 import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./supabase";
 import { isCalendarRelevantPatch } from "./google-calendar-patch";
+import {
+  googleCalendarHealthFromUnknown,
+  googleOAuthSetupPublic,
+  type GoogleCalendarHealth,
+} from "./google-calendar-setup";
 
 const TIMEOUT_MS = 12_000;
 const SYNC_ALL_TIMEOUT_MS = 25_000;
@@ -80,6 +85,26 @@ export async function getGoogleCalendarStatusFromEdge(): Promise<{
   return invokeCalendar<{ linked: boolean; configured: boolean }>("status");
 }
 
+export async function getGoogleCalendarHealth(): Promise<GoogleCalendarHealth> {
+  const fallback = googleCalendarHealthFromUnknown({});
+  const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+  if (!supabaseUrl) return fallback;
+  try {
+    const response = await fetch(calendarFunctionUrl("health"), {
+      headers: {
+        ...(anonKey ? { apikey: anonKey, Authorization: `Bearer ${anonKey}` } : {}),
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    const data: unknown = await response.json().catch(() => null);
+    if (!response.ok) return fallback;
+    return googleCalendarHealthFromUnknown(data, supabaseUrl);
+  } catch {
+    return googleCalendarHealthFromUnknown(googleOAuthSetupPublic(supabaseUrl), supabaseUrl);
+  }
+}
+
 export async function disconnectGoogleCalendarFromEdge(): Promise<void> {
   await invokeCalendar("disconnect", { method: "POST", body: {} });
 }
@@ -118,7 +143,9 @@ function hebrewGoogleAuthError(error: unknown): Error {
     message.includes("Unsupported provider") ||
     message.toLowerCase().includes("validation_failed")
   ) {
-    return new Error("חיבור Google Calendar עדיין לא הוגדר בשרת. אפשר לנסות שוב מההגדרות אחרי הפעלת Google.");
+    return new Error(
+      "חיבור Google Calendar עדיין לא הוגדר בשרת. צרו לקוח OAuth ב-Google Cloud עם כתובות ההפניה שמופיעות בהגדרות, ואז לחצו חבר שוב.",
+    );
   }
   if (message.includes("manual linking") || message.toLowerCase().includes("identity")) {
     return new Error("לא ניתן לקשר את חשבון Google לחשבון הקיים. נסו שוב מההגדרות.");

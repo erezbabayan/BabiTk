@@ -18,6 +18,14 @@ on:
         description: "סיסמת מסד (אופציונלי, למיגרציות)"
         required: false
         type: string
+      google_client_id:
+        description: "Google OAuth Client ID (...apps.googleusercontent.com)"
+        required: false
+        type: string
+      google_client_secret:
+        description: "Google OAuth Client Secret (GOCSPX-...)"
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -71,8 +79,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ github.event.inputs.google_client_id || secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ github.event.inputs.google_client_secret || secrets.GOOGLE_CLIENT_SECRET }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET }}
@@ -87,6 +95,8 @@ jobs:
           else
             echo "::warning::SUPABASE_DB_PASSWORD is empty — migrations were not pushed. Functions will still deploy."
           fi
+          if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then echo "::add-mask::$GOOGLE_CLIENT_ID"; fi
+          if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then echo "::add-mask::$GOOGLE_CLIENT_SECRET"; fi
           sync_secret() {
             local name="$1"
             local value="${2:-}"

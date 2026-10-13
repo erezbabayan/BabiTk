@@ -160,7 +160,7 @@ async function main() {
   }
   if (stillDisabled) {
     console.warn(
-      "google_provider=disabled — add GitHub secrets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then re-run this job.",
+      "google_provider=disabled — add GitHub secrets GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (or run this workflow with those inputs), then re-run this job.",
     );
     if (process.env.GITHUB_ACTIONS) {
       console.log(

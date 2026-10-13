@@ -26,6 +26,9 @@ Do NOT put the GitHub Pages URL as the Google redirect URI.
      GOOGLE_CLIENT_ID
      GOOGLE_CLIENT_SECRET
 
+   Or run workflow_dispatch on Deploy Web / Deploy Supabase Functions and
+   paste the Client ID + Secret as inputs (the job masks them).
+
    Never commit these values. After they exist, deploy-web and
    deploy-supabase-functions enable the Auth provider and sync Edge secrets.
 
