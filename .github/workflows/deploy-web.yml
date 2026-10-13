@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      google_client_id:
+        description: "Google OAuth Client ID (...apps.googleusercontent.com)"
+        required: false
+        type: string
+      google_client_secret:
+        description: "Google OAuth Client Secret (GOCSPX-...)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -113,9 +122,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ steps.token.outputs.value }}
           SUPABASE_PROJECT_REF: ghibfuinantybqidwadj
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ github.event.inputs.google_client_id || secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ github.event.inputs.google_client_secret || secrets.GOOGLE_CLIENT_SECRET }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET }}
-        run: node scripts/configure-supabase-auth.mjs
+        run: |
+          if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then echo "::add-mask::$GOOGLE_CLIENT_ID"; fi
+          if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then echo "::add-mask::$GOOGLE_CLIENT_SECRET"; fi
+          node scripts/configure-supabase-auth.mjs

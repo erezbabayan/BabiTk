@@ -6,7 +6,27 @@ export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 export const CALENDAR_TIMEZONE = "Asia/Jerusalem";
 export const EVENT_DURATION_MS = 60 * 60 * 1000;
 export const DEFAULT_WEB_APP_URL = "https://erezbabayan.github.io/BabiTk/";
+export const DEFAULT_SUPABASE_URL = "https://ghibfuinantybqidwadj.supabase.co";
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+export const GOOGLE_OAUTH_JAVASCRIPT_ORIGINS = [
+  "https://erezbabayan.github.io",
+  "http://localhost:5173",
+] as const;
+
+export function googleOAuthSetupPublic(supabaseUrl = DEFAULT_SUPABASE_URL): {
+  javascriptOrigins: string[];
+  authRedirectUri: string;
+  calendarRedirectUri: string;
+  scope: string;
+} {
+  const base = supabaseUrl.replace(/\/$/, "") || DEFAULT_SUPABASE_URL;
+  return {
+    javascriptOrigins: [...GOOGLE_OAUTH_JAVASCRIPT_ORIGINS],
+    authRedirectUri: `${base}/auth/v1/callback`,
+    calendarRedirectUri: `${base}/functions/v1/google-calendar/callback`,
+    scope: CALENDAR_SCOPE,
+  };
+}
 
 export const CALENDAR_PATCH_KEYS = [
   "due_date",
@@ -428,7 +448,7 @@ export async function googleCalendarStatus(
   const enabled = data?.google_calendar_enabled === true;
   return {
     linked: enabled,
-    configured: true,
+    configured: config.configured,
     oauthConfigured: config.configured,
   };
 }

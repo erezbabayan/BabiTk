@@ -5,6 +5,7 @@ import {
   buildGoogleAuthUrl,
   calendarEventBody,
   createOAuthState,
+  googleOAuthSetupPublic,
   isCalendarRelevantPatch,
   parseOAuthState,
   shouldDeleteCalendarEvent,
@@ -134,6 +135,22 @@ describe("Google Calendar OAuth helpers", () => {
     assert.equal(
       url,
       "https://erezbabayan.github.io/BabiTk/?calendar=connected",
+    );
+  });
+
+  it("exposes the live Google Cloud redirect URIs", () => {
+    const setup = googleOAuthSetupPublic();
+    assert.deepEqual(setup.javascriptOrigins, [
+      "https://erezbabayan.github.io",
+      "http://localhost:5173",
+    ]);
+    assert.equal(
+      setup.authRedirectUri,
+      "https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback",
+    );
+    assert.equal(
+      setup.calendarRedirectUri,
+      "https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/callback",
     );
   });
 });

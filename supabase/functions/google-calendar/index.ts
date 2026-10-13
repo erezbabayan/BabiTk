@@ -10,6 +10,7 @@ import {
   exchangeGoogleCode,
   googleCalendarConfig,
   googleCalendarStatus,
+  googleOAuthSetupPublic,
   parseOAuthState,
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
@@ -60,6 +61,20 @@ function readAccessToken(body: { accessToken?: unknown }): string | undefined {
   if (typeof body.accessToken !== "string") return undefined;
   const token = body.accessToken.trim();
   return token.length > 0 ? token : undefined;
+}
+
+async function probeGoogleAuthProvider(supabaseUrl: string): Promise<boolean> {
+  const base = supabaseUrl.replace(/\/$/, "");
+  if (!base) return false;
+  try {
+    const response = await fetch(`${base}/auth/v1/authorize?provider=google`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(4000),
+    });
+    return response.status >= 300 && response.status < 400;
+  } catch {
+    return false;
+  }
 }
 
 function routeAction(req: Request): string {
@@ -153,11 +168,17 @@ Deno.serve(async (req) => {
 
   if (req.method === "GET" && (action === "" || action === "health")) {
     const config = googleCalendarConfig();
+    const setup = googleOAuthSetupPublic(SUPABASE_URL);
+    const authProviderEnabled = await probeGoogleAuthProvider(SUPABASE_URL);
     return json({
       ok: true,
       configured: config.configured,
+      authProviderEnabled,
       redirectUri: config.redirectUri,
-      scope: "https://www.googleapis.com/auth/calendar.events",
+      authRedirectUri: setup.authRedirectUri,
+      calendarRedirectUri: setup.calendarRedirectUri,
+      javascriptOrigins: setup.javascriptOrigins,
+      scope: setup.scope,
     });
   }
 
@@ -167,11 +188,16 @@ Deno.serve(async (req) => {
 
     if (req.method === "GET" && (action === "connect" || action === "start")) {
       if (!config.configured) {
+        const setup = googleOAuthSetupPublic(SUPABASE_URL);
         return json(
           {
             error: "google_not_configured",
-            message: "חיבור Google Calendar עדיין לא הוגדר בשרת.",
+            message:
+              "חיבור Google Calendar עדיין לא הוגדר בשרת. צרו לקוח OAuth ב-Google Cloud עם כתובות ההפניה שמופיעות בהגדרות.",
             redirectUri: config.redirectUri,
+            authRedirectUri: setup.authRedirectUri,
+            calendarRedirectUri: setup.calendarRedirectUri,
+            javascriptOrigins: setup.javascriptOrigins,
           },
           503,
         );
