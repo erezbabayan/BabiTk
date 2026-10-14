@@ -28,6 +28,10 @@ import {
   ITEM_HEADLINE_CLASS,
 } from "../lib/item-typography";
 import { isPriorityItem } from "../lib/item-priority";
+import {
+  sendToBoardAriaLabel,
+  sendToBoardButtonLabel,
+} from "../lib/item-swipe-actions";
 import { PriorityStar } from "./PriorityStar";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import {
@@ -446,12 +450,12 @@ export function ItemCard({
                 </span>
               ) : null}
               <div
-                className={`flex w-full min-w-0 flex-nowrap items-center justify-between ${
-                  isSquares ? "board-square-actions gap-0.5" : "gap-1.5"
+                className={`board-card-actions flex w-full min-w-0 flex-nowrap items-center justify-between gap-1 overflow-hidden${
+                  onSendToBoard ? " board-card-actions--with-send" : ""
                 }`}
                 dir="rtl"
               >
-                <div className={`flex shrink-0 items-center ${isSquares ? "gap-0.5" : "gap-1"}`}>
+                <div className="flex shrink-0 items-center gap-0.5">
                   {onTogglePriority ? (
                     <button
                       type="button"
@@ -512,11 +516,7 @@ export function ItemCard({
                   ) : null}
                 </div>
                 {hasActions && !showSource ? (
-                  <div
-                    className={`flex min-w-0 flex-nowrap items-center justify-end ${
-                      isSquares ? "gap-0.5" : "gap-1.5"
-                    }`}
-                  >
+                  <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-0.5 overflow-hidden">
                     {onTagPress ? (
                       <NotebookActionButton
                         icon="tag"
@@ -553,17 +553,15 @@ export function ItemCard({
                           e.stopPropagation();
                           onSendToBoard();
                         }}
-                        title={sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")}
-                        aria-label={
-                          sendToBoardLabel ?? (display.isNote ? "שלח להערות" : "שלח למשימות")
-                        }
+                        title={sendToBoardAriaLabel(sendToBoardLabel, display.isNote)}
+                        aria-label={sendToBoardAriaLabel(sendToBoardLabel, display.isNote)}
                         style={{ touchAction: "manipulation" }}
-                        className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 font-semibold text-white ${
+                        className={`item-send-board-btn inline-flex items-center gap-1 rounded-lg px-2 font-semibold text-white ${
                           dense || isSquares ? "h-7 text-[10px]" : "h-9 text-[11px]"
                         } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
                       >
                         <NotebookIcon name="check" size={dense || isSquares ? 14 : 16} tone="white" />
-                        {sendToBoardLabel ?? (display.isNote ? "להערות" : "למשימות")}
+                        {sendToBoardButtonLabel(sendToBoardLabel, display.isNote)}
                       </button>
                     ) : null}
                     {onSnooze ? (
