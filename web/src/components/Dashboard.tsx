@@ -40,7 +40,7 @@ import { useBoardSearch } from "../hooks/useBoardSearch";
 import { useBoardFilterTags } from "../hooks/useBoardFilterTags";
 import { useTagCascadeSync } from "../hooks/useTagCascadeSync";
 import { boardTasksForListSync } from "../lib/task-list-items";
-import { boardSwipeActions, inboxSendToBoardLabel, inboxSwipeActions } from "../lib/item-swipe-actions";
+import { boardSwipeActions, inboxSwipeActions } from "../lib/item-swipe-actions";
 import { applyBoardDateSort, type BoardDateSortDirection } from "../lib/board-date-sort";
 import {
   itemsForBulkAction,
@@ -750,12 +750,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               logItemActionError("toggleActionable failed", error);
             });
           }}
-          onSendToBoard={() => {
-            void approveInboxItem(item).catch((error) => {
-              logItemActionError("approveInboxItem failed", error);
-            });
-          }}
-          sendToBoardLabel={inboxSendToBoardLabel(item)}
         />
       </SwipeableItemCard>
     );
