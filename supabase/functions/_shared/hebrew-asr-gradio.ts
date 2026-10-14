@@ -2,13 +2,17 @@
  * Last-resort Hebrew ASR via public Hugging Face Whisper Spaces.
  * Used only when Groq/OpenAI keys are missing on the Edge Function.
  * Do NOT wrap eliezer.ivrit.ai.
+ *
+ * Prefer the Hebrew-tuned space. The generic hf-audio space often errors
+ * after a slow upload and used to exhaust the WhatsApp webhook budget
+ * before transcription could run.
  */
 
 import { audioDataUrl, isPublicMediaUrl, tightAudioBytes } from "./audio-format.ts";
 
 const HF_AUDIO_SPACE = "https://hf-audio-whisper-large-v3.hf.space";
 const IVRIT_SPACE = "https://ortalhanuna-speech2text-hebrew.hf.space";
-const GRADIO_TIMEOUT_MS = 20_000;
+const GRADIO_TIMEOUT_MS = 24_000;
 const STATUS_LINES = /^(done!?|splitting audio.*|transcribing .*|chunk \d+\/\d+ done)$/i;
 
 function timeoutSignal(ms: number): AbortSignal {
@@ -48,6 +52,9 @@ export function parseGradioSseText(sse: string): string {
       .filter((line) => line.startsWith("data:"))
       .map((line) => line.slice(5).trim())
       .join("");
+    if (event === "error" && (!dataLine || dataLine === "null")) {
+      continue;
+    }
     if (!dataLine || dataLine === "null") continue;
     try {
       const parsed: unknown = JSON.parse(dataLine);
@@ -82,13 +89,14 @@ async function gradioUpload(
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
+  timeoutMs: number,
 ): Promise<string> {
   const form = new FormData();
   form.append("files", audioBlob(audio, mimeType), fileName);
   const response = await fetch(`${space}/gradio_api/upload`, {
     method: "POST",
     body: form,
-    signal: timeoutSignal(12_000),
+    signal: timeoutSignal(timeoutMs),
   });
   if (!response.ok) throw new Error(`gradio_upload_${response.status}`);
   const body: unknown = await response.json();
@@ -97,12 +105,17 @@ async function gradioUpload(
   return path;
 }
 
-async function gradioCall(space: string, apiName: string, data: unknown[]): Promise<string> {
+async function gradioCall(
+  space: string,
+  apiName: string,
+  data: unknown[],
+  timeoutMs: number,
+): Promise<string> {
   const started = await fetch(`${space}/gradio_api/call/${apiName}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data }),
-    signal: timeoutSignal(12_000),
+    signal: timeoutSignal(Math.min(12_000, timeoutMs)),
   });
   if (!started.ok) throw new Error(`gradio_call_${started.status}`);
   const startedJson: unknown = await started.json();
@@ -115,12 +128,14 @@ async function gradioCall(space: string, apiName: string, data: unknown[]): Prom
       : "";
   if (!eventId) throw new Error("gradio_event_missing");
   const stream = await fetch(`${space}/gradio_api/call/${apiName}/${eventId}`, {
-    signal: timeoutSignal(GRADIO_TIMEOUT_MS),
+    signal: timeoutSignal(timeoutMs),
   });
   if (!stream.ok) throw new Error(`gradio_stream_${stream.status}`);
-  const text = parseGradioSseText(await stream.text());
-  if (!text) throw new Error("empty_transcription");
-  return text;
+  const sse = await stream.text();
+  const text = parseGradioSseText(sse);
+  if (text) return text;
+  if (/\bevent:\s*error\b/i.test(sse)) throw new Error("gradio_event_error");
+  throw new Error("empty_transcription");
 }
 
 async function transcribeWithSpace(
@@ -130,21 +145,50 @@ async function transcribeWithSpace(
   audio: Uint8Array,
   fileName: string,
   mimeType: string,
-  sourceUrl?: string,
+  sourceUrl: string | undefined,
+  timeoutMs: number,
 ): Promise<string> {
+  const errors: string[] = [];
   if (sourceUrl && isPublicMediaUrl(sourceUrl)) {
     try {
-      return await gradioCall(space, apiName, [filePayload(sourceUrl, fileName), ...extraArgs]);
-    } catch {
-      // fall through to upload
+      return await gradioCall(
+        space,
+        apiName,
+        [filePayload(sourceUrl, fileName), ...extraArgs],
+        timeoutMs,
+      );
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "url_failed");
     }
   }
   try {
-    const uploaded = await gradioUpload(space, audio, fileName, mimeType);
-    return await gradioCall(space, apiName, [filePayload(uploaded, fileName), ...extraArgs]);
-  } catch {
+    const uploaded = await gradioUpload(
+      space,
+      audio,
+      fileName,
+      mimeType,
+      Math.min(12_000, timeoutMs),
+    );
+    return await gradioCall(
+      space,
+      apiName,
+      [filePayload(uploaded, fileName), ...extraArgs],
+      timeoutMs,
+    );
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "upload_failed");
+  }
+  try {
     const dataUrl = audioDataUrl(audio, mimeType);
-    return await gradioCall(space, apiName, [filePayload(dataUrl, fileName), ...extraArgs]);
+    return await gradioCall(
+      space,
+      apiName,
+      [filePayload(dataUrl, fileName), ...extraArgs],
+      timeoutMs,
+    );
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : "data_url_failed");
+    throw new Error(`gradio_space_failed:${errors.join(",")}`);
   }
 }
 
@@ -154,28 +198,48 @@ export async function transcribeViaPublicWhisper(
   mimeType: string,
   sourceUrl?: string,
 ): Promise<string> {
-  try {
-    const text = await transcribeWithSpace(
-      HF_AUDIO_SPACE,
-      "transcribe",
-      ["transcribe"],
-      audio,
-      fileName,
-      mimeType,
-      sourceUrl,
-    );
-    if (text.trim()) return text.trim();
-  } catch {
-    // Hebrew-tuned space next
+  const spaces: Array<{
+    space: string;
+    apiName: string;
+    extraArgs: unknown[];
+    timeoutMs: number;
+  }> = [
+    {
+      space: IVRIT_SPACE,
+      apiName: "run_transcription",
+      extraArgs: [],
+      timeoutMs: GRADIO_TIMEOUT_MS,
+    },
+    {
+      space: HF_AUDIO_SPACE,
+      apiName: "transcribe",
+      extraArgs: ["transcribe"],
+      timeoutMs: 8_000,
+    },
+  ];
+  const errors: string[] = [];
+  for (const candidate of spaces) {
+    try {
+      const text = await transcribeWithSpace(
+        candidate.space,
+        candidate.apiName,
+        candidate.extraArgs,
+        audio,
+        fileName,
+        mimeType,
+        sourceUrl,
+        candidate.timeoutMs,
+      );
+      if (text.trim()) return text.trim();
+    } catch (error) {
+      errors.push(
+        `${candidate.apiName}:${error instanceof Error ? error.message : "failed"}`,
+      );
+    }
   }
-  const hebrew = await transcribeWithSpace(
-    IVRIT_SPACE,
-    "run_transcription",
-    [],
-    audio,
-    fileName,
-    mimeType,
-    sourceUrl,
+  throw new Error(
+    errors.length > 0
+      ? `gradio_failed: ${errors.join("; ")}`
+      : "empty_transcription",
   );
-  return hebrew.trim();
 }
