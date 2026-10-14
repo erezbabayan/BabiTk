@@ -1,9 +1,16 @@
-import { FormEvent, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
+import { getGoogleCalendarHealth } from "../lib/google-calendar-client";
+import {
+  googleLoginReady,
+  googleOAuthSetupPublic,
+  type GoogleCalendarHealth,
+} from "../lib/google-calendar-setup";
 import { resolveLoginEmail } from "../lib/resolve-login-email";
 import { isForcedLocalMode, requireSupabase, supabaseAuthRedirectUrl } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
+import { GoogleLoginSetup } from "./GoogleLoginSetup";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { PasswordInput } from "./PasswordInput";
@@ -138,6 +145,25 @@ function AuthForm({
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [googleHealth, setGoogleHealth] = useState<GoogleCalendarHealth>(() =>
+    googleCalendarHealthFallback(),
+  );
+  const [googleProbed, setGoogleProbed] = useState(!onGoogleSignIn);
+  const googleReady = googleLoginReady(googleHealth);
+  const showGoogleSetup = Boolean(onGoogleSignIn) && authMode === "login" && googleProbed && !googleReady;
+
+  useEffect(() => {
+    if (!onGoogleSignIn) return;
+    void getGoogleCalendarHealth()
+      .then((health) => {
+        setGoogleHealth(health);
+        setGoogleProbed(true);
+      })
+      .catch(() => {
+        setGoogleHealth(googleCalendarHealthFallback());
+        setGoogleProbed(true);
+      });
+  }, [onGoogleSignIn]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -214,7 +240,7 @@ function AuthForm({
     <LoginShell
       subtitle={
         subtitle ??
-        (onGoogleSignIn && authMode === "login"
+        (onGoogleSignIn && authMode === "login" && googleReady
           ? "התחבר עם חשבון Google שלך"
           : authMode === "login"
             ? "התחברות ללוח הבקרה"
@@ -239,9 +265,13 @@ function AuthForm({
         {onGoogleSignIn ? (
           <GoogleSignInButton
             onClick={() => void handleGoogleSignIn()}
-            disabled={busy}
+            disabled={busy || showGoogleSetup}
             loading={oauthLoading}
           />
+        ) : null}
+
+        {showGoogleSetup ? (
+          <GoogleLoginSetup health={googleHealth} disabled={busy} />
         ) : null}
 
         {hasOAuth && onMicrosoftSignIn ? (
@@ -482,6 +512,20 @@ function SetupForm() {
       </div>
     </LoginShell>
   );
+}
+
+function googleCalendarHealthFallback(): GoogleCalendarHealth {
+  const setup = googleOAuthSetupPublic();
+  return {
+    configured: false,
+    authProviderEnabled: false,
+    googleClientId: null,
+    redirectUri: setup.calendarRedirectUri,
+    authRedirectUri: setup.authRedirectUri,
+    calendarRedirectUri: setup.calendarRedirectUri,
+    javascriptOrigins: setup.javascriptOrigins,
+    scope: setup.scope,
+  };
 }
 
 export function LoginScreen(props: LoginScreenProps) {

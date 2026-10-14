@@ -47,6 +47,9 @@ verify_jwt = false
 [functions.google-calendar]
 verify_jwt = false
 
+[functions.google-login]
+verify_jwt = false
+
 [realtime]
 enabled = true
 

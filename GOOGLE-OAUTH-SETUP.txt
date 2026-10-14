@@ -43,7 +43,14 @@ Do NOT put the GitHub Pages URL as the Google redirect URI.
      Or: copy .supabase-local.env.example → .supabase-local.env
      and run .\scripts\setup-google-auth.ps1
 
-5) Verify login:
+5) Fastest live enable (no GitHub secrets needed):
+     Sign in at https://erezbabayan.github.io/BabiTk/ with the owner password,
+     or use the amber form on the login screen: paste Client ID + Secret and
+     the owner email/password. That stores the client, turns on the Auth
+     Google provider, and signs you in. After that, «התחבר עם Google» uses a
+     Google popup and signs in existing Gmail users (no “already registered”).
+
+     Verify:
      GET https://ghibfuinantybqidwadj.supabase.co/auth/v1/authorize?provider=google
      should 302 to accounts.google.com — not "provider is not enabled".
 
