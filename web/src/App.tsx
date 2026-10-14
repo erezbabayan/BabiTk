@@ -29,11 +29,11 @@ import {
   readOAuthCallback,
   stripOAuthParamsFromUrl,
 } from "./lib/auth-redirect";
+import { browserOAuthCodeGuard, completePkceSignIn } from "./lib/oauth-callback";
 import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
 
 const DEMO_HEADER_NAME: UserNameParts = { firstName: "משתמש", lastName: "הדגמה" };
-const OAUTH_CODE_GUARD_KEY = "mindtasker:oauth-code";
 
 export default function App() {
   if (isSupabaseConfigured) {
@@ -295,18 +295,16 @@ function ConfiguredApp() {
       .getSession()
       .then(async ({ data }) => {
         if (!data.session && callback.code) {
-          let alreadyTried = false;
-          try {
-            alreadyTried = sessionStorage.getItem(OAUTH_CODE_GUARD_KEY) === callback.code;
-            sessionStorage.setItem(OAUTH_CODE_GUARD_KEY, callback.code);
-          } catch {
-            alreadyTried = false;
-          }
-          if (!alreadyTried) {
-            const { error } = await supabase.auth.exchangeCodeForSession(callback.code);
-            if (error) {
-              setOauthNotice(formatOAuthSignInError(error, callback.errorDescription));
-            }
+          const result = await completePkceSignIn({
+            code: callback.code,
+            hasSession: Boolean(data.session),
+            exchange: (code) => supabase.auth.exchangeCodeForSession(code),
+            ...browserOAuthCodeGuard(),
+          });
+          if (result.errorMessage) {
+            setOauthNotice(
+              formatOAuthSignInError(result.errorMessage, callback.errorDescription),
+            );
           }
         }
         const { data: next } = await supabase.auth.getSession();

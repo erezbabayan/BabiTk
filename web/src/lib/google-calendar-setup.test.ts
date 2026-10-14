@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   googleCalendarHealthFromUnknown,
+  googleLoginReady,
   googleOAuthSetupPublic,
   looksLikeGoogleClientId,
   looksLikeGoogleClientSecret,
@@ -30,6 +31,7 @@ describe("Google Calendar OAuth setup", () => {
     const health = googleCalendarHealthFromUnknown({ ok: true });
     assert.equal(health.configured, false);
     assert.equal(health.authProviderEnabled, false);
+    assert.equal(health.googleClientId, null);
     assert.equal(
       health.authRedirectUri,
       "https://ghibfuinantybqidwadj.supabase.co/auth/v1/callback",
@@ -53,6 +55,7 @@ describe("Google Calendar OAuth setup", () => {
     const health = googleCalendarHealthFromUnknown({
       configured: true,
       authProviderEnabled: true,
+      googleClientId: "123-abc.apps.googleusercontent.com",
       authRedirectUri: "https://example.supabase.co/auth/v1/callback",
       calendarRedirectUri: "https://example.supabase.co/functions/v1/google-calendar/callback",
       javascriptOrigins: ["https://erezbabayan.github.io"],
@@ -60,6 +63,12 @@ describe("Google Calendar OAuth setup", () => {
     });
     assert.equal(health.configured, true);
     assert.equal(health.authProviderEnabled, true);
+    assert.equal(health.googleClientId, "123-abc.apps.googleusercontent.com");
     assert.deepEqual(health.javascriptOrigins, ["https://erezbabayan.github.io"]);
+    assert.equal(googleLoginReady(health), true);
+    assert.equal(
+      googleLoginReady({ authProviderEnabled: false, googleClientId: null }),
+      false,
+    );
   });
 });

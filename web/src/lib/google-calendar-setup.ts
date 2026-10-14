@@ -20,6 +20,16 @@ export function looksLikeGoogleClientSecret(value: string): boolean {
   return value.length >= 12 && !/placeholder|GOCSPX-\.\.\./i.test(value);
 }
 
+export function googleLoginReady(health: {
+  authProviderEnabled?: boolean | null;
+  googleClientId?: string | null;
+}): boolean {
+  return (
+    health.authProviderEnabled === true ||
+    looksLikeGoogleClientId(health.googleClientId ?? "")
+  );
+}
+
 export type GoogleCalendarSetup = {
   javascriptOrigins: string[];
   authRedirectUri: string;
@@ -42,6 +52,7 @@ export function googleOAuthSetupPublic(
 export type GoogleCalendarHealth = {
   configured: boolean;
   authProviderEnabled: boolean;
+  googleClientId: string | null;
   redirectUri: string;
   authRedirectUri: string;
   calendarRedirectUri: string;
@@ -58,9 +69,14 @@ export function googleCalendarHealthFromUnknown(
   const origins = Array.isArray(record.javascriptOrigins)
     ? record.javascriptOrigins.filter((item): item is string => typeof item === "string")
     : setup.javascriptOrigins;
+  const googleClientId =
+    typeof record.googleClientId === "string" && looksLikeGoogleClientId(record.googleClientId)
+      ? record.googleClientId.trim()
+      : null;
   return {
     configured: record.configured === true,
     authProviderEnabled: record.authProviderEnabled === true,
+    googleClientId,
     redirectUri:
       typeof record.redirectUri === "string" && record.redirectUri
         ? record.redirectUri
