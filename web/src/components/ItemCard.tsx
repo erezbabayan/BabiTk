@@ -28,10 +28,6 @@ import {
   ITEM_HEADLINE_CLASS,
 } from "../lib/item-typography";
 import { isPriorityItem } from "../lib/item-priority";
-import {
-  sendToBoardAriaLabel,
-  sendToBoardButtonLabel,
-} from "../lib/item-swipe-actions";
 import { PriorityStar } from "./PriorityStar";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import {
@@ -46,8 +42,6 @@ interface ItemCardProps {
   item: MindtaskerItem;
   onEdit?: (input: ItemEditInput) => void | Promise<void>;
   onToggleType?: () => void;
-  onSendToBoard?: () => void;
-  sendToBoardLabel?: string;
   onComplete?: () => void;
   onSnooze?: () => void;
   onTagPress?: () => void;
@@ -176,8 +170,6 @@ export function ItemCard({
   item,
   onEdit,
   onToggleType,
-  onSendToBoard,
-  sendToBoardLabel,
   onComplete,
   onSnooze,
   onTagPress,
@@ -211,7 +203,7 @@ export function ItemCard({
   const contentCollapsed = isItemContentCollapsed(display.isItemExpandable, itemExpanded);
   const headlineText = display.body ? display.headline : display.fullHeadline;
   const hasActions = Boolean(
-    onEdit || onToggleType || onSendToBoard || onComplete || onSnooze || onTagPress || onTaskListUndo,
+    onEdit || onToggleType || onComplete || onSnooze || onTagPress || onTaskListUndo,
   );
   const visibleTags = tagsOverride ?? display.tags;
   const hasTags = visibleTags.length > 0;
@@ -450,9 +442,7 @@ export function ItemCard({
                 </span>
               ) : null}
               <div
-                className={`board-card-actions flex w-full min-w-0 flex-nowrap items-center justify-between gap-1 overflow-hidden${
-                  onSendToBoard ? " board-card-actions--with-send" : ""
-                }`}
+                className="board-card-actions flex w-full min-w-0 flex-nowrap items-center justify-between gap-1 overflow-hidden"
                 dir="rtl"
               >
                 <div className="flex shrink-0 items-center gap-0.5">
@@ -541,28 +531,6 @@ export function ItemCard({
                         onClick={onToggleType}
                         dense={dense || isSquares}
                       />
-                    ) : null}
-                    {onSendToBoard ? (
-                      <button
-                        type="button"
-                        {...{ [ITEM_ACTION_ATTR]: "" }}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onPointerUp={(e) => e.stopPropagation()}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSendToBoard();
-                        }}
-                        title={sendToBoardAriaLabel(sendToBoardLabel, display.isNote)}
-                        aria-label={sendToBoardAriaLabel(sendToBoardLabel, display.isNote)}
-                        style={{ touchAction: "manipulation" }}
-                        className={`item-send-board-btn inline-flex items-center gap-1 rounded-lg px-2 font-semibold text-white ${
-                          dense || isSquares ? "h-7 text-[10px]" : "h-9 text-[11px]"
-                        } ${display.isNote ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-500 hover:bg-blue-600"}`}
-                      >
-                        <NotebookIcon name="check" size={dense || isSquares ? 14 : 16} tone="white" />
-                        {sendToBoardButtonLabel(sendToBoardLabel, display.isNote)}
-                      </button>
                     ) : null}
                     {onSnooze ? (
                       <NotebookActionButton

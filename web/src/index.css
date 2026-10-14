@@ -399,11 +399,6 @@ body {
   max-height: 36px;
 }
 
-.board-notebook-item .board-card-actions--with-send .notebook-icon-btn {
-  width: min(36px, max(22px, calc((100cqw - 6.75rem) / 6)));
-  height: min(36px, max(22px, calc((100cqw - 6.75rem) / 6)));
-}
-
 .board-notebook-item--dense .board-card-actions .notebook-icon-btn,
 .board-notebook-item--squares .board-card-actions .notebook-icon-btn {
   width: min(28px, max(20px, calc((100cqw - 10px) / 6)));
@@ -413,19 +408,6 @@ body {
   max-width: 28px;
   max-height: 28px;
   border-radius: 8px;
-}
-
-.board-notebook-item--dense .board-card-actions--with-send .notebook-icon-btn,
-.board-notebook-item--squares .board-card-actions--with-send .notebook-icon-btn {
-  width: min(28px, max(20px, calc((100cqw - 6.25rem) / 6)));
-  height: min(28px, max(20px, calc((100cqw - 6.25rem) / 6)));
-}
-
-.item-send-board-btn {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 7.5rem;
-  white-space: nowrap;
 }
 
 .notebook-icon-btn:hover {

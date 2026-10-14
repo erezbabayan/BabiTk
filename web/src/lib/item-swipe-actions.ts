@@ -26,29 +26,6 @@ export function inboxSendToBoardLabel(item: MindtaskerItem): string {
   return item.is_actionable ? "שלח למשימות" : "שלח להערות";
 }
 
-/** Short pill text so card footer actions stay on one row. */
-export function inboxSendToBoardButtonLabel(item: MindtaskerItem): string {
-  return item.is_actionable ? "למשימות" : "להערות";
-}
-
-export function sendToBoardButtonLabel(
-  sendToBoardLabel: string | undefined,
-  isNote: boolean,
-): string {
-  const raw = sendToBoardLabel?.trim() ?? "";
-  if (/הערות/.test(raw) || (!raw && isNote)) return "להערות";
-  return "למשימות";
-}
-
-export function sendToBoardAriaLabel(
-  sendToBoardLabel: string | undefined,
-  isNote: boolean,
-): string {
-  const raw = sendToBoardLabel?.trim() ?? "";
-  if (raw) return raw;
-  return isNote ? "שלח להערות" : "שלח למשימות";
-}
-
 export function approveSwipeAction(item: MindtaskerItem, onTrigger: () => void): SwipeAction {
   return { label: inboxTransferLabel(item), icon: "check", tone: boardToneForItem(item), onTrigger };
 }
