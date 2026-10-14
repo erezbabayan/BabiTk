@@ -15,10 +15,16 @@ describe("voice-text", () => {
     assert.equal(isVoicePlaceholderText("ממתין לתמלול"), false);
   });
 
-  it("uses the first transcribed line as the title", () => {
+  it("summarizes the transcript into a half-sentence title", () => {
     assert.equal(
       titleFromInboundText("לקנות חלב מחר\nוא גם לחם"),
-      "לקנות חלב מחר",
+      "לקנות חלב",
+    );
+    assert.equal(
+      titleFromInboundText(
+        "תיאום פגישה,\nהחזרת הקבלן לתיקוני כביש ניר צבי, שדוד אלקו.",
+      ),
+      "תיאום פגישה להחזרת הקבלן לתיקוני כביש ניר צבי",
     );
   });
 

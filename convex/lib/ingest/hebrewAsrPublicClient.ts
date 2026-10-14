@@ -7,11 +7,10 @@
  */
 
 import { applyHebrewAsrSpellingFixes } from "./hebrewAsrSpelling";
+import { composeInboundTitle } from "./taskPresentation.ts";
 
 function titleFromInboundText(text: string): string {
-  const trimmed = text.trim();
-  const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim()) ?? trimmed;
-  return firstLine.trim().slice(0, 120);
+  return composeInboundTitle(text);
 }
 
 export interface PublicVoiceTranscription {

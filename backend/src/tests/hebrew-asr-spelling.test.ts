@@ -109,6 +109,33 @@ describe("hebrew contextual homophones", () => {
     );
   });
 
+  it("proofreads ktiv-male and place/term residuals from live Hebrew ASR", () => {
+    assert.equal(
+      applyHebrewAsrSpellingFixes("לתא מחדש את הפגישה"),
+      "לתאם מחדש את הפגישה",
+    );
+    assert.equal(applyHebrewAsrSpellingFixes("ביקת הירדן"), "בקעת הירדן");
+    assert.equal(applyHebrewAsrSpellingFixes("הורת שינוי"), "הוראת שינוי");
+    assert.equal(
+      applyHebrewAsrSpellingFixes("לדווח על המלואים"),
+      "לדווח על המילואים",
+    );
+    assert.equal(
+      applyHebrewAsrSpellingFixes("ברכת מים בחצר"),
+      "בריכת מים בחצר",
+    );
+    assert.equal(applyHebrewAsrSpellingFixes("פקוד גמל"), "פקדון גמל");
+    assert.equal(
+      applyHebrewAsrSpellingFixes("קיבל לי את המסמך"),
+      "קיבלתי את המסמך",
+    );
+    assert.equal(
+      applyHebrewAsrSpellingFixes("לעדכן את המערשת"),
+      "לעדכן את המערכת",
+    );
+    assert.equal(applyHebrewAsrSpellingFixes("לתא פגישה"), "לתאם פגישה");
+  });
+
   it("rewrites מדרשים to מדרסים when paying for shoes", () => {
     assert.equal(
       applyHebrewAsrSpellingFixes("לאסוף את המדרשים צריך לשלם 400 שקל"),

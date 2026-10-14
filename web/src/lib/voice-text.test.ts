@@ -37,7 +37,7 @@ describe("voice-text display", () => {
       source_materials: null,
     });
 
-    assert.equal(display.title, "לקנות חלב מחר");
+    assert.equal(display.title, "לקנות חלב");
     assert.equal(display.content, "לקנות חלב מחר");
     assert.equal(display.transcribing, false);
   });

@@ -59,6 +59,8 @@ const CONTEXT_PHRASES: ReadonlyArray<readonly [wrong: string, right: string]> = 
   ["ראיון מגניב", "רעיון מגניב"],
   ["לברך לגבי", "לברר לגבי"],
   ["בירכתי לגבי", "ביררתי לגבי"],
+  ["לתא פגישה", "לתאם פגישה"],
+  ["לתא שיחה", "לתאם שיחה"],
 ];
 
 /** Neighbor stems that mean interview, not idea. */

@@ -2,25 +2,21 @@ import type { ParsedItem } from "../../types/ai.js";
 import { stripTemporalPhrases } from "../../services/hebrew-date-resolver.service.js";
 
 /**
- * Topic-title pipeline
- * --------------------
- * Goal: turn a full capture into a short label of *what the item is about*,
- * not the schedule and not the full sentence.
+ * Topic-title pipeline (journalism lead / 5W1H, extractive)
+ * ---------------------------------------------------------
+ * A board title is a half-sentence of *what is actually in the capture*:
+ * who / what / where — never a generic label like "תיאום פגישה" when the
+ * transcript names the contractor and the road.
  *
- * Priority order (first match wins):
- *  1. Meeting  — "שיחה עם המחט"
- *  2. Et-object — "את גמר המונדיאל" → "גמר המונדיאל"
- *  3. Al/Shel  — "על / של …"
- *  4. Action+object infinitive — "להכין כובעים לנופש"
- *  5. Strip leading topic-first verb — לראות/לצפות/…
- *  6. Clamped leftover clause
+ * Keep in sync with convex/lib/ingest/taskPresentation.ts
  */
 
 const FILLER_PREFIX =
   /^(?:תכניס|תכניסי|תוסיף|תוסיפי|תוסיפו|תרשום|תרשמי|רשום|רשמי|שימי|שים)(?:\s+לי)?[,:]?(?:\s+(?:משימה|משימות|הערה|הערות|תזכורת|פריט))?[,:]?[,\s]*|^(?:תזכיר לי|תזכירי לי|תזכורת(?:\s+ל)?|שים לב|שימי לב|אמ+|אה+|שומע|שומעת|כאילו|בעצם|צריך(?:\s+ל)?|בבקשה)[,\s]*/iu;
 
-const MAX_TITLE_WORDS = 5;
-const MAX_TITLE_CHARS = 42;
+/** Half-sentence: long enough for who/what/where, short enough for a board row. */
+const MAX_TITLE_WORDS = 12;
+const MAX_TITLE_CHARS = 80;
 
 const HEB = "[\\u0590-\\u05FF'\"-]";
 
@@ -49,6 +45,9 @@ const MONTH_CONTEXT =
 const PLANNING_TAIL =
   /\s*,?\s*צריך\s+ל[\u0590-\u05FF'"-]+.*$/iu;
 
+const ALSO_CAPTURE_TAIL =
+  /\s+וא?\s+גם\s+.+$/iu;
+
 function cleanFiller(text: string): string {
   let out = text.replace(/\s+/g, " ").trim();
   for (let i = 0; i < 3; i++) {
@@ -73,13 +72,74 @@ export function pickTaskNarrative(item: ParsedItem, sourceText?: string): string
   );
 }
 
-function firstClause(text: string): string {
-  const head = text.split(/[,;]/)[0]?.trim();
-  return head && head.length >= 3 ? head : text.trim();
+function flattenProse(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function splitClauses(text: string): string[] {
+  return text
+    .split(/[,;]+/)
+    .map((part) => part.replace(/^[\s.]+|[\s.]+$/g, "").trim())
+    .filter((part) => part.length >= 2);
+}
+
+/** Bare genre labels — not a title without the concrete object. */
+const GENERIC_LEAD_EXACT =
+  /^(?:תיאום(?:\s+(?:פגישה|שיחה|ישיבה|ראיון))?|לתאם(?:\s+(?:פגישה|שיחה|ישיבה|ראיון))?|קביעת(?:\s+(?:פגישה|שיחה|ישיבה|ראיון))?|לקבוע(?:\s+(?:פגישה|שיחה|ישיבה|ראיון))?|פגישה|שיחה|ישיבה|סנכרון|ועידה|ראיון|תזכורת|משימה|הערה|סיכום|לסכם|לברר|לבדוק|לעדכן|לעקוב|לסגור)$/u;
+
+function isGenericLead(clause: string): boolean {
+  const cleaned = flattenProse(clause).replace(/[,.:;]+$/g, "");
+  if (!cleaned) return true;
+  if (/\s+(?:עם|על|לגבי|בנוגע\s+ל|בנושא)\s+/u.test(cleaned)) return false;
+  if (GENERIC_LEAD_EXACT.test(cleaned)) return true;
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (
+    words.length <= 2 &&
+    /^(?:תיאום|לתאם|קביעת|לקבוע|סיכום|תזכורת|משימה)/u.test(cleaned)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isSecondaryNoise(clause: string): boolean {
+  const cleaned = flattenProse(clause);
+  return /^צריך\s+ל/u.test(cleaned) || /^(?:וגם|גם)\s+/u.test(cleaned);
+}
+
+function joinLeadClause(head: string, next: string): string {
+  if (
+    /^(?:ל|ב|מ|כ|ש|ו|את|על|עם|לגבי|בנוגע)\s/u.test(next) ||
+    /^ל[\u0590-\u05FF]/u.test(next)
+  ) {
+    return `${head} ${next}`;
+  }
+  if (isGenericLead(head) && !/^ל[\u0590-\u05FF]/u.test(head)) {
+    return `${head} ל${next}`;
+  }
+  return `${head} ${next}`;
+}
+
+/**
+ * Lead extraction: generic first comma-clause borrows the following
+ * specifics ("תיאום פגישה, החזרת הקבלן…" → one half-sentence).
+ */
+function leadClauses(text: string): string {
+  const clauses = splitClauses(text);
+  if (clauses.length === 0) return flattenProse(text);
+  let lead = clauses[0] ?? flattenProse(text);
+  for (let i = 1; i < clauses.length; i += 1) {
+    const next = clauses[i];
+    if (!next || isSecondaryNoise(next)) break;
+    if (!isGenericLead(lead)) break;
+    lead = joinLeadClause(lead, next);
+    if (lead.split(/\s+/).filter(Boolean).length >= MAX_TITLE_WORDS) break;
+  }
+  return flattenProse(lead);
 }
 
 function clampTitle(title: string): string {
-  let clause = title.replace(/\s+/g, " ").trim();
+  let clause = flattenProse(title).replace(/[,.:;]+$/g, "");
   const words = clause.split(/\s+/).filter(Boolean);
   if (words.length > MAX_TITLE_WORDS) {
     clause = words.slice(0, MAX_TITLE_WORDS).join(" ");
@@ -87,9 +147,9 @@ function clampTitle(title: string): string {
   if (clause.length > MAX_TITLE_CHARS) {
     const cut = clause.slice(0, MAX_TITLE_CHARS);
     const lastSpace = cut.lastIndexOf(" ");
-    clause = (lastSpace > 18 ? cut.slice(0, lastSpace) : cut).trim();
+    clause = (lastSpace > 24 ? cut.slice(0, lastSpace) : cut).trim();
   }
-  return clause;
+  return clause.replace(/[,.:;]+$/g, "").trim();
 }
 
 function normalizeTopicSpelling(topic: string): string {
@@ -106,14 +166,15 @@ function stripVerbCompanion(clause: string): string {
 }
 
 export function prepareTopicSource(narrative: string): string {
-  let clause = cleanFiller(narrative);
-  clause = firstClause(clause);
+  let clause = cleanFiller(flattenProse(narrative));
+  clause = leadClauses(clause);
   clause = clause.replace(PLANNING_TAIL, "").trim();
+  clause = clause.replace(ALSO_CAPTURE_TAIL, "").trim();
   clause = stripTemporalPhrases(clause);
   clause = clause.replace(MONTH_CONTEXT, "").trim();
   clause = clause.replace(WITH_PERSON, "").trim();
   clause = stripVerbCompanion(clause);
-  return clause.replace(/\s+/g, " ").trim();
+  return flattenProse(clause);
 }
 
 function tryMeetingTopic(text: string): string | null {
@@ -123,7 +184,11 @@ function tryMeetingTopic(text: string): string | null {
   );
   const match = text.match(re);
   if (!match?.[0]) return null;
-  if (match[0].includes("עם") || match[0].length >= 3) {
+  const rest = text.slice(match[0].length).trim();
+  if (rest && !isGenericLead(rest)) {
+    return clampTitle(text);
+  }
+  if (match[0].includes("עם")) {
     return clampTitle(match[0]);
   }
   return null;
@@ -177,13 +242,20 @@ function tryTopicFirstVerb(text: string): string | null {
   return null;
 }
 
+const GENERIC_ACTION_KEEP_TAIL =
+  /^(?:לברר|לבדוק|לעדכן|לתאם|לקבוע|לסכם|לעקוב|לסגור|לטפל)(?=\s|$)/u;
+
 function tryActionObjectTopic(text: string): string | null {
-  // Infinitive + 1–2 object words: "להכין כובעים לנופש", "לקנות חלב"
+  if (GENERIC_ACTION_KEEP_TAIL.test(text)) return null;
   const match = text.match(
     new RegExp(`^(ל${HEB}+(?:\\s+${HEB}+){1,2})(?=\\s|$|,|;)`, "u"),
   );
   if (!match?.[1]) return null;
   if (match[1].split(/\s+/).length < 2) return null;
+  const rest = text.slice(match[1].length).trim();
+  if (/^(?:ל|את|על|בנוגע|לגבי)(?:\s|$)/u.test(rest) || /^ל[\u0590-\u05FF]/u.test(rest)) {
+    return null;
+  }
   return clampTitle(match[1].trim());
 }
 
@@ -200,6 +272,13 @@ export function summarizeTopicTitle(narrative: string): string {
     tryActionObjectTopic(text) ??
     clampTitle(normalizeTopicSpelling(text))
   );
+}
+
+/** Flatten ASR/newlines then compose a half-sentence title. */
+export function composeInboundTitle(narrative: string): string {
+  const flat = flattenProse(narrative);
+  if (!flat) return "";
+  return summarizeTopicTitle(flat) || flat.slice(0, MAX_TITLE_CHARS);
 }
 
 export function deriveShortTaskTitle(narrative: string): string {

@@ -3,6 +3,8 @@
  * backend/src/lib/ingest/voice-text.ts and web/src/lib/voice-text.ts
  */
 
+import { composeInboundTitle } from "../../../convex/lib/ingest/taskPresentation.ts";
+
 export const WHATSAPP_VOICE_PLACEHOLDERS = [
   "הודעה קולית מוואטסאפ",
   "הודעה קולית",
@@ -63,7 +65,5 @@ export function isInsertableInboundText(title: string, content: string): boolean
 }
 
 export function titleFromInboundText(text: string): string {
-  const trimmed = text.trim();
-  const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim()) ?? trimmed;
-  return firstLine.trim().slice(0, 120);
+  return composeInboundTitle(text);
 }
