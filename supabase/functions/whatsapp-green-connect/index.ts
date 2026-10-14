@@ -21,6 +21,7 @@ import {
   WHATSAPP_WELCOME_MESSAGE,
 } from "../_shared/green-api-auth.ts";
 import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
+import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -870,6 +871,13 @@ Deno.serve(async (req) => {
       await configureWebhook(gateway, webhookUrl);
       const latest = (await loadGateway(supabase, userId)) ?? gateway;
       await backfillCaptureHistory(supabase, userId, latest, webhookUrl);
+      await catchUpCaptureVoice({
+        supabase,
+        userId,
+        gateway: latest,
+        transcribe: true,
+        count: 15,
+      });
     } catch (error) {
       console.error("whatsapp capture backfill failed", error);
     }

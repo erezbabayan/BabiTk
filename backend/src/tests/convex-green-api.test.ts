@@ -11,6 +11,7 @@ import {
   phoneLookupVariants,
   verifyGreenApiWebhookAuth,
 } from "../../../convex/lib/greenApiParser.js";
+import { isGreenApiHistoryAudio } from "../../../supabase/functions/_shared/green-api.ts";
 import { isOwnerWhatsAppSender } from "../../../convex/lib/whatsappCaptureGroup.js";
 import { normalizePhone, phoneFromWhatsAppId } from "../../../convex/lib/phone.js";
 
@@ -172,6 +173,12 @@ describe("Convex Green-API parser", () => {
       },
     });
     assert.equal(messages.length, 0);
+  });
+
+  it("treats ptt and audio history rows as voice notes", () => {
+    assert.equal(isGreenApiHistoryAudio("audioMessage"), true);
+    assert.equal(isGreenApiHistoryAudio("pttMessage"), true);
+    assert.equal(isGreenApiHistoryAudio("textMessage"), false);
   });
 
   it("parses owner audio in capture group", () => {

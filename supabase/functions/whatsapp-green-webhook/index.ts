@@ -21,15 +21,18 @@ import {
 } from "../_shared/parse-incoming-message.ts";
 import {
   applyVoiceTranscription,
-  awaitStoredVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
   insertPendingWhatsAppVoiceItem,
   interceptVoiceItemQuestion,
   repairOnePlaceholderVoiceItem,
+  scheduleBackgroundWork,
   softDeleteVoiceItemAsQuestion,
+  transcribeStoredVoiceItem,
   transcribeVoiceMessageWithRetry,
   type VoiceGatewayCredentials,
+  type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
+import { scheduleCaptureVoiceCatchup } from "../_shared/whatsapp-history-catchup.ts";
 import { sendGreenApiText } from "../_shared/green-api-send.ts";
 import {
   addHoursIso,
@@ -404,7 +407,11 @@ async function alreadyIngested(
   }
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
   if (!existing) return false;
-  await awaitStoredVoiceTranscription(supabase, existing, gateway);
+  if (needsVoiceTranscription(existing.title, existing.content)) {
+    scheduleBackgroundWork(
+      transcribeStoredVoiceItem(supabase, existing, gateway).then(() => undefined),
+    );
+  }
   return true;
 }
 
@@ -435,6 +442,48 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
   };
 }
 
+async function finishWhatsAppVoiceItem(
+  supabase: ReturnType<typeof adminClient>,
+  user: UserRow,
+  message: ParsedGreenApiMessage,
+  gateway: GatewayRow | null,
+  pending: VoiceItemRow,
+): Promise<void> {
+  try {
+    const transcribed = await transcribeVoiceMessageWithRetry(message, gateway, supabase);
+    if (!isInsertableInboundText(transcribed.title, transcribed.content)) {
+      return;
+    }
+    if (await interceptVoiceItemQuestion(supabase, pending, transcribed, gateway)) {
+      return;
+    }
+    const questionText = transcribed.content || transcribed.rawText;
+    if (
+      questionText.trim() &&
+      (await handleGroupTextIntent({
+        supabase,
+        user,
+        gateway,
+        message,
+        text: questionText,
+        sourceType: "whatsapp_voice",
+      }))
+    ) {
+      await softDeleteVoiceItemAsQuestion(supabase, pending, transcribed);
+      return;
+    }
+    await applyVoiceTranscription(supabase, pending, transcribed);
+    await rememberLastItemIds(supabase, user.id, [pending.id]);
+    await sendGreenApiText(
+      gateway,
+      replyChatId(message),
+      buildCaptureConfirmation([{ title: transcribed.title }]),
+    );
+  } catch (error) {
+    console.error("background whatsapp asr failed", error);
+  }
+}
+
 async function ingestMessage(
   supabase: ReturnType<typeof adminClient>,
   user: UserRow,
@@ -453,36 +502,10 @@ async function ingestMessage(
       await sendGreenApiText(gateway, replyChatId(message), ASR_FAIL_REPLY);
       return "answered";
     }
-    try {
-      const transcribed = await transcribeVoiceMessageWithRetry(message, gateway, supabase);
-      if (!isInsertableInboundText(transcribed.title, transcribed.content)) {
-        return null;
-      }
-      if (await interceptVoiceItemQuestion(supabase, pending, transcribed, gateway)) {
-        return "answered";
-      }
-      const questionText = transcribed.content || transcribed.rawText;
-      if (
-        questionText.trim() &&
-        (await handleGroupTextIntent({
-          supabase,
-          user,
-          gateway,
-          message,
-          text: questionText,
-          sourceType: "whatsapp_voice",
-        }))
-      ) {
-        await softDeleteVoiceItemAsQuestion(supabase, pending, transcribed);
-        return "answered";
-      }
-      await applyVoiceTranscription(supabase, pending, transcribed);
-      return { id: pending.id, title: transcribed.title };
-    } catch (error) {
-      console.error("inline whatsapp asr failed", error);
-      // Keep the pending row. Green-API retry / later webhooks repair it.
-      return null;
-    }
+    scheduleBackgroundWork(
+      finishWhatsAppVoiceItem(supabase, user, message, gateway, pending),
+    );
+    return { id: pending.id, title: pending.title };
   }
 
   const item = itemFromMessage(message);
@@ -651,7 +674,7 @@ Deno.serve(async (req) => {
       provider: "green-api",
       endpoint: "whatsapp-green-webhook",
       method: "POST",
-      asr: "inline-whisper-v9",
+      asr: "inline-whisper-v10",
       qa: "babi-v5",
       layout: "task-v1",
       engines: {
@@ -686,16 +709,34 @@ Deno.serve(async (req) => {
       .maybeSingle();
     gateway = (data as GatewayRow | null) ?? null;
   }
+  if (!gateway) {
+    const { data } = await supabase
+      .from("whatsapp_gateways")
+      .select("user_id,webhook_token,instance_id,api_token,api_url")
+      .limit(1)
+      .maybeSingle();
+    gateway = (data as GatewayRow | null) ?? null;
+  }
 
   if (!verifyGreenApiWebhookAuth(req, gateway?.webhook_token ?? undefined)) {
     return json({ error: "invalid_webhook_token" }, 401);
   }
 
   const parsed = parseGreenApiWebhook(body);
+  const kickVoiceCatchup = () => {
+    if (!gateway?.user_id) return;
+    scheduleCaptureVoiceCatchup({
+      supabase,
+      userId: gateway.user_id,
+      gateway,
+    });
+  };
   if (parsed.ignored) {
+    kickVoiceCatchup();
     return json({ received: true, ignored: true, reason: parsed.reason ?? "not_inbound" });
   }
   if (parsed.messages.length === 0) {
+    kickVoiceCatchup();
     return json({
       received: true,
       messages: [],
@@ -779,6 +820,11 @@ Deno.serve(async (req) => {
           messageId: message.messageId,
           userId: user.id,
         });
+      } else if (inserted) {
+        scheduled.push({
+          messageId: message.messageId,
+          userId: user.id,
+        });
       }
       if (message.type !== "audio") {
         await repairOnePlaceholderVoiceItem(supabase, user.id, gateway);
@@ -789,6 +835,10 @@ Deno.serve(async (req) => {
         reason: error instanceof Error ? error.message : "ingest_failed",
       });
     }
+  }
+
+  if (!parsed.messages.some((message) => message.type === "audio")) {
+    kickVoiceCatchup();
   }
 
   return json({
