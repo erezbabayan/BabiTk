@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { inboxSendToBoardLabel, inboxSwipeActions } from "./item-swipe-actions.js";
-import type { MindtaskerItem } from "../types.js";
+import {
+  inboxSendToBoardButtonLabel,
+  inboxSendToBoardLabel,
+  inboxSwipeActions,
+  sendToBoardAriaLabel,
+  sendToBoardButtonLabel,
+} from "./item-swipe-actions.ts";
+import type { MindtaskerItem } from "../types.ts";
 
 function inboxItem(isActionable: boolean): MindtaskerItem {
   return {
@@ -36,5 +42,10 @@ describe("inboxSwipeActions", () => {
     assert.equal(taskSwipe.right.label, "מחק");
     assert.equal(inboxSendToBoardLabel(task), "שלח למשימות");
     assert.equal(inboxSendToBoardLabel(note), "שלח להערות");
+    assert.equal(inboxSendToBoardButtonLabel(task), "למשימות");
+    assert.equal(inboxSendToBoardButtonLabel(note), "להערות");
+    assert.equal(sendToBoardButtonLabel("שלח למשימות", false), "למשימות");
+    assert.equal(sendToBoardButtonLabel("שלח להערות", true), "להערות");
+    assert.equal(sendToBoardAriaLabel("שלח למשימות", false), "שלח למשימות");
   });
 });
