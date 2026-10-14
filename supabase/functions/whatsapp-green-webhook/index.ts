@@ -58,6 +58,7 @@ import {
 } from "../_shared/whatsapp-system-question-reply.ts";
 import { evaluateCaptureGate } from "../_shared/capture-gate.ts";
 import { parseInboundText, type IngestSourceType, layoutMetadataFromParsed } from "../_shared/inbound-item.ts";
+import { applyHebrewAsrSpellingFixes } from "../_shared/hebrew-asr-proofread.ts";
 import { queueCalendarSync } from "../_shared/google-calendar.ts";
 
 const ASR_FAIL_REPLY =
@@ -201,7 +202,7 @@ async function handleGroupTextIntent(options: {
   text: string;
   sourceType?: "whatsapp_text" | "whatsapp_voice";
 }): Promise<boolean> {
-  const raw = options.text.trim();
+  const raw = applyHebrewAsrSpellingFixes(options.text.trim());
   if (!raw || isSystemWhatsAppReply(raw)) return true;
   const route = classifyWhatsAppInbound(raw);
   if (route.lane === "capture") return false;
@@ -419,9 +420,11 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
   sourceType: "whatsapp_text" | "whatsapp_voice" | "image";
   title: string;
   content: string;
+  rawText?: string;
 } | null {
   if (message.type === "image") {
-    const content = message.text?.trim() ?? "";
+    const original = message.text?.trim() ?? "";
+    const content = applyHebrewAsrSpellingFixes(original);
     if (!isInsertableInboundText(titleFromInboundText(content), content)) {
       return null;
     }
@@ -429,9 +432,11 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
       sourceType: "image",
       title: titleFromInboundText(content),
       content,
+      rawText: original,
     };
   }
-  const content = message.text?.trim() ?? "";
+  const original = message.text?.trim() ?? "";
+  const content = applyHebrewAsrSpellingFixes(original);
   if (!isInsertableInboundText(titleFromInboundText(content), content)) {
     return null;
   }
@@ -439,6 +444,7 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
     sourceType: "whatsapp_text",
     title: titleFromInboundText(content),
     content,
+    rawText: original,
   };
 }
 
@@ -541,7 +547,9 @@ async function insertCapturedItem(
     audioUrl?: string | null;
   },
 ): Promise<{ id: string; title: string } | null> {
-  if (!isInsertableInboundText(item.title, item.content)) {
+  const content = applyHebrewAsrSpellingFixes(item.content);
+  const title = applyHebrewAsrSpellingFixes(item.title) || titleFromInboundText(content);
+  if (!isInsertableInboundText(title, content)) {
     throw new Error("inbound_text_required");
   }
   const now = Date.now();
@@ -562,7 +570,7 @@ async function insertCapturedItem(
         ...(message.type === "audio"
           ? {
               whisper_transcription: item.rawText ?? item.content,
-              corrected_transcription: item.content,
+              corrected_transcription: content,
             }
           : {}),
       },
@@ -575,11 +583,11 @@ async function insertCapturedItem(
 
   const sourceType = item.sourceType as IngestSourceType;
   let parsedRows: ReturnType<typeof parseInboundText> = [];
-  if (item.content.trim()) {
+  if (content.trim()) {
     try {
-      parsedRows = parseInboundText(item.content, {
+      parsedRows = parseInboundText(content, {
         sourceType,
-        fallbackTitle: item.title,
+        fallbackTitle: title,
       });
     } catch (error) {
       console.error("inbound parse failed, falling back", error);
@@ -587,7 +595,7 @@ async function insertCapturedItem(
   }
   if (parsedRows.length === 0) {
     const allowedTags = await loadAllowedTagNames(supabase, user.id);
-    parsedRows = parseIncomingMessage(item.content, allowedTags).map((row) => ({
+    parsedRows = parseIncomingMessage(content, allowedTags).map((row) => ({
       title: row.title,
       content: row.content,
       is_actionable: row.is_actionable,
@@ -603,8 +611,8 @@ async function insertCapturedItem(
       ? parsedRows
       : [
           {
-            title: item.title,
-            content: item.content,
+            title,
+            content,
             is_actionable: true,
             tags: [] as string[],
             due_date: null as string | null,
@@ -618,7 +626,7 @@ async function insertCapturedItem(
     message.type === "audio"
       ? {
           whisper_transcription: item.rawText ?? item.content,
-          corrected_transcription: item.content,
+          corrected_transcription: content,
         }
       : {};
 
@@ -677,6 +685,7 @@ Deno.serve(async (req) => {
       asr: "inline-whisper-v10",
       qa: "babi-v5",
       layout: "task-v1",
+      spelling: "he-context-v1",
       engines: {
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),

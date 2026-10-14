@@ -68,3 +68,52 @@ describe("hebrew ASR slang and ktiv male", () => {
     assert.equal(applyHebrewAsrSpellingFixes("יאללה"), "יאללה");
   });
 });
+
+describe("hebrew contextual homophones", () => {
+  it("rewrites סיכום רעיון to interview spelling with aleph", () => {
+    assert.equal(applyHebrewAsrSpellingFixes("סיכום רעיון"), "סיכום ראיון");
+    assert.equal(
+      applyHebrewAsrSpellingFixes("סיכום רעיון עם נועה מחר"),
+      "סיכום ראיון עם נועה מחר",
+    );
+    assert.equal(applyHebrewAsrSpellingFixes("קבעתי רעיון בזום"), "קבעתי ראיון בזום");
+    assert.equal(applyHebrewAsrSpellingFixes("רעיון עבודה בשרון"), "ראיון עבודה בשרון");
+    assert.equal(
+      applyHebrewAsrSpellingFixes("קבעתי מחר רעיון בזום"),
+      "קבעתי מחר ראיון בזום",
+    );
+  });
+
+  it("keeps רעיון when the context is idea, not interview", () => {
+    assert.equal(applyHebrewAsrSpellingFixes("יש לי רעיון טוב"), "יש לי רעיון טוב");
+    assert.equal(applyHebrewAsrSpellingFixes("רעיון מגניב למוצר"), "רעיון מגניב למוצר");
+    assert.equal(applyHebrewAsrSpellingFixes("עלה לי רעיון"), "עלה לי רעיון");
+    assert.equal(
+      applyHebrewAsrSpellingFixes("יש לי רעיון לעבודה חדשה"),
+      "יש לי רעיון לעבודה חדשה",
+    );
+  });
+
+  it("is idempotent on the interview spelling", () => {
+    assert.equal(applyHebrewAsrSpellingFixes("סיכום ראיון"), "סיכום ראיון");
+    assert.equal(
+      applyHebrewAsrSpellingFixes(applyHebrewAsrSpellingFixes("סיכום רעיון")),
+      "סיכום ראיון",
+    );
+  });
+
+  it("rewrites לברך לגבי to לברר לגבי", () => {
+    assert.equal(
+      applyHebrewAsrSpellingFixes("לברך לגבי עבודה חדשה"),
+      "לברר לגבי עבודה חדשה",
+    );
+  });
+
+  it("rewrites מדרשים to מדרסים when paying for shoes", () => {
+    assert.equal(
+      applyHebrewAsrSpellingFixes("לאסוף את המדרשים צריך לשלם 400 שקל"),
+      "לאסוף את המדרסים צריך לשלם 400 שקל",
+    );
+    assert.equal(applyHebrewAsrSpellingFixes("קראתי מדרשים"), "קראתי מדרשים");
+  });
+});

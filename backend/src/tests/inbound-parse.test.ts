@@ -35,4 +35,15 @@ describe("parseInboundText", () => {
     assert.equal(items[0]?.content, "");
     assert.equal(items[0]?.title, "להתקשר למוסך");
   });
+
+  it("proofreads contextual Hebrew before parse on typed and WhatsApp text", () => {
+    const items = parseInboundText("סיכום רעיון עם נועה", {
+      sourceType: "whatsapp_text",
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.equal(items.length, 1);
+    assert.match(`${items[0]?.title} ${items[0]?.content}`, /ראיון/);
+    assert.doesNotMatch(`${items[0]?.title} ${items[0]?.content}`, /רעיון/);
+  });
 });

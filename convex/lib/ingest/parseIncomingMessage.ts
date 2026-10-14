@@ -1,4 +1,5 @@
 import { correctEnglishKeyboardHebrew } from "./englishKeyboardHebrew";
+import { applyHebrewAsrSpellingFixes } from "./hebrewAsrSpelling";
 import { parseInputLocally } from "./localParse";
 import { DEFAULT_TAG_NAMES } from "./defaultTags";
 import type { ParsedItem } from "./types";
@@ -17,7 +18,9 @@ export function parseIncomingMessage(
   text: string,
   options: ParseIncomingOptions = {},
 ): ParsedItem[] {
-  const trimmed = correctEnglishKeyboardHebrew(text.trim());
+  const trimmed = applyHebrewAsrSpellingFixes(
+    correctEnglishKeyboardHebrew(text.trim()),
+  );
   if (!trimmed) return [];
 
   const parsed = parseInputLocally({
