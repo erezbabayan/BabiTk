@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import { calendarSettingsButtonLabel } from "../lib/google-calendar-connect";
@@ -7,16 +7,33 @@ import { isDemoMode } from "../lib/supabase";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
 
+function readDemoLinked(): boolean {
+  try {
+    return localStorage.getItem(DEMO_LINK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeDemoLinked(linked: boolean): void {
+  try {
+    if (linked) localStorage.setItem(DEMO_LINK_KEY, "1");
+    else localStorage.removeItem(DEMO_LINK_KEY);
+  } catch {
+    // Private mode — keep the in-memory button state only.
+  }
+}
+
 export function GoogleCalendarLink() {
   const [linked, setLinked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function refreshStatus() {
+  const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
-        setLinked(localStorage.getItem(DEMO_LINK_KEY) === "1");
+        setLinked(readDemoLinked());
         return;
       }
       const status = await getGoogleCalendarStatus();
@@ -27,11 +44,11 @@ export function GoogleCalendarLink() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void refreshStatus();
-  }, []);
+  }, [refreshStatus]);
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
@@ -48,14 +65,14 @@ export function GoogleCalendarLink() {
       window.removeEventListener("message", onMessage);
       window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [refreshStatus]);
 
   async function handleConnect() {
     setError(null);
     setBusy(true);
     try {
       if (isDemoMode) {
-        localStorage.setItem(DEMO_LINK_KEY, "1");
+        writeDemoLinked(true);
         setLinked(true);
         return;
       }
@@ -73,7 +90,7 @@ export function GoogleCalendarLink() {
     setBusy(true);
     try {
       if (isDemoMode) {
-        localStorage.removeItem(DEMO_LINK_KEY);
+        writeDemoLinked(false);
         setLinked(false);
         return;
       }
@@ -94,18 +111,20 @@ export function GoogleCalendarLink() {
       {linked ? (
         <button
           type="button"
+          data-calendar-linked="true"
           onClick={() => void handleDisconnect()}
           disabled={busy}
-          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
           {calendarSettingsButtonLabel(true, busy)}
         </button>
       ) : (
         <button
           type="button"
+          data-calendar-linked="false"
           onClick={() => void handleConnect()}
           disabled={busy}
-          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
           {calendarSettingsButtonLabel(false, busy)}
         </button>

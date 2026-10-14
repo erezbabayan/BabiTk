@@ -107,7 +107,7 @@ export function formatOAuthSignInError(
     raw.includes("provider is not enabled") ||
     raw.includes("unsupported provider")
   ) {
-    return `התחברות ${providerLabel} עדיין לא הופעלה בשרת. צריך Client ID ו-Secret ב-Supabase.`;
+    return `התחברות ${providerLabel} עדיין לא הופעלה. צרו לקוח Web ב-Google Cloud, היכנסו עם סיסמה, והדביקו Client ID ו-Secret בטופס שמתחת לכפתור.`;
   }
   if (raw.includes("access_denied") || raw.includes("user denied")) {
     return `ההתחברות עם ${providerLabel} בוטלה.`;

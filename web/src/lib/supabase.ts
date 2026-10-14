@@ -58,7 +58,7 @@ let client: SupabaseClient | null = null;
 if (isSupabaseConfigured) {
   client = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      detectSessionInUrl: true,
+      detectSessionInUrl: false,
       flowType: "pkce",
       storage: getSupabaseAuthStorage() as unknown as Storage,
       persistSession: true,

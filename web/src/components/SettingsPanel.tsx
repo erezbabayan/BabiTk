@@ -94,7 +94,7 @@ export function SettingsPanel({
       role="presentation"
     >
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-3 shadow-xl"
+        className="max-h-[85vh] w-full max-w-md min-w-[min(100%,20rem)] overflow-y-auto rounded-xl bg-white p-3 shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="settings-title"
