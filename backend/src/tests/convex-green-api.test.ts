@@ -72,6 +72,57 @@ describe("Convex Green-API parser", () => {
     assert.equal(reason, "not_capture_chat");
   });
 
+  it("captures owner group posts when Green-API omits instance wid", () => {
+    const { ignored, messages } = parseGreenApiWebhook(
+      ownerGroupPayload({
+        instanceData: { idInstance: 111 },
+        senderData: {
+          chatId: CAPTURE_GROUP,
+          sender: "254150445125772@lid",
+          chatName: "BabaiTk קליטה",
+        },
+      }),
+    );
+    assert.equal(ignored, false);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.text, "קנה חלב");
+    assert.equal(messages[0]?.chatId, CAPTURE_GROUP);
+  });
+
+  it("captures incoming group posts when instance wid is only a WhatsApp @lid", () => {
+    const { ignored, messages } = parseGreenApiWebhook({
+      typeWebhook: "incomingMessageReceived",
+      idMessage: "lid-in",
+      instanceData: { idInstance: 111, wid: "254150445125772@lid" },
+      senderData: {
+        chatId: CAPTURE_GROUP,
+        sender: "254150445125772@lid",
+        chatName: "BabaiTk קליטה",
+      },
+      messageData: {
+        typeMessage: "textMessage",
+        textMessageData: { textMessage: "לתאם פגישה עם ברעד" },
+      },
+    });
+    assert.equal(ignored, false);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.text, "לתאם פגישה עם ברעד");
+  });
+
+  it("still ignores 1:1 peer chats when wid is missing", () => {
+    const { messages } = parseGreenApiWebhook({
+      typeWebhook: "incomingMessageReceived",
+      idMessage: "p-nowid",
+      instanceData: { idInstance: 111 },
+      senderData: { chatId: PEER, sender: PEER },
+      messageData: {
+        typeMessage: "textMessage",
+        textMessageData: { textMessage: "שלום" },
+      },
+    });
+    assert.equal(messages.length, 0);
+  });
+
   it("captures owner group text when sender is WhatsApp @lid", () => {
     const { ignored, messages } = parseGreenApiWebhook(
       ownerGroupPayload({
