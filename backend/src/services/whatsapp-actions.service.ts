@@ -13,6 +13,7 @@ import {
   parseWhatsAppQuery,
   type WhatsAppQuery,
 } from "../lib/whatsapp-query.js";
+import { applyHebrewAsrSpellingFixes } from "../lib/ingest/hebrewAsrSpelling.js";
 import { classifyWhatsAppInbound } from "../lib/whatsapp-inbound-route.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { env } from "../config/env.js";
@@ -100,7 +101,7 @@ export async function handleWhatsAppTextIntent(options: {
   text: string;
   replyTo: string;
 }): Promise<boolean> {
-  const raw = options.text.trim();
+  const raw = applyHebrewAsrSpellingFixes(options.text.trim());
   if (!raw) return false;
   const route = classifyWhatsAppInbound(raw);
   if (route.lane === "capture") return false;

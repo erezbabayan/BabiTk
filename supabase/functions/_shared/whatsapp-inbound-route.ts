@@ -15,6 +15,7 @@ import {
   isWhatsAppMenuRequest,
   parseWhatsAppCommand,
 } from "./whatsapp-intents.ts";
+import { applyHebrewAsrSpellingFixes } from "./hebrew-asr-proofread.ts";
 import {
   isWhatsAppCaptureDictate,
   normalizeSpokenWhatsAppQuestion,
@@ -38,7 +39,7 @@ export type WhatsAppInboundRoute =
   | { lane: "command" };
 
 export function classifyWhatsAppInbound(text: string): WhatsAppInboundRoute {
-  const raw = text.trim();
+  const raw = applyHebrewAsrSpellingFixes(text.trim());
   if (!raw) return { lane: "capture" };
 
   if (isWhatsAppCaptureDictate(raw)) return { lane: "capture" };

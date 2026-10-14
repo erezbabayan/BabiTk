@@ -1,3 +1,5 @@
+import { correctEnglishKeyboardHebrew } from "./englishKeyboardHebrew.ts";
+import { applyHebrewAsrSpellingFixes } from "./hebrewAsrSpelling.ts";
 import { enrichParsedItemsWithAnalysis } from "./itemAnalysis.ts";
 import { parseInputLocally } from "./localParse.ts";
 import type { ParsedItem, SourceType } from "./types.ts";
@@ -75,7 +77,9 @@ export function parseInboundText(
   text: string,
   options?: ParseInboundOptions,
 ): InboundParsedFields[] {
-  const trimmed = text.trim();
+  const trimmed = applyHebrewAsrSpellingFixes(
+    correctEnglishKeyboardHebrew(text.trim()),
+  );
   if (!trimmed) return [];
 
   const timezone = options?.timezone ?? "Asia/Jerusalem";

@@ -257,6 +257,14 @@ describe("classifyWhatsAppInbound hard split", () => {
     });
     assert.equal(isWhatsAppQuestionLane("בבי מה המשימות"), true);
     assert.equal(isWhatsAppCaptureLane("בבי מה המשימות"), false);
+    assert.deepEqual(classifyWhatsAppInbound("באבי מה המשימות לשבוע הבא?"), {
+      lane: "question",
+      question: "מה המשימות לשבוע הבא?",
+    });
+  });
+
+  it("sends misspelled interview notes to capture with spelling applied first", () => {
+    assert.equal(classifyWhatsAppInbound("סיכום רעיון עם נועה").lane, "capture");
   });
 
   it("does not mix menu picks, commands, and capture", () => {

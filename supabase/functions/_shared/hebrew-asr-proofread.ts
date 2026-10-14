@@ -1,3 +1,5 @@
+import { applyHebrewContextualSpellingFixes } from "../../../convex/lib/ingest/hebrewContextualSpelling.ts";
+
 /**
  * Deterministic Hebrew ASR proofread — Eliezer/ivrit.ai style post-processing.
  *
@@ -9,6 +11,8 @@
  *
  * This is NOT an LLM. It is a high-confidence lexicon + clitic-aware
  * replacer, modeled on Hspell/HebMorph prefix handling (ב/ל/מ/ה/ו/ש/כ).
+ * Homophones that are both valid words (רעיון vs ראיון) are resolved
+ * by applyHebrewContextualSpellingFixes from neighboring context.
  *
  * Keep in sync with:
  *   backend/src/lib/ingest/hebrewAsrSpelling.ts
@@ -20,6 +24,7 @@ export const HEBREW_ASR_WHISPER_PROMPT =
   "עברית מדוברת. משימות יומיום: תכניס משימה, תוסיף הערה, תרשום, לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
   "סלנג: יאללה, סבבה, וואלה, תכלס, אחלה, אוקיי. " +
   "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, יום רביעי, בצהריים, אחה״צ, סופ״ש. " +
+  "מושגים: סיכום ראיון, ראיון עבודה, רעיון. " +
   "שמות: רועי, נועם, אורי, גיא, עידו, עידן, מיכל, שירה, יעל, דנה, מאיה, הילה, אסף, ליאור, יונתן, דניאל, תום, רן, ניר, עומר, איתי, אביה, תמר, נועה, אביגיל, יובל, נועה.";
 
 /** Append a live/on-device transcript so Groq Whisper biases toward those words. */
@@ -181,6 +186,9 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["babitk", "בבי"],
   ["babi", "בבי"],
   ["baby", "בבי"],
+  ["וואצאפ", "וואטסאפ"],
+  ["ווצאפ", "וואטסאפ"],
+  ["רשיון", "רישיון"],
 ];
 
 function escapeRegExp(value: string): string {
@@ -229,6 +237,7 @@ export function applyHebrewAsrSpellingFixes(text: string): string {
   for (const [wrong, right] of HEBREW_TOKEN_FIXES) {
     out = replaceTokenForm(out, wrong, right);
   }
+  out = applyHebrewContextualSpellingFixes(out);
   return normalizeWhitespaceAndMarks(out);
 }
 

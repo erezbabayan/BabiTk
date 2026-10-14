@@ -1,5 +1,6 @@
 import { parseInputLocally } from "../../../convex/lib/ingest/localParse";
 import { correctEnglishKeyboardHebrew } from "../../../convex/lib/ingest/englishKeyboardHebrew";
+import { applyHebrewAsrSpellingFixes } from "../../../convex/lib/ingest/hebrewAsrSpelling";
 import type { MindtaskerItem } from "./supabase";
 
 function clientTimezone(): string {
@@ -12,7 +13,9 @@ function clientTimezone(): string {
 
 /** Rule-based capture parse (same pipeline as backend / Convex ingest). */
 export function parseCaptureText(text: string): MindtaskerItem[] {
-  const trimmed = correctEnglishKeyboardHebrew(text.trim());
+  const trimmed = applyHebrewAsrSpellingFixes(
+    correctEnglishKeyboardHebrew(text.trim()),
+  );
   const parsed = parseInputLocally({
     text: trimmed,
     timezone: clientTimezone(),

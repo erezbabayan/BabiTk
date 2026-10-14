@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { inferTagsFromText } from "./tag-inference.ts";
 import { DEFAULT_TAG_NAMES } from "./default-tags.ts";
+import { applyHebrewAsrSpellingFixes } from "./hebrew-asr-proofread.ts";
 import { titleFromInboundText } from "./voice-text.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
@@ -39,7 +40,7 @@ export function parseIncomingMessage(
   text: string,
   allowedTags?: string[],
 ): IncomingParsedItem[] {
-  const trimmed = text.trim();
+  const trimmed = applyHebrewAsrSpellingFixes(text.trim());
   if (!trimmed) return [];
   const pool = allowedTags?.length ? allowedTags : DEFAULT_TAG_NAMES;
   const tags = inferTagsFromText(trimmed, pool);
