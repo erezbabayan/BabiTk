@@ -2,17 +2,21 @@ import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./supabase";
 import { isCalendarRelevantPatch } from "./google-calendar-patch";
 import {
+  GOOGLE_CALENDAR_SCOPE,
+  formatCalendarConnectError,
+  googleCalendarIdentityOptions,
+  sessionHasGoogleIdentity,
+} from "./google-calendar-connect";
+import {
   googleCalendarHealthFromUnknown,
   googleOAuthSetupPublic,
-  looksLikeGoogleClientId,
-  looksLikeGoogleClientSecret,
   type GoogleCalendarHealth,
 } from "./google-calendar-setup";
 
 const TIMEOUT_MS = 12_000;
 const SYNC_ALL_TIMEOUT_MS = 25_000;
 export const CALENDAR_LINK_FLAG = "babitk-calendar-link";
-export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+export { GOOGLE_CALENDAR_SCOPE };
 
 export { isCalendarRelevantPatch };
 
@@ -90,24 +94,6 @@ export async function getGoogleCalendarStatusFromEdge(): Promise<{
   );
 }
 
-export async function configureGoogleCalendarOAuth(
-  clientId: string,
-  clientSecret: string,
-): Promise<{ configured: boolean; authProviderEnabled?: boolean }> {
-  const id = clientId.trim();
-  const secret = clientSecret.trim();
-  if (!looksLikeGoogleClientId(id) || !looksLikeGoogleClientSecret(secret)) {
-    throw new Error(
-      "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
-    );
-  }
-  return invokeCalendar<{ configured: boolean; authProviderEnabled?: boolean }>("configure", {
-    method: "POST",
-    timeoutMs: 20_000,
-    body: { clientId: id, clientSecret: secret },
-  });
-}
-
 export async function getGoogleCalendarHealth(): Promise<GoogleCalendarHealth> {
   const fallback = googleCalendarHealthFromUnknown({});
   const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");
@@ -152,54 +138,33 @@ async function currentProviderTokens(): Promise<{
   };
 }
 
-function openCalendarPopup(url: string): void {
-  const popup = window.open(url, "babitk-google-calendar", "noopener,noreferrer,width=520,height=720");
-  if (!popup) {
-    window.location.assign(url);
-  }
-}
-
 function hebrewGoogleAuthError(error: unknown): Error {
-  const err = error instanceof Error ? error : null;
-  const message = err?.message ?? String(error);
-  const name = err?.name ?? "";
-  if (name === "not_owner" || message === "not_owner") {
-    return new Error("רק בעל החשבון יכול להפעיל את חיבור Google Calendar מההגדרות.");
-  }
-  if (name === "invalid_google_client" || message === "invalid_google_client") {
-    return new Error(
-      "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
-    );
-  }
-  if (
-    message.includes("provider is not enabled") ||
-    message.includes("Unsupported provider") ||
-    message.toLowerCase().includes("validation_failed")
-  ) {
-    return new Error(
-      "חיבור Google Calendar עדיין לא הוגדר. צרו לקוח OAuth ב-Google Cloud, הדביקו Client ID ו-Secret בהגדרות, ואז לחצו הפעל וחבר.",
-    );
-  }
-  if (message.includes("manual linking") || message.toLowerCase().includes("identity")) {
-    return new Error("לא ניתן לקשר את חשבון Google לחשבון הקיים. נסו שוב מההגדרות.");
-  }
-  return error instanceof Error ? error : new Error(message || "חיבור היומן נכשל");
+  return new Error(formatCalendarConnectError(error));
 }
 
 export async function startGoogleCalendarIdentityLink(): Promise<void> {
   sessionStorage.setItem(CALENDAR_LINK_FLAG, "1");
+  const supabase = requireSupabase();
+  const spec = googleCalendarIdentityOptions(`${supabaseAuthRedirectUrl()}?calendar=connected`);
   try {
-    const { error } = await requireSupabase().auth.linkIdentity({
-      provider: "google",
-      options: {
-        redirectTo: `${supabaseAuthRedirectUrl()}?calendar=connected`,
-        scopes: `${GOOGLE_CALENDAR_SCOPE} email profile`,
-        queryParams: {
-          access_type: "offline",
-          prompt: "consent",
-          include_granted_scopes: "true",
+    const { data: sessionData } = await supabase.auth.getSession();
+    const hasGoogle = sessionHasGoogleIdentity(sessionData.session?.user?.identities);
+    if (hasGoogle) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: spec.provider,
+        options: {
+          ...spec.options,
+          skipBrowserRedirect: true,
         },
-      },
+      });
+      if (error) throw hebrewGoogleAuthError(error);
+      if (!data.url) throw hebrewGoogleAuthError("No OAuth URL returned");
+      window.location.assign(data.url);
+      return;
+    }
+    const { error } = await supabase.auth.linkIdentity({
+      provider: spec.provider,
+      options: spec.options,
     });
     if (error) throw hebrewGoogleAuthError(error);
   } catch (error) {
@@ -210,16 +175,6 @@ export async function startGoogleCalendarIdentityLink(): Promise<void> {
 
 export async function startGoogleCalendarConnect(): Promise<void> {
   if (isDemoMode) return;
-  try {
-    const url = await getGoogleCalendarConnectUrlFromEdge();
-    if (url.startsWith("#")) return;
-    openCalendarPopup(url);
-    return;
-  } catch (error) {
-    if (!isGoogleCalendarNotConfiguredError(error)) {
-      throw error;
-    }
-  }
   await startGoogleCalendarIdentityLink();
 }
 

@@ -94,7 +94,7 @@ export function SettingsPanel({
       role="presentation"
     >
       <div
-        className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-3 shadow-xl"
+        className="max-h-[85vh] w-full max-w-md min-w-[min(100%,20rem)] overflow-y-auto rounded-xl bg-white p-3 shadow-xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="settings-title"
@@ -181,18 +181,7 @@ export function SettingsPanel({
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
-        {section === "calendar" ? (
-          cloudBackend ? (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-600">
-                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
-              </p>
-              <GoogleCalendarLink />
-            </div>
-          ) : (
-            <OfflineNotice>Google Calendar לא זמין במצב מקומי ללא חשבון ענן.</OfflineNotice>
-          )
-        ) : null}
+        {section === "calendar" ? <GoogleCalendarLink /> : null}
         {section === "premium" ? (
           <PremiumSettings summary={summary} onChanged={onUsageChanged} />
         ) : null}

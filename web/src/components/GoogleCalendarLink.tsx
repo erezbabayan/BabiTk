@@ -1,63 +1,58 @@
-import { useEffect, useState } from "react";
-import {
-  disconnectGoogleCalendarApi,
-  getGoogleCalendarStatus,
-} from "../lib/api";
-import {
-  configureGoogleCalendarOAuth,
-  getGoogleCalendarHealth,
-  startGoogleCalendarConnect,
-} from "../lib/google-calendar-client";
-import {
-  GOOGLE_CLOUD_CALENDAR_API_URL,
-  GOOGLE_CLOUD_CREDENTIALS_URL,
-  googleOAuthSetupPublic,
-  looksLikeGoogleClientId,
-  looksLikeGoogleClientSecret,
-  type GoogleCalendarHealth,
-} from "../lib/google-calendar-setup";
+import { useCallback, useEffect, useState } from "react";
+
+import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
+import { calendarSettingsButtonLabel } from "../lib/google-calendar-connect";
+import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
 import { isDemoMode } from "../lib/supabase";
-import { CopyRow } from "./CopyRow";
+
+const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
+
+function readDemoLinked(): boolean {
+  try {
+    return localStorage.getItem(DEMO_LINK_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeDemoLinked(linked: boolean): void {
+  try {
+    if (linked) localStorage.setItem(DEMO_LINK_KEY, "1");
+    else localStorage.removeItem(DEMO_LINK_KEY);
+  } catch {
+    // Private mode — keep the in-memory button state only.
+  }
+}
 
 export function GoogleCalendarLink() {
   const [linked, setLinked] = useState(false);
-  const [health, setHealth] = useState<GoogleCalendarHealth>(() =>
-    googleCalendarHealthFromFallback(),
-  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
 
-  async function refreshStatus() {
+  const refreshStatus = useCallback(async () => {
     try {
-      const [status, nextHealth] = await Promise.all([
-        getGoogleCalendarStatus(),
-        getGoogleCalendarHealth(),
-      ]);
+      if (isDemoMode) {
+        setLinked(readDemoLinked());
+        return;
+      }
+      const status = await getGoogleCalendarStatus();
       setLinked(status.linked);
-      setHealth(nextHealth);
       if (status.linked) setError(null);
     } catch {
       setLinked(false);
-      try {
-        setHealth(await getGoogleCalendarHealth());
-      } catch {
-        setHealth(googleCalendarHealthFromFallback());
-      }
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    void refreshStatus();
   }, []);
 
   useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  useEffect(() => {
     function onMessage(event: MessageEvent) {
-      const data = event.data as { type?: string; ok?: boolean } | null;
+      const data = event.data as { type?: string } | null;
       if (data?.type !== "babitk-calendar") return;
       void refreshStatus();
     }
@@ -70,39 +65,21 @@ export function GoogleCalendarLink() {
       window.removeEventListener("message", onMessage);
       window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [refreshStatus]);
 
   async function handleConnect() {
     setError(null);
     setBusy(true);
     try {
+      if (isDemoMode) {
+        writeDemoLinked(true);
+        setLinked(true);
+        return;
+      }
       await startGoogleCalendarConnect();
       await refreshStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "חיבור היומן נכשל");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleActivateAndConnect() {
-    setError(null);
-    const id = clientId.trim();
-    const secret = clientSecret.trim();
-    if (!looksLikeGoogleClientId(id) || !looksLikeGoogleClientSecret(secret)) {
-      setError(
-        "Client ID או Secret לא תקינים. הדביקו את הערכים מלקוח Web application ב-Google Cloud.",
-      );
-      return;
-    }
-    setBusy(true);
-    try {
-      await configureGoogleCalendarOAuth(id, secret);
-      setClientSecret("");
-      await startGoogleCalendarConnect();
-      await refreshStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "הפעלת חיבור היומן נכשלה");
+      setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
     } finally {
       setBusy(false);
     }
@@ -112,10 +89,15 @@ export function GoogleCalendarLink() {
     setError(null);
     setBusy(true);
     try {
+      if (isDemoMode) {
+        writeDemoLinked(false);
+        setLinked(false);
+        return;
+      }
       await disconnectGoogleCalendarApi();
       setLinked(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ניתוק היומן נכשל");
+      setError(err instanceof Error ? err.message : "לא ניתן לבטל את החיבור כרגע.");
     } finally {
       setBusy(false);
     }
@@ -123,121 +105,30 @@ export function GoogleCalendarLink() {
 
   if (loading) return null;
 
-  const needsServerSetup = !linked && !health.configured;
-
   return (
     <div className="space-y-3 text-sm" dir="rtl">
-      <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
-        {linked
-          ? "📅 Google Calendar מחובר. משימות עם תאריך יופיעו ביומן שלכם."
-          : "חברו את Google Calendar כדי שמשימות עם תאריך יופיעו ביומן Google. אפשר לשנות את החיבור בכל עת בהגדרות."}
-      </p>
       {error ? <p className="text-red-600">{error}</p> : null}
-      {isDemoMode ? (
-        <p className="text-slate-500">במצב הדגמה אין חיבור ליומן אמיתי.</p>
-      ) : linked ? (
+      {linked ? (
         <button
           type="button"
+          data-calendar-linked="true"
           onClick={() => void handleDisconnect()}
           disabled={busy}
-          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
-          {busy ? "מנתק..." : "נתק יומן"}
+          {calendarSettingsButtonLabel(true, busy)}
         </button>
-      ) : needsServerSetup ? null : (
+      ) : (
         <button
           type="button"
+          data-calendar-linked="false"
           onClick={() => void handleConnect()}
           disabled={busy}
-          className="relative z-10 border border-slate-300 hover:bg-slate-50 disabled:opacity-60"
+          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
-          {busy ? "מתחבר..." : "📅 חבר Google Calendar"}
+          {calendarSettingsButtonLabel(false, busy)}
         </button>
       )}
-      {needsServerSetup ? (
-        <div className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-slate-800">
-          <p>
-            כדי לחבר את היומן צרו לקוח OAuth מסוג Web application ב-Google Cloud
-            (פעם אחת), הדביקו כאן את Client ID ו-Secret, ואז לחצו «הפעל וחבר».
-          </p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <a
-              href={GOOGLE_CLOUD_CALENDAR_API_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50"
-            >
-              הפעלת Calendar API
-            </a>
-            <a
-              href={GOOGLE_CLOUD_CREDENTIALS_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="border border-slate-300 bg-white px-2 py-1 text-slate-800 hover:bg-slate-50"
-            >
-              יצירת לקוח OAuth
-            </a>
-          </div>
-          <CopyRow label="מקור JavaScript" value={health.javascriptOrigins[0] ?? ""} />
-          <CopyRow label="מקור מקומי" value={health.javascriptOrigins[1] ?? ""} />
-          <CopyRow label="כתובת הפניה לכניסה" value={health.authRedirectUri} />
-          <CopyRow label="כתובת הפניה ליומן" value={health.calendarRedirectUri} />
-          <form
-            className="space-y-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void handleActivateAndConnect();
-            }}
-          >
-            <label className="block space-y-1">
-              <span className="text-xs font-medium text-slate-600">Client ID</span>
-              <input
-                type="text"
-                dir="ltr"
-                autoComplete="off"
-                spellCheck={false}
-                value={clientId}
-                onChange={(event) => setClientId(event.target.value)}
-                placeholder="....apps.googleusercontent.com"
-                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-            <label className="block space-y-1">
-              <span className="text-xs font-medium text-slate-600">Client Secret</span>
-              <input
-                type="password"
-                dir="ltr"
-                autoComplete="off"
-                value={clientSecret}
-                onChange={(event) => setClientSecret(event.target.value)}
-                placeholder="GOCSPX-..."
-                className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800"
-              />
-            </label>
-            <button
-              type="submit"
-              disabled={busy}
-              className="relative z-10 border border-slate-800 bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800 disabled:opacity-60"
-            >
-              {busy ? "מפעיל..." : "הפעל וחבר"}
-            </button>
-          </form>
-        </div>
-      ) : null}
     </div>
   );
-}
-
-function googleCalendarHealthFromFallback(): GoogleCalendarHealth {
-  const setup = googleOAuthSetupPublic();
-  return {
-    configured: false,
-    authProviderEnabled: false,
-    googleClientId: null,
-    redirectUri: setup.calendarRedirectUri,
-    authRedirectUri: setup.authRedirectUri,
-    calendarRedirectUri: setup.calendarRedirectUri,
-    javascriptOrigins: setup.javascriptOrigins,
-    scope: setup.scope,
-  };
 }
