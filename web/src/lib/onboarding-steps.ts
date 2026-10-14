@@ -52,7 +52,7 @@ export const ONBOARDING_STEPS = [
   {
     id: "calendar",
     title: "Google Calendar",
-    body: "חברו את היומן כדי שמשימות עם תאריך יופיעו ב-Google Calendar. אפשר לחבר או לנתק אחר כך בהגדרות.",
+    body: "לחצו חבר כדי לחבר את יומן Google. אפשר לבטל אחר כך.",
     settingsSection: "calendar",
   },
 ] as const;

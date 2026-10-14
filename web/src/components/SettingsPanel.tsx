@@ -181,18 +181,7 @@ export function SettingsPanel({
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
-        {section === "calendar" ? (
-          cloudBackend ? (
-            <div className="space-y-3">
-              <p className="text-sm text-slate-600">
-                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
-              </p>
-              <GoogleCalendarLink />
-            </div>
-          ) : (
-            <OfflineNotice>Google Calendar לא זמין במצב מקומי ללא חשבון ענן.</OfflineNotice>
-          )
-        ) : null}
+        {section === "calendar" ? <GoogleCalendarLink /> : null}
         {section === "premium" ? (
           <PremiumSettings summary={summary} onChanged={onUsageChanged} />
         ) : null}
