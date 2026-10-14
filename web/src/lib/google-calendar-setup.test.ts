@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import {
   googleCalendarHealthFromUnknown,
   googleOAuthSetupPublic,
+  looksLikeGoogleClientId,
+  looksLikeGoogleClientSecret,
 } from "./google-calendar-setup.ts";
 
 describe("Google Calendar OAuth setup", () => {
@@ -36,6 +38,15 @@ describe("Google Calendar OAuth setup", () => {
       health.calendarRedirectUri,
       "https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/callback",
     );
+  });
+
+  it("accepts real Google OAuth client values and rejects placeholders", () => {
+    assert.equal(looksLikeGoogleClientId("123-abc.apps.googleusercontent.com"), true);
+    assert.equal(looksLikeGoogleClientId("YOUR_ID.apps.googleusercontent.com"), false);
+    assert.equal(looksLikeGoogleClientId("not-a-client"), false);
+    assert.equal(looksLikeGoogleClientSecret("GOCSPX-real-secret-value"), true);
+    assert.equal(looksLikeGoogleClientSecret("GOCSPX-..."), false);
+    assert.equal(looksLikeGoogleClientSecret("short"), false);
   });
 
   it("keeps a live configured=true health payload", () => {

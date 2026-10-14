@@ -250,9 +250,10 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
 export async function getGoogleCalendarStatus(): Promise<{
   linked: boolean;
   configured: boolean;
+  canConfigure?: boolean;
 }> {
   if (isDemoMode) {
-    return { linked: false, configured: false };
+    return { linked: false, configured: false, canConfigure: false };
   }
   if (isSupabaseConfigured) {
     return getGoogleCalendarStatusFromEdge();
