@@ -8,8 +8,8 @@
  * high-confidence collocation layer used on every inbound channel
  * (typed, WhatsApp, voice ASR) with no extra API keys.
  *
- * Keep callers in:
- *   applyHebrewAsrSpellingFixes (convex / backend / Edge copies)
+ * Keep in sync with:
+ *   backend/src/lib/ingest/hebrewContextualSpelling.ts
  */
 
 const HE_BOUNDARY = "(?<![\\u0590-\\u05FF])";

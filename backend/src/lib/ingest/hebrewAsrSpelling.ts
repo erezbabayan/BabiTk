@@ -1,4 +1,4 @@
-import { applyHebrewContextualSpellingFixes } from "../../../../convex/lib/ingest/hebrewContextualSpelling.js";
+import { applyHebrewContextualSpellingFixes } from "./hebrewContextualSpelling.js";
 
 /**
  * Deterministic Hebrew ASR proofread — Eliezer/ivrit.ai style post-processing.
