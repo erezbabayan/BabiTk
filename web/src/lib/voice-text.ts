@@ -4,6 +4,7 @@
  */
 
 import type { MindtaskerItem } from "../types";
+import { composeInboundTitle } from "../../../convex/lib/ingest/taskPresentation.ts";
 
 export const WHATSAPP_VOICE_PLACEHOLDERS = [
   "הודעה קולית מוואטסאפ",
@@ -63,9 +64,7 @@ export function isInsertableInboundText(title: string, content: string): boolean
 }
 
 export function titleFromInboundText(text: string): string {
-  const trimmed = text.trim();
-  const firstLine = trimmed.split(/\r?\n/).find((line) => line.trim()) ?? trimmed;
-  return firstLine.trim().slice(0, 120);
+  return composeInboundTitle(text);
 }
 
 function stringField(value: unknown): string {

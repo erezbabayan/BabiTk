@@ -178,9 +178,17 @@ async function downloadVoiceAudio(params: {
   throw lastError instanceof Error ? lastError : new Error("voice_audio_url_missing");
 }
 
-function isRetryableVoiceAsrError(error: unknown): boolean {
+/** Retry only when Green-API media is not ready. Do not retry Gradio/ASR engine failures. */
+export function isRetryableVoiceAsrError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /voice_audio_url_missing|audio_too_short|downloaded_not_audio|download|403|401|404|410|429|not found|failed to fetch|fetch failed|media|ASR HTTP 5|timed? ?out|abort/i.test(
+  if (
+    /transcription_failed|gradio_|empty_transcription|missing_asr_keys|voice_placeholder_rejected/i.test(
+      message,
+    )
+  ) {
+    return false;
+  }
+  return /voice_audio_url_missing|audio_too_short|downloaded_not_audio|download|404|410|not found|media not ready/i.test(
     message,
   );
 }
@@ -194,7 +202,7 @@ export async function transcribeVoiceMessageWithRetry(
   message: ParsedGreenApiMessage,
   gateway: VoiceGatewayCredentials | null,
   supabase?: AdminClient,
-  attempts = 4,
+  attempts = 3,
 ): Promise<{
   sourceType: "whatsapp_voice";
   title: string;
@@ -202,9 +210,10 @@ export async function transcribeVoiceMessageWithRetry(
   rawText: string;
   audioUrl: string | null;
 }> {
-  const delaysMs = [0, 800, 2000, 4000];
+  const delaysMs = [0, 700, 1600];
   let lastError: unknown;
-  for (let index = 0; index < attempts; index += 1) {
+  const maxAttempts = Math.min(attempts, delaysMs.length);
+  for (let index = 0; index < maxAttempts; index += 1) {
     const delay = delaysMs[index] ?? 1600;
     if (delay > 0) await waitMs(delay);
     try {
@@ -273,6 +282,79 @@ export function pendingVoiceItem(audioUrl: string | null): {
     content: "",
     rawText: "",
     audioUrl,
+  };
+}
+
+/** Persist the voice note before ASR so a webhook timeout still leaves a board row. */
+export async function insertPendingWhatsAppVoiceItem(
+  supabase: AdminClient,
+  userId: string,
+  message: ParsedGreenApiMessage,
+): Promise<VoiceItemRow> {
+  const now = Date.now();
+  const { data: source, error: sourceError } = await supabase
+    .from("source_materials")
+    .insert({
+      user_id: userId,
+      source_type: "whatsapp_voice",
+      raw_text: "",
+      storage_url: message.audioUrl ?? null,
+      metadata: {
+        whatsapp_message_id: message.messageId,
+        chat_id: message.chatId,
+        channel: "whatsapp",
+      },
+    })
+    .select("id, storage_url, metadata")
+    .single();
+  if (sourceError) {
+    throw new Error(sourceError.message);
+  }
+
+  const { data: inserted, error: itemError } = await supabase
+    .from("mindtasker_items")
+    .insert({
+      user_id: userId,
+      source_material_id: source?.id ?? null,
+      title: VOICE_PENDING_TITLE,
+      content: "",
+      is_actionable: true,
+      status: "inbox",
+      tags: [],
+      due_date: null,
+      metadata: {
+        source: "whatsapp_voice",
+        whatsapp_message_id: message.messageId,
+        chat_id: message.chatId,
+      },
+      sort_order: now,
+      last_interacted_at: new Date(now).toISOString(),
+    })
+    .select("id, user_id, title, content, metadata, source_material_id")
+    .single();
+  if (itemError || !inserted) {
+    throw new Error(itemError?.message ?? "item_insert_failed");
+  }
+  return {
+    id: String(inserted.id),
+    user_id: String(inserted.user_id ?? userId),
+    title: String(inserted.title ?? VOICE_PENDING_TITLE),
+    content: String(inserted.content ?? ""),
+    metadata:
+      inserted.metadata && typeof inserted.metadata === "object"
+        ? (inserted.metadata as Record<string, unknown>)
+        : null,
+    source_material_id: source?.id ?? null,
+    source_materials: source
+      ? {
+          id: String(source.id),
+          storage_url: source.storage_url ?? null,
+          metadata:
+            source.metadata && typeof source.metadata === "object"
+              ? (source.metadata as Record<string, unknown>)
+              : null,
+        }
+      : null,
   };
 }
 
@@ -396,7 +478,7 @@ async function loadUserGateway(
   return data as VoiceGatewayCredentials;
 }
 
-async function softDeleteVoiceItemAsQuestion(
+export async function softDeleteVoiceItemAsQuestion(
   supabase: AdminClient,
   row: VoiceItemRow,
   transcribed: { rawText: string; content: string },

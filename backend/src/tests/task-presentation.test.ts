@@ -209,4 +209,26 @@ describe("summarizeTopicTitle — topic method", () => {
       "רעיון לסרטון",
     );
   });
+
+  it("keeps contractor/road specifics instead of a bare meeting label", () => {
+    assert.equal(
+      summarizeTopicTitle(
+        "תיאום פגישה, החזרת הקבלן לתיקוני כביש ניר צבי, שדוד אלקו.",
+      ),
+      "תיאום פגישה להחזרת הקבלן לתיקוני כביש ניר צבי",
+    );
+    assert.equal(
+      summarizeTopicTitle(
+        "תיאום פגישה,\nהחזרת הקבלן לתיקוני כביש ניר צבי, שדוד אלקו.",
+      ),
+      "תיאום פגישה להחזרת הקבלן לתיקוני כביש ניר צבי",
+    );
+  });
+
+  it("joins a generic first clause with the following purpose", () => {
+    assert.equal(
+      summarizeTopicTitle("לברר, סטטוס רישיון העסק בעירייה"),
+      "לברר סטטוס רישיון העסק בעירייה",
+    );
+  });
 });

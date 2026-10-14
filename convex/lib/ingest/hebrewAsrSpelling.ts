@@ -1,3 +1,5 @@
+import { applyHebrewContextualSpellingFixes } from "./hebrewContextualSpelling.ts";
+
 /**
  * Deterministic Hebrew ASR proofread — Eliezer/ivrit.ai style post-processing.
  * Keep in sync with backend/src/lib/ingest/hebrewAsrSpelling.ts
@@ -8,6 +10,7 @@ export const HEBREW_ASR_WHISPER_PROMPT =
   "עברית מדוברת. משימות יומיום: תכניס משימה, תוסיף הערה, תרשום, לקנות, להתקשר, לשלוח, תזכורת, בבקשה, בבי, babi. " +
   "סלנג: יאללה, סבבה, וואלה, תכלס, אחלה, אוקיי. " +
   "זמנים: היום, להיום, מחר, מחרתיים, שבוע הבא, לשבוע הבא, יום רביעי, בצהריים, אחה״צ, סופ״ש. " +
+  "מושגים: סיכום ראיון, ראיון עבודה, רעיון, תיאום פגישה, לתאם מחדש, הוראת שינוי, בקעת הירדן, מילואים, פקדון גמל, בריכת מים, קבלן, תיקוני כביש, ניר צבי. " +
   "שמות: רועי, נועם, אורי, גיא, עידו, עידן, מיכל, שירה, יעל, דנה, מאיה, הילה, אסף, ליאור, יונתן, דניאל, תום, רן, ניר, עומר, איתי, אביה, תמר, נועה, אביגיל, יובל, נועה.";
 
 const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]> = [
@@ -53,6 +56,13 @@ const HEBREW_PHRASE_FIXES: ReadonlyArray<readonly [wrong: string, right: string]
   ["ב יום", "ביום"],
   ["ל יום", "ליום"],
   ["עוד מ עט", "עוד מעט"],
+  ["ל תאם", "לתאם"],
+  ["לתא מחדש", "לתאם מחדש"],
+  ["ביקת הירדן", "בקעת הירדן"],
+  ["הורת שינוי", "הוראת שינוי"],
+  ["ברכת מים", "בריכת מים"],
+  ["פקוד גמל", "פקדון גמל"],
+  ["קיבל לי את", "קיבלתי את"],
 ];
 
 const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]> = [
@@ -149,6 +159,13 @@ const HEBREW_TOKEN_FIXES: ReadonlyArray<readonly [wrong: string, right: string]>
   ["babitk", "בבי"],
   ["babi", "בבי"],
   ["baby", "בבי"],
+  ["וואצאפ", "וואטסאפ"],
+  ["ווצאפ", "וואטסאפ"],
+  ["רשיון", "רישיון"],
+  ["מלואים", "מילואים"],
+  ["מערשת", "מערכת"],
+  ["רפקח", "רוקח"],
+  ["לתאמ", "לתאם"],
 ];
 
 function escapeRegExp(value: string): string {
@@ -192,5 +209,6 @@ export function applyHebrewAsrSpellingFixes(text: string): string {
   for (const [wrong, right] of HEBREW_TOKEN_FIXES) {
     out = replaceTokenForm(out, wrong, right);
   }
+  out = applyHebrewContextualSpellingFixes(out);
   return normalizeWhitespaceAndMarks(out);
 }

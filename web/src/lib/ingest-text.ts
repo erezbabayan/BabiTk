@@ -1,6 +1,7 @@
 import { ingestTextApi, clientTimezone } from "./api";
 import { invalidateSyncCache } from "./demo-store";
 import { inferTagsFromText } from "../../../convex/lib/ingest/tagInference";
+import { applyHebrewAsrSpellingFixes } from "../../../convex/lib/ingest/hebrewAsrSpelling";
 import {
   parseIncomingMessage,
   parsedItemInsertFields,
@@ -30,7 +31,7 @@ async function loadAllowedTagNames(userId: string): Promise<string[]> {
 
 async function ingestViaSupabase(userId: string, text: string): Promise<void> {
   const supabase = requireSupabase();
-  const trimmed = text.trim();
+  const trimmed = applyHebrewAsrSpellingFixes(text.trim());
   const allowedTags = await loadAllowedTagNames(userId);
   const parsed = parseIncomingMessage(trimmed, {
     allowedTags,

@@ -9,7 +9,7 @@ import {
   sniffAudioContainer,
 } from "../../../supabase/functions/_shared/audio-format.ts";
 import { parseGreenApiDownloadFileBody } from "../../../supabase/functions/_shared/green-api-media.ts";
-import { parseGradioSseText } from "../../../supabase/functions/_shared/hebrew-asr-gradio.ts";
+import { parseGradioSseText, stripAsrTimestamps } from "../../../supabase/functions/_shared/hebrew-asr-gradio.ts";
 
 function oggHeader(): Uint8Array {
   const bytes = new Uint8Array(80);
@@ -86,4 +86,16 @@ describe("WhatsApp audio sniff", () => {
       'event: complete\ndata: ["בבי מה המשימות היום", "transcribing audio"]\n\n';
     assert.equal(parseGradioSseText(sse), "בבי מה המשימות היום");
   });
+
+  it("parses Hebrew Gradio generating events with timestamps", () => {
+    const sse = `event: generating
+data: ["Done!", "[1.00s -> 1.92s] תיאום פגישה,\\n[3.18s -> 5.78s] החזרת הקבלן"]
+
+`;
+    const text = parseGradioSseText(sse);
+    assert.match(text, /תיאום פגישה/);
+    assert.match(text, /החזרת הקבלן/);
+    assert.equal(stripAsrTimestamps("[1.00s -> 1.92s] תיאום פגישה,"), "תיאום פגישה,");
+  });
+
 });

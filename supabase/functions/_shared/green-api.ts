@@ -306,7 +306,7 @@ export function parseGreenApiWebhook(body: unknown): {
       ? { ignored: false, messages: [message] }
       : { ignored: false, reason: "not_capture_chat", messages: [] };
   }
-  if (typeMessage === "audioMessage" || typeMessage === "pttMessage") {
+  if (isGreenApiHistoryAudio(typeMessage)) {
     const message = parseFileMessage(payload, "audio");
     return message
       ? { ignored: false, messages: [message] }
@@ -319,6 +319,10 @@ export function parseGreenApiWebhook(body: unknown): {
       : { ignored: false, reason: "not_capture_chat", messages: [] };
   }
   return { ignored: false, reason: "not_capture_chat", messages: [] };
+}
+
+export function isGreenApiHistoryAudio(typeMessage: string | undefined): boolean {
+  return typeMessage === "audioMessage" || typeMessage === "pttMessage";
 }
 
 export function verifyGreenApiWebhookAuth(

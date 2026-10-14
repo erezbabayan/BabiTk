@@ -95,7 +95,7 @@ export function stripCaptureLead(text: string): string {
     .replace(new RegExp(`^${CAPTURE_VERB}[,:]?\\s+${CAPTURE_TASK_KIND}[,:]?\\s*`, "iu"), "")
     .replace(new RegExp(`^${CAPTURE_VERB}[,:]?\\s*`, "iu"), "")
     .replace(/^משימה\s+(?:קבועה\s+)?/iu, "")
-    .replace(/\s+/g, " ")
+    .replace(/[ \t\u00a0]+/g, " ")
     .trim();
 }
 

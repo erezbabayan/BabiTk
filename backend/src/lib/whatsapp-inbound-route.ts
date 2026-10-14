@@ -10,6 +10,7 @@
  * a board query.
  */
 
+import { applyHebrewAsrSpellingFixes } from "./ingest/hebrewAsrSpelling.js";
 import { parseWhatsAppCommand } from "./whatsapp-commands.js";
 import { isBareWhatsAppMenuPick, isWhatsAppMenuRequest } from "./whatsapp-query.js";
 import {
@@ -35,7 +36,7 @@ export type WhatsAppInboundRoute =
   | { lane: "command" };
 
 export function classifyWhatsAppInbound(text: string): WhatsAppInboundRoute {
-  const raw = text.trim();
+  const raw = applyHebrewAsrSpellingFixes(text.trim());
   if (!raw) return { lane: "capture" };
 
   if (isWhatsAppCaptureDictate(raw)) return { lane: "capture" };
