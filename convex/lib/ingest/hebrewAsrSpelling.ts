@@ -1,4 +1,4 @@
-import { applyHebrewContextualSpellingFixes } from "./hebrewContextualSpelling";
+import { applyHebrewContextualSpellingFixes } from "./hebrewContextualSpelling.ts";
 
 /**
  * Deterministic Hebrew ASR proofread — Eliezer/ivrit.ai style post-processing.
