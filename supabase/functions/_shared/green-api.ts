@@ -170,27 +170,32 @@ function resolveIdentity(payload: GreenApiWebhookPayload): {
   if (!chatId || isBroadcastWhatsAppChat(chatId)) return null;
 
   const wid = payload.instanceData?.wid?.trim() ?? "";
-  if (!wid) return null;
-
   const direction: "incoming" | "outgoing" =
     typeWebhook === "outgoingMessageReceived" ? "outgoing" : "incoming";
   const senderRaw = payload.senderData?.sender?.trim() ?? "";
   const outgoingFromInstance = direction === "outgoing";
   const chatIsGroup = isGroupWhatsAppChat(chatId);
+  const widMissingOrLid = !wid || isWhatsAppLidId(wid);
 
   if (outgoingFromInstance) {
-    // accept
+    // Linked-phone posts. Green-API may omit wid or send only @lid.
+  } else if (chatIsGroup && widMissingOrLid) {
+    // WhatsApp now identifies the instance as @lid and often omits wid.
+    // The capture-group gate still drops chats that are not the bound group.
   } else if (!senderRaw) {
     return null;
   } else if (isWhatsAppLidId(senderRaw)) {
     if (!chatIsGroup) return null;
-  } else if (!isOwnerWhatsAppSender(senderRaw, wid)) {
+  } else if (!wid || !isOwnerWhatsAppSender(senderRaw, wid)) {
     return null;
   }
 
-  const effectiveSender = !senderRaw || isWhatsAppLidId(senderRaw) ? wid : senderRaw;
+  const effectiveSender =
+    !senderRaw || isWhatsAppLidId(senderRaw) ? wid || senderRaw : senderRaw;
   const isSelfChat =
-    isDirectWhatsAppChat(chatId) && isOwnerWhatsAppSender(chatId, wid);
+    Boolean(wid) &&
+    isDirectWhatsAppChat(chatId) &&
+    isOwnerWhatsAppSender(chatId, wid);
 
   if (!chatIsGroup && !(isSelfChat && outgoingFromInstance)) {
     return null;

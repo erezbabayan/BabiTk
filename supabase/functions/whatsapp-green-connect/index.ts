@@ -20,6 +20,7 @@ import {
   WHATSAPP_SCAN_HINT,
   WHATSAPP_WELCOME_MESSAGE,
 } from "../_shared/green-api-auth.ts";
+import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -55,6 +56,114 @@ function newWebhookToken(): string {
 
 function canAutoProvision(): boolean {
   return PARTNER_TOKEN.length > 8;
+}
+
+function instanceWidFromWaSettings(
+  waJson: { wid?: string; phone?: string; chatId?: string },
+  fallback: string | null,
+): string | null {
+  const phoneDigits = String(waJson.phone ?? "").replace(/\D/g, "");
+  if (phoneDigits.length >= 10) return `${phoneDigits}@c.us`;
+  const fallbackDigits = (fallback ?? "").replace(/\D/g, "");
+  if (fallbackDigits.length >= 10 && !(fallback ?? "").endsWith("@lid")) {
+    return fallback?.includes("@") ? fallback : `${fallbackDigits}@c.us`;
+  }
+  const wid = waJson.wid?.trim() || "";
+  if (wid && !wid.endsWith("@lid")) return wid;
+  return fallback;
+}
+
+async function backfillCaptureHistory(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  gateway: GatewayRow,
+  webhookUrl: string,
+): Promise<number> {
+  const { data } = await supabase
+    .from("users")
+    .select("whatsapp_capture_group_chat_id, whatsapp_capture_group_name")
+    .eq("id", userId)
+    .maybeSingle();
+  const capture = typeof data?.whatsapp_capture_group_chat_id === "string"
+    ? data.whatsapp_capture_group_chat_id.trim()
+    : "";
+  if (!capture.endsWith("@g.us") && !capture.endsWith("@c.us")) return 0;
+
+  const histRes = await fetch(
+    greenUrl(gateway.api_url, gateway.instance_id, "getChatHistory", gateway.api_token),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId: capture, count: 25 }),
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
+  const hist = await readJson(histRes);
+  if (!Array.isArray(hist)) return 0;
+
+  const digits = (gateway.instance_wid ?? "").replace(/\D/g, "");
+  const wid =
+    gateway.instance_wid && gateway.instance_wid.includes("@") && !gateway.instance_wid.endsWith("@lid")
+      ? gateway.instance_wid
+      : digits.length >= 10
+        ? `${digits}@c.us`
+        : gateway.instance_wid || "";
+  const chatName =
+    typeof data?.whatsapp_capture_group_name === "string"
+      ? data.whatsapp_capture_group_name
+      : "";
+
+  let ingested = 0;
+  for (const row of hist) {
+    if (!row || typeof row !== "object") continue;
+    const item = row as {
+      idMessage?: string;
+      typeMessage?: string;
+      type?: string;
+      textMessage?: string;
+      caption?: string;
+      sendByApi?: boolean;
+      extendedTextMessage?: { text?: string };
+    };
+    if (item.sendByApi === true) continue;
+    const messageId = item.idMessage?.trim() ?? "";
+    const text = (
+      item.textMessage ||
+      item.caption ||
+      item.extendedTextMessage?.text ||
+      ""
+    ).trim();
+    if (!messageId || !text || isSystemWhatsAppReply(text)) continue;
+    if (item.typeMessage && item.typeMessage !== "textMessage" && item.typeMessage !== "extendedTextMessage") {
+      continue;
+    }
+    const payload = {
+      typeWebhook:
+        item.type === "incoming" ? "incomingMessageReceived" : "outgoingMessageReceived",
+      idMessage: messageId,
+      instanceData: { idInstance: gateway.instance_id, wid },
+      senderData: { chatId: capture, sender: wid, chatName },
+      messageData: {
+        typeMessage: "textMessage",
+        textMessageData: { textMessage: text },
+      },
+    };
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
+      });
+      const body = (await readJson(response)) as { scheduled?: unknown[] };
+      if (response.ok && Array.isArray(body.scheduled) && body.scheduled.length > 0) {
+        ingested += 1;
+      }
+    } catch (error) {
+      console.error("capture backfill row failed", error);
+    }
+  }
+  return ingested;
 }
 
 interface GatewayRow {
@@ -131,6 +240,7 @@ async function configureWebhook(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       webhookUrl,
+      webhookUrlToken: gateway.webhook_token || "",
       incomingWebhook: "yes",
       outgoingWebhook: "yes",
       outgoingMessageWebhook: "yes",
@@ -227,12 +337,16 @@ async function readConnectStatus(
   }
 
   let instanceWid = gateway.instance_wid;
-  if (authorized && !instanceWid) {
+  if (authorized) {
     const waRes = await fetch(
       greenUrl(gateway.api_url, gateway.instance_id, "getWaSettings", gateway.api_token),
     );
-    const waJson = (await readJson(waRes)) as { wid?: string; phone?: string };
-    instanceWid = waJson.wid ?? waJson.phone ?? null;
+    const waJson = (await readJson(waRes)) as {
+      wid?: string;
+      phone?: string;
+      chatId?: string;
+    };
+    instanceWid = instanceWidFromWaSettings(waJson, gateway.instance_wid);
   }
 
   const linkedPhone = phoneFromWid(instanceWid) ?? extras.pairingPhone ?? null;
@@ -715,5 +829,14 @@ Deno.serve(async (req) => {
   const status = await readConnectStatus(supabase, userId, gateway, webhookUrl, webhookConfigured, {
     sendWelcome: action === "sendWelcome",
   });
+  if (status.authorized) {
+    try {
+      await configureWebhook(gateway, webhookUrl);
+      const latest = (await loadGateway(supabase, userId)) ?? gateway;
+      await backfillCaptureHistory(supabase, userId, latest, webhookUrl);
+    } catch (error) {
+      console.error("whatsapp capture backfill failed", error);
+    }
+  }
   return json(status);
 });
