@@ -44,6 +44,10 @@ describe("OAuth callback parsing", () => {
 
   it("maps Google cancel and disabled-provider errors to Hebrew", () => {
     assert.match(formatOAuthSignInError("access_denied"), /בוטלה/);
+    assert.match(
+      formatOAuthSignInError("access_denied:403", "הגישה חסומה תהליך האימות לא הושלם"),
+      /מצב בדיקות/,
+    );
     const disabled = formatOAuthSignInError(
       "Unsupported provider: provider is not enabled",
     );

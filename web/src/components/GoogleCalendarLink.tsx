@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
-import { calendarSettingsButtonLabel } from "../lib/google-calendar-connect";
+import {
+  calendarSettingsButtonLabel,
+  GOOGLE_AUTH_AUDIENCE_URL,
+  isGoogleOauthTestingDenied,
+} from "../lib/google-calendar-connect";
 import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
+import { CALENDAR_OAUTH_ERROR_KEY } from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
 
@@ -52,6 +57,15 @@ export function GoogleCalendarLink() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(CALENDAR_OAUTH_ERROR_KEY);
+      if (stored) {
+        setError(stored);
+        sessionStorage.removeItem(CALENDAR_OAUTH_ERROR_KEY);
+      }
+    } catch {
+      // ignore
+    }
     void refreshStatus();
   }, [refreshStatus]);
 
@@ -113,6 +127,29 @@ export function GoogleCalendarLink() {
   return (
     <div className="space-y-3 text-sm" dir="rtl">
       {error ? <p className="text-red-600">{error}</p> : null}
+      {canConfigure && !linked ? (
+        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+          <p>
+            Google חוסם «חבר» במצב בדיקות (הגישה חסומה / access_denied:403).
+            צריך לפרסם את האפליקציה פעם אחת, בלי להעתיק Client ID.
+          </p>
+          <a
+            className="inline-flex rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800"
+            href={GOOGLE_AUTH_AUDIENCE_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Publish app
+          </a>
+          <p className="text-xs text-amber-900">
+            Audience ← Publish app. אחרי הפרסום חזרו לכאן ולחצו «חבר».
+            Google עלול להציג אזהרת אפליקציה לא מאומתת — זה תקין עד 100 משתמשים.
+          </p>
+        </div>
+      ) : null}
+      {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
+        <p className="text-slate-600">חיבור היומן ייפתח אחרי שבעל המערכת יפרסם את אפליקציית Google.</p>
+      ) : null}
       {canConfigure && !configured ? (
         <GoogleOAuthEnable
           onEnabled={() => {

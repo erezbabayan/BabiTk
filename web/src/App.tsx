@@ -18,7 +18,14 @@ import {
   persistLoginDetails,
 } from "./lib/auth-storage";
 import { isSyncEnabled } from "./lib/sync-client";
-import { persistGoogleCalendarSessionLink } from "./lib/google-calendar-client";
+import {
+  CALENDAR_LINK_FLAG,
+  persistGoogleCalendarSessionLink,
+} from "./lib/google-calendar-client";
+import {
+  CALENDAR_OAUTH_ERROR_KEY,
+  isGoogleOauthTestingDenied,
+} from "./lib/google-oauth-errors";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./lib/supabase";
 import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
@@ -278,9 +285,30 @@ function ConfiguredApp() {
   useEffect(() => {
     const callback = readOAuthCallback(window.location.search, window.location.hash);
     if (callback.error) {
-      setOauthNotice(
-        formatOAuthSignInError(callback.error, callback.errorDescription),
+      const calendarPending =
+        typeof sessionStorage !== "undefined" &&
+        sessionStorage.getItem(CALENDAR_LINK_FLAG) === "1";
+      const testingDenied = isGoogleOauthTestingDenied(
+        callback.error,
+        callback.errorDescription,
       );
+      if (calendarPending || testingDenied) {
+        try {
+          sessionStorage.removeItem(CALENDAR_LINK_FLAG);
+          sessionStorage.setItem(
+            CALENDAR_OAUTH_ERROR_KEY,
+            formatOAuthSignInError(callback.error, callback.errorDescription),
+          );
+        } catch {
+          // ignore
+        }
+        setSettingsOpen(true);
+        setSettingsSection("calendar");
+      } else {
+        setOauthNotice(
+          formatOAuthSignInError(callback.error, callback.errorDescription),
+        );
+      }
     }
 
     const finishUrl = () => {

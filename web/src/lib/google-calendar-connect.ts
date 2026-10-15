@@ -1,4 +1,15 @@
+import {
+  GOOGLE_TESTING_DENIED_MESSAGE,
+  isGoogleOauthTestingDenied,
+} from "./google-oauth-errors.ts";
+
 export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+export {
+  BABITK_PRIVACY_URL,
+  GOOGLE_AUTH_AUDIENCE_URL,
+  GOOGLE_TESTING_DENIED_MESSAGE,
+  isGoogleOauthTestingDenied,
+} from "./google-oauth-errors.ts";
 
 export function googleCalendarIdentityOptions(redirectTo: string): {
   provider: "google";
@@ -34,6 +45,9 @@ export function sessionHasGoogleIdentity(
 
 export function formatCalendarConnectError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "");
+  if (isGoogleOauthTestingDenied(error)) {
+    return GOOGLE_TESTING_DENIED_MESSAGE;
+  }
   const raw = message.toLowerCase();
   if (raw.includes("not authenticated") || raw.includes("not_authenticated")) {
     return "יש להיכנס לחשבון כדי לחבר יומן.";
