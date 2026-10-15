@@ -21,6 +21,7 @@ import {
   WHATSAPP_WELCOME_MESSAGE,
 } from "../_shared/green-api-auth.ts";
 import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
+import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -122,41 +123,77 @@ async function backfillCaptureHistory(
       type?: string;
       textMessage?: string;
       caption?: string;
+      downloadUrl?: string;
+      mimeType?: string;
+      fileName?: string;
       sendByApi?: boolean;
       extendedTextMessage?: { text?: string };
     };
     if (item.sendByApi === true) continue;
     const messageId = item.idMessage?.trim() ?? "";
+    if (!messageId) continue;
+    const isAudio =
+      item.typeMessage === "audioMessage" || item.typeMessage === "pttMessage";
     const text = (
       item.textMessage ||
       item.caption ||
       item.extendedTextMessage?.text ||
       ""
     ).trim();
-    if (!messageId || !text || isSystemWhatsAppReply(text)) continue;
-    if (item.typeMessage && item.typeMessage !== "textMessage" && item.typeMessage !== "extendedTextMessage") {
-      continue;
+    if (!isAudio) {
+      if (!text || isSystemWhatsAppReply(text)) continue;
+      if (
+        item.typeMessage &&
+        item.typeMessage !== "textMessage" &&
+        item.typeMessage !== "extendedTextMessage" &&
+        item.typeMessage !== "quotedMessage"
+      ) {
+        continue;
+      }
     }
-    const payload = {
-      typeWebhook:
-        item.type === "incoming" ? "incomingMessageReceived" : "outgoingMessageReceived",
-      idMessage: messageId,
-      instanceData: { idInstance: gateway.instance_id, wid },
-      senderData: { chatId: capture, sender: wid, chatName },
-      messageData: {
-        typeMessage: "textMessage",
-        textMessageData: { textMessage: text },
-      },
-    };
+    const typeWebhook =
+      item.type === "incoming" ? "incomingMessageReceived" : "outgoingMessageReceived";
+    const payload = isAudio
+      ? {
+          typeWebhook,
+          idMessage: messageId,
+          instanceData: { idInstance: gateway.instance_id, wid },
+          senderData: { chatId: capture, sender: wid, chatName },
+          messageData: {
+            typeMessage: "audioMessage",
+            fileMessageData: {
+              downloadUrl: item.downloadUrl,
+              mimeType: item.mimeType || "audio/ogg",
+              fileName: item.fileName,
+            },
+          },
+        }
+      : {
+          typeWebhook,
+          idMessage: messageId,
+          instanceData: { idInstance: gateway.instance_id, wid },
+          senderData: { chatId: capture, sender: wid, chatName },
+          messageData: {
+            typeMessage: "textMessage",
+            textMessageData: { textMessage: text },
+          },
+        };
     try {
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(isAudio ? 28_000 : 8_000),
       });
-      const body = (await readJson(response)) as { scheduled?: unknown[] };
-      if (response.ok && Array.isArray(body.scheduled) && body.scheduled.length > 0) {
+      const body = (await readJson(response)) as {
+        scheduled?: unknown[];
+        answered?: unknown[];
+      };
+      if (
+        response.ok &&
+        ((Array.isArray(body.scheduled) && body.scheduled.length > 0) ||
+          (isAudio && Array.isArray(body.answered) && body.answered.length > 0))
+      ) {
         ingested += 1;
       }
     } catch (error) {
@@ -834,6 +871,13 @@ Deno.serve(async (req) => {
       await configureWebhook(gateway, webhookUrl);
       const latest = (await loadGateway(supabase, userId)) ?? gateway;
       await backfillCaptureHistory(supabase, userId, latest, webhookUrl);
+      await catchUpCaptureVoice({
+        supabase,
+        userId,
+        gateway: latest,
+        transcribe: true,
+        count: 15,
+      });
     } catch (error) {
       console.error("whatsapp capture backfill failed", error);
     }
