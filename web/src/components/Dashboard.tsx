@@ -175,7 +175,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
-  const [showTaskCalendar, setShowTaskCalendar] = useState(true);
+  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
@@ -270,6 +270,23 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       priorityOnlyByBoard.today,
       dateFilterByBoard.today,
       todayDateSort,
+    ],
+  );
+  const calendarBoardItems = useMemo(
+    () =>
+      applyBoardItemFilters(
+        [...inbox, ...todayTasks, ...notes],
+        tagByBoard.today,
+        priorityOnlyByBoard.today,
+        dateFilterByBoard.today,
+      ),
+    [
+      inbox,
+      todayTasks,
+      notes,
+      tagByBoard.today,
+      priorityOnlyByBoard.today,
+      dateFilterByBoard.today,
     ],
   );
   const filteredTasksArchive = useMemo(
@@ -477,6 +494,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
+    setShowTaskCalendar(false);
     setTaskListsMode("create");
     setMobileTab("inbox");
     setTagByBoard({ inbox: null, today: null, notes: null });
@@ -1070,21 +1088,47 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               titleTrailing={
                 todayListView === "active" ? (
                   <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowTaskCalendar((open) => !open)}
-                      className={`inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 text-[11px] font-semibold leading-none shadow-sm ${
-                        showTaskCalendar
-                          ? "border-blue-500 bg-blue-100 text-blue-800"
-                          : "border-blue-300/90 bg-white text-blue-700 hover:bg-blue-50"
-                      }`}
-                      title="יומן BabiTk"
-                      aria-label="יומן BabiTk"
-                      aria-pressed={showTaskCalendar}
-                      data-babitk-calendar-toggle="true"
+                    <div
+                      className="flex h-7 shrink-0 items-stretch divide-x divide-blue-300/90 overflow-hidden rounded-md border border-blue-300/90 bg-white shadow-sm"
+                      role="group"
+                      aria-label="תצוגת משימות"
+                      data-babitk-task-view-toggle="true"
                     >
-                      {showTaskCalendar ? "רשימה" : "יומן"}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowTaskCalendar(false)}
+                        className={`inline-flex items-center whitespace-nowrap px-2 text-[11px] font-semibold leading-none ${
+                          showTaskCalendar
+                            ? "bg-white text-blue-700 hover:bg-blue-50"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                        title="תצוגת רשימה"
+                        aria-label="תצוגת רשימה"
+                        aria-pressed={!showTaskCalendar}
+                        data-babitk-task-view="list"
+                      >
+                        רשימה
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowTaskCalendar(true);
+                          exitSelect();
+                        }}
+                        className={`inline-flex items-center whitespace-nowrap px-2 text-[11px] font-semibold leading-none ${
+                          showTaskCalendar
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-white text-blue-700 hover:bg-blue-50"
+                        }`}
+                        title="תצוגת יומן"
+                        aria-label="תצוגת יומן"
+                        aria-pressed={showTaskCalendar}
+                        data-babitk-task-view="calendar"
+                        data-babitk-calendar-toggle="true"
+                      >
+                        יומן
+                      </button>
+                    </div>
                     {taskLists.enabled ? (
                       <button
                         type="button"
@@ -1182,7 +1226,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 </>
               }
             />
-            {showTaskCalendar && todayListView === "active" ? null : renderBoardFilters("today")}
+            {renderBoardFilters("today")}
             {showTaskCalendar && todayListView === "active" ? null : renderBulkBar(
               todayListView === "archive"
                 ? "today-archive"
@@ -1242,7 +1286,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               ) : showTaskCalendar ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                   <TaskMonthCalendar
-                    items={[...inbox, ...todayTasks, ...notes]}
+                    items={calendarBoardItems}
                     onSelectItem={(item) => setFocusEditItem(item)}
                   />
                 </div>
