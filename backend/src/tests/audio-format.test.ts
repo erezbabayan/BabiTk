@@ -9,6 +9,7 @@ import {
   sniffAudioContainer,
 } from "../../../supabase/functions/_shared/audio-format.ts";
 import { parseGreenApiDownloadFileBody } from "../../../supabase/functions/_shared/green-api-media.ts";
+import { historyAudioMessage } from "../../../supabase/functions/_shared/green-api.ts";
 import { parseGradioSseText } from "../../../supabase/functions/_shared/hebrew-asr-gradio.ts";
 
 function oggHeader(): Uint8Array {
@@ -79,6 +80,31 @@ describe("WhatsApp audio sniff", () => {
     const ogg = parseGreenApiDownloadFileBody(oggHeader(), "application/octet-stream");
     assert.equal(ogg.bytes?.byteLength, 80);
     assert.equal(ogg.mimeType, "audio/ogg");
+  });
+
+  it("maps group history PTT rows into audio messages for catch-up", () => {
+    const group = "120363000000000001@g.us";
+    const ptt = historyAudioMessage(group, {
+      idMessage: "AAA",
+      typeMessage: "pttMessage",
+      type: "outgoing",
+      mimeType: "audio/ogg; codecs=opus",
+    });
+    assert.equal(ptt?.type, "audio");
+    assert.equal(ptt?.chatId, group);
+    assert.equal(ptt?.audioUrl, undefined);
+    assert.equal(
+      historyAudioMessage(group, {
+        idMessage: "BBB",
+        typeMessage: "pttMessage",
+        sendByApi: true,
+      }),
+      null,
+    );
+    assert.equal(
+      historyAudioMessage(group, { idMessage: "CCC", typeMessage: "textMessage" }),
+      null,
+    );
   });
 
   it("parses Gradio SSE transcription text", () => {

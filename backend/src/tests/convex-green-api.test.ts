@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   extractGreenApiSenderId,
   isDirectWhatsAppChat,
+  isGreenApiHistoryAudio,
   isGroupWhatsAppChat,
   isSystemWhatsAppReply,
   parseGreenApiWebhook,
@@ -138,6 +139,24 @@ describe("Convex Green-API parser", () => {
     assert.equal(messages[0]?.chatId, CAPTURE_GROUP);
     assert.equal(messages[0]?.senderPhone, "+972526448067");
     assert.equal(messages[0]?.text, "קנה חלב");
+  });
+
+  it("treats pttMessage like audioMessage", () => {
+    assert.equal(isGreenApiHistoryAudio("pttMessage"), true);
+    assert.equal(isGreenApiHistoryAudio("audioMessage"), true);
+    assert.equal(isGreenApiHistoryAudio("textMessage"), false);
+    const { messages } = parseGreenApiWebhook(
+      ownerGroupPayload({
+        idMessage: "ptt-1",
+        messageData: {
+          typeMessage: "pttMessage",
+          fileMessageData: { mimeType: "audio/ogg; codecs=opus" },
+        },
+      }),
+    );
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0]?.type, "audio");
+    assert.equal(messages[0]?.audioUrl, undefined);
   });
 
   it("captures owner group audio even without downloadUrl", () => {

@@ -29,6 +29,7 @@ import {
   isReminderOverdueBeyondWindow,
   reminderDueQueryCutoffIso,
 } from "../_shared/task-reminder-due.ts";
+import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -110,6 +111,31 @@ Deno.serve(async (req) => {
       }
     } catch {
       body = {};
+    }
+  }
+
+  if (cron) {
+    const { data: gateways } = await admin
+      .from("whatsapp_gateways")
+      .select("user_id, instance_id, api_token, api_url");
+    for (const gateway of gateways ?? []) {
+      if (!gateway.user_id) continue;
+      try {
+        await catchUpCaptureVoice({
+          supabase: admin,
+          userId: String(gateway.user_id),
+          gateway: {
+            instance_id: String(gateway.instance_id),
+            api_token: String(gateway.api_token),
+            api_url: String(gateway.api_url),
+            user_id: String(gateway.user_id),
+          },
+          transcribe: true,
+          count: 12,
+        });
+      } catch (error) {
+        console.error("voice catchup failed", error);
+      }
     }
   }
 
