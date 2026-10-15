@@ -1,16 +1,9 @@
-import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
-import { getGoogleCalendarHealth } from "../lib/google-calendar-client";
-import {
-  googleLoginReady,
-  googleOAuthSetupPublic,
-  type GoogleCalendarHealth,
-} from "../lib/google-calendar-setup";
 import { resolveLoginEmail } from "../lib/resolve-login-email";
 import { isForcedLocalMode, requireSupabase, supabaseAuthRedirectUrl } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
-import { GoogleLoginSetup } from "./GoogleLoginSetup";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { PasswordInput } from "./PasswordInput";
@@ -145,25 +138,6 @@ function AuthForm({
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [googleHealth, setGoogleHealth] = useState<GoogleCalendarHealth>(() =>
-    googleCalendarHealthFallback(),
-  );
-  const [googleProbed, setGoogleProbed] = useState(!onGoogleSignIn);
-  const googleReady = googleLoginReady(googleHealth);
-  const showGoogleSetup = Boolean(onGoogleSignIn) && authMode === "login" && googleProbed && !googleReady;
-
-  useEffect(() => {
-    if (!onGoogleSignIn) return;
-    void getGoogleCalendarHealth()
-      .then((health) => {
-        setGoogleHealth(health);
-        setGoogleProbed(true);
-      })
-      .catch(() => {
-        setGoogleHealth(googleCalendarHealthFallback());
-        setGoogleProbed(true);
-      });
-  }, [onGoogleSignIn]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -240,11 +214,7 @@ function AuthForm({
     <LoginShell
       subtitle={
         subtitle ??
-        (onGoogleSignIn && authMode === "login" && googleReady
-          ? "התחבר עם חשבון Google שלך"
-          : authMode === "login"
-            ? "התחברות ללוח הבקרה"
-            : "יצירת חשבון חדש")
+        (authMode === "login" ? "התחברות ללוח הבקרה" : "יצירת חשבון חדש")
       }
     >
       <div className="space-y-4">
@@ -260,38 +230,6 @@ function AuthForm({
 
         {message ? (
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
-        ) : null}
-
-        {onGoogleSignIn ? (
-          <GoogleSignInButton
-            onClick={() => void handleGoogleSignIn()}
-            disabled={busy || showGoogleSetup}
-            loading={oauthLoading}
-          />
-        ) : null}
-
-        {showGoogleSetup ? (
-          <GoogleLoginSetup health={googleHealth} disabled={busy} />
-        ) : null}
-
-        {hasOAuth && onMicrosoftSignIn ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleMicrosoftSignIn()}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <span aria-hidden>Ⓜ</span>
-            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
-          </button>
-        ) : null}
-
-        {onGoogleSignIn ? (
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs text-slate-400">או עם אימייל וסיסמה</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
         ) : null}
 
         {showEmailForm ? (
@@ -449,6 +387,34 @@ function AuthForm({
             {authMode === "login" ? "אין חשבון? הירשם" : "יש לך חשבון? התחבר"}
           </button>
         ) : null}
+
+        {hasOAuth ? (
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">או</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+        ) : null}
+
+        {onGoogleSignIn ? (
+          <GoogleSignInButton
+            onClick={() => void handleGoogleSignIn()}
+            disabled={busy}
+            loading={oauthLoading}
+          />
+        ) : null}
+
+        {hasOAuth && onMicrosoftSignIn ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleMicrosoftSignIn()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <span aria-hidden>Ⓜ</span>
+            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
+          </button>
+        ) : null}
       </div>
     </LoginShell>
   );
@@ -512,20 +478,6 @@ function SetupForm() {
       </div>
     </LoginShell>
   );
-}
-
-function googleCalendarHealthFallback(): GoogleCalendarHealth {
-  const setup = googleOAuthSetupPublic();
-  return {
-    configured: false,
-    authProviderEnabled: false,
-    googleClientId: null,
-    redirectUri: setup.calendarRedirectUri,
-    authRedirectUri: setup.authRedirectUri,
-    calendarRedirectUri: setup.calendarRedirectUri,
-    javascriptOrigins: setup.javascriptOrigins,
-    scope: setup.scope,
-  };
 }
 
 export function LoginScreen(props: LoginScreenProps) {

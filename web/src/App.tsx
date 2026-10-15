@@ -433,7 +433,7 @@ function ConfiguredApp() {
         onSubmit={handleAuth}
         onGoogleSignIn={() => signInWithGoogle(supabase)}
         notice={oauthNotice}
-        subtitle="התחברו עם Google או עם המשתמש שלכם — כל חשבון עם לוח נפרד"
+        subtitle="התחברו עם האימייל והסיסמה שלכם"
         usernameLabel="שם משתמש או אימייל"
         signupAutoSignIn
         showRememberMe

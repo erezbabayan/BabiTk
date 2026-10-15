@@ -95,6 +95,9 @@ export function googleSignInOptions(redirectTo: string): {
   };
 }
 
+export const GOOGLE_PROVIDER_DISABLED_MESSAGE =
+  "כניסת Google עדיין לא זמינה. היכנסו עם אימייל וסיסמה.";
+
 export function formatOAuthSignInError(
   error: unknown,
   description?: string | null,
@@ -107,7 +110,10 @@ export function formatOAuthSignInError(
     raw.includes("provider is not enabled") ||
     raw.includes("unsupported provider")
   ) {
-    return `התחברות ${providerLabel} עדיין לא הופעלה. צרו לקוח Web ב-Google Cloud, היכנסו עם סיסמה, והדביקו Client ID ו-Secret בטופס שמתחת לכפתור.`;
+    if (providerLabel === "Google") {
+      return GOOGLE_PROVIDER_DISABLED_MESSAGE;
+    }
+    return `התחברות ${providerLabel} עדיין לא זמינה. היכנסו עם אימייל וסיסמה.`;
   }
   if (raw.includes("access_denied") || raw.includes("user denied")) {
     return `ההתחברות עם ${providerLabel} בוטלה.`;
