@@ -24,6 +24,7 @@ import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
 import { signInWithGoogle } from "./lib/google-auth";
+import { ensureOwnUserProfile } from "./lib/user-profile";
 import {
   formatOAuthSignInError,
   readOAuthCallback,
@@ -400,21 +401,23 @@ function ConfiguredApp() {
         email: normalizedEmail,
         password,
       });
-      if (signInError) throw signInError;
+      if (signInError) {
+        const raw = signInError.message.toLowerCase();
+        if (raw.includes("email not confirmed") || raw.includes("email_not_confirmed")) {
+          throw new Error("יש לאשר את המייל לפני הכניסה. בדקו את תיבת הדואר.");
+        }
+        throw signInError;
+      }
     }
 
-    if (username) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userIdFromSession = sessionData.session?.user.id;
-      if (userIdFromSession) {
-        const { error: usernameError } = await supabase
-          .from("users")
-          .update({ username })
-          .eq("id", userIdFromSession);
-        if (usernameError) {
-          throw new Error(usernameError.message || "שם המשתמש כבר תפוס");
-        }
-      }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUser = sessionData.session?.user;
+    if (sessionUser) {
+      await ensureOwnUserProfile({
+        id: sessionUser.id,
+        email: sessionUser.email ?? normalizedEmail,
+        username,
+      });
     }
 
     persistLoginDetails(rememberMe, normalizedEmail);

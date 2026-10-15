@@ -10,6 +10,7 @@ import {
 import { getGoogleCalendarHealth } from "./google-calendar-client";
 import { requestGoogleAuthorizationCode } from "./google-identity";
 import { completeGoogleLoginWithCode } from "./google-login-client";
+import { preferGoogleOAuthRedirect } from "./auth-account";
 import { googleLoginReady, looksLikeGoogleClientId } from "./google-calendar-setup";
 import { supabaseAuthRedirectUrl } from "./supabase";
 
@@ -64,10 +65,18 @@ async function signInWithGoogleOAuth(supabase: SupabaseClient): Promise<void> {
   window.location.assign(data.url);
 }
 
-/** Sign in with Google. Prefers GIS popup + Edge session so existing users are linked. */
+/**
+ * Sign in with Google. Prefer the live Auth provider so every new user gets a
+ * normal Google identity (Settings → Calendar is then a single «חבר»).
+ * GIS popup is only a fallback when the provider is not enabled yet.
+ */
 export async function signInWithGoogle(supabase: SupabaseClient): Promise<void> {
   applyRememberMePreference(true, "");
   const health = await getGoogleCalendarHealth();
+  if (preferGoogleOAuthRedirect(health)) {
+    await signInWithGoogleOAuth(supabase);
+    return;
+  }
   const clientId = health.googleClientId ?? "";
   if (looksLikeGoogleClientId(clientId)) {
     try {
@@ -78,14 +87,10 @@ export async function signInWithGoogle(supabase: SupabaseClient): Promise<void> 
       if (error instanceof Error && /access_denied|popup_closed/i.test(error.message)) {
         throw new Error(formatOAuthSignInError("access_denied"));
       }
-      if (health.authProviderEnabled) {
-        await signInWithGoogleOAuth(supabase);
-        return;
-      }
       throw new Error(formatOAuthSignInError(error));
     }
   }
-  if (health.authProviderEnabled || googleLoginReady(health)) {
+  if (googleLoginReady(health)) {
     await signInWithGoogleOAuth(supabase);
     return;
   }

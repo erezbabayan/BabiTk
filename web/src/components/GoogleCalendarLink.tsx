@@ -121,6 +121,9 @@ export function GoogleCalendarLink() {
           }}
         />
       ) : null}
+      {!configured && !canConfigure ? (
+        <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
+      ) : null}
       {linked ? (
         <button
           type="button"
@@ -136,7 +139,7 @@ export function GoogleCalendarLink() {
           type="button"
           data-calendar-linked="false"
           onClick={() => void handleConnect()}
-          disabled={busy}
+          disabled={busy || !configured}
           className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
           {calendarSettingsButtonLabel(false, busy)}
