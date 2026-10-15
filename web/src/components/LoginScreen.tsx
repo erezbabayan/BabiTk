@@ -233,7 +233,13 @@ function AuthForm({
         ) : null}
 
         {showEmailForm ? (
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <form
+            method="post"
+            action="."
+            autoComplete="on"
+            onSubmit={(e) => void handleSubmit(e)}
+            className="space-y-4"
+          >
             <div className="space-y-3">
               {authMode === "signup" ? (
                 <>
@@ -241,6 +247,7 @@ function AuthForm({
                     <span className="mb-1 block text-xs font-medium text-slate-600">שם משתמש</span>
                     <input
                       type="text"
+                      name="nickname"
                       placeholder="erezbababan"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
@@ -299,11 +306,16 @@ function AuthForm({
                 </span>
                 <input
                   type={authMode === "signup" ? "email" : "text"}
+                  name={authMode === "signup" ? "email" : "username"}
+                  id={authMode === "signup" ? "signup-email" : "login-username"}
                   placeholder={authMode === "signup" ? "you@example.com" : "שם משתמש או אימייל"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
                   autoComplete={authMode === "signup" ? "email" : "username"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   dir="ltr"
                   required
                 />
@@ -312,6 +324,8 @@ function AuthForm({
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">סיסמה</span>
                 <PasswordInput
+                  name="password"
+                  id={authMode === "login" ? "login-password" : "signup-password"}
                   value={password}
                   onChange={setPassword}
                   autoComplete={authMode === "login" ? "current-password" : "new-password"}
@@ -329,7 +343,7 @@ function AuthForm({
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                זכור אותי במכשיר זה
+                שמור את ההתחברות במכשיר זה
               </label>
             ) : null}
 

@@ -351,13 +351,19 @@ function ConfiguredApp() {
   ) {
     if (authMode === "login") {
       const loginEmail = await resolveLoginEmail(email);
-      applyRememberMePreference(rememberMe, loginEmail);
+      applyRememberMePreference(rememberMe, email);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: loginEmail,
         password,
       });
-      if (signInError) throw signInError;
-      persistLoginDetails(rememberMe, loginEmail);
+      if (signInError) {
+        const raw = signInError.message.toLowerCase();
+        if (raw.includes("invalid login credentials")) {
+          throw new Error("שם משתמש או סיסמה שגויים");
+        }
+        throw signInError;
+      }
+      persistLoginDetails(rememberMe, email);
       return;
     }
 

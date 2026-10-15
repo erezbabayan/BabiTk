@@ -4,6 +4,8 @@ interface PasswordInputProps {
   value: string;
   onChange: (value: string) => void;
   autoComplete?: string;
+  name?: string;
+  id?: string;
   placeholder?: string;
   minLength?: number;
   required?: boolean;
@@ -42,6 +44,8 @@ export function PasswordInput({
   value,
   onChange,
   autoComplete,
+  name,
+  id,
   placeholder = "••••••••",
   minLength,
   required,
@@ -57,6 +61,8 @@ export function PasswordInput({
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-slate-300 py-2.5 pl-3 pr-9 text-sm"
         autoComplete={autoComplete}
+        name={name}
+        id={id}
         dir="ltr"
         required={required}
         minLength={minLength}

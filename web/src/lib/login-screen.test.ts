@@ -24,6 +24,13 @@ describe("login screen stays a password login", () => {
     assert.match(loginScreen, /התחבר/);
   });
 
+  it("exposes named username and password fields so the browser can save them", () => {
+    assert.match(loginScreen, /name=\{authMode === "signup" \? "email" : "username"\}/);
+    assert.match(loginScreen, /name="password"/);
+    assert.match(loginScreen, /autoComplete="on"/);
+    assert.match(loginScreen, /שמור את ההתחברות במכשיר זה/);
+  });
+
   it("asks for email and password when Google is not available", () => {
     assert.equal(
       formatOAuthSignInError("Unsupported provider: provider is not enabled"),
