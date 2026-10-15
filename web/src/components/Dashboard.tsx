@@ -61,7 +61,7 @@ import { ItemEditModal } from "./ItemEditModal";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
 import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
-import { OPEN_TASK_CALENDAR_EVENT } from "../lib/task-calendar";
+import { calendarChipFocusYmd, OPEN_TASK_CALENDAR_EVENT } from "../lib/task-calendar";
 interface DashboardProps {
   userId: string;
   refreshTick?: number;
@@ -278,7 +278,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         [...inbox, ...todayTasks, ...notes],
         tagByBoard.today,
         priorityOnlyByBoard.today,
-        dateFilterByBoard.today,
+        dateFilterByBoard.today === "today" || dateFilterByBoard.today === "tomorrow"
+          ? "all"
+          : dateFilterByBoard.today,
       ),
     [
       inbox,
@@ -1287,6 +1289,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                   <TaskMonthCalendar
                     items={calendarBoardItems}
+                    focusYmd={calendarChipFocusYmd(dateFilterByBoard.today)}
                     onSelectItem={(item) => setFocusEditItem(item)}
                   />
                 </div>

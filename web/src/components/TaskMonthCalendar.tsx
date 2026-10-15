@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { formatItemTime } from "../lib/item-display";
 import {
   HEBREW_WEEKDAYS,
   calendarItemDueIso,
+  calendarMonthFromYmd,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
   monthGrid,
@@ -14,6 +15,7 @@ import type { MindtaskerItem } from "../types";
 
 interface TaskMonthCalendarProps {
   items: MindtaskerItem[];
+  focusYmd?: string | null;
   onSelectItem?: (item: MindtaskerItem) => void;
   compact?: boolean;
 }
@@ -28,12 +30,21 @@ function initialMonth(now = new Date()): { year: number; month: number } {
 
 export function TaskMonthCalendar({
   items,
+  focusYmd = null,
   onSelectItem,
   compact = false,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
   const [{ year, month }, setCursor] = useState(initialMonth);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
+
+  useEffect(() => {
+    if (!focusYmd) return;
+    const next = calendarMonthFromYmd(focusYmd);
+    if (!next) return;
+    setCursor(next);
+    setSelectedYmd(focusYmd);
+  }, [focusYmd]);
   const cells = useMemo(() => monthGrid(year, month), [year, month]);
   const byDay = useMemo(() => groupCalendarTasksByDay(items), [items]);
   const selectedTasks = byDay.get(selectedYmd) ?? [];
@@ -59,6 +70,7 @@ export function TaskMonthCalendar({
       className={`space-y-3 text-sm ${compact ? "" : "min-h-0 flex-1 overflow-y-auto"}`}
       dir="rtl"
       data-babitk-calendar="month"
+      data-babitk-calendar-focus={selectedYmd || undefined}
     >
       <div className="flex items-center justify-between gap-2">
         <button
@@ -104,6 +116,8 @@ export function TaskMonthCalendar({
             <button
               key={cell.ymd}
               type="button"
+              data-babitk-calendar-day={cell.ymd}
+              data-babitk-calendar-selected={selected ? "true" : undefined}
               onClick={() => setSelectedYmd(cell.ymd)}
               className={`relative min-h-[2.75rem] bg-white px-0.5 py-1 text-xs ${
                 cell.inMonth ? "text-slate-800" : "text-slate-300"

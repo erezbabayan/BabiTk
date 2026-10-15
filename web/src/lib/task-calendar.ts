@@ -50,6 +50,30 @@ export function addDaysYmd(ymd: string, days: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
+const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function calendarMonthFromYmd(
+  ymd: string,
+): { year: number; month: number } | null {
+  if (!YMD_RE.test(ymd)) return null;
+  const year = Number(ymd.slice(0, 4));
+  const month = Number(ymd.slice(5, 7));
+  if (!Number.isInteger(year) || month < 1 || month > 12) return null;
+  return { year, month };
+}
+
+/** Today/tomorrow chips in calendar view jump to that Jerusalem day. */
+export function calendarChipFocusYmd(
+  chip: string,
+  now: Date = new Date(),
+): string | null {
+  const today = taskCalendarDayKey(now);
+  if (!today) return null;
+  if (chip === "today") return today;
+  if (chip === "tomorrow") return addDaysYmd(today, 1);
+  return null;
+}
+
 export function monthYmd(year: number, month: number): string {
   return `${year}-${pad2(month)}-01`;
 }

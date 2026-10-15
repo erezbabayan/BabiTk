@@ -4,6 +4,8 @@ import { describe, it } from "node:test";
 import type { MindtaskerItem } from "../types.ts";
 import {
   addDaysYmd,
+  calendarChipFocusYmd,
+  calendarMonthFromYmd,
   calendarTasks,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
@@ -76,5 +78,16 @@ describe("BabiTk task calendar", () => {
     assert.equal(taskCalendarDayKey("2026-10-14T22:00:00.000Z"), "2026-10-15");
     assert.equal(addDaysYmd("2026-10-31", 1), "2026-11-01");
     assert.deepEqual(shiftMonth(2026, 12, 1), { year: 2027, month: 1 });
+  });
+
+  it("maps today/tomorrow chips to the Jerusalem day to open", () => {
+    const morning = new Date("2026-10-15T07:00:00.000Z");
+    assert.equal(calendarChipFocusYmd("today", morning), "2026-10-15");
+    assert.equal(calendarChipFocusYmd("tomorrow", morning), "2026-10-16");
+    assert.equal(calendarChipFocusYmd("overdue", morning), null);
+    assert.equal(calendarChipFocusYmd("all", morning), null);
+    assert.deepEqual(calendarMonthFromYmd("2026-11-01"), { year: 2026, month: 11 });
+    const monthEnd = new Date("2026-10-31T10:00:00.000Z");
+    assert.equal(calendarChipFocusYmd("tomorrow", monthEnd), "2026-11-01");
   });
 });
