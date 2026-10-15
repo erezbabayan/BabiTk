@@ -224,7 +224,7 @@ function ConfiguredApp() {
     if (calendar === "connected") {
       setSettingsOpen(true);
       setSettingsSection("calendar");
-      setBillingNotice("Google Calendar מחובר. משימות עם תאריך יופיעו ביומן.");
+      setBillingNotice("יומן BabiTk מחובר. משימות עם תאריך מופיעות ביומן לפי יום וגם ב-Google.");
       params.delete("calendar");
       replaced = true;
       void persistGoogleCalendarSessionLink(true).catch((error) => {

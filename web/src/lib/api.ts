@@ -251,9 +251,11 @@ export async function getGoogleCalendarStatus(): Promise<{
   linked: boolean;
   configured: boolean;
   canConfigure?: boolean;
+  eventCount?: number;
+  googleUrl?: string;
 }> {
   if (isDemoMode) {
-    return { linked: false, configured: false, canConfigure: false };
+    return { linked: false, configured: true, canConfigure: false };
   }
   if (isSupabaseConfigured) {
     return getGoogleCalendarStatusFromEdge();

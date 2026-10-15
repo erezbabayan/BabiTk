@@ -6,6 +6,7 @@ import {
   buildCalendarIcs,
   buildGoogleAuthUrl,
   calendarCallbackHtml,
+  calendarFeedSecret,
   calendarFeedToken,
   calendarFeedTokenValid,
   calendarIcsFeedUrl,
@@ -16,6 +17,7 @@ import {
   googleCalendarStatus,
   googleCalendarSubscribeUrl,
   googleOAuthSetupPublic,
+  parseCalendarIcsRequest,
   isGoogleOAuthOwner,
   looksLikeGoogleClientId,
   looksLikeGoogleClientSecret,
@@ -144,6 +146,43 @@ function readGoogleCredentials(body: {
   return { clientId, clientSecret };
 }
 
+async function listDatedCalendarEvents(
+  userId: string,
+): Promise<Array<{ id: string; title: string; content: string; due_date: string }>> {
+  const admin = fullAdminClient();
+  const { data, error } = await admin
+    .from("mindtasker_items")
+    .select("id, title, content, is_actionable, due_date, deleted_at, status, completed_at")
+    .eq("user_id", userId)
+    .eq("is_actionable", true)
+    .not("due_date", "is", null)
+    .is("deleted_at", null)
+    .neq("status", "completed")
+    .limit(200);
+  if (error) {
+    console.error("google-calendar ics", error);
+    throw new Error("calendar_failed");
+  }
+  return (data ?? [])
+    .filter(
+      (row) =>
+        row.completed_at == null &&
+        shouldUpsertCalendarEvent({
+          title: typeof row.title === "string" ? row.title : "",
+          content: typeof row.content === "string" ? row.content : "",
+          is_actionable: row.is_actionable === true,
+          due_date: typeof row.due_date === "string" ? row.due_date : null,
+          deleted_at: typeof row.deleted_at === "string" ? row.deleted_at : null,
+        }),
+    )
+    .map((row) => ({
+      id: String(row.id),
+      title: typeof row.title === "string" ? row.title : "",
+      content: typeof row.content === "string" ? row.content : "",
+      due_date: String(row.due_date),
+    }));
+}
+
 async function handleCallback(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const config = googleCalendarConfig();
@@ -208,49 +247,25 @@ Deno.serve(async (req) => {
 
   if (req.method === "GET" && action === "ics") {
     const url = new URL(req.url);
-    const userId = (url.searchParams.get("u") ?? "").trim();
-    const token = (url.searchParams.get("s") ?? "").trim();
-    const config = googleCalendarConfig();
-    if (!config.configured || !(await calendarFeedTokenValid(userId, token, config.clientSecret))) {
+    const { userId, token } = parseCalendarIcsRequest(url.pathname, url.searchParams);
+    const secret = calendarFeedSecret();
+    if (!secret || !(await calendarFeedTokenValid(userId, token, secret))) {
       return new Response("not_found", { status: 404, headers: CORS });
     }
-    const admin = fullAdminClient();
-    const { data, error } = await admin
-      .from("mindtasker_items")
-      .select("id, title, content, is_actionable, due_date, deleted_at")
-      .eq("user_id", userId)
-      .eq("is_actionable", true)
-      .not("due_date", "is", null)
-      .is("deleted_at", null)
-      .limit(200);
-    if (error) {
-      console.error("google-calendar ics", error);
+    try {
+      const events = await listDatedCalendarEvents(userId);
+      return new Response(buildCalendarIcs(events), {
+        status: 200,
+        headers: {
+          ...CORS,
+          "Content-Type": "text/calendar; charset=utf-8",
+          "Content-Disposition": 'inline; filename="babitk.ics"',
+          "Cache-Control": "public, max-age=300",
+        },
+      });
+    } catch {
       return new Response("calendar_failed", { status: 500, headers: CORS });
     }
-    const events = (data ?? [])
-      .filter((row) =>
-        shouldUpsertCalendarEvent({
-          title: typeof row.title === "string" ? row.title : "",
-          content: typeof row.content === "string" ? row.content : "",
-          is_actionable: row.is_actionable === true,
-          due_date: typeof row.due_date === "string" ? row.due_date : null,
-          deleted_at: typeof row.deleted_at === "string" ? row.deleted_at : null,
-        }),
-      )
-      .map((row) => ({
-        id: String(row.id),
-        title: typeof row.title === "string" ? row.title : "",
-        content: typeof row.content === "string" ? row.content : "",
-        due_date: String(row.due_date),
-      }));
-    return new Response(buildCalendarIcs(events), {
-      status: 200,
-      headers: {
-        ...CORS,
-        "Content-Type": "text/calendar; charset=utf-8",
-        "Cache-Control": "public, max-age=300",
-      },
-    });
   }
 
   if (req.method === "GET" && (action === "" || action === "health")) {
@@ -313,15 +328,19 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === "POST" && action === "subscribe") {
-      if (!config.configured) {
+      const secret = calendarFeedSecret();
+      if (!secret) {
         return json({ error: "google_not_configured" }, 503);
       }
-      const token = await calendarFeedToken(userId, config.clientSecret);
+      const token = await calendarFeedToken(userId, secret);
       await storeGoogleCalendarLink(adminClient(), userId);
       const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
+      const events = await listDatedCalendarEvents(userId);
       return json({
         ok: true,
         linked: true,
+        eventCount: events.length,
+        feedUrl,
         url: googleCalendarSubscribeUrl(feedUrl),
       });
     }
@@ -355,7 +374,21 @@ Deno.serve(async (req) => {
 
     if (req.method === "GET" && action === "status") {
       const status = await googleCalendarStatus(adminClient(), userId);
-      return json({ ...status, canConfigure });
+      let eventCount = 0;
+      let googleUrl: string | undefined;
+      const secret = calendarFeedSecret();
+      if (status.linked && secret) {
+        const token = await calendarFeedToken(userId, secret);
+        const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
+        googleUrl = googleCalendarSubscribeUrl(feedUrl);
+        eventCount = (await listDatedCalendarEvents(userId)).length;
+      }
+      return json({
+        ...status,
+        canConfigure,
+        eventCount,
+        googleUrl,
+      });
     }
 
     if (req.method === "POST" && action === "disconnect") {

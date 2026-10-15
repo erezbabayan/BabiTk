@@ -10,6 +10,8 @@ import {
   calendarIcsFeedUrl,
   createOAuthState,
   googleCalendarSubscribeUrl,
+  parseCalendarIcsRequest,
+  webcalFeedUrl,
   googleOAuthSetupPublic,
   icsUtcStamp,
   isCalendarRelevantPatch,
@@ -167,6 +169,8 @@ describe("Google Calendar OAuth helpers", () => {
       },
     ]);
     assert.match(ics, /BEGIN:VCALENDAR/);
+    assert.match(ics, /X-WR-CALNAME:BabiTk/);
+    assert.match(ics, /REFRESH-INTERVAL;VALUE=DURATION:PT15M/);
     assert.match(ics, /SUMMARY:פגישה\\; דחוף/);
     assert.match(ics, /DTSTART:20260918T070000Z/);
     assert.equal(icsUtcStamp("2026-09-18T07:00:00.000Z"), "20260918T070000Z");
@@ -178,10 +182,14 @@ describe("Google Calendar OAuth helpers", () => {
       "user-1",
       token,
     );
-    assert.match(feed, /\/google-calendar\/ics\?/);
+    assert.match(feed, /\/google-calendar\/ics\//);
+    assert.equal(feed.includes("?"), false);
+    const parsed = parseCalendarIcsRequest(new URL(feed).pathname, new URL(feed).searchParams);
+    assert.equal(parsed.userId, "user-1");
+    assert.equal(parsed.token, token);
     const subscribe = googleCalendarSubscribeUrl(feed);
     assert.equal(new URL(subscribe).hostname, "calendar.google.com");
-    assert.equal(new URL(subscribe).searchParams.get("cid"), feed);
+    assert.equal(new URL(subscribe).searchParams.get("cid"), webcalFeedUrl(feed));
   });
 
   it("exposes the live Google Cloud redirect URIs", () => {

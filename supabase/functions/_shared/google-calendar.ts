@@ -300,6 +300,8 @@ export function buildCalendarIcs(
     "METHOD:PUBLISH",
     "X-WR-CALNAME:BabiTk",
     "X-WR-TIMEZONE:Asia/Jerusalem",
+    "REFRESH-INTERVAL;VALUE=DURATION:PT15M",
+    "X-PUBLISHED-TTL:PT15M",
   ];
   for (const event of events) {
     const start = icsUtcStamp(event.due_date);
@@ -349,16 +351,43 @@ export function calendarIcsFeedUrl(
   token: string,
 ): string {
   const base = supabaseUrl.replace(/\/$/, "") || DEFAULT_SUPABASE_URL;
-  const url = new URL(`${base}/functions/v1/google-calendar/ics`);
-  url.searchParams.set("u", userId);
-  url.searchParams.set("s", token);
-  return url.toString();
+  return `${base}/functions/v1/google-calendar/ics/${encodeURIComponent(userId)}/${encodeURIComponent(token)}`;
+}
+
+export function webcalFeedUrl(httpsUrl: string): string {
+  return httpsUrl.replace(/^https:\/\//i, "webcal://").replace(/^http:\/\//i, "webcal://");
+}
+
+export function parseCalendarIcsRequest(
+  pathname: string,
+  search: URLSearchParams,
+): { userId: string; token: string } {
+  const path = pathname.replace(/\/+$/, "");
+  const after = path.split("/google-calendar/ics")[1] ?? "";
+  const parts = after.replace(/^\//, "").split("/").filter(Boolean);
+  const fromPathUser = parts[0] ? decodeURIComponent(parts[0]) : "";
+  const fromPathToken = parts[1] ? decodeURIComponent(parts[1]) : "";
+  return {
+    userId: (fromPathUser || search.get("u") || "").trim(),
+    token: (fromPathToken || search.get("s") || "").trim(),
+  };
 }
 
 export function googleCalendarSubscribeUrl(feedUrl: string): string {
-  const url = new URL("https://calendar.google.com/calendar/r");
-  url.searchParams.set("cid", feedUrl);
+  const url = new URL("https://calendar.google.com/calendar/render");
+  url.searchParams.set("cid", webcalFeedUrl(feedUrl));
   return url.toString();
+}
+
+export function calendarFeedSecret(): string {
+  const override = oauthOverride?.clientSecret?.trim() ?? "";
+  if (override) return override;
+  return (
+    Deno.env.get("CALENDAR_FEED_SECRET") ||
+    Deno.env.get("GOOGLE_CLIENT_SECRET") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    ""
+  ).trim();
 }
 
 export function googleCalendarConfig(): {
@@ -574,7 +603,7 @@ export async function googleCalendarStatus(
   const enabled = data?.google_calendar_enabled === true;
   return {
     linked: enabled,
-    configured: config.configured,
+    configured: Boolean(calendarFeedSecret()),
     oauthConfigured: config.configured,
   };
 }

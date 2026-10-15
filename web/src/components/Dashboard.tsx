@@ -58,8 +58,10 @@ import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
 import { ItemEditModal } from "./ItemEditModal";
+import { TaskMonthCalendar } from "./TaskMonthCalendar";
 import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
+import { OPEN_TASK_CALENDAR_EVENT } from "../lib/task-calendar";
 interface DashboardProps {
   userId: string;
   refreshTick?: number;
@@ -173,6 +175,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
+  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
@@ -191,6 +194,17 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     }
     window.addEventListener(OPEN_ITEM_EVENT, onOpenItem);
     return () => window.removeEventListener(OPEN_ITEM_EVENT, onOpenItem);
+  }, []);
+
+  useEffect(() => {
+    function onOpenCalendar() {
+      setShowTaskCalendar(true);
+      setShowTasksArchive(false);
+      setShowCompletedTasks(false);
+      setMobileTab("today");
+    }
+    window.addEventListener(OPEN_TASK_CALENDAR_EVENT, onOpenCalendar);
+    return () => window.removeEventListener(OPEN_TASK_CALENDAR_EVENT, onOpenCalendar);
   }, []);
 
   const completeWithUndo = useCallback(
@@ -463,6 +477,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
+    setShowTaskCalendar(false);
     setTaskListsMode("create");
     setMobileTab("inbox");
     setTagByBoard({ inbox: null, today: null, notes: null });
@@ -1054,20 +1069,39 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               markTone="blue"
               notebookLayout
               titleTrailing={
-                todayListView === "active" && taskLists.enabled ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
-                      setShowTaskLists(true);
-                    }}
-                    className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
-                    title="הרשימה"
-                    aria-label="הרשימה"
-                  >
-                    <ListBoardIcon className="h-3.5 w-3.5" />
-                    הרשימה
-                  </button>
+                todayListView === "active" ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskCalendar((open) => !open)}
+                      className={`inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2 text-[11px] font-semibold leading-none shadow-sm ${
+                        showTaskCalendar
+                          ? "border-blue-500 bg-blue-100 text-blue-800"
+                          : "border-blue-300/90 bg-white text-blue-700 hover:bg-blue-50"
+                      }`}
+                      title="יומן BabiTk"
+                      aria-label="יומן BabiTk"
+                      aria-pressed={showTaskCalendar}
+                      data-babitk-calendar-toggle="true"
+                    >
+                      יומן
+                    </button>
+                    {taskLists.enabled ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                          setShowTaskLists(true);
+                        }}
+                        className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
+                        title="הרשימה"
+                        aria-label="הרשימה"
+                      >
+                        <ListBoardIcon className="h-3.5 w-3.5" />
+                        הרשימה
+                      </button>
+                    ) : null}
+                  </div>
                 ) : null
               }
               dateSort={
@@ -1120,6 +1154,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                           exitSelect();
                         } else {
                           setShowTasksArchive(true);
+                          setShowTaskCalendar(false);
                           setShowArchive(false);
                           setShowNotesArchive(false);
                           setShowCompletedTasks(false);
@@ -1136,6 +1171,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       type="button"
                       onClick={() => {
                         setShowCompletedTasks(true);
+                        setShowTaskCalendar(false);
                         setShowTasksArchive(false);
                         exitSelect();
                       }}
@@ -1204,6 +1240,13 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
+              ) : showTaskCalendar ? (
+                <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
+                  <TaskMonthCalendar
+                    items={filteredTodayTasks}
+                    onSelectItem={(item) => setFocusEditItem(item)}
+                  />
+                </div>
               ) : (
                 <MouseDragScroll>
                   <DraggableItemList

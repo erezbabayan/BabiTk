@@ -1,3 +1,4 @@
+import { requestOpenTaskCalendar } from "./task-calendar";
 import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./supabase";
 import { isCalendarRelevantPatch } from "./google-calendar-patch";
@@ -88,10 +89,16 @@ export async function getGoogleCalendarStatusFromEdge(): Promise<{
   linked: boolean;
   configured: boolean;
   canConfigure?: boolean;
+  eventCount?: number;
+  googleUrl?: string;
 }> {
-  return invokeCalendar<{ linked: boolean; configured: boolean; canConfigure?: boolean }>(
-    "status",
-  );
+  return invokeCalendar<{
+    linked: boolean;
+    configured: boolean;
+    canConfigure?: boolean;
+    eventCount?: number;
+    googleUrl?: string;
+  }>("status");
 }
 
 export async function configureGoogleOAuthFromEdge(
@@ -191,8 +198,11 @@ export async function startGoogleCalendarIdentityLink(): Promise<void> {
 }
 
 export async function startGoogleCalendarConnect(): Promise<void> {
-  if (isDemoMode) return;
-  const data = await invokeCalendar<{ url?: string }>("subscribe", {
+  if (isDemoMode) {
+    requestOpenTaskCalendar();
+    return;
+  }
+  const data = await invokeCalendar<{ url?: string; eventCount?: number }>("subscribe", {
     method: "POST",
     body: {},
   });
@@ -200,6 +210,7 @@ export async function startGoogleCalendarConnect(): Promise<void> {
     throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
   }
   window.open(data.url, "_blank", "noopener,noreferrer");
+  requestOpenTaskCalendar();
 }
 
 export async function persistGoogleCalendarSessionLink(force = false): Promise<boolean> {

@@ -51,8 +51,8 @@ export const ONBOARDING_STEPS = [
   },
   {
     id: "calendar",
-    title: "Google Calendar",
-    body: "לחצו חבר כדי לחבר את יומן Google. אפשר לבטל אחר כך.",
+    title: "יומן BabiTk",
+    body: "משימות עם תאריך מופיעות ביומן לפי יום. לחצו חבר כדי להוסיף את אותו יומן גם ל-Google.",
     settingsSection: "calendar",
   },
 ] as const;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { useDatedCalendarTasks } from "../hooks/useDatedCalendarTasks";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
   calendarSettingsButtonLabel,
@@ -8,7 +9,9 @@ import {
 import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
 import { CALENDAR_OAUTH_ERROR_KEY } from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
+import { requestOpenTaskCalendar } from "../lib/task-calendar";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
+import { TaskMonthCalendar } from "./TaskMonthCalendar";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
 
@@ -29,24 +32,35 @@ function writeDemoLinked(linked: boolean): void {
   }
 }
 
-export function GoogleCalendarLink() {
+interface GoogleCalendarLinkProps {
+  userId?: string;
+  onSelectItem?: (itemId: string) => void;
+}
+
+export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkProps) {
   const [linked, setLinked] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [canConfigure, setCanConfigure] = useState(false);
+  const [googleUrl, setGoogleUrl] = useState<string | null>(null);
+  const [eventCount, setEventCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { items } = useDatedCalendarTasks(userId);
 
   const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
         setLinked(readDemoLinked());
+        setConfigured(true);
         return;
       }
       const status = await getGoogleCalendarStatus();
       setLinked(status.linked);
       setConfigured(status.configured !== false);
       setCanConfigure(status.canConfigure === true);
+      setGoogleUrl(status.googleUrl ?? null);
+      setEventCount(status.eventCount ?? 0);
       if (status.linked) setError(null);
     } catch {
       setLinked(false);
@@ -92,9 +106,11 @@ export function GoogleCalendarLink() {
       if (isDemoMode) {
         writeDemoLinked(true);
         setLinked(true);
+        requestOpenTaskCalendar();
         return;
       }
       await startGoogleCalendarConnect();
+      requestOpenTaskCalendar();
       await refreshStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
@@ -110,10 +126,12 @@ export function GoogleCalendarLink() {
       if (isDemoMode) {
         writeDemoLinked(false);
         setLinked(false);
+        setGoogleUrl(null);
         return;
       }
       await disconnectGoogleCalendarApi();
       setLinked(false);
+      setGoogleUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לבטל את החיבור כרגע.");
     } finally {
@@ -125,11 +143,27 @@ export function GoogleCalendarLink() {
 
   return (
     <div className="space-y-3 text-sm" dir="rtl">
+      <p className="text-slate-600">
+        יומן BabiTk מציג משימות לפי תאריך. משימות בלי תאריך נשארות בלוח בלבד.
+      </p>
+      {userId ? (
+        <TaskMonthCalendar
+          items={items}
+          compact
+          onSelectItem={(item) => onSelectItem?.(item.id)}
+        />
+      ) : null}
       {error ? <p className="text-red-600">{error}</p> : null}
       {!linked && configured ? (
         <p className="text-slate-600">
-          «חבר» מוסיף יומן BabiTk ל-Google Calendar. Google חסם הרשאת כתיבה ישירה במצב בדיקות,
-          לכן המשימות מגיעות כהזנת יומן בלי access_denied:403.
+          «חבר» מוסיף את אותן משימות כהזנת יומן ל-Google Calendar, בלי access_denied:403.
+        </p>
+      ) : null}
+      {linked ? (
+        <p className="text-slate-600">
+          {eventCount > 0
+            ? `${eventCount} משימות עם תאריך מסונכרנות ליומן Google.`
+            : "היומן מחובר. הוסיפו תאריך למשימה כדי שתופיע גם ב-Google."}
         </p>
       ) : null}
       {error && isGoogleOauthTestingDenied(error) ? (
@@ -146,27 +180,39 @@ export function GoogleCalendarLink() {
       {!configured && !canConfigure ? (
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
-      {linked ? (
-        <button
-          type="button"
-          data-calendar-linked="true"
-          onClick={() => void handleDisconnect()}
-          disabled={busy}
-          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-        >
-          {calendarSettingsButtonLabel(true, busy)}
-        </button>
-      ) : (
-        <button
-          type="button"
-          data-calendar-linked="false"
-          onClick={() => void handleConnect()}
-          disabled={busy || !configured}
-          className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-        >
-          {calendarSettingsButtonLabel(false, busy)}
-        </button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {linked && googleUrl ? (
+          <a
+            href={googleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
+          >
+            פתח ביומן Google
+          </a>
+        ) : null}
+        {linked ? (
+          <button
+            type="button"
+            data-calendar-linked="true"
+            onClick={() => void handleDisconnect()}
+            disabled={busy}
+            className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {calendarSettingsButtonLabel(true, busy)}
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-calendar-linked="false"
+            onClick={() => void handleConnect()}
+            disabled={busy || !configured}
+            className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {calendarSettingsButtonLabel(false, busy)}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

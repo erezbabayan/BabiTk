@@ -53,7 +53,7 @@ export const SETTINGS_MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "voice", label: "🎙 הקלטה קולית" },
   { id: "notebook", label: "📷 סריקת מחברת" },
   { id: "text", label: "✏️ קליטת טקסט" },
-  { id: "calendar", label: "📅 Google Calendar" },
+  { id: "calendar", label: "📅 יומן BabiTk" },
   { id: "premium", label: "⭐ מנוי" },
   { id: "tags", label: "🏷 ניהול תגיות" },
   { id: "boards", label: "📋 הגדרות בורדים" },
@@ -181,7 +181,7 @@ export function SettingsPanel({
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
-        {section === "calendar" ? <GoogleCalendarLink /> : null}
+        {section === "calendar" ? <GoogleCalendarLink userId={userId} /> : null}
         {section === "premium" ? (
           <PremiumSettings summary={summary} onChanged={onUsageChanged} />
         ) : null}

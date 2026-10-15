@@ -134,9 +134,9 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
           {step.settingsSection === "calendar" ? (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
-                משימות עם תאריך נכנסות ליומן Google. הערות בלי תאריך נשארות רק ב-BabiTk.
+                משימות עם תאריך מופיעות ביומן BabiTk לפי יום. הערות בלי תאריך נשארות בלוח.
               </p>
-              <GoogleCalendarLink />
+              <GoogleCalendarLink userId={userId} />
             </div>
           ) : null}
         </div>
