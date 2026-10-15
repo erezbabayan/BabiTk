@@ -94,6 +94,23 @@ export async function getGoogleCalendarStatusFromEdge(): Promise<{
   );
 }
 
+export async function configureGoogleOAuthFromEdge(
+  clientId: string,
+  clientSecret: string,
+): Promise<{ configured: boolean; authProviderEnabled: boolean }> {
+  const data = await invokeCalendar<{
+    configured?: boolean;
+    authProviderEnabled?: boolean;
+  }>("configure", {
+    method: "POST",
+    body: { clientId, clientSecret },
+  });
+  return {
+    configured: data.configured === true,
+    authProviderEnabled: data.authProviderEnabled === true,
+  };
+}
+
 export async function getGoogleCalendarHealth(): Promise<GoogleCalendarHealth> {
   const fallback = googleCalendarHealthFromUnknown({});
   const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");

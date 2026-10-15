@@ -13,6 +13,10 @@ const loginScreen = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/LoginScreen.tsx"),
   "utf8",
 );
+const googleEnable = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../components/GoogleOAuthEnable.tsx"),
+  "utf8",
+);
 
 describe("login screen stays a password login", () => {
   it("does not embed the leftover Google OAuth setup wall", () => {
@@ -22,6 +26,14 @@ describe("login screen stays a password login", () => {
     assert.equal(loginScreen.includes("Client Secret"), false);
     assert.match(loginScreen, /סיסמה/);
     assert.match(loginScreen, /התחבר/);
+  });
+
+  it("keeps Google login as a button without copy-paste URIs", () => {
+    assert.match(loginScreen, /GoogleSignInButton/);
+    assert.equal(loginScreen.includes("javascriptOrigins"), false);
+    assert.equal(loginScreen.includes("CopyRow"), false);
+    assert.equal(googleEnable.includes("CopyRow"), false);
+    assert.equal(googleEnable.includes("javascriptOrigins"), false);
   });
 
   it("exposes named username and password fields so the browser can save them", () => {

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { apiFetch } from "../lib/api";
+import { apiFetch, getGoogleCalendarStatus } from "../lib/api";
 import { requireSupabase } from "../lib/supabase";
 import { getAuthAccountView, type AuthAccountView } from "../lib/user-profile";
 import { ChangePasswordForm } from "./ChangePasswordForm";
+import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
 
 export function UserSettings() {
   const [account, setAccount] = useState<AuthAccountView | null>(null);
@@ -11,6 +12,8 @@ export function UserSettings() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
+  const [canEnableGoogle, setCanEnableGoogle] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +26,15 @@ export function UserSettings() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    void getGoogleCalendarStatus()
+      .then((status) => {
+        if (cancelled) return;
+        setGoogleConfigured(status.configured);
+        setCanEnableGoogle(status.canConfigure === true);
+      })
+      .catch(() => {
+        if (!cancelled) setGoogleConfigured(false);
       });
     return () => {
       cancelled = true;
@@ -57,6 +69,24 @@ export function UserSettings() {
           {account.email}
         </p>
       </div>
+
+      {canEnableGoogle ? (
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="text-sm font-medium text-slate-900">כניסת Google</p>
+          {googleConfigured ? (
+            <p className="mt-2 text-sm text-emerald-700">כניסת Google פעילה במסך הכניסה.</p>
+          ) : (
+            <div className="mt-2">
+              <GoogleOAuthEnable
+                onEnabled={() => {
+                  setGoogleConfigured(true);
+                  setMessage("כניסת Google הופעלה. אפשר להתנתק ולהיכנס עם Google.");
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="rounded-xl border border-slate-200 p-4">
         <ChangePasswordForm email={account.email} />
