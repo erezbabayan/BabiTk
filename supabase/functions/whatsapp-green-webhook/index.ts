@@ -32,7 +32,7 @@ import {
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
-import { scheduleCaptureVoiceCatchup } from "../_shared/whatsapp-history-catchup.ts";
+import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 import { sendGreenApiText } from "../_shared/green-api-send.ts";
 import {
   addHoursIso,
@@ -699,6 +699,38 @@ Deno.serve(async (req) => {
   }
 
   const supabase = adminClient();
+  const action =
+    body && typeof body === "object" && "action" in body && typeof (body as { action?: unknown }).action === "string"
+      ? (body as { action: string }).action
+      : "";
+  if (action === "catchup_voice") {
+    const auth = req.headers.get("authorization") ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+    if (!SERVICE_ROLE || token !== SERVICE_ROLE) {
+      return json({ error: "invalid_webhook_token" }, 401);
+    }
+    const { data: gatewayRow } = await supabase
+      .from("whatsapp_gateways")
+      .select("user_id,instance_id,api_token,api_url")
+      .limit(1)
+      .maybeSingle();
+    if (!gatewayRow?.user_id) {
+      return json({ error: "gateway_missing" }, 503);
+    }
+    const result = await catchUpCaptureVoice({
+      supabase,
+      userId: String(gatewayRow.user_id),
+      gateway: {
+        instance_id: String(gatewayRow.instance_id),
+        api_token: String(gatewayRow.api_token),
+        api_url: String(gatewayRow.api_url),
+        user_id: String(gatewayRow.user_id),
+      },
+      transcribe: true,
+      count: 15,
+    });
+    return json({ ok: true, ...result });
+  }
   const instanceId = instanceIdFromPayload(body);
   let gateway: GatewayRow | null = null;
   if (instanceId) {
@@ -724,12 +756,20 @@ Deno.serve(async (req) => {
 
   const parsed = parseGreenApiWebhook(body);
   const kickVoiceCatchup = () => {
-    if (!gateway?.user_id) return;
-    scheduleCaptureVoiceCatchup({
-      supabase,
-      userId: gateway.user_id,
-      gateway,
-    });
+    if (!SERVICE_ROLE) return;
+    scheduleBackgroundWork(
+      fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/whatsapp-green-webhook`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "catchup_voice" }),
+        signal: AbortSignal.timeout(90_000),
+      }).then(async (response) => {
+        await response.text();
+      }),
+    );
   };
   if (parsed.ignored) {
     kickVoiceCatchup();

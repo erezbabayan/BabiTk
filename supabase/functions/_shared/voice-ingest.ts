@@ -291,6 +291,8 @@ export async function insertPendingWhatsAppVoiceItem(
   userId: string,
   message: ParsedGreenApiMessage,
 ): Promise<VoiceItemRow> {
+  const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, message.messageId);
+  if (existing) return existing;
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -461,9 +463,10 @@ export async function findVoiceItemByWhatsAppMessage(
     .eq("user_id", userId)
     .filter("metadata->>whatsapp_message_id", "eq", messageId)
     .is("deleted_at", null)
-    .maybeSingle();
-  if (error || !data) return null;
-  return data as VoiceItemRow;
+    .order("sort_order", { ascending: true })
+    .limit(1);
+  if (error || !data?.[0]) return null;
+  return data[0] as VoiceItemRow;
 }
 
 async function loadUserGateway(
