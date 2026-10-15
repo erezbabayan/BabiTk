@@ -13,8 +13,16 @@ import {
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "./voice-ingest.ts";
-import { needsVoiceTranscription } from "./voice-text.ts";
-import { historyAudioMessage, type ParsedGreenApiMessage } from "./green-api.ts";
+import {
+  finishWhatsAppImageItem,
+  insertPendingWhatsAppImageItem,
+} from "./notebook-ingest.ts";
+import { needsOcrTranscription, needsVoiceTranscription } from "./voice-text.ts";
+import {
+  historyAudioMessage,
+  historyImageMessage,
+  type ParsedGreenApiMessage,
+} from "./green-api.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -28,13 +36,15 @@ export interface CatchupResult {
   pending: number;
 }
 
-interface HistoryAudioRow {
+interface HistoryMediaRow {
   idMessage?: string;
   typeMessage?: string;
   type?: string;
   downloadUrl?: string;
+  jpegUrl?: string;
   mimeType?: string;
   fileName?: string;
+  caption?: string;
   sendByApi?: boolean;
 }
 
@@ -54,11 +64,11 @@ async function loadCaptureChatId(
   return capture.endsWith("@g.us") || capture.endsWith("@c.us") ? capture : "";
 }
 
-async function fetchHistoryAudio(
+async function fetchChatHistory(
   gateway: CatchupGateway,
   captureChatId: string,
   count: number,
-): Promise<ParsedGreenApiMessage[]> {
+): Promise<HistoryMediaRow[]> {
   const base = (gateway.api_url || "https://api.green-api.com").replace(/\/$/, "");
   const url = `${base}/waInstance${gateway.instance_id}/getChatHistory/${gateway.api_token}`;
   const response = await fetch(url, {
@@ -70,10 +80,28 @@ async function fetchHistoryAudio(
   if (!response.ok) return [];
   const hist: unknown = await response.json().catch(() => null);
   if (!Array.isArray(hist)) return [];
+  return hist.filter((row): row is HistoryMediaRow => Boolean(row && typeof row === "object"));
+}
+
+function historyAudioMessages(
+  captureChatId: string,
+  rows: HistoryMediaRow[],
+): ParsedGreenApiMessage[] {
   const messages: ParsedGreenApiMessage[] = [];
-  for (const row of hist) {
-    if (!row || typeof row !== "object") continue;
-    const message = historyAudioMessage(captureChatId, row as HistoryAudioRow);
+  for (const row of rows) {
+    const message = historyAudioMessage(captureChatId, row);
+    if (message) messages.push(message);
+  }
+  return messages;
+}
+
+function historyImageMessages(
+  captureChatId: string,
+  rows: HistoryMediaRow[],
+): ParsedGreenApiMessage[] {
+  const messages: ParsedGreenApiMessage[] = [];
+  for (const row of rows) {
+    const message = historyImageMessage(captureChatId, row);
     if (message) messages.push(message);
   }
   return messages;
@@ -85,17 +113,26 @@ export async function catchUpCaptureVoice(options: {
   gateway: CatchupGateway;
   transcribe?: boolean;
   count?: number;
-}): Promise<CatchupResult> {
-  const result: CatchupResult = { inserted: 0, transcribed: 0, pending: 0 };
+}): Promise<CatchupResult & { imagesInserted: number; imagesTranscribed: number }> {
+  const result: CatchupResult & { imagesInserted: number; imagesTranscribed: number } = {
+    inserted: 0,
+    transcribed: 0,
+    pending: 0,
+    imagesInserted: 0,
+    imagesTranscribed: 0,
+  };
   const capture = await loadCaptureChatId(options.supabase, options.userId);
   if (!capture) return result;
 
-  const messages = await fetchHistoryAudio(
+  const rows = await fetchChatHistory(
     options.gateway,
     capture,
-    options.count ?? 15,
+    options.count ?? 20,
   );
+  const messages = historyAudioMessages(capture, rows);
+  const images = historyImageMessages(capture, rows);
   const toTranscribe: VoiceItemRow[] = [];
+  const toOcr: Array<{ row: VoiceItemRow; message: ParsedGreenApiMessage }> = [];
 
   for (const message of messages) {
     let row = await findVoiceItemByWhatsAppMessage(
@@ -117,6 +154,25 @@ export async function catchUpCaptureVoice(options: {
     }
   }
 
+  for (const message of images) {
+    let row = await findVoiceItemByWhatsAppMessage(
+      options.supabase,
+      options.userId,
+      message.messageId,
+    );
+    if (!row) {
+      row = await insertPendingWhatsAppImageItem(
+        options.supabase,
+        options.userId,
+        message,
+      );
+      result.imagesInserted += 1;
+    }
+    if (needsOcrTranscription(row.title, row.content)) {
+      toOcr.push({ row, message });
+    }
+  }
+
   if (!options.transcribe) return result;
 
   for (const row of toTranscribe.slice(0, 6)) {
@@ -125,6 +181,19 @@ export async function catchUpCaptureVoice(options: {
       result.transcribed += 1;
     } catch (error) {
       console.error("catchup voice transcribe failed", error);
+    }
+  }
+  for (const item of toOcr.slice(0, 6)) {
+    try {
+      const done = await finishWhatsAppImageItem(
+        options.supabase,
+        item.row,
+        options.gateway,
+        item.message,
+      );
+      if (done) result.imagesTranscribed += 1;
+    } catch (error) {
+      console.error("catchup image ocr failed", error);
     }
   }
   return result;

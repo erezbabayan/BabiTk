@@ -533,16 +533,13 @@ async function ingestMessage(
   }
 
   if (message.type === "image") {
-    if (!isVisionOcrConfigured()) {
-      const caption = message.text?.trim() ?? "";
-      if (caption) {
-        return await insertCapturedItem(supabase, user, message, {
-          sourceType: "image",
-          title: titleFromInboundText(caption),
-          content: caption,
-        });
-      }
-      return null;
+    const caption = message.text?.trim() ?? "";
+    if (!isVisionOcrConfigured() && caption) {
+      return await insertCapturedItem(supabase, user, message, {
+        sourceType: "image",
+        title: titleFromInboundText(caption),
+        content: caption,
+      });
     }
     let pending;
     try {
@@ -755,7 +752,7 @@ Deno.serve(async (req) => {
     body && typeof body === "object" && "action" in body && typeof (body as { action?: unknown }).action === "string"
       ? (body as { action: string }).action
       : "";
-  if (action === "catchup_voice") {
+  if (action === "catchup_voice" || action === "catchup_image") {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
     const { data: gatewayRow } = await supabase

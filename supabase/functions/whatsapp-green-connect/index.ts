@@ -134,13 +134,18 @@ async function backfillCaptureHistory(
     if (!messageId) continue;
     const isAudio =
       item.typeMessage === "audioMessage" || item.typeMessage === "pttMessage";
+    const isImage =
+      item.typeMessage === "imageMessage" ||
+      (item.typeMessage === "documentMessage" &&
+        (String(item.mimeType || "").startsWith("image/") ||
+          /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(item.fileName || "")));
     const text = (
       item.textMessage ||
       item.caption ||
       item.extendedTextMessage?.text ||
       ""
     ).trim();
-    if (!isAudio) {
+    if (!isAudio && !isImage) {
       if (!text || isSystemWhatsAppReply(text)) continue;
       if (
         item.typeMessage &&
@@ -168,6 +173,22 @@ async function backfillCaptureHistory(
             },
           },
         }
+      : isImage
+        ? {
+            typeWebhook,
+            idMessage: messageId,
+            instanceData: { idInstance: gateway.instance_id, wid },
+            senderData: { chatId: capture, sender: wid, chatName },
+            messageData: {
+              typeMessage: "imageMessage",
+              fileMessageData: {
+                downloadUrl: item.downloadUrl,
+                mimeType: item.mimeType || "image/jpeg",
+                fileName: item.fileName,
+                caption: item.caption,
+              },
+            },
+          }
       : {
           typeWebhook,
           idMessage: messageId,
@@ -183,7 +204,7 @@ async function backfillCaptureHistory(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(isAudio ? 12_000 : 8_000),
+        signal: AbortSignal.timeout(isAudio || isImage ? 12_000 : 8_000),
       });
       const body = (await readJson(response)) as {
         scheduled?: unknown[];

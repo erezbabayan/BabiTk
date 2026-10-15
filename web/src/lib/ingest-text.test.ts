@@ -13,5 +13,9 @@ describe("formatIngestError", () => {
       formatIngestError(new Error("Requested function was not found")),
       "תמלול ההקלטה נכשל. נסו שוב בעוד רגע.",
     );
+    assert.equal(
+      formatIngestError(new Error("Upload failed 405")),
+      "הסריקה נכשלה. נסו שוב בעוד רגע.",
+    );
   });
 });

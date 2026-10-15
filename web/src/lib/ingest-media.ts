@@ -138,13 +138,10 @@ export async function ingestImageBlobForUser(
     try {
       await ingestNotebookViaEdge(blob, mimeType, fileName);
       return;
-    } catch (error) {
-      if (import.meta.env.VITE_API_URL?.trim()) {
-        const file = new File([blob], fileName, { type: mimeType });
-        await uploadNotebookOcrApi(file);
-        return;
-      }
-      throw error;
+    } catch {
+      const file = new File([blob], fileName, { type: mimeType });
+      await uploadNotebookOcrApi(file);
+      return;
     }
   }
 

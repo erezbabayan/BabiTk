@@ -34,6 +34,7 @@ export interface GreenApiWebhookPayload {
     quotedMessage?: { textMessage?: string };
     fileMessageData?: {
       downloadUrl?: string;
+      jpegUrl?: string;
       mimeType?: string;
       caption?: string;
       fileName?: string;
@@ -251,6 +252,7 @@ function parseFileMessage(
   if (!id) return null;
   const file = payload.messageData?.fileMessageData;
   const caption = file?.caption?.trim();
+  const downloadUrl = file?.downloadUrl?.trim() || file?.jpegUrl?.trim() || undefined;
   const base = {
     messageId: payload.idMessage ?? `green-${Date.now()}`,
     senderId: id.senderId,
@@ -266,14 +268,14 @@ function parseFileMessage(
     return {
       ...base,
       type: "audio",
-      audioUrl: file?.downloadUrl?.trim() || undefined,
+      audioUrl: downloadUrl,
       mimeType: file?.mimeType ?? "audio/ogg",
     };
   }
   return {
     ...base,
     type: "image",
-    imageUrl: file?.downloadUrl?.trim() || undefined,
+    imageUrl: downloadUrl,
     mimeType: file?.mimeType || "image/jpeg",
   };
 }
@@ -339,6 +341,18 @@ export function isGreenApiHistoryAudio(typeMessage: string | undefined): boolean
   return typeMessage === "audioMessage" || typeMessage === "pttMessage";
 }
 
+export function isGreenApiHistoryImage(
+  typeMessage: string | undefined,
+  mimeType?: string,
+  fileName?: string,
+): boolean {
+  if (typeMessage === "imageMessage") return true;
+  if (typeMessage !== "documentMessage") return false;
+  const mime = mimeType?.toLowerCase() ?? "";
+  const name = fileName ?? "";
+  return mime.startsWith("image/") || /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(name);
+}
+
 export function historyAudioMessage(
   captureChatId: string,
   row: {
@@ -362,6 +376,40 @@ export function historyAudioMessage(
     type: "audio",
     audioUrl: row.downloadUrl?.trim() || undefined,
     mimeType: row.mimeType || "audio/ogg",
+  };
+}
+
+export function historyImageMessage(
+  captureChatId: string,
+  row: {
+    idMessage?: string;
+    typeMessage?: string;
+    type?: string;
+    downloadUrl?: string;
+    jpegUrl?: string;
+    mimeType?: string;
+    fileName?: string;
+    caption?: string;
+    sendByApi?: boolean;
+  },
+): ParsedGreenApiMessage | null {
+  const messageId = row.idMessage?.trim() ?? "";
+  if (!messageId || !isGreenApiHistoryImage(row.typeMessage, row.mimeType, row.fileName)) {
+    return null;
+  }
+  if (row.sendByApi === true) return null;
+  const caption = row.caption?.trim() || undefined;
+  return {
+    messageId,
+    senderId: "",
+    senderPhone: "",
+    chatId: captureChatId,
+    direction: row.type === "incoming" ? "incoming" : "outgoing",
+    type: "image",
+    imageUrl: row.downloadUrl?.trim() || row.jpegUrl?.trim() || undefined,
+    mimeType: row.mimeType || "image/jpeg",
+    caption,
+    text: caption,
   };
 }
 

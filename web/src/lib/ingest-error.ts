@@ -5,7 +5,17 @@ export function formatIngestError(error: unknown): string {
       return "לא ניתן להתחבר לשרת. נסה שוב או בדוק את החיבור.";
     }
     if (/^API error (404|405|501|502|503)$/.test(message)) {
-      return "";
+      return "הסריקה נכשלה. נסו שוב בעוד רגע.";
+    }
+    if (/upload failed 405/i.test(message) || /^edge_http_(404|405|501|502|503)$/.test(message)) {
+      return "הסריקה נכשלה. נסו שוב בעוד רגע.";
+    }
+    if (
+      message === "ocr_failed" ||
+      message === "ocr_not_configured" ||
+      message === "vision_ocr_not_configured"
+    ) {
+      return "לא הצלחתי לקרוא את הטקסט מהתמונה. נסו צילום חדש, חד יותר.";
     }
     if (
       /edge function/i.test(message) ||

@@ -450,19 +450,41 @@ export async function recordIngestCorrectionApi(params: {
 
 export async function uploadNotebookOcrApi(file: File): Promise<void> {
   const token = await getAccessToken();
-  if (!token) throw new Error("Not authenticated");
+  if (!token) throw new Error("יש להתחבר כדי לסרוק תמונה");
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+  if (!supabaseUrl) {
+    throw new Error("סריקת תמונה אינה מוגדרת");
+  }
 
   const form = new FormData();
   form.append("file", file);
-
-  const response = await fetch("/api/ai/notebook-ocr", {
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-notebook`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: anonKey || token,
+    },
     body: form,
   });
 
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `Upload failed ${response.status}`);
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: unknown;
+    title?: unknown;
+    message?: string;
+    error?: unknown;
+    reason?: unknown;
+  };
+  if (!response.ok || body.error) {
+    const reason =
+      (typeof body.reason === "string" && body.reason) ||
+      (typeof body.error === "string" && body.error) ||
+      body.message ||
+      `edge_http_${response.status}`;
+    throw new Error(reason);
+  }
+  if (body.ok !== true && typeof body.title !== "string") {
+    throw new Error("ocr_failed");
   }
 }
