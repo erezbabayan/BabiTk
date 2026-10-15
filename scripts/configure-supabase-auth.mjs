@@ -123,6 +123,9 @@ async function main() {
   const patch = {
     site_url: SITE_URL,
     uri_allow_list: mergeAllowList(existingAllow),
+    disable_signup: false,
+    mailer_autoconfirm: true,
+    security_manual_linking_enabled: true,
   };
 
   if (google) {

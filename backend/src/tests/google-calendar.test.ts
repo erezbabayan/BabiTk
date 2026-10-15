@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  buildCalendarIcs,
   buildGoogleAuthUrl,
   calendarEventBody,
+  calendarFeedToken,
+  calendarFeedTokenValid,
+  calendarIcsFeedUrl,
   createOAuthState,
+  googleCalendarSubscribeUrl,
   googleOAuthSetupPublic,
+  icsUtcStamp,
   isCalendarRelevantPatch,
   isGoogleOAuthOwner,
   looksLikeGoogleClientId,
@@ -149,6 +155,33 @@ describe("Google Calendar OAuth helpers", () => {
     assert.equal(looksLikeGoogleClientId("YOUR_ID.apps.googleusercontent.com"), false);
     assert.equal(looksLikeGoogleClientSecret("GOCSPX-real-secret-value"), true);
     assert.equal(looksLikeGoogleClientSecret("GOCSPX-..."), false);
+  });
+
+  it("builds an ICS feed Google Calendar can subscribe to without OAuth", async () => {
+    const ics = buildCalendarIcs([
+      {
+        id: "item-1",
+        title: "פגישה; דחוף",
+        content: "עם דנה",
+        due_date: "2026-09-18T07:00:00.000Z",
+      },
+    ]);
+    assert.match(ics, /BEGIN:VCALENDAR/);
+    assert.match(ics, /SUMMARY:פגישה\\; דחוף/);
+    assert.match(ics, /DTSTART:20260918T070000Z/);
+    assert.equal(icsUtcStamp("2026-09-18T07:00:00.000Z"), "20260918T070000Z");
+    const token = await calendarFeedToken("user-1", "secret");
+    assert.equal(await calendarFeedTokenValid("user-1", token, "secret"), true);
+    assert.equal(await calendarFeedTokenValid("user-2", token, "secret"), false);
+    const feed = calendarIcsFeedUrl(
+      "https://ghibfuinantybqidwadj.supabase.co",
+      "user-1",
+      token,
+    );
+    assert.match(feed, /\/google-calendar\/ics\?/);
+    const subscribe = googleCalendarSubscribeUrl(feed);
+    assert.equal(new URL(subscribe).hostname, "calendar.google.com");
+    assert.equal(new URL(subscribe).searchParams.get("cid"), feed);
   });
 
   it("exposes the live Google Cloud redirect URIs", () => {

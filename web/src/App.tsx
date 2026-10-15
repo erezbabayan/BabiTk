@@ -18,12 +18,20 @@ import {
   persistLoginDetails,
 } from "./lib/auth-storage";
 import { isSyncEnabled } from "./lib/sync-client";
-import { persistGoogleCalendarSessionLink } from "./lib/google-calendar-client";
+import {
+  CALENDAR_LINK_FLAG,
+  persistGoogleCalendarSessionLink,
+} from "./lib/google-calendar-client";
+import {
+  CALENDAR_OAUTH_ERROR_KEY,
+  isGoogleOauthTestingDenied,
+} from "./lib/google-oauth-errors";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./lib/supabase";
 import { writeCachedHeaderName } from "./lib/header-name-cache";
 import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
 import { signInWithGoogle } from "./lib/google-auth";
+import { ensureOwnUserProfile } from "./lib/user-profile";
 import {
   formatOAuthSignInError,
   readOAuthCallback,
@@ -277,9 +285,30 @@ function ConfiguredApp() {
   useEffect(() => {
     const callback = readOAuthCallback(window.location.search, window.location.hash);
     if (callback.error) {
-      setOauthNotice(
-        formatOAuthSignInError(callback.error, callback.errorDescription),
+      const calendarPending =
+        typeof sessionStorage !== "undefined" &&
+        sessionStorage.getItem(CALENDAR_LINK_FLAG) === "1";
+      const testingDenied = isGoogleOauthTestingDenied(
+        callback.error,
+        callback.errorDescription,
       );
+      if (calendarPending || testingDenied) {
+        try {
+          sessionStorage.removeItem(CALENDAR_LINK_FLAG);
+          sessionStorage.setItem(
+            CALENDAR_OAUTH_ERROR_KEY,
+            formatOAuthSignInError(callback.error, callback.errorDescription),
+          );
+        } catch {
+          // ignore
+        }
+        setSettingsOpen(true);
+        setSettingsSection("calendar");
+      } else {
+        setOauthNotice(
+          formatOAuthSignInError(callback.error, callback.errorDescription),
+        );
+      }
     }
 
     const finishUrl = () => {
@@ -400,21 +429,23 @@ function ConfiguredApp() {
         email: normalizedEmail,
         password,
       });
-      if (signInError) throw signInError;
+      if (signInError) {
+        const raw = signInError.message.toLowerCase();
+        if (raw.includes("email not confirmed") || raw.includes("email_not_confirmed")) {
+          throw new Error("יש לאשר את המייל לפני הכניסה. בדקו את תיבת הדואר.");
+        }
+        throw signInError;
+      }
     }
 
-    if (username) {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userIdFromSession = sessionData.session?.user.id;
-      if (userIdFromSession) {
-        const { error: usernameError } = await supabase
-          .from("users")
-          .update({ username })
-          .eq("id", userIdFromSession);
-        if (usernameError) {
-          throw new Error(usernameError.message || "שם המשתמש כבר תפוס");
-        }
-      }
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUser = sessionData.session?.user;
+    if (sessionUser) {
+      await ensureOwnUserProfile({
+        id: sessionUser.id,
+        email: sessionUser.email ?? normalizedEmail,
+        username,
+      });
     }
 
     persistLoginDetails(rememberMe, normalizedEmail);

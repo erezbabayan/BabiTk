@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { hasPasswordLogin } from "../lib/auth-account";
 import { apiFetch, getGoogleCalendarStatus } from "../lib/api";
 import { requireSupabase } from "../lib/supabase";
 import { getAuthAccountView, type AuthAccountView } from "../lib/user-profile";
@@ -14,6 +15,7 @@ export function UserSettings() {
   const [error, setError] = useState<string | null>(null);
   const [googleConfigured, setGoogleConfigured] = useState<boolean | null>(null);
   const [canEnableGoogle, setCanEnableGoogle] = useState(false);
+  const [passwordLogin, setPasswordLogin] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +28,14 @@ export function UserSettings() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    void requireSupabase()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!cancelled) setPasswordLogin(hasPasswordLogin(data.session?.user));
+      })
+      .catch(() => {
+        if (!cancelled) setPasswordLogin(true);
       });
     void getGoogleCalendarStatus()
       .then((status) => {
@@ -89,7 +99,7 @@ export function UserSettings() {
       ) : null}
 
       <div className="rounded-xl border border-slate-200 p-4">
-        <ChangePasswordForm email={account.email} />
+        <ChangePasswordForm email={account.email} hasPasswordLogin={passwordLogin} />
       </div>
 
       <div className="rounded-xl border border-slate-200 p-4 text-sm" dir="rtl">

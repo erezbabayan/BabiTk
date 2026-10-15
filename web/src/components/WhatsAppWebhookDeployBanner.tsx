@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+import { isAppOwnerAccount } from "../lib/auth-account";
+import { isDemoMode, requireSupabase } from "../lib/supabase";
 import {
   GITHUB_ACTIONS_SECRETS_URL,
   SUPABASE_ACCESS_TOKEN_URL,
@@ -9,18 +11,37 @@ import {
 
 export function WhatsAppWebhookDeployBanner() {
   const [ready, setReady] = useState<boolean | null>(null);
+  const [owner, setOwner] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     void liveWhatsAppQuestionsReady().then((ok) => {
       if (!cancelled) setReady(ok);
     });
+    if (isDemoMode) {
+      setOwner(false);
+    } else {
+      void requireSupabase()
+        .auth.getSession()
+        .then(({ data }) => {
+          if (cancelled) return;
+          const user = data.session?.user;
+          const username =
+            typeof user?.user_metadata?.username === "string"
+              ? user.user_metadata.username
+              : null;
+          setOwner(isAppOwnerAccount({ email: user?.email, username }));
+        })
+        .catch(() => {
+          if (!cancelled) setOwner(false);
+        });
+    }
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (ready !== false) return null;
+  if (!owner || ready !== false) return null;
 
   return (
     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" dir="rtl">

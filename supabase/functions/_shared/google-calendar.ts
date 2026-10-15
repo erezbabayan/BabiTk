@@ -272,6 +272,95 @@ export function withCalendarQuery(webAppUrl: string, status: "connected" | "erro
   return url.toString();
 }
 
+export function icsEscape(text: string): string {
+  return text
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\r\n", "\n")
+    .replaceAll("\n", "\\n")
+    .replaceAll(";", "\\;")
+    .replaceAll(",", "\\,");
+}
+
+export function icsUtcStamp(iso: string): string {
+  const start = new Date(iso);
+  if (Number.isNaN(start.getTime())) {
+    throw new Error("invalid_due_date");
+  }
+  return start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+export function buildCalendarIcs(
+  events: Array<{ id: string; title: string; content: string; due_date: string }>,
+): string {
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//BabiTk//Calendar//HE",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "X-WR-CALNAME:BabiTk",
+    "X-WR-TIMEZONE:Asia/Jerusalem",
+  ];
+  for (const event of events) {
+    const start = icsUtcStamp(event.due_date);
+    const end = icsUtcStamp(
+      new Date(new Date(event.due_date).getTime() + EVENT_DURATION_MS).toISOString(),
+    );
+    const summary = icsEscape(event.title.trim() || "משימה");
+    const description = icsEscape(
+      event.content.trim() ? `${event.content.trim()}\n\n— BabiTk` : "— BabiTk",
+    );
+    lines.push(
+      "BEGIN:VEVENT",
+      `UID:${icsEscape(event.id)}@babitk`,
+      `DTSTAMP:${start}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${summary}`,
+      `DESCRIPTION:${description}`,
+      "END:VEVENT",
+    );
+  }
+  lines.push("END:VCALENDAR");
+  return `${lines.join("\r\n")}\r\n`;
+}
+
+export async function calendarFeedToken(userId: string, secret: string): Promise<string> {
+  const id = userId.trim();
+  if (!id || !secret) {
+    throw new Error("invalid_calendar_feed_input");
+  }
+  return hmacSha256Hex(secret, `calendar-feed.${id}`);
+}
+
+export async function calendarFeedTokenValid(
+  userId: string,
+  token: string,
+  secret: string,
+): Promise<boolean> {
+  if (!userId.trim() || !token.trim() || !secret) return false;
+  const expected = await calendarFeedToken(userId, secret);
+  return timingSafeEqual(expected, token.trim().toLowerCase());
+}
+
+export function calendarIcsFeedUrl(
+  supabaseUrl: string,
+  userId: string,
+  token: string,
+): string {
+  const base = supabaseUrl.replace(/\/$/, "") || DEFAULT_SUPABASE_URL;
+  const url = new URL(`${base}/functions/v1/google-calendar/ics`);
+  url.searchParams.set("u", userId);
+  url.searchParams.set("s", token);
+  return url.toString();
+}
+
+export function googleCalendarSubscribeUrl(feedUrl: string): string {
+  const url = new URL("https://calendar.google.com/calendar/r");
+  url.searchParams.set("cid", feedUrl);
+  return url.toString();
+}
+
 export function googleCalendarConfig(): {
   clientId: string;
   clientSecret: string;

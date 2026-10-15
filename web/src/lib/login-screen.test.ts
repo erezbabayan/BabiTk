@@ -46,6 +46,15 @@ describe("login screen stays a password login", () => {
     assert.match(loginScreen, /שמור את ההתחברות במכשיר זה/);
   });
 
+  it("signs new users in immediately after password signup", () => {
+    const app = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../App.tsx"),
+      "utf8",
+    );
+    assert.match(app, /signupAutoSignIn/);
+    assert.match(loginScreen, /signupAutoSignIn/);
+  });
+
   it("asks for email and password when Google is not available", () => {
     assert.equal(
       formatOAuthSignInError("Unsupported provider: provider is not enabled"),

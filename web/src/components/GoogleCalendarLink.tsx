@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
-import { calendarSettingsButtonLabel } from "../lib/google-calendar-connect";
+import {
+  calendarSettingsButtonLabel,
+  isGoogleOauthTestingDenied,
+} from "../lib/google-calendar-connect";
 import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
+import { CALENDAR_OAUTH_ERROR_KEY } from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
 
@@ -52,6 +56,15 @@ export function GoogleCalendarLink() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(CALENDAR_OAUTH_ERROR_KEY);
+      if (stored) {
+        setError(stored);
+        sessionStorage.removeItem(CALENDAR_OAUTH_ERROR_KEY);
+      }
+    } catch {
+      // ignore
+    }
     void refreshStatus();
   }, [refreshStatus]);
 
@@ -113,6 +126,15 @@ export function GoogleCalendarLink() {
   return (
     <div className="space-y-3 text-sm" dir="rtl">
       {error ? <p className="text-red-600">{error}</p> : null}
+      {!linked && configured ? (
+        <p className="text-slate-600">
+          «חבר» מוסיף יומן BabiTk ל-Google Calendar. Google חסם הרשאת כתיבה ישירה במצב בדיקות,
+          לכן המשימות מגיעות כהזנת יומן בלי access_denied:403.
+        </p>
+      ) : null}
+      {error && isGoogleOauthTestingDenied(error) ? (
+        <p className="text-slate-600">לחצו «חבר» שוב — החיבור עובר עכשיו דרך יומן Google בלי אימות אפליקציה.</p>
+      ) : null}
       {canConfigure && !configured ? (
         <GoogleOAuthEnable
           onEnabled={() => {
@@ -120,6 +142,9 @@ export function GoogleCalendarLink() {
             setError(null);
           }}
         />
+      ) : null}
+      {!configured && !canConfigure ? (
+        <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
       {linked ? (
         <button
@@ -136,7 +161,7 @@ export function GoogleCalendarLink() {
           type="button"
           data-calendar-linked="false"
           onClick={() => void handleConnect()}
-          disabled={busy}
+          disabled={busy || !configured}
           className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
         >
           {calendarSettingsButtonLabel(false, busy)}

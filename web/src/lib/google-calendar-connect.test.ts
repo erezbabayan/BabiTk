@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   calendarSettingsButtonLabel,
   formatCalendarConnectError,
+  GOOGLE_AUTH_AUDIENCE_URL,
   googleCalendarIdentityOptions,
+  isGoogleOauthTestingDenied,
   sessionHasGoogleIdentity,
 } from "./google-calendar-connect.ts";
 
@@ -40,5 +42,18 @@ describe("simple Google Calendar connect", () => {
     assert.equal(message, "חיבור היומן דורש חשבון Google.");
     assert.equal(message.includes("Client ID"), false);
     assert.equal(message.includes("Google Cloud"), false);
+  });
+
+  it("maps Google testing-mode 403 to a publish step, not Client ID paste", () => {
+    assert.equal(
+      isGoogleOauthTestingDenied("access_denied:403", "הגישה חסומה תהליך האימות לא הושלם"),
+      true,
+    );
+    assert.equal(isGoogleOauthTestingDenied("access_denied"), false);
+    const message = formatCalendarConnectError(new Error("access_denied:403"));
+    assert.match(message, /מצב בדיקות/);
+    assert.match(message, /Publish app/);
+    assert.equal(message.includes("Client ID"), false);
+    assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
   });
 });

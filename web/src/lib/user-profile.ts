@@ -1,3 +1,4 @@
+import { newUserProfileRow } from "./auth-account";
 import { isMissingSchemaError } from "./schema-compat";
 import { requireSupabase } from "./supabase";
 import { formatUserHeaderName, resolveUserNameParts } from "./user-display-name";
@@ -193,8 +194,39 @@ export async function getAuthAccountView(): Promise<AuthAccountView | null> {
   return view;
 }
 
+export { newUserProfileRow };
+
+function isUsernameTakenError(error: { message?: string; code?: string } | null): boolean {
+  const message = (error?.message ?? "").toLowerCase();
+  const code = error?.code ?? "";
+  return (
+    code === "23505" ||
+    message.includes("users_username") ||
+    message.includes("duplicate key") ||
+    message.includes("unique")
+  );
+}
+
+/** Create the signed-in user's free-tier profile if the auth trigger missed it. */
+export async function ensureOwnUserProfile(input: {
+  id: string;
+  email: string;
+  username?: string | null;
+}): Promise<void> {
+  const supabase = requireSupabase();
+  const { error } = await supabase
+    .from("users")
+    .upsert(newUserProfileRow(input.id, input.email, input.username), { onConflict: "id" });
+  if (!error) return;
+  if (isUsernameTakenError(error)) {
+    throw new Error("שם המשתמש כבר תפוס");
+  }
+  throw error;
+}
+
 async function loadUserProfileRow(
   userId: string,
+  email: string,
 ): Promise<Record<string, unknown>> {
   const supabase = requireSupabase();
   const full = await supabase
@@ -214,15 +246,26 @@ async function loadUserProfileRow(
     .eq("id", userId)
     .maybeSingle();
   if (core.error) throw core.error;
-  if (!core.data) {
+  if (core.data) {
+    return core.data as unknown as Record<string, unknown>;
+  }
+
+  await ensureOwnUserProfile({ id: userId, email });
+  const inserted = await supabase
+    .from("users")
+    .select(PROFILE_SELECT_CORE)
+    .eq("id", userId)
+    .maybeSingle();
+  if (inserted.error) throw inserted.error;
+  if (!inserted.data) {
     throw new Error("פרופיל המשתמש לא נמצא");
   }
-  return core.data as unknown as Record<string, unknown>;
+  return inserted.data as unknown as Record<string, unknown>;
 }
 
 export async function getCloudUserProfile(): Promise<CloudUserProfile> {
   const auth = await requireAuthUser();
-  const row = await loadUserProfileRow(auth.id);
+  const row = await loadUserProfileRow(auth.id, auth.email);
   return mapProfile(row, auth.id, auth.email);
 }
 

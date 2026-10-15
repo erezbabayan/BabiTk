@@ -1,3 +1,8 @@
+import {
+  GOOGLE_TESTING_DENIED_MESSAGE,
+  isGoogleOauthTestingDenied,
+} from "./google-oauth-errors.ts";
+
 /** Production Pages origin + repo base path. */
 export const GITHUB_PAGES_SITE_URL = "https://erezbabayan.github.io/BabiTk/";
 
@@ -114,6 +119,9 @@ export function formatOAuthSignInError(
       return GOOGLE_PROVIDER_DISABLED_MESSAGE;
     }
     return `התחברות ${providerLabel} עדיין לא זמינה. היכנסו עם אימייל וסיסמה.`;
+  }
+  if (isGoogleOauthTestingDenied(error, description)) {
+    return GOOGLE_TESTING_DENIED_MESSAGE;
   }
   if (raw.includes("access_denied") || raw.includes("user denied")) {
     return `ההתחברות עם ${providerLabel} בוטלה.`;

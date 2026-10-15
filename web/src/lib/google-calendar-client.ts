@@ -192,7 +192,14 @@ export async function startGoogleCalendarIdentityLink(): Promise<void> {
 
 export async function startGoogleCalendarConnect(): Promise<void> {
   if (isDemoMode) return;
-  await startGoogleCalendarIdentityLink();
+  const data = await invokeCalendar<{ url?: string }>("subscribe", {
+    method: "POST",
+    body: {},
+  });
+  if (!data.url) {
+    throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
+  }
+  window.open(data.url, "_blank", "noopener,noreferrer");
 }
 
 export async function persistGoogleCalendarSessionLink(force = false): Promise<boolean> {
