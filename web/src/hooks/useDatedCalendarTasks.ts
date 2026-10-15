@@ -35,12 +35,10 @@ export function useDatedCalendarTasks(userId: string | undefined): {
         .from("mindtasker_items")
         .select(SELECT)
         .eq("user_id", userId)
-        .eq("is_actionable", true)
-        .not("due_date", "is", null)
         .is("deleted_at", null)
-        .neq("status", "completed")
-        .order("due_date", { ascending: true })
-        .limit(200);
+        .in("status", ["pending", "inbox", "snoozed_archive"])
+        .order("updated_at", { ascending: false })
+        .limit(400);
       if (error) throw error;
       setItems(calendarTasks((data ?? []) as MindtaskerItem[]));
     } catch (error) {

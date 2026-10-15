@@ -44,19 +44,32 @@ describe("BabiTk task calendar", () => {
     assert.equal(hebrewMonthTitle(2026, 10), "אוקטובר 2026");
   });
 
-  it("groups dated tasks by Jerusalem day and skips notes, completed, and undated", () => {
+  it("groups dated tasks by Jerusalem day, including inbox and analysis dates", () => {
     const tasks = calendarTasks([
       item({ id: "keep", title: "פגישה", due_date: "2026-10-15T07:00:00.000Z" }),
-      item({ id: "note", is_actionable: false, due_date: "2026-10-15T07:00:00.000Z" }),
+      item({
+        id: "inbox",
+        title: "מהמחברת",
+        status: "inbox",
+        due_date: "2026-10-16T07:00:00.000Z",
+      }),
+      item({
+        id: "analysis",
+        title: "מניתוח",
+        due_date: null,
+        metadata: { analysis: { target_at: "2026-10-17T09:00:00.000Z" } },
+      }),
       item({ id: "done", status: "completed", completed_at: "2026-10-15T08:00:00.000Z" }),
       item({ id: "none", due_date: null }),
     ]);
     assert.deepEqual(
       tasks.map((entry) => entry.id),
-      ["keep"],
+      ["keep", "inbox", "analysis"],
     );
     const grouped = groupCalendarTasksByDay(tasks);
     assert.equal(grouped.get("2026-10-15")?.[0]?.title, "פגישה");
+    assert.equal(grouped.get("2026-10-16")?.[0]?.id, "inbox");
+    assert.equal(grouped.get("2026-10-17")?.[0]?.id, "analysis");
   });
 
   it("keys due dates in Asia/Jerusalem", () => {

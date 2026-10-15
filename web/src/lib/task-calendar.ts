@@ -84,20 +84,58 @@ export function hebrewMonthTitle(year: number, month: number): string {
   return `${HEBREW_MONTHS[month - 1] ?? ""} ${year}`;
 }
 
+function analysisScheduleIso(metadata: unknown): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const analysis = (metadata as Record<string, unknown>).analysis;
+  if (!analysis || typeof analysis !== "object") return null;
+  const record = analysis as Record<string, unknown>;
+  if (typeof record.target_at === "string" && record.target_at.length > 0) {
+    return record.target_at;
+  }
+  if (typeof record.notify_at === "string" && record.notify_at.length > 0) {
+    return record.notify_at;
+  }
+  return null;
+}
+
+/** Same date the card shows: due_date, inferred reminder, or analysis target. */
+export function calendarItemDueIso(
+  item: Pick<
+    MindtaskerItem,
+    | "title"
+    | "content"
+    | "is_actionable"
+    | "due_date"
+    | "deleted_at"
+    | "status"
+    | "completed_at"
+    | "metadata"
+  >,
+): string | null {
+  if (item.deleted_at || item.status === "completed" || item.completed_at) {
+    return null;
+  }
+  const source =
+    (typeof item.due_date === "string" && item.due_date.length > 0 ? item.due_date : null) ||
+    analysisScheduleIso(item.metadata);
+  if (!source || Number.isNaN(Date.parse(source))) return null;
+  return source;
+}
+
 export function isCalendarTask(
   item: Pick<
     MindtaskerItem,
-    "is_actionable" | "due_date" | "deleted_at" | "status" | "completed_at"
+    | "title"
+    | "content"
+    | "is_actionable"
+    | "due_date"
+    | "deleted_at"
+    | "status"
+    | "completed_at"
+    | "metadata"
   >,
 ): boolean {
-  return (
-    item.is_actionable === true &&
-    typeof item.due_date === "string" &&
-    item.due_date.length > 0 &&
-    !item.deleted_at &&
-    item.status !== "completed" &&
-    !item.completed_at
-  );
+  return calendarItemDueIso(item) !== null;
 }
 
 export function calendarTasks(items: MindtaskerItem[]): MindtaskerItem[] {
@@ -108,8 +146,9 @@ export function groupCalendarTasksByDay(
   items: MindtaskerItem[],
 ): Map<string, MindtaskerItem[]> {
   const map = new Map<string, MindtaskerItem[]>();
-  for (const item of calendarTasks(items)) {
-    const key = item.due_date ? taskCalendarDayKey(item.due_date) : null;
+  for (const item of items) {
+    const due = calendarItemDueIso(item);
+    const key = due ? taskCalendarDayKey(due) : null;
     if (!key) continue;
     const list = map.get(key) ?? [];
     list.push(item);
@@ -117,8 +156,8 @@ export function groupCalendarTasksByDay(
   }
   for (const list of map.values()) {
     list.sort((left, right) => {
-      const a = Date.parse(left.due_date ?? "");
-      const b = Date.parse(right.due_date ?? "");
+      const a = Date.parse(calendarItemDueIso(left) ?? "");
+      const b = Date.parse(calendarItemDueIso(right) ?? "");
       return a - b;
     });
   }

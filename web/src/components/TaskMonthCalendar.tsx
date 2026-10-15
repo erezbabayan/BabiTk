@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { formatItemTime } from "../lib/item-display";
 import {
   HEBREW_WEEKDAYS,
+  calendarItemDueIso,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
   monthGrid,
@@ -145,7 +146,7 @@ export function TaskMonthCalendar({
                 {item.title.trim() || "משימה"}
               </span>
               <span className="shrink-0 text-[11px] text-slate-500">
-                {formatItemTime(item.due_date) ?? ""}
+                {formatItemTime(calendarItemDueIso(item)) ?? ""}
               </span>
             </button>
           ))

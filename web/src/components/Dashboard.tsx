@@ -175,7 +175,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
-  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
+  const [showTaskCalendar, setShowTaskCalendar] = useState(true);
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
@@ -477,7 +477,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
-    setShowTaskCalendar(false);
     setTaskListsMode("create");
     setMobileTab("inbox");
     setTagByBoard({ inbox: null, today: null, notes: null });
@@ -1084,7 +1083,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       aria-pressed={showTaskCalendar}
                       data-babitk-calendar-toggle="true"
                     >
-                      יומן
+                      {showTaskCalendar ? "רשימה" : "יומן"}
                     </button>
                     {taskLists.enabled ? (
                       <button
@@ -1183,8 +1182,8 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 </>
               }
             />
-            {renderBoardFilters("today")}
-            {renderBulkBar(
+            {showTaskCalendar && todayListView === "active" ? null : renderBoardFilters("today")}
+            {showTaskCalendar && todayListView === "active" ? null : renderBulkBar(
               todayListView === "archive"
                 ? "today-archive"
                 : todayListView === "completed"
@@ -1243,7 +1242,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               ) : showTaskCalendar ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                   <TaskMonthCalendar
-                    items={filteredTodayTasks}
+                    items={[...inbox, ...todayTasks, ...notes]}
                     onSelectItem={(item) => setFocusEditItem(item)}
                   />
                 </div>

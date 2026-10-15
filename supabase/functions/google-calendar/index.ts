@@ -22,7 +22,6 @@ import {
   looksLikeGoogleClientId,
   looksLikeGoogleClientSecret,
   parseOAuthState,
-  shouldUpsertCalendarEvent,
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
   syncItemToGoogleCalendar,
@@ -146,41 +145,47 @@ function readGoogleCredentials(body: {
   return { clientId, clientSecret };
 }
 
+function eventDueFromRow(row: Record<string, unknown>): string | null {
+  if (typeof row.due_date === "string" && row.due_date.length > 0) return row.due_date;
+  const metadata = row.metadata;
+  if (!metadata || typeof metadata !== "object") return null;
+  const analysis = (metadata as Record<string, unknown>).analysis;
+  if (!analysis || typeof analysis !== "object") return null;
+  const record = analysis as Record<string, unknown>;
+  if (typeof record.target_at === "string" && record.target_at) return record.target_at;
+  if (typeof record.notify_at === "string" && record.notify_at) return record.notify_at;
+  return null;
+}
+
 async function listDatedCalendarEvents(
   userId: string,
 ): Promise<Array<{ id: string; title: string; content: string; due_date: string }>> {
   const admin = fullAdminClient();
   const { data, error } = await admin
     .from("mindtasker_items")
-    .select("id, title, content, is_actionable, due_date, deleted_at, status, completed_at")
+    .select("id, title, content, is_actionable, due_date, deleted_at, status, completed_at, metadata")
     .eq("user_id", userId)
-    .eq("is_actionable", true)
-    .not("due_date", "is", null)
     .is("deleted_at", null)
     .neq("status", "completed")
-    .limit(200);
+    .limit(400);
   if (error) {
     console.error("google-calendar ics", error);
     throw new Error("calendar_failed");
   }
   return (data ?? [])
-    .filter(
-      (row) =>
-        row.completed_at == null &&
-        shouldUpsertCalendarEvent({
-          title: typeof row.title === "string" ? row.title : "",
-          content: typeof row.content === "string" ? row.content : "",
-          is_actionable: row.is_actionable === true,
-          due_date: typeof row.due_date === "string" ? row.due_date : null,
-          deleted_at: typeof row.deleted_at === "string" ? row.deleted_at : null,
-        }),
-    )
-    .map((row) => ({
-      id: String(row.id),
-      title: typeof row.title === "string" ? row.title : "",
-      content: typeof row.content === "string" ? row.content : "",
-      due_date: String(row.due_date),
-    }));
+    .map((row) => {
+      const due = eventDueFromRow(row as Record<string, unknown>);
+      if (!due || row.completed_at != null) return null;
+      return {
+        id: String(row.id),
+        title: typeof row.title === "string" ? row.title : "",
+        content: typeof row.content === "string" ? row.content : "",
+        due_date: due,
+      };
+    })
+    .filter((event): event is { id: string; title: string; content: string; due_date: string } =>
+      event !== null,
+    );
 }
 
 async function handleCallback(req: Request): Promise<Response> {
