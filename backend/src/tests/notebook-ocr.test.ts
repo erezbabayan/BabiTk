@@ -12,6 +12,7 @@ import {
   clipOcrText,
   MAX_OCR_OUTPUT_CHARS,
   notebookVisionTranscriptionPrompt,
+  textFromGeminiGenerateContent,
 } from "../../../supabase/functions/_shared/notebook-ocr.ts";
 import {
   needsOcrTranscription,
@@ -58,6 +59,22 @@ describe("notebook OCR helpers", () => {
   it("clips OCR output to one dense page", () => {
     const clipped = clipOcrText("א".repeat(MAX_OCR_OUTPUT_CHARS + 40));
     assert.equal(clipped.length, MAX_OCR_OUTPUT_CHARS);
+  });
+
+  it("reads Gemini generateContent text parts", () => {
+    const text = textFromGeminiGenerateContent({
+      candidates: [
+        { content: { parts: [{ text: "קנה חלב" }, { text: "\nשלם חשבון" }] } },
+      ],
+    });
+    assert.equal(text, "קנה חלב\nשלם חשבון");
+  });
+
+  it("surfaces Gemini API error messages", () => {
+    assert.throws(
+      () => textFromGeminiGenerateContent({ error: { message: "API key not valid" } }),
+      /API key not valid/,
+    );
   });
 
   it("treats pending scan rows as needing OCR, not failed rows", () => {

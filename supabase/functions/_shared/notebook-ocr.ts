@@ -1,7 +1,8 @@
 /**
  * Notebook / photo OCR cascade for Edge:
- * 1. Groq Llama-4 Scout (when GROQ_API_KEY)
- * 2. OpenAI GPT-4o
+ * 1. Gemini Flash (when GEMINI_API_KEY) — free, strong Hebrew print + handwriting
+ * 2. Groq Llama-4 Scout (when GROQ_API_KEY)
+ * 3. OpenAI GPT-4o
  *
  * One photo ≈ one page. Output is capped at MAX_OCR_OUTPUT_CHARS (~1,500 Hebrew words).
  */
@@ -36,8 +37,14 @@ const GROQ_VISION_MODEL_FALLBACKS = [
   "meta-llama/llama-4-maverick-17b-128e-instruct",
   "llama-3.2-11b-vision-preview",
 ] as const;
+const GEMINI_VISION_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+] as const;
 
-export type VisionOcrEngine = "groq" | "openai";
+export type VisionOcrEngine = "gemini" | "groq" | "openai";
 
 export type NotebookOcrResult = {
   rawText: string;
@@ -49,7 +56,9 @@ export type NotebookOcrResult = {
 
 export function isVisionOcrConfigured(): boolean {
   return Boolean(
-    Deno.env.get("GROQ_API_KEY")?.trim() || Deno.env.get("OPENAI_API_KEY")?.trim(),
+    Deno.env.get("GEMINI_API_KEY")?.trim() ||
+      Deno.env.get("GROQ_API_KEY")?.trim() ||
+      Deno.env.get("OPENAI_API_KEY")?.trim(),
   );
 }
 
@@ -61,6 +70,26 @@ export function clipOcrText(text: string): string {
 
 function toDataUrl(bytes: Uint8Array, mimeType: string): string {
   return `data:${normalizeImageMime(mimeType)};base64,${bytesToBase64(bytes)}`;
+}
+
+export function textFromGeminiGenerateContent(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const record = payload as {
+    error?: { message?: unknown };
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: unknown }> };
+      finishReason?: unknown;
+    }>;
+  };
+  if (typeof record.error?.message === "string" && record.error.message.trim()) {
+    throw new Error(record.error.message.trim());
+  }
+  const parts = record.candidates?.[0]?.content?.parts ?? [];
+  const text = parts
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join("")
+    .trim();
+  return text;
 }
 
 function chatContent(payload: unknown): string {
@@ -120,6 +149,50 @@ async function chatCompletion(params: {
   return text;
 }
 
+async function ocrWithGemini(
+  bytes: Uint8Array,
+  mimeType: string,
+  apiKey: string,
+  model: string,
+): Promise<string> {
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
+    `?key=${encodeURIComponent(apiKey)}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: notebookVisionTranscriptionPrompt },
+            {
+              inlineData: {
+                mimeType: normalizeImageMime(mimeType),
+                data: bytesToBase64(bytes),
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        maxOutputTokens: MAX_OCR_OUTPUT_TOKENS,
+      },
+    }),
+    signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = textFromGeminiGenerateContent(body) || `http_${response.status}`;
+    throw new Error(detail);
+  }
+  const text = textFromGeminiGenerateContent(body);
+  if (!text) throw new Error("empty_ocr");
+  return text;
+}
+
 async function ocrWithGroq(
   bytes: Uint8Array,
   mimeType: string,
@@ -167,12 +240,33 @@ export async function transcribeCaptureImage(
     sniffImageContainer(bytes),
     normalizeImageMime(mimeType),
   );
+  const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim() ?? "";
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
   const groqModel =
     Deno.env.get("GROQ_VISION_MODEL")?.trim() || GROQ_VISION_MODEL_DEFAULT;
   const openAiModel = Deno.env.get("OPENAI_VISION_MODEL")?.trim() || "gpt-4o";
+  const geminiModel = Deno.env.get("GEMINI_VISION_MODEL")?.trim() || GEMINI_VISION_MODELS[0];
   const errors: string[] = [];
+
+  if (geminiKey) {
+    const models = [
+      geminiModel,
+      ...GEMINI_VISION_MODELS.filter((model) => model !== geminiModel),
+    ];
+    for (const model of models) {
+      try {
+        const rawTranscription = clipOcrText(
+          await ocrWithGemini(bytes, imageMimeType, geminiKey, model),
+        );
+        return { rawTranscription, imageMimeType, engine: "gemini" };
+      } catch (error) {
+        errors.push(
+          `gemini(${model}):${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
 
   if (groqKey) {
     const models = [
@@ -212,8 +306,37 @@ export async function transcribeCaptureImage(
 export async function refineNotebookTranscription(rawTranscription: string): Promise<string> {
   const trimmed = applyHebrewAsrSpellingFixes(clipOcrText(rawTranscription));
   if (!trimmed) return trimmed;
+  const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim() ?? "";
   const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
   const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
+  if (geminiKey) {
+    try {
+      const model =
+        Deno.env.get("GEMINI_PARSE_MODEL")?.trim() || "gemini-2.0-flash-lite";
+      const url =
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
+        `?key=${encodeURIComponent(geminiKey)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: inboundHebrewProofreadPrompt }] },
+          contents: [{ role: "user", parts: [{ text: trimmed }] }],
+          generationConfig: { temperature: 0, maxOutputTokens: MAX_OCR_OUTPUT_TOKENS },
+        }),
+        signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (response.ok) {
+        const refined = clipOcrText(
+          applyHebrewAsrSpellingFixes(textFromGeminiGenerateContent(body)),
+        );
+        if (refined) return refined;
+      }
+    } catch {
+      // Groq / OpenAI / raw
+    }
+  }
   const tryRefine = async (url: string, apiKey: string, model: string) =>
     clipOcrText(
       applyHebrewAsrSpellingFixes(

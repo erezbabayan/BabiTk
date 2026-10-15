@@ -77,6 +77,7 @@ jobs:
           PROJECT_REF: ghibfuinantybqidwadj
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           RUNPOD_ENDPOINT_ID: ${{ secrets.RUNPOD_ENDPOINT_ID }}
           GOOGLE_CLIENT_ID: ${{ github.event.inputs.google_client_id || secrets.GOOGLE_CLIENT_ID }}
@@ -110,6 +111,7 @@ jobs:
           }
           sync_secret GROQ_API_KEY "${GROQ_API_KEY:-}"
           sync_secret OPENAI_API_KEY "${OPENAI_API_KEY:-}"
+          sync_secret GEMINI_API_KEY "${GEMINI_API_KEY:-}"
           sync_secret RUNPOD_API_KEY "${RUNPOD_API_KEY:-}"
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
           sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:-}}"

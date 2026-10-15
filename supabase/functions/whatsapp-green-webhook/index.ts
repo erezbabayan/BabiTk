@@ -728,6 +728,7 @@ Deno.serve(async (req) => {
       qa: "babi-v5",
       layout: "task-v1",
       engines: {
+        gemini: Boolean(Deno.env.get("GEMINI_API_KEY")?.trim()),
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),
         vision: isVisionOcrConfigured(),
