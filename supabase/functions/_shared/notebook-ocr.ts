@@ -7,8 +7,8 @@
  * One photo ≈ one page. Output is capped at MAX_OCR_OUTPUT_CHARS (~1,500 Hebrew words).
  */
 
+import { inboundHebrewProofreadPrompt } from "../../../convex/lib/ingest/notebookOcr.ts";
 import { bytesToBase64 } from "./audio-format.ts";
-import { inboundHebrewProofreadPrompt } from "./hebrew-voice-asr.ts";
 import {
   imageFileName,
   mimeForImageContainer,
@@ -16,6 +16,7 @@ import {
   sniffImageContainer,
 } from "./image-bytes.ts";
 import { applyHebrewAsrSpellingFixes } from "./hebrew-asr-proofread.ts";
+import { readRuntimeEnv } from "./runtime-env.ts";
 import { titleFromInboundText } from "./voice-text.ts";
 
 export const MAX_NOTEBOOK_IMAGE_BYTES = 4_500_000;
@@ -57,9 +58,9 @@ export type NotebookOcrResult = {
 
 export function isVisionOcrConfigured(): boolean {
   return Boolean(
-    Deno.env.get("GEMINI_API_KEY")?.trim() ||
-      Deno.env.get("GROQ_API_KEY")?.trim() ||
-      Deno.env.get("OPENAI_API_KEY")?.trim(),
+    readRuntimeEnv("GEMINI_API_KEY") ||
+      readRuntimeEnv("GROQ_API_KEY") ||
+      readRuntimeEnv("OPENAI_API_KEY"),
   );
 }
 
@@ -241,13 +242,12 @@ export async function transcribeCaptureImage(
     sniffImageContainer(bytes),
     normalizeImageMime(mimeType),
   );
-  const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim() ?? "";
-  const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
-  const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
-  const groqModel =
-    Deno.env.get("GROQ_VISION_MODEL")?.trim() || GROQ_VISION_MODEL_DEFAULT;
-  const openAiModel = Deno.env.get("OPENAI_VISION_MODEL")?.trim() || "gpt-4o";
-  const geminiModel = Deno.env.get("GEMINI_VISION_MODEL")?.trim() || GEMINI_VISION_MODELS[0];
+  const geminiKey = readRuntimeEnv("GEMINI_API_KEY");
+  const groqKey = readRuntimeEnv("GROQ_API_KEY");
+  const openAiKey = readRuntimeEnv("OPENAI_API_KEY");
+  const groqModel = readRuntimeEnv("GROQ_VISION_MODEL") || GROQ_VISION_MODEL_DEFAULT;
+  const openAiModel = readRuntimeEnv("OPENAI_VISION_MODEL") || "gpt-4o";
+  const geminiModel = readRuntimeEnv("GEMINI_VISION_MODEL") || GEMINI_VISION_MODELS[0];
   const errors: string[] = [];
 
   if (geminiKey) {
@@ -307,13 +307,12 @@ export async function transcribeCaptureImage(
 export async function refineNotebookTranscription(rawTranscription: string): Promise<string> {
   const trimmed = applyHebrewAsrSpellingFixes(clipOcrText(rawTranscription));
   if (!trimmed) return trimmed;
-  const geminiKey = Deno.env.get("GEMINI_API_KEY")?.trim() ?? "";
-  const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
-  const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
+  const geminiKey = readRuntimeEnv("GEMINI_API_KEY");
+  const groqKey = readRuntimeEnv("GROQ_API_KEY");
+  const openAiKey = readRuntimeEnv("OPENAI_API_KEY");
   if (geminiKey) {
     try {
-      const model =
-        Deno.env.get("GEMINI_PARSE_MODEL")?.trim() || "gemini-3.1-flash-lite";
+      const model = readRuntimeEnv("GEMINI_PARSE_MODEL") || "gemini-3.1-flash-lite";
       const url =
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
         `?key=${encodeURIComponent(geminiKey)}`;
@@ -357,7 +356,7 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
       return await tryRefine(
         "https://api.openai.com/v1/chat/completions",
         openAiKey,
-        Deno.env.get("OPENAI_PARSE_MODEL")?.trim() || "gpt-4o-mini",
+        readRuntimeEnv("OPENAI_PARSE_MODEL") || "gpt-4o-mini",
       );
     } catch {
       // Groq / raw
@@ -368,7 +367,7 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
       return await tryRefine(
         "https://api.groq.com/openai/v1/chat/completions",
         groqKey,
-        Deno.env.get("GROQ_PARSE_MODEL")?.trim() || "llama-3.3-70b-versatile",
+        readRuntimeEnv("GROQ_PARSE_MODEL") || "llama-3.3-70b-versatile",
       );
     } catch {
       // keep raw

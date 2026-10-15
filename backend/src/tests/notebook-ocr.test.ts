@@ -10,6 +10,7 @@ import { parseGreenApiDownloadFileBody } from "../../../supabase/functions/_shar
 import { parseGreenApiWebhook } from "../../../supabase/functions/_shared/green-api.ts";
 import {
   clipOcrText,
+  isVisionOcrConfigured,
   MAX_OCR_OUTPUT_CHARS,
   notebookVisionTranscriptionPrompt,
   textFromGeminiGenerateContent,
@@ -68,6 +69,17 @@ describe("notebook OCR helpers", () => {
       ],
     });
     assert.equal(text, "קנה חלב\nשלם חשבון");
+  });
+
+  it("treats Gemini, Groq, or OpenAI as a configured vision engine", () => {
+    const previous = process.env.GEMINI_API_KEY;
+    process.env.GEMINI_API_KEY = "test-gemini";
+    try {
+      assert.equal(isVisionOcrConfigured(), true);
+    } finally {
+      if (previous === undefined) delete process.env.GEMINI_API_KEY;
+      else process.env.GEMINI_API_KEY = previous;
+    }
   });
 
   it("surfaces Gemini API error messages", () => {
