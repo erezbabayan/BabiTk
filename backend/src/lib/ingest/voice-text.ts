@@ -12,6 +12,8 @@ export const WHATSAPP_VOICE_PLACEHOLDERS = [
 export const VOICE_PENDING_TITLE = "ממתין לתמלול";
 export const VOICE_TRANSCRIBING_TITLE = "מתמלל…";
 export const VOICE_UNAVAILABLE_TITLE = "לא ניתן לתמלל כרגע";
+export const OCR_PENDING_TITLE = "ממתין לסריקה";
+export const OCR_UNAVAILABLE_TITLE = "לא ניתן לסרוק כרגע";
 
 const VOICE_PENDING_TITLES = [VOICE_PENDING_TITLE, VOICE_TRANSCRIBING_TITLE] as const;
 
@@ -52,12 +54,35 @@ export function isGenericInboundPlaceholder(value: string | null | undefined): b
   return (GENERIC_INBOUND_PLACEHOLDERS as readonly string[]).includes(normalized);
 }
 
+const OCR_PENDING_TITLES = [OCR_PENDING_TITLE] as const;
+
+export function isOcrPendingText(value: string | null | undefined): boolean {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return false;
+  return OCR_PENDING_TITLES.some((label) => normalized === label);
+}
+
+export function needsOcrTranscription(
+  title: string | null | undefined,
+  content: string | null | undefined,
+): boolean {
+  const imageStub = (value: string | null | undefined) =>
+    (value?.trim() ?? "") === "תמונה מוואטסאפ";
+  return (
+    isOcrPendingText(title) ||
+    isOcrPendingText(content) ||
+    imageStub(title) ||
+    imageStub(content)
+  );
+}
+
 /** Real prose only — never a voice/image stub — before a board row is created. */
 export function isInsertableInboundText(title: string, content: string): boolean {
   const body = content.trim() || title.trim();
   if (!body) return false;
   if (needsVoiceTranscription(title, content)) return false;
   if (isGenericInboundPlaceholder(title) || isGenericInboundPlaceholder(content)) return false;
+  if (needsOcrTranscription(title, content)) return false;
   return true;
 }
 

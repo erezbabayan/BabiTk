@@ -318,6 +318,20 @@ export function parseGreenApiWebhook(body: unknown): {
       ? { ignored: false, messages: [message] }
       : { ignored: false, reason: "not_capture_chat", messages: [] };
   }
+  if (typeMessage === "documentMessage") {
+    const file = payload.messageData?.fileMessageData;
+    const mimeType = file?.mimeType ?? "";
+    const fileName = file?.fileName ?? "";
+    const isImage =
+      mimeType.startsWith("image/") ||
+      /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(fileName);
+    if (isImage) {
+      const message = parseFileMessage(payload, "image");
+      return message
+        ? { ignored: false, messages: [message] }
+        : { ignored: false, reason: "not_capture_chat", messages: [] };
+    }
+  }
   return { ignored: false, reason: "not_capture_chat", messages: [] };
 }
 

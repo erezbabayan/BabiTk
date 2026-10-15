@@ -14,7 +14,13 @@ import {
   titleFromInboundText,
   isInsertableInboundText,
   needsVoiceTranscription,
+  needsOcrTranscription,
 } from "../_shared/voice-text.ts";
+import {
+  finishWhatsAppImageItem,
+  insertPendingWhatsAppImageItem,
+} from "../_shared/notebook-ingest.ts";
+import { isVisionOcrConfigured } from "../_shared/notebook-ocr.ts";
 import {
   loadAllowedTagNames,
   parseIncomingMessage,
@@ -411,6 +417,10 @@ async function alreadyIngested(
     scheduleBackgroundWork(
       transcribeStoredVoiceItem(supabase, existing, gateway).then(() => undefined),
     );
+  } else if (needsOcrTranscription(existing.title, existing.content)) {
+    scheduleBackgroundWork(
+      finishWhatsAppImageItem(supabase, existing, gateway).then(() => undefined),
+    );
   }
   return true;
 }
@@ -440,6 +450,20 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
     title: titleFromInboundText(content),
     content,
   };
+}
+
+async function finishWhatsAppImageAndConfirm(
+  supabase: ReturnType<typeof adminClient>,
+  user: UserRow,
+  message: ParsedGreenApiMessage,
+  gateway: GatewayRow | null,
+  pending: VoiceItemRow,
+): Promise<void> {
+  try {
+    await finishWhatsAppImageItem(supabase, pending, gateway, message);
+  } catch (error) {
+    console.error("background whatsapp image ocr failed", error);
+  }
 }
 
 async function finishWhatsAppVoiceItem(
@@ -504,6 +528,31 @@ async function ingestMessage(
     }
     scheduleBackgroundWork(
       finishWhatsAppVoiceItem(supabase, user, message, gateway, pending),
+    );
+    return { id: pending.id, title: pending.title };
+  }
+
+  if (message.type === "image") {
+    if (!isVisionOcrConfigured()) {
+      const caption = message.text?.trim() ?? "";
+      if (caption) {
+        return await insertCapturedItem(supabase, user, message, {
+          sourceType: "image",
+          title: titleFromInboundText(caption),
+          content: caption,
+        });
+      }
+      return null;
+    }
+    let pending;
+    try {
+      pending = await insertPendingWhatsAppImageItem(supabase, user.id, message);
+    } catch (error) {
+      console.error("pending image insert failed", error);
+      return null;
+    }
+    scheduleBackgroundWork(
+      finishWhatsAppImageAndConfirm(supabase, user, message, gateway, pending),
     );
     return { id: pending.id, title: pending.title };
   }
@@ -675,11 +724,13 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v11",
+      ocr: "notebook-v1",
       qa: "babi-v5",
       layout: "task-v1",
       engines: {
         groq: Boolean(Deno.env.get("GROQ_API_KEY")?.trim()),
         openai: Boolean(Deno.env.get("OPENAI_API_KEY")?.trim()),
+        vision: isVisionOcrConfigured(),
         runpod: Boolean(
           Deno.env.get("RUNPOD_API_KEY")?.trim() && Deno.env.get("RUNPOD_ENDPOINT_ID")?.trim(),
         ),
@@ -734,6 +785,73 @@ Deno.serve(async (req) => {
     });
     return json({ ok: true, ...result });
   }
+  if (action === "ocr_image") {
+    const auth = req.headers.get("authorization") ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
+    const payload = body as {
+      userId?: unknown;
+      messageId?: unknown;
+      chatId?: unknown;
+      imageUrl?: unknown;
+      mimeType?: unknown;
+      caption?: unknown;
+    };
+    const { data: gatewayRow } = await supabase
+      .from("whatsapp_gateways")
+      .select("user_id,instance_id,api_token,api_url,webhook_token")
+      .limit(1)
+      .maybeSingle();
+    const allowed = [SERVICE_ROLE, gatewayRow?.webhook_token].filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+    if (!token || !allowed.includes(token)) {
+      return json({ error: "invalid_webhook_token" }, 401);
+    }
+    const userId =
+      typeof payload.userId === "string" && payload.userId.trim()
+        ? payload.userId.trim()
+        : String(gatewayRow?.user_id ?? "");
+    const messageId = typeof payload.messageId === "string" ? payload.messageId.trim() : "";
+    if (!userId || !messageId) {
+      return json({ error: "missing_ocr_target" }, 400);
+    }
+    const pending = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
+    if (!pending) {
+      return json({ ok: false, reason: "item_not_found" });
+    }
+    const message: ParsedGreenApiMessage = {
+      messageId,
+      senderId: "",
+      senderPhone: "",
+      chatId: typeof payload.chatId === "string" ? payload.chatId : String(pending.metadata?.chat_id ?? ""),
+      direction: "outgoing",
+      type: "image",
+      imageUrl: typeof payload.imageUrl === "string" ? payload.imageUrl : undefined,
+      mimeType: typeof payload.mimeType === "string" ? payload.mimeType : "image/jpeg",
+      caption: typeof payload.caption === "string" ? payload.caption : undefined,
+      text: typeof payload.caption === "string" ? payload.caption : undefined,
+    };
+    const ocrGateway: GatewayRow | null = gatewayRow
+      ? {
+          user_id: String(gatewayRow.user_id),
+          webhook_token: gatewayRow.webhook_token,
+          instance_id: String(gatewayRow.instance_id),
+          api_token: String(gatewayRow.api_token),
+          api_url: String(gatewayRow.api_url),
+        }
+      : null;
+    const result = await finishWhatsAppImageItem(supabase, pending, ocrGateway, message);
+    const title = result?.title ?? pending.title;
+    if (result && !needsOcrTranscription(title, result.content)) {
+      await rememberLastItemIds(supabase, userId, [pending.id]);
+      await sendGreenApiText(
+        ocrGateway,
+        replyChatId(message),
+        buildCaptureConfirmation([{ title }]),
+      );
+    }
+    return json({ ok: Boolean(result), title });
+  }
   const instanceId = instanceIdFromPayload(body);
   let gateway: GatewayRow | null = null;
   if (instanceId) {
@@ -769,6 +887,31 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ action: "catchup_voice" }),
+        signal: AbortSignal.timeout(90_000),
+      }).then(async (response) => {
+        await response.text();
+      }),
+    );
+  };
+  const kickImageOcr = (message: ParsedGreenApiMessage, userId: string) => {
+    const secret = SERVICE_ROLE || gateway?.webhook_token;
+    if (!secret) return;
+    scheduleBackgroundWork(
+      fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/whatsapp-green-webhook`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "ocr_image",
+          userId,
+          messageId: message.messageId,
+          chatId: message.chatId,
+          imageUrl: message.imageUrl ?? null,
+          mimeType: message.mimeType ?? "image/jpeg",
+          caption: message.caption ?? message.text ?? null,
+        }),
         signal: AbortSignal.timeout(90_000),
       }).then(async (response) => {
         await response.text();
@@ -847,7 +990,11 @@ Deno.serve(async (req) => {
       const inserted = await ingestMessage(supabase, user, message, gateway);
       if (inserted === "answered") {
         answered.push({ messageId: message.messageId, userId: user.id });
-      } else if (inserted && !needsVoiceTranscription(inserted.title, inserted.content)) {
+      } else if (
+        inserted &&
+        !needsVoiceTranscription(inserted.title, inserted.content) &&
+        !needsOcrTranscription(inserted.title, inserted.content)
+      ) {
         await rememberLastItemIds(supabase, user.id, [inserted.id]);
         await sendGreenApiText(
           gateway,
@@ -865,6 +1012,9 @@ Deno.serve(async (req) => {
           userId: user.id,
         });
       } else if (inserted) {
+        if (message.type === "image") {
+          kickImageOcr(message, user.id);
+        }
         scheduled.push({
           messageId: message.messageId,
           userId: user.id,

@@ -76,5 +76,6 @@ describe("voice-text display", () => {
     assert.equal(isInsertableInboundText(VOICE_TRANSCRIBING_TITLE, ""), false);
     assert.equal(isInsertableInboundText("הודעה קולית מוואטסאפ", "הודעה קולית מוואטסאפ"), false);
     assert.equal(isInsertableInboundText("תמונה מוואטסאפ", "תמונה מוואטסאפ"), false);
+    assert.equal(isInsertableInboundText("ממתין לסריקה", ""), false);
   });
 });

@@ -1,0 +1,284 @@
+/**
+ * Notebook / photo OCR cascade for Edge:
+ * 1. Groq Llama-4 Scout (when GROQ_API_KEY)
+ * 2. OpenAI GPT-4o
+ *
+ * One photo ≈ one page. Output is capped at MAX_OCR_OUTPUT_CHARS (~1,500 Hebrew words).
+ */
+
+import { bytesToBase64 } from "./audio-format.ts";
+import { inboundHebrewProofreadPrompt } from "./hebrew-voice-asr.ts";
+import {
+  imageFileName,
+  mimeForImageContainer,
+  normalizeImageMime,
+  sniffImageContainer,
+} from "./image-bytes.ts";
+import { applyHebrewAsrSpellingFixes } from "./hebrew-asr-proofread.ts";
+import { titleFromInboundText } from "./voice-text.ts";
+
+export const MAX_NOTEBOOK_IMAGE_BYTES = 4_500_000;
+export const MAX_OCR_OUTPUT_TOKENS = 2048;
+/** Hard cap after OCR — roughly a dense notebook page. */
+export const MAX_OCR_OUTPUT_CHARS = 8_000;
+export const OCR_TIMEOUT_MS = 20_000;
+
+export const notebookVisionTranscriptionPrompt = `תמלל את כל הטקסט הנראה בתמונה מילה במילה.
+זה יכול להיות מחברת בכתב יד, צילום מסך, רשימת משימות, פתק, לוח, מסמך מודפס, או צ'ק־ליסט.
+כל שורה / נקודה / סעיף ממוספר = שורה נפרדת בפלט (שורה חדשה בין פריטים).
+אל תוסיף הסברים, אל תתקן שגיאות כתיב בשלב זה, ואם מילה לא ברורה — שים סימן שאלה (?).
+אם אין טקסט קריא בכלל — החזר מחרוזת ריקה.
+החזר רק את התמלול, בלי כותרות ובלי JSON.`;
+
+const GROQ_VISION_MODEL_DEFAULT = "meta-llama/llama-4-scout-17b-16e-instruct";
+const GROQ_VISION_MODEL_FALLBACKS = [
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "llama-3.2-11b-vision-preview",
+] as const;
+
+export type VisionOcrEngine = "groq" | "openai";
+
+export type NotebookOcrResult = {
+  rawText: string;
+  correctedText: string;
+  title: string;
+  engine: VisionOcrEngine;
+  imageMimeType: string;
+};
+
+export function isVisionOcrConfigured(): boolean {
+  return Boolean(
+    Deno.env.get("GROQ_API_KEY")?.trim() || Deno.env.get("OPENAI_API_KEY")?.trim(),
+  );
+}
+
+export function clipOcrText(text: string): string {
+  const trimmed = text.replace(/\u0000/g, "").trim();
+  if (trimmed.length <= MAX_OCR_OUTPUT_CHARS) return trimmed;
+  return trimmed.slice(0, MAX_OCR_OUTPUT_CHARS).trimEnd();
+}
+
+function toDataUrl(bytes: Uint8Array, mimeType: string): string {
+  return `data:${normalizeImageMime(mimeType)};base64,${bytesToBase64(bytes)}`;
+}
+
+function chatContent(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const record = payload as {
+    choices?: Array<{ message?: { content?: unknown } }>;
+    error?: { message?: unknown };
+  };
+  if (typeof record.error?.message === "string" && record.error.message.trim()) {
+    throw new Error(record.error.message.trim());
+  }
+  const content = record.choices?.[0]?.message?.content;
+  return typeof content === "string" ? content.trim() : "";
+}
+
+async function chatCompletion(params: {
+  url: string;
+  apiKey: string;
+  model: string;
+  system?: string;
+  userText: string;
+  imageDataUrl?: string;
+  maxTokens: number;
+}): Promise<string> {
+  const userContent = params.imageDataUrl
+    ? [
+        { type: "text", text: params.userText },
+        { type: "image_url", image_url: { url: params.imageDataUrl } },
+      ]
+    : params.userText;
+  const messages: Array<Record<string, unknown>> = [];
+  if (params.system) {
+    messages.push({ role: "system", content: params.system });
+  }
+  messages.push({ role: "user", content: userContent });
+  const response = await fetch(params.url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${params.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: params.model,
+      temperature: 0,
+      max_tokens: params.maxTokens,
+      messages,
+    }),
+    signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = chatContent(body) || `http_${response.status}`;
+    throw new Error(detail);
+  }
+  const text = chatContent(body);
+  if (!text) throw new Error("empty_ocr");
+  return text;
+}
+
+async function ocrWithGroq(
+  bytes: Uint8Array,
+  mimeType: string,
+  apiKey: string,
+  model: string,
+): Promise<string> {
+  return await chatCompletion({
+    url: "https://api.groq.com/openai/v1/chat/completions",
+    apiKey,
+    model,
+    userText: notebookVisionTranscriptionPrompt,
+    imageDataUrl: toDataUrl(bytes, mimeType),
+    maxTokens: MAX_OCR_OUTPUT_TOKENS,
+  });
+}
+
+async function ocrWithOpenAi(
+  bytes: Uint8Array,
+  mimeType: string,
+  apiKey: string,
+  model: string,
+): Promise<string> {
+  return await chatCompletion({
+    url: "https://api.openai.com/v1/chat/completions",
+    apiKey,
+    model,
+    system: notebookVisionTranscriptionPrompt,
+    userText: "תמלל את התמונה.",
+    imageDataUrl: toDataUrl(bytes, mimeType),
+    maxTokens: MAX_OCR_OUTPUT_TOKENS,
+  });
+}
+
+export async function transcribeCaptureImage(
+  bytes: Uint8Array,
+  mimeType: string,
+): Promise<{ rawTranscription: string; imageMimeType: string; engine: VisionOcrEngine }> {
+  if (bytes.byteLength < 32) {
+    throw new Error("image_too_small");
+  }
+  if (bytes.byteLength > MAX_NOTEBOOK_IMAGE_BYTES) {
+    throw new Error("image_too_large");
+  }
+  const imageMimeType = mimeForImageContainer(
+    sniffImageContainer(bytes),
+    normalizeImageMime(mimeType),
+  );
+  const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
+  const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
+  const groqModel =
+    Deno.env.get("GROQ_VISION_MODEL")?.trim() || GROQ_VISION_MODEL_DEFAULT;
+  const openAiModel = Deno.env.get("OPENAI_VISION_MODEL")?.trim() || "gpt-4o";
+  const errors: string[] = [];
+
+  if (groqKey) {
+    const models = [
+      groqModel,
+      ...GROQ_VISION_MODEL_FALLBACKS.filter((model) => model !== groqModel),
+    ];
+    for (const model of models) {
+      try {
+        const rawTranscription = clipOcrText(
+          await ocrWithGroq(bytes, imageMimeType, groqKey, model),
+        );
+        return { rawTranscription, imageMimeType, engine: "groq" };
+      } catch (error) {
+        errors.push(
+          `groq(${model}):${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  if (openAiKey) {
+    try {
+      const rawTranscription = clipOcrText(
+        await ocrWithOpenAi(bytes, imageMimeType, openAiKey, openAiModel),
+      );
+      return { rawTranscription, imageMimeType, engine: "openai" };
+    } catch (error) {
+      errors.push(`openai:${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  throw new Error(
+    errors.length > 0 ? `vision_ocr_failed:${errors.join(" | ")}` : "vision_ocr_not_configured",
+  );
+}
+
+export async function refineNotebookTranscription(rawTranscription: string): Promise<string> {
+  const trimmed = applyHebrewAsrSpellingFixes(clipOcrText(rawTranscription));
+  if (!trimmed) return trimmed;
+  const groqKey = Deno.env.get("GROQ_API_KEY")?.trim() ?? "";
+  const openAiKey = Deno.env.get("OPENAI_API_KEY")?.trim() ?? "";
+  const tryRefine = async (url: string, apiKey: string, model: string) =>
+    clipOcrText(
+      applyHebrewAsrSpellingFixes(
+        await chatCompletion({
+          url,
+          apiKey,
+          model,
+          system: inboundHebrewProofreadPrompt,
+          userText: trimmed,
+          maxTokens: MAX_OCR_OUTPUT_TOKENS,
+        }),
+      ),
+    );
+
+  if (openAiKey) {
+    try {
+      return await tryRefine(
+        "https://api.openai.com/v1/chat/completions",
+        openAiKey,
+        Deno.env.get("OPENAI_PARSE_MODEL")?.trim() || "gpt-4o-mini",
+      );
+    } catch {
+      // Groq / raw
+    }
+  }
+  if (groqKey) {
+    try {
+      return await tryRefine(
+        "https://api.groq.com/openai/v1/chat/completions",
+        groqKey,
+        Deno.env.get("GROQ_PARSE_MODEL")?.trim() || "llama-3.3-70b-versatile",
+      );
+    } catch {
+      // keep raw
+    }
+  }
+  return trimmed;
+}
+
+export async function transcribeAndProofreadImage(params: {
+  bytes: Uint8Array;
+  mimeType: string;
+  caption?: string;
+}): Promise<NotebookOcrResult> {
+  const vision = await transcribeCaptureImage(params.bytes, params.mimeType);
+  const caption = params.caption?.trim() ?? "";
+  const combinedRaw = clipOcrText(
+    [vision.rawTranscription, caption].filter(Boolean).join("\n"),
+  );
+  if (!combinedRaw) {
+    throw new Error("empty_ocr");
+  }
+  let correctedText = combinedRaw;
+  try {
+    correctedText = await refineNotebookTranscription(combinedRaw);
+  } catch {
+    correctedText = applyHebrewAsrSpellingFixes(combinedRaw);
+  }
+  return {
+    rawText: combinedRaw,
+    correctedText,
+    title: titleFromInboundText(correctedText),
+    engine: vision.engine,
+    imageMimeType: vision.imageMimeType,
+  };
+}
+
+export { imageFileName, normalizeImageMime };

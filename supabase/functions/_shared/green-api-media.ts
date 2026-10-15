@@ -4,6 +4,11 @@ import {
   mimeForContainer,
   sniffAudioContainer,
 } from "./audio-format.ts";
+import {
+  isLikelyImageBytes,
+  mimeForImageContainer,
+  sniffImageContainer,
+} from "./image-bytes.ts";
 
 export interface GreenApiMediaCredentials {
   instanceId: string;
@@ -41,6 +46,15 @@ export function parseGreenApiDownloadFileBody(
     return {
       bytes,
       mimeType: mimeForContainer(sniffAudioContainer(bytes), contentType || "audio/ogg"),
+    };
+  }
+  if (isLikelyImageBytes(bytes)) {
+    return {
+      bytes,
+      mimeType: mimeForImageContainer(
+        sniffImageContainer(bytes),
+        contentType || "image/jpeg",
+      ),
     };
   }
   const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);

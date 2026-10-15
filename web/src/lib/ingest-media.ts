@@ -1,6 +1,7 @@
 import { clientTimezone, uploadNotebookOcrApi } from "./api";
 import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured } from "./supabase";
+import { EDGE_INGEST_TIMEOUT_MS } from "./fast-voice-asr";
 import { persistRecordedVoiceTranscript } from "./transcribe-voice-item";
 import { blobToWhisperWav } from "./voice-wav";
 import { normalizeAsrUpload } from "./fast-voice-asr";
@@ -79,6 +80,44 @@ export async function ingestVoiceBlobForUser(
   await ingestVoiceViaExpress(blob, mimeType, options?.durationSeconds);
 }
 
+async function ingestNotebookViaEdge(blob: Blob, mimeType: string, fileName: string): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+  const token = await currentAccessToken();
+  if (!supabaseUrl || !token) {
+    throw new Error("יש להתחבר כדי לסרוק תמונה");
+  }
+  const form = new FormData();
+  form.append("file", blob, fileName);
+  form.append("mimeType", mimeType);
+  form.append("fileName", fileName);
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-notebook`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: anonKey || token,
+    },
+    body: form,
+    signal: AbortSignal.timeout(EDGE_INGEST_TIMEOUT_MS),
+  });
+  const data = (await response.json().catch(() => null)) as {
+    ok?: unknown;
+    title?: unknown;
+    error?: unknown;
+    reason?: unknown;
+  } | null;
+  if (!response.ok || data?.error) {
+    const reason =
+      (typeof data?.reason === "string" && data.reason) ||
+      (typeof data?.error === "string" && data.error) ||
+      `edge_http_${response.status}`;
+    throw new Error(reason);
+  }
+  if (data?.ok !== true && typeof data?.title !== "string") {
+    throw new Error("ocr_failed");
+  }
+}
+
 export async function ingestImageBlobForUser(
   _legacyUserId: string,
   blob: Blob,
@@ -94,7 +133,22 @@ export async function ingestImageBlobForUser(
   }
 
   const extension = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
-  const file = new File([blob], `notebook.${extension}`, { type: mimeType });
+  const fileName = `notebook.${extension}`;
+  if (isSupabaseConfigured) {
+    try {
+      await ingestNotebookViaEdge(blob, mimeType, fileName);
+      return;
+    } catch (error) {
+      if (import.meta.env.VITE_API_URL?.trim()) {
+        const file = new File([blob], fileName, { type: mimeType });
+        await uploadNotebookOcrApi(file);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  const file = new File([blob], fileName, { type: mimeType });
   await uploadNotebookOcrApi(file);
 }
 

@@ -582,6 +582,43 @@ export async function uploadNotebookOcr(
   mimeType: string,
   _legacyUserId?: string,
 ): Promise<void> {
+  if (isDemoMode) {
+    throw new Error("סריקת תמונה אינה זמינה במצב הדגמה");
+  }
+  if (isSupabaseConfigured) {
+    const token = await getAccessToken();
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
+    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
+    if (token && supabaseUrl) {
+      const form = new FormData();
+      form.append("file", {
+        uri,
+        name: "notebook.jpg",
+        type: mimeType || "image/jpeg",
+      } as unknown as Blob);
+      form.append("mimeType", mimeType || "image/jpeg");
+      form.append("fileName", "notebook.jpg");
+      const response = await fetch(
+        `${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-notebook`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey || token,
+          },
+          body: form,
+        },
+      );
+      if (response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { ok?: unknown; title?: unknown; error?: unknown }
+          | null;
+        if (data && !data.error && (data.ok === true || typeof data.title === "string")) {
+          return;
+        }
+      }
+    }
+  }
   await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
 }
 

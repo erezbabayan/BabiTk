@@ -24,7 +24,7 @@ export const FREE_TIER_DEFAULTS = {
 
 export const TECH_LIMITS = {
   voiceApiMaxMb: 2,
-  ocrApiMaxMb: 2,
+  ocrApiMaxMb: 4,
   storageMaxMb: 10,
   minTextChars: 3,
   phoneCodeTtlMinutes: 10,
@@ -69,18 +69,19 @@ export const CHANNELS: Record<string, ChannelInfo> = {
     id: "notebook",
     icon: "image",
     title: "סריקת מחברת",
-    description: "צלם דף מחברת או פתק — OCR מחלץ טקסט ויוצר משימות והערות.",
+    description: "סריקה פעילה: צלמו דף מחברת, פתק או מסמך — הטקסט נכנס כהערה או משימה, ובוואטסאפ מגיע גם אישור.",
     platforms: "מובייל, דפדפן (מצלמה) או וואטסאפ (תמונה)",
     limits: [
-      { label: "קלט", value: "תמונת JPEG/PNG/WebP" },
+      { label: "סטטוס", value: "פעיל (כתב דפוס וכתב יד)" },
+      { label: "קלט", value: "תמונת JPEG/PNG/WebP — דף, פתק או מסמך מצולם" },
+      { label: "מגבלת טקסט", value: "עד כ־1,500 מילים לתמונה (עמוד אחד)" },
       { label: "גודל העלאה", value: `עד ${TECH_LIMITS.ocrApiMaxMb} MB לבקשה` },
-      { label: "אחסון", value: `עד ${TECH_LIMITS.storageMaxMb} MB לקובץ` },
       { label: "עיבוד AI", value: `עד ${FREE_TIER_DEFAULTS.aiParsesPerMonth} פעולות/חודש (חינמי)` },
       { label: "איפוס מכסה", value: `כל ${FREE_TIER_DEFAULTS.periodDays} יום` },
     ],
     notes: [
-      "התמונה מוקטנת לפני שליחה ל-Vision API לחיסכון בעלות.",
-      "שורות מודגשות מוצגות כשזיהוי OCR מצליח.",
+      "צלמו עמוד אחד בכל פעם. PDF עדיין לא נתמך — שלחו כתמונה.",
+      "הפרסור מפצל אוטומטית למשימות ולהערות. בוואטסאפ מגיעה הודעת אישור אחרי הסריקה.",
     ],
   },
   text: {
