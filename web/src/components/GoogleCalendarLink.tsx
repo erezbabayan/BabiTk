@@ -4,6 +4,7 @@ import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api
 import { calendarSettingsButtonLabel } from "../lib/google-calendar-connect";
 import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
 import { isDemoMode } from "../lib/supabase";
+import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
 
@@ -26,6 +27,8 @@ function writeDemoLinked(linked: boolean): void {
 
 export function GoogleCalendarLink() {
   const [linked, setLinked] = useState(false);
+  const [configured, setConfigured] = useState(true);
+  const [canConfigure, setCanConfigure] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +41,8 @@ export function GoogleCalendarLink() {
       }
       const status = await getGoogleCalendarStatus();
       setLinked(status.linked);
+      setConfigured(status.configured !== false);
+      setCanConfigure(status.canConfigure === true);
       if (status.linked) setError(null);
     } catch {
       setLinked(false);
@@ -108,6 +113,14 @@ export function GoogleCalendarLink() {
   return (
     <div className="space-y-3 text-sm" dir="rtl">
       {error ? <p className="text-red-600">{error}</p> : null}
+      {canConfigure && !configured ? (
+        <GoogleOAuthEnable
+          onEnabled={() => {
+            setConfigured(true);
+            setError(null);
+          }}
+        />
+      ) : null}
       {linked ? (
         <button
           type="button"

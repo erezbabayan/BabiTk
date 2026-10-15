@@ -168,9 +168,21 @@ Deno.serve(async (req) => {
   const config = googleCalendarConfig();
 
   if (req.method === "GET") {
+    const env = supabaseEnv();
+    let authProviderEnabled = false;
+    try {
+      const response = await fetch(
+        `${env.url.replace(/\/$/, "")}/auth/v1/authorize?provider=google`,
+        { redirect: "manual", signal: AbortSignal.timeout(4000) },
+      );
+      authProviderEnabled = response.status >= 300 && response.status < 400;
+    } catch {
+      authProviderEnabled = false;
+    }
     return json({
       ok: true,
       configured: config.configured,
+      authProviderEnabled,
       googleClientId: config.configured ? config.clientId : null,
     });
   }
