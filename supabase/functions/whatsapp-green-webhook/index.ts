@@ -706,14 +706,17 @@ Deno.serve(async (req) => {
   if (action === "catchup_voice") {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
-    if (!SERVICE_ROLE || token !== SERVICE_ROLE) {
-      return json({ error: "invalid_webhook_token" }, 401);
-    }
     const { data: gatewayRow } = await supabase
       .from("whatsapp_gateways")
-      .select("user_id,instance_id,api_token,api_url")
+      .select("user_id,instance_id,api_token,api_url,webhook_token")
       .limit(1)
       .maybeSingle();
+    const allowed = [SERVICE_ROLE, gatewayRow?.webhook_token].filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+    if (!token || !allowed.includes(token)) {
+      return json({ error: "invalid_webhook_token" }, 401);
+    }
     if (!gatewayRow?.user_id) {
       return json({ error: "gateway_missing" }, 503);
     }
@@ -756,12 +759,13 @@ Deno.serve(async (req) => {
 
   const parsed = parseGreenApiWebhook(body);
   const kickVoiceCatchup = () => {
-    if (!SERVICE_ROLE) return;
+    const secret = SERVICE_ROLE || gateway?.webhook_token;
+    if (!secret) return;
     scheduleBackgroundWork(
       fetch(`${SUPABASE_URL.replace(/\/$/, "")}/functions/v1/whatsapp-green-webhook`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${SERVICE_ROLE}`,
+          Authorization: `Bearer ${secret}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ action: "catchup_voice" }),
