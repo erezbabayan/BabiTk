@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
   calendarSettingsButtonLabel,
-  GOOGLE_AUTH_AUDIENCE_URL,
   isGoogleOauthTestingDenied,
 } from "../lib/google-calendar-connect";
 import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
@@ -127,28 +126,14 @@ export function GoogleCalendarLink() {
   return (
     <div className="space-y-3 text-sm" dir="rtl">
       {error ? <p className="text-red-600">{error}</p> : null}
-      {canConfigure && !linked ? (
-        <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
-          <p>
-            Google חוסם «חבר» במצב בדיקות (הגישה חסומה / access_denied:403).
-            צריך לפרסם את האפליקציה פעם אחת, בלי להעתיק Client ID.
-          </p>
-          <a
-            className="inline-flex rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800"
-            href={GOOGLE_AUTH_AUDIENCE_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Publish app
-          </a>
-          <p className="text-xs text-amber-900">
-            Audience ← Publish app. אחרי הפרסום חזרו לכאן ולחצו «חבר».
-            Google עלול להציג אזהרת אפליקציה לא מאומתת — זה תקין עד 100 משתמשים.
-          </p>
-        </div>
+      {!linked && configured ? (
+        <p className="text-slate-600">
+          «חבר» מוסיף יומן BabiTk ל-Google Calendar. Google חסם הרשאת כתיבה ישירה במצב בדיקות,
+          לכן המשימות מגיעות כהזנת יומן בלי access_denied:403.
+        </p>
       ) : null}
-      {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
-        <p className="text-slate-600">חיבור היומן ייפתח אחרי שבעל המערכת יפרסם את אפליקציית Google.</p>
+      {error && isGoogleOauthTestingDenied(error) ? (
+        <p className="text-slate-600">לחצו «חבר» שוב — החיבור עובר עכשיו דרך יומן Google בלי אימות אפליקציה.</p>
       ) : null}
       {canConfigure && !configured ? (
         <GoogleOAuthEnable

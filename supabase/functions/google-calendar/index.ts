@@ -3,18 +3,24 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
+  buildCalendarIcs,
   buildGoogleAuthUrl,
   calendarCallbackHtml,
+  calendarFeedToken,
+  calendarFeedTokenValid,
+  calendarIcsFeedUrl,
   createOAuthState,
   disconnectGoogleCalendar,
   exchangeGoogleCode,
   googleCalendarConfig,
   googleCalendarStatus,
+  googleCalendarSubscribeUrl,
   googleOAuthSetupPublic,
   isGoogleOAuthOwner,
   looksLikeGoogleClientId,
   looksLikeGoogleClientSecret,
   parseOAuthState,
+  shouldUpsertCalendarEvent,
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
   syncItemToGoogleCalendar,
@@ -200,6 +206,53 @@ Deno.serve(async (req) => {
     return handleCallback(req);
   }
 
+  if (req.method === "GET" && action === "ics") {
+    const url = new URL(req.url);
+    const userId = (url.searchParams.get("u") ?? "").trim();
+    const token = (url.searchParams.get("s") ?? "").trim();
+    const config = googleCalendarConfig();
+    if (!config.configured || !(await calendarFeedTokenValid(userId, token, config.clientSecret))) {
+      return new Response("not_found", { status: 404, headers: CORS });
+    }
+    const admin = fullAdminClient();
+    const { data, error } = await admin
+      .from("mindtasker_items")
+      .select("id, title, content, is_actionable, due_date, deleted_at")
+      .eq("user_id", userId)
+      .eq("is_actionable", true)
+      .not("due_date", "is", null)
+      .is("deleted_at", null)
+      .limit(200);
+    if (error) {
+      console.error("google-calendar ics", error);
+      return new Response("calendar_failed", { status: 500, headers: CORS });
+    }
+    const events = (data ?? [])
+      .filter((row) =>
+        shouldUpsertCalendarEvent({
+          title: typeof row.title === "string" ? row.title : "",
+          content: typeof row.content === "string" ? row.content : "",
+          is_actionable: row.is_actionable === true,
+          due_date: typeof row.due_date === "string" ? row.due_date : null,
+          deleted_at: typeof row.deleted_at === "string" ? row.deleted_at : null,
+        }),
+      )
+      .map((row) => ({
+        id: String(row.id),
+        title: typeof row.title === "string" ? row.title : "",
+        content: typeof row.content === "string" ? row.content : "",
+        due_date: String(row.due_date),
+      }));
+    return new Response(buildCalendarIcs(events), {
+      status: 200,
+      headers: {
+        ...CORS,
+        "Content-Type": "text/calendar; charset=utf-8",
+        "Cache-Control": "public, max-age=300",
+      },
+    });
+  }
+
   if (req.method === "GET" && (action === "" || action === "health")) {
     const config = googleCalendarConfig();
     const setup = googleOAuthSetupPublic(SUPABASE_URL);
@@ -256,6 +309,20 @@ Deno.serve(async (req) => {
         authProviderEnabled,
         secretsSynced,
         canConfigure: true,
+      });
+    }
+
+    if (req.method === "POST" && action === "subscribe") {
+      if (!config.configured) {
+        return json({ error: "google_not_configured" }, 503);
+      }
+      const token = await calendarFeedToken(userId, config.clientSecret);
+      await storeGoogleCalendarLink(adminClient(), userId);
+      const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
+      return json({
+        ok: true,
+        linked: true,
+        url: googleCalendarSubscribeUrl(feedUrl),
       });
     }
 

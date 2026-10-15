@@ -80,8 +80,8 @@ describe("new-user settings stay setup-free", () => {
 
     assert.match(calendar, /canConfigure && !configured/);
     assert.match(calendar, /חיבור היומן עדיין לא זמין/);
-    assert.match(calendar, /GOOGLE_AUTH_AUDIENCE_URL/);
-    assert.match(calendar, /Publish app/);
+    assert.match(calendar, /הזנת יומן/);
+    assert.equal(calendar.includes("Client ID"), false);
     assert.match(calendar, /disabled=\{busy \|\| !configured\}/);
 
     assert.match(whatsapp, /isAppOwnerAccount/);
