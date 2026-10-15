@@ -1,16 +1,9 @@
-import { FormEvent, useEffect, useState, type ReactNode } from "react";
+import { FormEvent, useState, type ReactNode } from "react";
 
 import { readRememberMe, readRememberedEmail } from "../lib/auth-storage";
-import { getGoogleCalendarHealth } from "../lib/google-calendar-client";
-import {
-  googleLoginReady,
-  googleOAuthSetupPublic,
-  type GoogleCalendarHealth,
-} from "../lib/google-calendar-setup";
 import { resolveLoginEmail } from "../lib/resolve-login-email";
 import { isForcedLocalMode, requireSupabase, supabaseAuthRedirectUrl } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
-import { GoogleLoginSetup } from "./GoogleLoginSetup";
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { PasswordInput } from "./PasswordInput";
@@ -145,25 +138,6 @@ function AuthForm({
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [googleHealth, setGoogleHealth] = useState<GoogleCalendarHealth>(() =>
-    googleCalendarHealthFallback(),
-  );
-  const [googleProbed, setGoogleProbed] = useState(!onGoogleSignIn);
-  const googleReady = googleLoginReady(googleHealth);
-  const showGoogleSetup = Boolean(onGoogleSignIn) && authMode === "login" && googleProbed && !googleReady;
-
-  useEffect(() => {
-    if (!onGoogleSignIn) return;
-    void getGoogleCalendarHealth()
-      .then((health) => {
-        setGoogleHealth(health);
-        setGoogleProbed(true);
-      })
-      .catch(() => {
-        setGoogleHealth(googleCalendarHealthFallback());
-        setGoogleProbed(true);
-      });
-  }, [onGoogleSignIn]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -240,11 +214,7 @@ function AuthForm({
     <LoginShell
       subtitle={
         subtitle ??
-        (onGoogleSignIn && authMode === "login" && googleReady
-          ? "התחבר עם חשבון Google שלך"
-          : authMode === "login"
-            ? "התחברות ללוח הבקרה"
-            : "יצירת חשבון חדש")
+        (authMode === "login" ? "התחברות ללוח הבקרה" : "יצירת חשבון חדש")
       }
     >
       <div className="space-y-4">
@@ -262,40 +232,14 @@ function AuthForm({
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{message}</p>
         ) : null}
 
-        {onGoogleSignIn ? (
-          <GoogleSignInButton
-            onClick={() => void handleGoogleSignIn()}
-            disabled={busy || showGoogleSetup}
-            loading={oauthLoading}
-          />
-        ) : null}
-
-        {showGoogleSetup ? (
-          <GoogleLoginSetup health={googleHealth} disabled={busy} />
-        ) : null}
-
-        {hasOAuth && onMicrosoftSignIn ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleMicrosoftSignIn()}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <span aria-hidden>Ⓜ</span>
-            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
-          </button>
-        ) : null}
-
-        {onGoogleSignIn ? (
-          <div className="flex items-center gap-3">
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="text-xs text-slate-400">או עם אימייל וסיסמה</span>
-            <span className="h-px flex-1 bg-slate-200" />
-          </div>
-        ) : null}
-
         {showEmailForm ? (
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <form
+            method="post"
+            action="."
+            autoComplete="on"
+            onSubmit={(e) => void handleSubmit(e)}
+            className="space-y-4"
+          >
             <div className="space-y-3">
               {authMode === "signup" ? (
                 <>
@@ -303,6 +247,7 @@ function AuthForm({
                     <span className="mb-1 block text-xs font-medium text-slate-600">שם משתמש</span>
                     <input
                       type="text"
+                      name="nickname"
                       placeholder="erezbababan"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
@@ -361,11 +306,16 @@ function AuthForm({
                 </span>
                 <input
                   type={authMode === "signup" ? "email" : "text"}
+                  name={authMode === "signup" ? "email" : "username"}
+                  id={authMode === "signup" ? "signup-email" : "login-username"}
                   placeholder={authMode === "signup" ? "you@example.com" : "שם משתמש או אימייל"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
                   autoComplete={authMode === "signup" ? "email" : "username"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   dir="ltr"
                   required
                 />
@@ -374,6 +324,8 @@ function AuthForm({
               <label className="block">
                 <span className="mb-1 block text-xs font-medium text-slate-600">סיסמה</span>
                 <PasswordInput
+                  name="password"
+                  id={authMode === "login" ? "login-password" : "signup-password"}
                   value={password}
                   onChange={setPassword}
                   autoComplete={authMode === "login" ? "current-password" : "new-password"}
@@ -391,7 +343,7 @@ function AuthForm({
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                זכור אותי במכשיר זה
+                שמור את ההתחברות במכשיר זה
               </label>
             ) : null}
 
@@ -447,6 +399,34 @@ function AuthForm({
             className="w-full py-1 text-sm text-slate-500 hover:text-indigo-600"
           >
             {authMode === "login" ? "אין חשבון? הירשם" : "יש לך חשבון? התחבר"}
+          </button>
+        ) : null}
+
+        {hasOAuth ? (
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs text-slate-400">או</span>
+            <span className="h-px flex-1 bg-slate-200" />
+          </div>
+        ) : null}
+
+        {onGoogleSignIn ? (
+          <GoogleSignInButton
+            onClick={() => void handleGoogleSignIn()}
+            disabled={busy}
+            loading={oauthLoading}
+          />
+        ) : null}
+
+        {hasOAuth && onMicrosoftSignIn ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleMicrosoftSignIn()}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <span aria-hidden>Ⓜ</span>
+            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
           </button>
         ) : null}
       </div>
@@ -512,20 +492,6 @@ function SetupForm() {
       </div>
     </LoginShell>
   );
-}
-
-function googleCalendarHealthFallback(): GoogleCalendarHealth {
-  const setup = googleOAuthSetupPublic();
-  return {
-    configured: false,
-    authProviderEnabled: false,
-    googleClientId: null,
-    redirectUri: setup.calendarRedirectUri,
-    authRedirectUri: setup.authRedirectUri,
-    calendarRedirectUri: setup.calendarRedirectUri,
-    javascriptOrigins: setup.javascriptOrigins,
-    scope: setup.scope,
-  };
 }
 
 export function LoginScreen(props: LoginScreenProps) {

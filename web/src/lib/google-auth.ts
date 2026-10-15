@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyRememberMePreference } from "./auth-storage";
 import {
   formatOAuthSignInError,
+  GOOGLE_PROVIDER_DISABLED_MESSAGE,
   googleSignInOptions,
   isGoogleProviderEnabled,
 } from "./auth-redirect";
@@ -15,8 +16,7 @@ import { supabaseAuthRedirectUrl } from "./supabase";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? "";
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
 
-export const GOOGLE_LOGIN_SETUP_MESSAGE =
-  "כניסת Google עדיין לא הופעלה. צרו לקוח Web ב-Google Cloud, היכנסו עם סיסמה, והדביקו Client ID ו-Secret בטופס שמתחת לכפתור.";
+export const GOOGLE_LOGIN_SETUP_MESSAGE = GOOGLE_PROVIDER_DISABLED_MESSAGE;
 
 async function assertGoogleProviderEnabled(): Promise<void> {
   if (!supabaseUrl || !supabaseAnonKey) return;

@@ -44,10 +44,13 @@ describe("OAuth callback parsing", () => {
 
   it("maps Google cancel and disabled-provider errors to Hebrew", () => {
     assert.match(formatOAuthSignInError("access_denied"), /בוטלה/);
-    assert.match(
-      formatOAuthSignInError("Unsupported provider: provider is not enabled"),
-      /לא הופעלה/,
+    const disabled = formatOAuthSignInError(
+      "Unsupported provider: provider is not enabled",
     );
+    assert.equal(disabled, "כניסת Google עדיין לא זמינה. היכנסו עם אימייל וסיסמה.");
+    assert.equal(disabled.includes("Client ID"), false);
+    assert.equal(disabled.includes("Google Cloud"), false);
+    assert.equal(disabled.includes("Secret"), false);
     assert.match(formatOAuthSignInError("bad_oauth_state"), /אותו חלון/);
     assert.match(
       formatOAuthSignInError("A user with this email address has already been registered"),
