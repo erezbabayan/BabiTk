@@ -36,14 +36,22 @@ export function TaskMonthCalendar({
   const cells = useMemo(() => monthGrid(year, month), [year, month]);
   const byDay = useMemo(() => groupCalendarTasksByDay(items), [items]);
   const selectedTasks = byDay.get(selectedYmd) ?? [];
+  const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const monthTaskCount = useMemo(() => {
-    const prefix = `${year}-${String(month).padStart(2, "0")}`;
     let count = 0;
     for (const [ymd, list] of byDay) {
-      if (ymd.startsWith(prefix)) count += list.length;
+      if (ymd.startsWith(monthPrefix)) count += list.length;
     }
     return count;
-  }, [byDay, year, month]);
+  }, [byDay, monthPrefix]);
+
+  function goMonth(delta: number) {
+    const next = shiftMonth(year, month, delta);
+    const prefix = `${next.year}-${String(next.month).padStart(2, "0")}`;
+    const busyDays = [...byDay.keys()].filter((ymd) => ymd.startsWith(prefix)).sort();
+    setCursor(next);
+    setSelectedYmd((ymd) => (ymd.startsWith(prefix) ? ymd : busyDays[0] ?? `${prefix}-01`));
+  }
 
   return (
     <div
@@ -55,7 +63,7 @@ export function TaskMonthCalendar({
         <button
           type="button"
           className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-          onClick={() => setCursor((current) => shiftMonth(current.year, current.month, -1))}
+          onClick={() => goMonth(-1)}
           aria-label="חודש קודם"
         >
           ›
@@ -71,7 +79,7 @@ export function TaskMonthCalendar({
         <button
           type="button"
           className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
-          onClick={() => setCursor((current) => shiftMonth(current.year, current.month, 1))}
+          onClick={() => goMonth(1)}
           aria-label="חודש הבא"
         >
           ‹
