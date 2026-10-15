@@ -9,13 +9,17 @@ const repoRoot = path.resolve(webDir, "..");
 
 function appVersionPlugin(): Plugin {
   const version = process.env.GITHUB_SHA || String(Date.now());
+  const supabaseUrl =
+    process.env.VITE_SUPABASE_URL?.trim() || "https://ghibfuinantybqidwadj.supabase.co";
   return {
     name: "babitk-app-version",
     transformIndexHtml(html) {
-      return html.replace(
-        '<html lang="he" dir="rtl">',
-        `<html lang="he" dir="rtl" data-build="${version}">`,
-      );
+      return html
+        .replace(
+          '<html lang="he" dir="rtl">',
+          `<html lang="he" dir="rtl" data-build="${version}">`,
+        )
+        .replaceAll("__BABITK_SUPABASE_URL__", supabaseUrl);
     },
     generateBundle() {
       this.emitFile({

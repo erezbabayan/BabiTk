@@ -55,11 +55,21 @@ export function isGenericInboundPlaceholder(value: string | null | undefined): b
 }
 
 const OCR_PENDING_TITLES = [OCR_PENDING_TITLE] as const;
+const OCR_FAILED_TITLES = [OCR_UNAVAILABLE_TITLE, "לא ניתן לסרוק"] as const;
 
 export function isOcrPendingText(value: string | null | undefined): boolean {
   const normalized = value?.trim() ?? "";
   if (!normalized) return false;
   return OCR_PENDING_TITLES.some((label) => normalized === label);
+}
+
+function isOcrFailedText(value: string | null | undefined): boolean {
+  const normalized = value?.trim() ?? "";
+  if (!normalized) return false;
+  if (OCR_FAILED_TITLES.some((label) => normalized === label || normalized.startsWith(label))) {
+    return true;
+  }
+  return normalized.includes("זיהוי הטקסט מהתמונה נכשל");
 }
 
 export function needsOcrTranscription(
@@ -71,6 +81,8 @@ export function needsOcrTranscription(
   return (
     isOcrPendingText(title) ||
     isOcrPendingText(content) ||
+    isOcrFailedText(title) ||
+    isOcrFailedText(content) ||
     imageStub(title) ||
     imageStub(content)
   );

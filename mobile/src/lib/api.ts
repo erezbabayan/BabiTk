@@ -609,17 +609,20 @@ export async function uploadNotebookOcr(
           body: form,
         },
       );
-      if (response.ok) {
-        const data = (await response.json().catch(() => null)) as
-          | { ok?: unknown; title?: unknown; error?: unknown }
-          | null;
-        if (data && !data.error && (data.ok === true || typeof data.title === "string")) {
-          return;
-        }
+      const data = (await response.json().catch(() => null)) as
+        | { ok?: unknown; title?: unknown; error?: unknown; reason?: unknown }
+        | null;
+      if (response.ok && data && !data.error && (data.ok === true || typeof data.title === "string")) {
+        return;
       }
+      const reason =
+        (typeof data?.reason === "string" && data.reason) ||
+        (typeof data?.error === "string" && data.error) ||
+        `edge_http_${response.status}`;
+      throw new Error(reason);
     }
   }
-  await uploadMultipart("/api/ai/notebook-ocr", uri, mimeType, "notebook.jpg");
+  throw new Error("יש להתחבר כדי לסרוק תמונה");
 }
 
 export async function uploadVoiceNote(

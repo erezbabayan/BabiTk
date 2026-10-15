@@ -452,20 +452,6 @@ function itemFromMessage(message: ParsedGreenApiMessage): {
   };
 }
 
-async function finishWhatsAppImageAndConfirm(
-  supabase: ReturnType<typeof adminClient>,
-  user: UserRow,
-  message: ParsedGreenApiMessage,
-  gateway: GatewayRow | null,
-  pending: VoiceItemRow,
-): Promise<void> {
-  try {
-    await finishWhatsAppImageItem(supabase, pending, gateway, message);
-  } catch (error) {
-    console.error("background whatsapp image ocr failed", error);
-  }
-}
-
 async function finishWhatsAppVoiceItem(
   supabase: ReturnType<typeof adminClient>,
   user: UserRow,
@@ -548,9 +534,8 @@ async function ingestMessage(
       console.error("pending image insert failed", error);
       return null;
     }
-    scheduleBackgroundWork(
-      finishWhatsAppImageAndConfirm(supabase, user, message, gateway, pending),
-    );
+    // OCR runs in a separate isolate (`ocr_image`). waitUntil in this
+    // isolate is killed before Gemini returns and used to mark the row failed.
     return { id: pending.id, title: pending.title };
   }
 
@@ -721,7 +706,7 @@ Deno.serve(async (req) => {
       endpoint: "whatsapp-green-webhook",
       method: "POST",
       asr: "inline-whisper-v11",
-      ocr: "notebook-v1",
+      ocr: "notebook-v2",
       qa: "babi-v5",
       layout: "task-v1",
       engines: {

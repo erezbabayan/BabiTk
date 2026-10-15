@@ -7,7 +7,12 @@ export function formatIngestError(error: unknown): string {
     if (/^API error (404|405|501|502|503)$/.test(message)) {
       return "הסריקה נכשלה. נסו שוב בעוד רגע.";
     }
-    if (/upload failed 405/i.test(message) || /^edge_http_(404|405|501|502|503)$/.test(message)) {
+    if (
+      /upload failed 405/i.test(message) ||
+      /^edge_http_(404|405|501|502|503)$/.test(message) ||
+      /\b405\b/.test(message) ||
+      /method not allowed/i.test(message)
+    ) {
       return "הסריקה נכשלה. נסו שוב בעוד רגע.";
     }
     if (

@@ -15,6 +15,7 @@ import {
   clipOcrText,
   isVisionOcrConfigured,
   MAX_OCR_OUTPUT_CHARS,
+  notebookBodyFromOcr,
   notebookVisionTranscriptionPrompt,
   textFromGeminiGenerateContent,
 } from "../../../supabase/functions/_shared/notebook-ocr.ts";
@@ -44,6 +45,10 @@ describe("notebook image sniff", () => {
     assert.equal(isLikelyImageBytes(jpegHeader()), true);
     assert.equal(sniffImageContainer(pngHeader()), "png");
     assert.equal(mimeForImageContainer("png"), "image/png");
+    const heic = new Uint8Array(32);
+    heic.set([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x68, 0x65, 0x69, 0x63]);
+    assert.equal(sniffImageContainer(heic), "heic");
+    assert.equal(mimeForImageContainer("heic"), "image/heic");
   });
 
   it("parses Green-API downloadFile raw JPEG bodies", () => {
@@ -92,10 +97,25 @@ describe("notebook OCR helpers", () => {
     );
   });
 
-  it("treats pending scan rows as needing OCR, not failed rows", () => {
+  it("reads correctedText when applyImageOcr is given a Gemini result", () => {
+    const body = notebookBodyFromOcr({
+      title: "קנה חלב",
+      correctedText: "קנה חלב\nשלם חשבון",
+      rawText: "קנה חלב",
+    });
+    assert.equal(body.content, "קנה חלב\nשלם חשבון");
+    assert.equal(body.title, "קנה חלב");
+    assert.equal(notebookBodyFromOcr({}).content, "");
+  });
+
+  it("retries failed WhatsApp scan rows instead of leaving them stuck", () => {
     assert.equal(needsOcrTranscription(OCR_PENDING_TITLE, ""), true);
     assert.equal(needsOcrTranscription("תמונה מוואטסאפ", "תמונה מוואטסאפ"), true);
-    assert.equal(needsOcrTranscription(OCR_UNAVAILABLE_TITLE, "זיהוי נכשל"), false);
+    assert.equal(needsOcrTranscription(OCR_UNAVAILABLE_TITLE, "זיהוי נכשל"), true);
+    assert.equal(
+      needsOcrTranscription("לא ניתן לסרוק", "זיהוי הטקסט מהתמונה נכשל זמנית — אפשר לערוך ידנית."),
+      true,
+    );
   });
 });
 

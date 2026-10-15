@@ -20,6 +20,8 @@ export const FAST_VOICE_ASR_CASCADE = [
 export const MAX_EDGE_AUDIO_BYTES = 4_500_000;
 /** Long enough for Groq + one fallback; capture waits for real text. */
 export const EDGE_INGEST_TIMEOUT_MS = 25_000;
+/** Notebook OCR (Gemini + retries) needs a longer window than voice. */
+export const EDGE_NOTEBOOK_TIMEOUT_MS = 90_000;
 /** Capture waits for a transcript before creating a board item. */
 export const AWAIT_EDGE_ON_CAPTURE = true;
 export const EDGE_TRANSCRIBE_TIMEOUT_MS = 20_000;

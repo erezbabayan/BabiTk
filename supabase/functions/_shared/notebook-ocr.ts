@@ -56,6 +56,33 @@ export type NotebookOcrResult = {
   imageMimeType: string;
 };
 
+/** WhatsApp ingest historically passed this object into applyImageOcr, which reads `content`. */
+export type NotebookOcrApplyText = {
+  content?: string;
+  correctedText?: string;
+  rawText?: string;
+  title?: string;
+};
+
+function asNonEmptyText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/** Prefer `content`, then `correctedText`, then `rawText` — never call `.trim()` on undefined. */
+export function notebookBodyFromOcr(transcribed: NotebookOcrApplyText): {
+  title: string;
+  content: string;
+  rawText: string;
+} {
+  const content =
+    asNonEmptyText(transcribed.content) ||
+    asNonEmptyText(transcribed.correctedText) ||
+    asNonEmptyText(transcribed.rawText);
+  const rawText = asNonEmptyText(transcribed.rawText) || content;
+  const title = asNonEmptyText(transcribed.title) || titleFromInboundText(content);
+  return { title, content, rawText };
+}
+
 export function isVisionOcrConfigured(): boolean {
   return Boolean(
     readRuntimeEnv("GEMINI_API_KEY") ||
@@ -187,12 +214,43 @@ async function ocrWithGemini(
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail = textFromGeminiGenerateContent(body) || `http_${response.status}`;
+    let detail = `http_${response.status}`;
+    try {
+      detail = textFromGeminiGenerateContent(body) || detail;
+    } catch (error) {
+      detail = error instanceof Error && error.message.trim() ? error.message : detail;
+    }
     throw new Error(detail);
   }
   const text = textFromGeminiGenerateContent(body);
   if (!text) throw new Error("empty_ocr");
   return text;
+}
+
+function isTransientGeminiError(message: string): boolean {
+  return /http_429|http_503|http_500|http_502|http_504|overloaded|unavailable|resource.?exhausted|high demand/i.test(
+    message,
+  );
+}
+
+async function ocrWithGeminiRetrying(
+  bytes: Uint8Array,
+  mimeType: string,
+  apiKey: string,
+  model: string,
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await ocrWithGemini(bytes, mimeType, apiKey, model);
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isTransientGeminiError(message) || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 
 async function ocrWithGroq(
@@ -258,7 +316,7 @@ export async function transcribeCaptureImage(
     for (const model of models) {
       try {
         const rawTranscription = clipOcrText(
-          await ocrWithGemini(bytes, imageMimeType, geminiKey, model),
+          await ocrWithGeminiRetrying(bytes, imageMimeType, geminiKey, model),
         );
         return { rawTranscription, imageMimeType, engine: "gemini" };
       } catch (error) {

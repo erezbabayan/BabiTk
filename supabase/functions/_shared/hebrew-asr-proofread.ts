@@ -221,7 +221,7 @@ function normalizeWhitespaceAndMarks(text: string): string {
  * clitic splits, clear homophones). Idempotent.
  */
 export function applyHebrewAsrSpellingFixes(text: string): string {
-  if (!text.trim()) return text;
+  if (typeof text !== "string" || !text.trim()) return typeof text === "string" ? text : "";
   let out = normalizeWhitespaceAndMarks(text);
   for (const [wrong, right] of HEBREW_PHRASE_FIXES) {
     out = replacePhrase(out, wrong, right);

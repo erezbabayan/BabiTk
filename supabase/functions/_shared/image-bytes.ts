@@ -3,7 +3,7 @@
  * JPEG/PNG bodies are not treated as failed JSON.
  */
 
-export type ImageContainer = "jpeg" | "png" | "webp" | "gif" | "bmp" | "unknown";
+export type ImageContainer = "jpeg" | "png" | "webp" | "gif" | "bmp" | "heic" | "unknown";
 
 function startsWith(bytes: Uint8Array, signature: number[], offset = 0): boolean {
   if (bytes.byteLength < offset + signature.length) return false;
@@ -21,6 +21,17 @@ export function sniffImageContainer(bytes: Uint8Array): ImageContainer {
   ) {
     return "webp";
   }
+  if (bytes.byteLength >= 12 && startsWith(bytes, [0x66, 0x74, 0x79, 0x70], 4)) {
+    const brand = String.fromCharCode(
+      bytes[8] ?? 0,
+      bytes[9] ?? 0,
+      bytes[10] ?? 0,
+      bytes[11] ?? 0,
+    ).toLowerCase();
+    if (brand === "heic" || brand === "heif" || brand === "mif1" || brand === "msf1" || brand === "heix") {
+      return "heic";
+    }
+  }
   return "unknown";
 }
 
@@ -36,6 +47,7 @@ export function mimeForImageContainer(
   if (container === "webp") return "image/webp";
   if (container === "gif") return "image/gif";
   if (container === "bmp") return "image/bmp";
+  if (container === "heic") return "image/heic";
   if (container === "jpeg") return "image/jpeg";
   const safe = fallback.split(";")[0]?.trim().toLowerCase() || "image/jpeg";
   if (safe === "image/jpg") return "image/jpeg";

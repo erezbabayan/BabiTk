@@ -19,6 +19,7 @@ import {
 import { parseInboundText, layoutMetadataFromParsed } from "./inbound-item.ts";
 import {
   isVisionOcrConfigured,
+  notebookBodyFromOcr,
   transcribeAndProofreadImage,
 } from "./notebook-ocr.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
@@ -280,13 +281,18 @@ export async function applyImageOcr(
   supabase: AdminClient,
   row: ImageItemRow,
   transcribed: {
-    title: string;
-    content: string;
-    rawText: string;
+    title?: string;
+    content?: string;
+    correctedText?: string;
+    rawText?: string;
     engine?: string;
   },
 ): Promise<void> {
   const source = firstSourceMaterial(row);
+  const body = notebookBodyFromOcr(transcribed);
+  if (!body.content) {
+    throw new Error("empty_ocr");
+  }
   let parsed:
     | {
         title: string;
@@ -300,32 +306,36 @@ export async function applyImageOcr(
       }
     | undefined;
   try {
-    parsed = parseInboundText(transcribed.content, {
+    parsed = parseInboundText(body.content, {
       sourceType: "notebook_ocr",
-      fallbackTitle: transcribed.title,
+      fallbackTitle: body.title,
     })[0];
   } catch (error) {
     console.error("image inbound parse failed, falling back", error);
   }
   if (!parsed && row.user_id) {
-    const allowedTags = await loadAllowedTagNames(supabase, row.user_id);
-    const fallback = parseIncomingMessage(transcribed.content, allowedTags)[0];
-    if (fallback) {
-      parsed = { ...fallback, analysis: undefined };
+    try {
+      const allowedTags = await loadAllowedTagNames(supabase, row.user_id);
+      const fallback = parseIncomingMessage(body.content, allowedTags)[0];
+      if (fallback) {
+        parsed = { ...fallback, analysis: undefined };
+      }
+    } catch (error) {
+      console.error("image inbound keyword parse failed, using raw OCR", error);
     }
   }
   const metadata = {
     ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
     source: "image",
-    raw_transcription: transcribed.rawText,
-    corrected_transcription: transcribed.content,
+    raw_transcription: body.rawText,
+    corrected_transcription: body.content,
     ...(transcribed.engine ? { vision_engine: transcribed.engine } : {}),
   };
   const { error: itemError } = await supabase
     .from("mindtasker_items")
     .update({
-      title: parsed?.title || transcribed.title,
-      content: parsed?.content ?? transcribed.content,
+      title: parsed?.title || body.title,
+      content: parsed?.content ?? body.content,
       is_actionable: parsed?.is_actionable ?? false,
       due_date: parsed?.due_date ?? null,
       tags: parsed?.tags ?? [],
@@ -347,11 +357,11 @@ export async function applyImageOcr(
   await supabase
     .from("source_materials")
     .update({
-      raw_text: transcribed.rawText,
+      raw_text: body.rawText,
       metadata: {
         ...(typeof source.metadata === "object" && source.metadata ? source.metadata : {}),
-        raw_transcription: transcribed.rawText,
-        corrected_transcription: transcribed.content,
+        raw_transcription: body.rawText,
+        corrected_transcription: body.content,
         ...(transcribed.engine ? { vision_engine: transcribed.engine } : {}),
       },
     })

@@ -39,7 +39,7 @@ export function parseIncomingMessage(
   text: string,
   allowedTags?: string[],
 ): IncomingParsedItem[] {
-  const trimmed = text.trim();
+  const trimmed = typeof text === "string" ? text.trim() : "";
   if (!trimmed) return [];
   const pool = allowedTags?.length ? allowedTags : DEFAULT_TAG_NAMES;
   const tags = inferTagsFromText(trimmed, pool);

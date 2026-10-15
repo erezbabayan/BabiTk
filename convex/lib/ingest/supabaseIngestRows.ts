@@ -75,7 +75,7 @@ export function parseInboundText(
   text: string,
   options?: ParseInboundOptions,
 ): InboundParsedFields[] {
-  const trimmed = text.trim();
+  const trimmed = typeof text === "string" ? text.trim() : "";
   if (!trimmed) return [];
 
   const timezone = options?.timezone ?? "Asia/Jerusalem";
@@ -94,10 +94,11 @@ export function parseInboundText(
 
   return enriched.map((item) => {
     const title =
-      item.title.trim() || fallbackTitleFromText(trimmed, options?.fallbackTitle);
+      (typeof item.title === "string" ? item.title.trim() : "") ||
+      fallbackTitleFromText(trimmed, options?.fallbackTitle);
     return {
       title: title.slice(0, 120),
-      content: item.content.trim(),
+      content: typeof item.content === "string" ? item.content.trim() : trimmed,
       is_actionable: item.is_actionable,
       tags: item.tags ?? [],
       due_date: item.due_date,

@@ -35,6 +35,29 @@
     <script>
       (function () {
         try {
+          var supabaseUrl = "__BABITK_SUPABASE_URL__";
+          if (window.fetch && /^https?:\/\//.test(supabaseUrl)) {
+            var origFetch = window.fetch.bind(window);
+            window.fetch = function (input, init) {
+              try {
+                var url = typeof input === "string" ? input : (input && input.url) || "";
+                var method = String(
+                  (init && init.method) ||
+                    (input && typeof input === "object" && input.method) ||
+                    "GET",
+                ).toUpperCase();
+                if (method === "POST" && /\/api\/ai\/notebook-ocr(\?|$)/.test(url)) {
+                  return origFetch(
+                    supabaseUrl.replace(/\/$/, "") + "/functions/v1/ingest-notebook",
+                    init || input,
+                  );
+                }
+              } catch (err) {}
+              return origFetch(input, init);
+            };
+          }
+        } catch (e) {}
+        try {
           var host = location.hostname;
           if (host === "localhost" || host === "127.0.0.1") return;
           var moduleScript = document.querySelector('script[type="module"]');

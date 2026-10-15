@@ -1,10 +1,9 @@
 import { clientTimezone, uploadNotebookOcrApi } from "./api";
 import { currentAccessToken } from "./whatsapp-gateway";
 import { isDemoMode, isSupabaseConfigured } from "./supabase";
-import { EDGE_INGEST_TIMEOUT_MS } from "./fast-voice-asr";
+import { EDGE_NOTEBOOK_TIMEOUT_MS, normalizeAsrUpload } from "./fast-voice-asr";
 import { persistRecordedVoiceTranscript } from "./transcribe-voice-item";
 import { blobToWhisperWav } from "./voice-wav";
-import { normalizeAsrUpload } from "./fast-voice-asr";
 
 async function ingestVoiceViaExpress(
   blob: Blob,
@@ -98,7 +97,7 @@ async function ingestNotebookViaEdge(blob: Blob, mimeType: string, fileName: str
       apikey: anonKey || token,
     },
     body: form,
-    signal: AbortSignal.timeout(EDGE_INGEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(EDGE_NOTEBOOK_TIMEOUT_MS),
   });
   const data = (await response.json().catch(() => null)) as {
     ok?: unknown;
@@ -135,14 +134,8 @@ export async function ingestImageBlobForUser(
   const extension = mimeType.includes("png") ? "png" : mimeType.includes("webp") ? "webp" : "jpg";
   const fileName = `notebook.${extension}`;
   if (isSupabaseConfigured) {
-    try {
-      await ingestNotebookViaEdge(blob, mimeType, fileName);
-      return;
-    } catch {
-      const file = new File([blob], fileName, { type: mimeType });
-      await uploadNotebookOcrApi(file);
-      return;
-    }
+    await ingestNotebookViaEdge(blob, mimeType, fileName);
+    return;
   }
 
   const file = new File([blob], fileName, { type: mimeType });

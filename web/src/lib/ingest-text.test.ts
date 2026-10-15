@@ -17,5 +17,9 @@ describe("formatIngestError", () => {
       formatIngestError(new Error("Upload failed 405")),
       "הסריקה נכשלה. נסו שוב בעוד רגע.",
     );
+    assert.equal(
+      formatIngestError(new Error("405 Not Allowed")),
+      "הסריקה נכשלה. נסו שוב בעוד רגע.",
+    );
   });
 });
