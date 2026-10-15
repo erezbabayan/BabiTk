@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { configureGoogleOAuthFromEdge } from "../lib/google-calendar-client";
 import {
   GOOGLE_CLOUD_CREDENTIALS_URL,
+  googleOAuthSetupPublic,
   looksLikeGoogleClientId,
   looksLikeGoogleClientSecret,
 } from "../lib/google-calendar-setup";
@@ -16,6 +17,7 @@ export function GoogleOAuthEnable({
   const [clientSecret, setClientSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const setup = googleOAuthSetupPublic();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -41,8 +43,8 @@ export function GoogleOAuthEnable({
   return (
     <form className="space-y-3 text-sm" onSubmit={(event) => void handleSubmit(event)}>
       <p className="text-slate-600">
-        כניסת Google במסך הכניסה דורשת לקוח Web ב-Google Cloud. אחרי היצירה מזינים כאן רק
-        Client ID ו-Secret — בלי כתובות להעתקה במסך הכניסה.
+        צרו לקוח Web application ב-Google Cloud, והדביקו כאן רק Client ID ו-Secret. אחרי
+        ההפעלה כפתור «התחבר עם Google» במסך הכניסה יעבוד.
       </p>
       <a
         href={GOOGLE_CLOUD_CREDENTIALS_URL}
@@ -52,6 +54,13 @@ export function GoogleOAuthEnable({
       >
         פתח Google Cloud
       </a>
+      <ul className="space-y-1 font-mono text-[11px] text-slate-500" dir="ltr">
+        {setup.javascriptOrigins.map((origin) => (
+          <li key={origin}>{origin}</li>
+        ))}
+        <li>{setup.authRedirectUri}</li>
+        <li>{setup.calendarRedirectUri}</li>
+      </ul>
       {error ? <p className="text-red-600">{error}</p> : null}
       <label className="block space-y-1">
         <span className="text-xs font-medium text-slate-600">Client ID</span>

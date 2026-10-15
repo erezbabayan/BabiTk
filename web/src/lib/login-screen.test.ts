@@ -32,8 +32,11 @@ describe("login screen stays a password login", () => {
     assert.match(loginScreen, /GoogleSignInButton/);
     assert.equal(loginScreen.includes("javascriptOrigins"), false);
     assert.equal(loginScreen.includes("CopyRow"), false);
+    assert.equal(loginScreen.includes("Client ID"), false);
     assert.equal(googleEnable.includes("CopyRow"), false);
-    assert.equal(googleEnable.includes("javascriptOrigins"), false);
+    assert.match(googleEnable, /googleOAuthSetupPublic/);
+    assert.match(googleEnable, /authRedirectUri/);
+    assert.match(googleEnable, /calendarRedirectUri/);
   });
 
   it("exposes named username and password fields so the browser can save them", () => {
