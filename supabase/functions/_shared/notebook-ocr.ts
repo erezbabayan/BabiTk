@@ -38,10 +38,11 @@ const GROQ_VISION_MODEL_FALLBACKS = [
   "llama-3.2-11b-vision-preview",
 ] as const;
 const GEMINI_VISION_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-flash-latest",
+  "gemini-3.8-flash",
 ] as const;
 
 export type VisionOcrEngine = "gemini" | "groq" | "openai";
@@ -312,7 +313,7 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
   if (geminiKey) {
     try {
       const model =
-        Deno.env.get("GEMINI_PARSE_MODEL")?.trim() || "gemini-2.0-flash-lite";
+        Deno.env.get("GEMINI_PARSE_MODEL")?.trim() || "gemini-3.1-flash-lite";
       const url =
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent` +
         `?key=${encodeURIComponent(geminiKey)}`;
