@@ -89,7 +89,11 @@ export function ColumnSearch({
   }
 
   return (
-    <form onSubmit={handleSubmit} className={`relative mb-2 flex items-stretch ${SEARCH_FRAME(tone)}`}>
+    <form
+      onSubmit={handleSubmit}
+      className={`relative mb-0 flex h-8 w-full min-w-0 items-stretch ${SEARCH_FRAME(tone)}`}
+      data-babitk-column-search="true"
+    >
       <span className="column-search-deco" aria-hidden>
         <NotebookIcon name="leaf" size={10} tone={searchIconTone(tone)} />
       </span>
@@ -98,13 +102,13 @@ export function ColumnSearch({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 !rounded-none !border-0 !bg-transparent py-0.5 !pr-7 !pl-2 shadow-none"
+        className="min-w-0 flex-1 !rounded-none !border-0 !bg-transparent py-1 !pr-7 !pl-2 text-xs shadow-none"
         dir="rtl"
       />
       <button
         type="submit"
         disabled={loading}
-        className={`shrink-0 !rounded-none border-l border-stone-200/80 disabled:opacity-50 ${submitClass}`}
+        className={`shrink-0 !rounded-none border-l border-stone-200/80 px-3 text-[11px] font-semibold disabled:opacity-50 ${submitClass}`}
       >
         {loading ? "..." : isActive ? "חזור" : "חפש"}
       </button>

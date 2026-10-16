@@ -937,7 +937,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
                 search={
                   <ColumnSearch
-                    inline
                     value={inboxSearch.input}
                     onChange={inboxSearch.setInput}
                     activeQuery={inboxSearch.activeQuery}
@@ -1012,7 +1011,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
                 search={
                   <ColumnSearch
-                    inline
                     value={inboxSearch.input}
                     onChange={inboxSearch.setInput}
                     activeQuery={inboxSearch.activeQuery}
@@ -1164,7 +1162,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               }
               search={
                 <ColumnSearch
-                  inline
                   value={todaySearch.input}
                   onChange={todaySearch.setInput}
                   activeQuery={todaySearch.activeQuery}
@@ -1371,7 +1368,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
                 search={
                   <ColumnSearch
-                    inline
                     value={notesSearch.input}
                     onChange={notesSearch.setInput}
                     activeQuery={notesSearch.activeQuery}
@@ -1446,7 +1442,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 }
                 search={
                   <ColumnSearch
-                    inline
                     value={notesSearch.input}
                     onChange={notesSearch.setInput}
                     activeQuery={notesSearch.activeQuery}
