@@ -23,9 +23,8 @@ describe("Google OAuth testing-mode 403", () => {
       true,
     );
     assert.equal(isGoogleOauthTestingDenied("access_denied"), false);
-    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /מצב בדיקות/);
-    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /Publish app/);
-    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /במחשב/);
+    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /יומן הראשי/);
+    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /במערכת/);
     assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
     assert.match(BABITK_PRIVACY_URL, /privacy\.html/);
     assert.equal(calendarOauthPublishTitle(), "פרסם ב-Google");

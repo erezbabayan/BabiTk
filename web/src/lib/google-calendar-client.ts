@@ -202,35 +202,7 @@ export async function startGoogleCalendarIdentityLink(): Promise<void> {
 }
 
 export async function startGoogleCalendarConnect(): Promise<void> {
-  if (isDemoMode) {
-    requestOpenTaskCalendar();
-    return;
-  }
-  let oauth: { url?: string } | null = null;
-  let oauthError: unknown = null;
-  try {
-    oauth = await invokeCalendar<{ url?: string }>("connect");
-  } catch (error) {
-    oauthError = error;
-  }
-  const plan = planGoogleCalendarConnect(oauth, oauthError);
-  if (plan.kind === "oauth") {
-    markCalendarOauthAttempt();
-    window.location.assign(plan.url);
-    return;
-  }
-  if (plan.kind === "error") {
-    throw hebrewGoogleAuthError(plan.error);
-  }
-  const data = await invokeCalendar<{ url?: string; eventCount?: number }>("subscribe", {
-    method: "POST",
-    body: {},
-  });
-  if (!data.url) {
-    throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
-  }
-  window.open(data.url, "_blank", "noopener,noreferrer");
-  requestOpenTaskCalendar();
+  await startGoogleCalendarPrimaryConnect();
 }
 
 export async function startGoogleCalendarPrimaryConnect(): Promise<void> {

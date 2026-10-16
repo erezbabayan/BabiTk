@@ -108,24 +108,8 @@ export function calendarSettingsButtonLabel(linked: boolean, busy: boolean): str
   return linked ? "בטל חיבור" : "חבר";
 }
 
-export function calendarPrimaryButtonLabel(busy: boolean): string {
-  return busy ? "מתחבר..." : "הוסף ליומן הראשי";
-}
-
-export function calendarGoogleOpenLabel(writable: boolean): string {
-  return writable ? "פתח ביומן Google" : "הוסף כיומן BabiTk";
-}
-
-export function calendarPrimaryCaption(): string {
-  return "כותב משימות עם תאריך ליומן Google האישי שלכם. יעבוד רק אחרי פרסום במחשב — בטלפון Google חוסם.";
-}
-
-export function calendarBabiTkCaption(): string {
-  return "מוסיף יומן נפרד בשם BabiTk תחת «יומנים אחרים». לא נכנס ליומן הראשי, ועובד בלי פרסום.";
-}
-
 export function calendarUnlinkedHelpText(): string {
-  return "«חבר» מוסיף את המשימות עם תאריך ישירות ליומן Google הראשי שלכם.";
+  return "«חבר» מחבר את יומן BabiTk במערכת וכותב משימות עם תאריך גם ליומן Google הראשי.";
 }
 
 export function calendarLinkedHelpText(input: {
@@ -133,10 +117,10 @@ export function calendarLinkedHelpText(input: {
   eventCount: number;
 }): string {
   if (!input.writable) {
-    return "כל כפתור עושה דבר אחר. ההסבר מופיע מתחתיו. «הוסף כיומן BabiTk» עובד עכשיו; היומן הראשי דורש פרסום במחשב.";
+    return "לחצו «חבר» כדי לחבר את יומן Google הראשי. יומן BabiTk במערכת כבר מציג משימות לפי תאריך.";
   }
   if (input.eventCount > 0) {
-    return `${input.eventCount} משימות עם תאריך נכתבות ליומן Google הראשי.`;
+    return `${input.eventCount} משימות עם תאריך מופיעות ביומן BabiTk ונכתבות ליומן Google הראשי.`;
   }
-  return "היומן הראשי מחובר. הוסיפו תאריך למשימה כדי שתופיע גם ב-Google.";
+  return "היומן במערכת מחובר ליומן Google הראשי. הוסיפו תאריך למשימה כדי שתופיע בשניהם.";
 }

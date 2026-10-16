@@ -14,10 +14,10 @@ export const CALENDAR_OAUTH_ERROR_KEY = "babitk-calendar-oauth-error";
 export const CALENDAR_OAUTH_ATTEMPT_KEY = "babitk-calendar-oauth-attempt";
 
 export const GOOGLE_TESTING_DENIED_MESSAGE =
-  "Google חסם כתיבה ליומן הראשי כי BabiTk במצב בדיקות. «פרסם» נעשה במחשב בלבד (Publish app), לא בטלפון.";
+  "Google חסם כתיבה ליומן הראשי. יומן BabiTk במערכת מציג את המשימות לפי תאריך.";
 
 export const CALENDAR_OAUTH_INCOMPLETE_MESSAGE =
-  "החיבור ליומן הראשי לא הושלם. Google חוסם אותו עד פרסום במחשב. בינתיים אפשר «הוסף כיומן BabiTk».";
+  "החיבור ליומן Google הראשי לא הושלם. יומן BabiTk במערכת ממשיך להציג משימות לפי תאריך.";
 
 export function calendarOauthPublishTitle(): string {
   return "פרסם ב-Google";
@@ -36,7 +36,7 @@ export function calendarPublishCaption(): string {
 }
 
 export function calendarTestingDeniedUserMessage(): string {
-  return "Google חוסם כרגע את חיבור היומן הראשי. אפשר להמשיך עם יומן BabiTk כאן.";
+  return "Google חוסם כרגע כתיבה ליומן הראשי. יומן BabiTk במערכת ממשיך לעבוד.";
 }
 
 function oauthErrorText(
