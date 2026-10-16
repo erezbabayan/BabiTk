@@ -34,6 +34,15 @@ import { TaskMonthCalendar } from "./TaskMonthCalendar";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
 
+function readCalendarButtonsPreview(): boolean {
+  if (!isDemoMode) return false;
+  try {
+    return new URLSearchParams(window.location.search).get("calendarPreview") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function readDemoLinked(): boolean {
   try {
     return localStorage.getItem(DEMO_LINK_KEY) === "1";
@@ -75,6 +84,15 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
+        if (readCalendarButtonsPreview()) {
+          setLinked(true);
+          setWritable(false);
+          setConfigured(true);
+          setCanConfigure(true);
+          setGoogleUrl("https://calendar.google.com/calendar/r?cid=https://example.test/babitk.ics");
+          setEventCount(items.length);
+          return;
+        }
         const demoLinked = readDemoLinked();
         setLinked(demoLinked);
         setWritable(demoLinked);
