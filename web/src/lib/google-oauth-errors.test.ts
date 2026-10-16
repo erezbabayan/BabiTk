@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   BABITK_PRIVACY_URL,
   GOOGLE_AUTH_AUDIENCE_URL,
+  CALENDAR_OAUTH_INCOMPLETE_MESSAGE,
   GOOGLE_TESTING_DENIED_MESSAGE,
   calendarOauthPublishHelp,
   calendarOauthPublishLabel,
@@ -35,5 +36,7 @@ describe("Google OAuth testing-mode 403", () => {
     assert.match(calendarPublishCaption(), /מחשב/);
     assert.equal(calendarOauthPublishHelp().includes("Client ID"), false);
     assert.match(calendarTestingDeniedUserMessage(), /יומן BabiTk/);
+    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /חסם/);
+    assert.match(CALENDAR_OAUTH_INCOMPLETE_MESSAGE, /Google חסם/);
   });
 });

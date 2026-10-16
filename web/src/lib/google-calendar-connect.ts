@@ -86,6 +86,15 @@ export function formatCalendarConnectError(error: unknown): string {
     return GOOGLE_TESTING_DENIED_MESSAGE;
   }
   const raw = message.toLowerCase();
+  if (raw.includes("missing_refresh_token")) {
+    return "Google לא החזיר הרשאת רענון. בטלו את הגישה ל-BabiTk בחשבון Google ונסו שוב.";
+  }
+  if (raw.includes("invalid_state") || raw.includes("expired_state")) {
+    return "פג תוקף חיבור היומן. לחצו «חבר» שוב מאותו חלון.";
+  }
+  if (raw.includes("calendar_user_not_found")) {
+    return "לא נמצא חשבון לשמירת חיבור היומן. היכנסו שוב ונסו «חבר».";
+  }
   if (raw.includes("not authenticated") || raw.includes("not_authenticated")) {
     return "יש להיכנס לחשבון כדי לחבר יומן.";
   }
@@ -133,4 +142,27 @@ export function shouldPersistGoogleCalendarSessionLink(input: {
   refreshToken?: string | null;
 }): boolean {
   return input.pendingIdentityLink && (input.refreshToken ?? "").trim().length > 8;
+}
+
+export function calendarReturnFromQuery(search: string): {
+  connected: boolean;
+  failed: boolean;
+  error: string | null;
+} {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
+  const calendar = params.get("calendar");
+  if (calendar === "connected") {
+    return { connected: true, failed: false, error: null };
+  }
+  if (calendar === "error") {
+    const err = (params.get("error") ?? "").trim();
+    const desc = (params.get("error_description") ?? "").trim();
+    const raw = [err, desc].filter(Boolean).join(":");
+    return {
+      connected: false,
+      failed: true,
+      error: formatCalendarConnectError(raw || "oauth_failed"),
+    };
+  }
+  return { connected: false, failed: false, error: null };
 }

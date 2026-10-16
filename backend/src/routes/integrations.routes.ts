@@ -6,7 +6,12 @@ import {
   exchangeGoogleCode,
 } from "../services/calendar.service.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
-import { calendarCallbackHtml, withCalendarQuery, DEFAULT_WEB_APP_URL } from "../lib/google-calendar.js";
+import {
+  calendarCallbackHtml,
+  calendarOauthFailureMessage,
+  withCalendarQuery,
+  DEFAULT_WEB_APP_URL,
+} from "../lib/google-calendar.js";
 import { env } from "../config/env.js";
 
 export const integrationsRoutes: FastifyPluginAsync = async (app) => {
@@ -31,14 +36,15 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
     const webAppUrl = env.webAppUrl || DEFAULT_WEB_APP_URL;
 
     if (query.error || !query.code || !query.state) {
+      const reason = query.error ?? "access_denied";
       return reply
         .status(400)
         .type("text/html")
         .send(
           calendarCallbackHtml({
             ok: false,
-            webAppUrl: withCalendarQuery(webAppUrl, "error"),
-            message: "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.",
+            webAppUrl: withCalendarQuery(webAppUrl, "error", { error: reason }),
+            message: calendarOauthFailureMessage(reason),
           }),
         );
     }
@@ -53,11 +59,15 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
         }),
       );
     } catch (error) {
+      const reason = error instanceof Error ? error.message : "oauth_failed";
       return reply.status(400).type("text/html").send(
         calendarCallbackHtml({
           ok: false,
-          webAppUrl: withCalendarQuery(webAppUrl, "error"),
-          message: error instanceof Error ? error.message : "OAuth failed",
+          webAppUrl: withCalendarQuery(webAppUrl, "error", {
+            error: reason,
+            description: reason,
+          }),
+          message: calendarOauthFailureMessage(reason),
         }),
       );
     }

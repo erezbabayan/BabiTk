@@ -17,7 +17,7 @@ export const GOOGLE_TESTING_DENIED_MESSAGE =
   "Google חסם כתיבה ליומן הראשי. יומן BabiTk במערכת מציג את המשימות לפי תאריך.";
 
 export const CALENDAR_OAUTH_INCOMPLETE_MESSAGE =
-  "החיבור ליומן Google הראשי לא הושלם. יומן BabiTk במערכת ממשיך להציג משימות לפי תאריך.";
+  "Google חסם את חיבור היומן הראשי. יומן BabiTk במערכת ממשיך להציג משימות לפי תאריך.";
 
 export function calendarOauthPublishTitle(): string {
   return "פרסם ב-Google";
