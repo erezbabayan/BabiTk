@@ -13,7 +13,6 @@ import {
   googleCalendarSubscribeUrl,
   icsRruleLine,
   parseCalendarIcsRequest,
-  webcalFeedUrl,
   googleOAuthSetupPublic,
   icsUtcStamp,
   isCalendarRelevantPatch,
@@ -104,6 +103,14 @@ describe("Google Calendar sync rules", () => {
       new Date(body.end.dateTime).getTime() - new Date(body.start.dateTime).getTime(),
       60 * 60 * 1000,
     );
+    assert.equal(body.recurrence, undefined);
+    const repeating = calendarEventBody({
+      title: "תרופה",
+      content: "",
+      due_date: "2026-09-18T07:00:00.000Z",
+      recurrence: "weekdays",
+    });
+    assert.deepEqual(repeating.recurrence, ["RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH"]);
   });
 
   it("treats due_date/type/title/delete patches as calendar-relevant", () => {
@@ -215,7 +222,15 @@ describe("Google Calendar OAuth helpers", () => {
     assert.equal(parsed.token, token);
     const subscribe = googleCalendarSubscribeUrl(feed);
     assert.equal(new URL(subscribe).hostname, "calendar.google.com");
-    assert.equal(new URL(subscribe).searchParams.get("cid"), webcalFeedUrl(feed));
+    assert.equal(new URL(subscribe).searchParams.get("cid"), feed);
+    assert.equal(new URL(subscribe).searchParams.get("cid")?.startsWith("https://"), true);
+    const fromWebcal = googleCalendarSubscribeUrl(
+      "webcal://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token",
+    );
+    assert.equal(
+      new URL(fromWebcal).searchParams.get("cid"),
+      "https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token",
+    );
   });
 
   it("exposes the live Google Cloud redirect URIs", () => {

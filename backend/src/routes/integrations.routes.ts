@@ -49,7 +49,7 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
         calendarCallbackHtml({
           ok: true,
           webAppUrl: withCalendarQuery(webAppUrl, "connected"),
-          message: "אפשר לסגור את החלון. משימות עם תאריך יופיעו עכשיו ביומן Google.",
+            message: "אפשר לסגור את החלון. משימות עם תאריך נכתבות עכשיו ליומן Google הראשי.",
         }),
       );
     } catch (error) {

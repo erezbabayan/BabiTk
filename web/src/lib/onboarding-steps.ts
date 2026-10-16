@@ -52,7 +52,7 @@ export const ONBOARDING_STEPS = [
   {
     id: "calendar",
     title: "יומן BabiTk",
-    body: "משימות עם תאריך מופיעות ביומן לפי יום. לחצו חבר כדי להוסיף את אותו יומן גם ל-Google.",
+    body: "משימות עם תאריך מופיעות ביומן לפי יום. לחצו חבר כדי לכתוב אותן ליומן Google הראשי.",
     settingsSection: "calendar",
   },
 ] as const;

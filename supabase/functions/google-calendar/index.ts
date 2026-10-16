@@ -17,6 +17,7 @@ import {
   googleCalendarConfig,
   googleCalendarStatus,
   googleCalendarSubscribeUrl,
+  GOOGLE_CALENDAR_PRIMARY_URL,
   googleOAuthSetupPublic,
   parseCalendarIcsRequest,
   isGoogleOAuthOwner,
@@ -158,6 +159,28 @@ function eventDueFromRow(row: Record<string, unknown>): string | null {
   return null;
 }
 
+async function syncDatedTasksToGoogle(
+  userId: string,
+  accessToken?: string,
+): Promise<number> {
+  const admin = fullAdminClient();
+  const { data, error } = await admin
+    .from("mindtasker_items")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_actionable", true)
+    .not("due_date", "is", null)
+    .is("deleted_at", null)
+    .limit(100);
+  if (error) throw new Error(error.message);
+  const ids = (data ?? []).map((row) => String(row.id));
+  const db = adminClient();
+  for (const itemId of ids) {
+    await syncItemToGoogleCalendar(db, userId, itemId, { accessToken });
+  }
+  return ids.length;
+}
+
 async function listDatedCalendarEvents(
   userId: string,
 ): Promise<
@@ -231,12 +254,18 @@ async function handleCallback(req: Request): Promise<Response> {
     }
     const userId = await parseOAuthState(state, config.clientSecret);
     const tokens = await exchangeGoogleCode(code);
-    await storeGoogleRefreshToken(adminClient(), userId, tokens.refreshToken);
+    const db = adminClient();
+    await storeGoogleRefreshToken(db, userId, tokens.refreshToken);
+    try {
+      await syncDatedTasksToGoogle(userId, tokens.accessToken);
+    } catch (error) {
+      console.error("google-calendar sync-all after oauth", error);
+    }
     return html(
       calendarCallbackHtml({
         ok: true,
         webAppUrl: withCalendarQuery(webAppUrl, "connected"),
-        message: "אפשר לסגור את החלון. משימות עם תאריך יופיעו עכשיו ביומן Google.",
+        message: "אפשר לסגור את החלון. משימות עם תאריך נכתבות עכשיו ליומן Google הראשי.",
       }),
     );
   } catch (error) {
@@ -400,7 +429,10 @@ Deno.serve(async (req) => {
       let eventCount = 0;
       let googleUrl: string | undefined;
       const secret = calendarFeedSecret();
-      if (status.linked && secret) {
+      if (status.writable) {
+        googleUrl = GOOGLE_CALENDAR_PRIMARY_URL;
+        eventCount = (await listDatedCalendarEvents(userId)).length;
+      } else if (status.linked && secret) {
         const token = await calendarFeedToken(userId, secret);
         const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
         googleUrl = googleCalendarSubscribeUrl(feedUrl);
@@ -439,24 +471,8 @@ Deno.serve(async (req) => {
       const accessToken = readAccessToken(body);
       const syncAll = action === "sync-all" || body.syncAll === true;
       if (syncAll) {
-        const admin = fullAdminClient();
-        const { data, error } = await admin
-          .from("mindtasker_items")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("is_actionable", true)
-          .not("due_date", "is", null)
-          .is("deleted_at", null)
-          .limit(20);
-        if (error) throw new Error(error.message);
-        const ids = (data ?? []).map((row) => String(row.id));
-        const results: string[] = [];
-        for (const itemId of ids) {
-          results.push(
-            await syncItemToGoogleCalendar(adminClient(), userId, itemId, { accessToken }),
-          );
-        }
-        return json({ ok: true, count: results.length, results });
+        const count = await syncDatedTasksToGoogle(userId, accessToken);
+        return json({ ok: true, count });
       }
       const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
       if (!itemId) {

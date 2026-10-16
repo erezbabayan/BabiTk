@@ -249,6 +249,7 @@ export async function getGoogleCalendarConnectUrl(): Promise<string> {
 
 export async function getGoogleCalendarStatus(): Promise<{
   linked: boolean;
+  writable?: boolean;
   configured: boolean;
   canConfigure?: boolean;
   eventCount?: number;
