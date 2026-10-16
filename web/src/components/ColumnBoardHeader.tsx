@@ -4,16 +4,17 @@ import { BoardBrushMark, type BoardMarkTone } from "./MindTaskerLogo";
 function blockHeaderWheel(event: WheelEvent) {
   event.stopPropagation();
 }
-/** Search bar — preferred 13rem, shrinks when the row is tight instead of clipping. */
-export const COLUMN_SEARCH_WIDTH_CLASS = "w-[13rem] min-w-[5.5rem] max-w-full shrink";
-
 /** Title row height — shared across boards for subgrid alignment. */
 export const BOARD_HEADER_TITLE_ROW_CLASS =
   "board-notebook-chrome flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1";
 
-/** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
+/** Action buttons — packed to the inline end (left in RTL); DOM: sort → archive → lists. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
   "board-notebook-chrome board-notebook-toolbar mt-1 flex min-h-6 shrink-0 flex-nowrap items-center justify-end gap-x-1.5 overflow-x-auto overflow-y-visible lg:mt-1";
+
+/** Search sits on its own row so the field can use the full column width. */
+export const BOARD_HEADER_SEARCH_ROW_CLASS =
+  "board-notebook-chrome mt-1.5 min-w-0 w-full";
 
 interface ColumnBoardHeaderProps {
   title: string;
@@ -45,9 +46,7 @@ export function ColumnBoardHeader({
   action,
   toolbarLeading,
 }: ColumnBoardHeaderProps) {
-  const hasToolbar = Boolean(
-    search || dateSort || toolbarExtra || action || toolbarLeading,
-  );
+  const hasActions = Boolean(dateSort || toolbarExtra || action || toolbarLeading);
 
   return (
     <header data-no-drag-scroll className="overflow-visible pt-0.5">
@@ -79,13 +78,12 @@ export function ColumnBoardHeader({
           </div>
         ) : null}
       </div>
-      {hasToolbar ? (
+      {hasActions ? (
         <div
           data-no-drag-scroll
           onWheel={blockHeaderWheel}
           className={`${BOARD_HEADER_TOOLBAR_ROW_CLASS} relative z-[3]`}
         >
-          {search ? <div className={COLUMN_SEARCH_WIDTH_CLASS}>{search}</div> : null}
           {dateSort ? <div className="shrink-0">{dateSort}</div> : null}
           {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}
           {action ? (
@@ -99,6 +97,16 @@ export function ColumnBoardHeader({
               {toolbarLeading}
             </div>
           ) : null}
+        </div>
+      ) : null}
+      {search ? (
+        <div
+          data-no-drag-scroll
+          data-babitk-header-slot="search"
+          onWheel={blockHeaderWheel}
+          className={BOARD_HEADER_SEARCH_ROW_CLASS}
+        >
+          {search}
         </div>
       ) : null}
     </header>

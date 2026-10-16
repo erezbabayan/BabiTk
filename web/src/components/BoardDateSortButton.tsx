@@ -32,12 +32,12 @@ export function BoardDateSortButton({
       title={sortTitle(direction)}
       aria-pressed={direction !== null}
       aria-label={sortTitle(direction)}
-      className={`inline-flex h-6 items-center gap-1 ${boardToolbarButtonClass(tone)} ${
+      className={`inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap ${boardToolbarButtonClass(tone)} ${
         direction ? activeToneClasses[tone] : ""
       }`}
     >
       <NotebookIcon name="sort" size={12} tone={tone === "blue" ? "blue" : tone === "orange" ? "orange" : "slate"} />
-      <span>לפי תאריך</span>
+      <span className="whitespace-nowrap">לפי תאריך</span>
     </button>
   );
 }
