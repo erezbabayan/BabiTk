@@ -11,9 +11,25 @@ export const BABITK_PRIVACY_URL =
 export const BABITK_TERMS_URL = "https://erezbabayan.github.io/BabiTk/terms.html";
 
 export const CALENDAR_OAUTH_ERROR_KEY = "babitk-calendar-oauth-error";
+export const CALENDAR_OAUTH_ATTEMPT_KEY = "babitk-calendar-oauth-attempt";
 
 export const GOOGLE_TESTING_DENIED_MESSAGE =
-  "Google חסם את חיבור היומן כי האפליקציה במצב בדיקות. פרסמו אותה ב-Google Auth Platform (Publish app) ואז לחצו «חבר» שוב.";
+  "Google חסם את חיבור היומן כי האפליקציה במצב בדיקות. לחצו «פרסם ב-Google» (Publish app) ואז «הוסף ליומן הראשי» שוב.";
+
+export const CALENDAR_OAUTH_INCOMPLETE_MESSAGE =
+  "החיבור ליומן הראשי לא הושלם. אם Google הציג שגיאת בדיקות, לחצו «פרסם ב-Google» ואז נסו שוב.";
+
+export function calendarOauthPublishLabel(): string {
+  return "פרסם ב-Google";
+}
+
+export function calendarOauthPublishHelp(): string {
+  return "Google חוסם כתיבה ליומן הראשי כי BabiTk במצב בדיקות. לחצו «פרסם ב-Google», בחרו Publish app, ואז «הוסף ליומן הראשי» שוב.";
+}
+
+export function calendarTestingDeniedUserMessage(): string {
+  return "Google חוסם כרגע את חיבור היומן הראשי. אפשר להמשיך עם יומן BabiTk כאן.";
+}
 
 function oauthErrorText(
   error: unknown,

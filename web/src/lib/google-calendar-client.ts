@@ -15,11 +15,20 @@ import {
   googleOAuthSetupPublic,
   type GoogleCalendarHealth,
 } from "./google-calendar-setup";
+import { CALENDAR_OAUTH_ATTEMPT_KEY } from "./google-oauth-errors";
 
 const TIMEOUT_MS = 12_000;
 const SYNC_ALL_TIMEOUT_MS = 25_000;
 export const CALENDAR_LINK_FLAG = "babitk-calendar-link";
 export { GOOGLE_CALENDAR_SCOPE };
+
+function markCalendarOauthAttempt(): void {
+  try {
+    sessionStorage.setItem(CALENDAR_OAUTH_ATTEMPT_KEY, "1");
+  } catch {
+    // Private mode — the return-from-Google message is best-effort.
+  }
+}
 
 export { isCalendarRelevantPatch };
 
@@ -206,6 +215,7 @@ export async function startGoogleCalendarConnect(): Promise<void> {
   }
   const plan = planGoogleCalendarConnect(oauth, oauthError);
   if (plan.kind === "oauth") {
+    markCalendarOauthAttempt();
     window.location.assign(plan.url);
     return;
   }
@@ -233,6 +243,7 @@ export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
     if (!oauth.url) {
       throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
     }
+    markCalendarOauthAttempt();
     window.location.assign(oauth.url);
   } catch (error) {
     throw hebrewGoogleAuthError(error);
