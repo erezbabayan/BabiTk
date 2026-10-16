@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
   buildCalendarIcs,
+  calendarEventRecurrence,
   buildGoogleAuthUrl,
   calendarCallbackHtml,
   calendarFeedSecret,
@@ -159,7 +160,15 @@ function eventDueFromRow(row: Record<string, unknown>): string | null {
 
 async function listDatedCalendarEvents(
   userId: string,
-): Promise<Array<{ id: string; title: string; content: string; due_date: string }>> {
+): Promise<
+  Array<{
+    id: string;
+    title: string;
+    content: string;
+    due_date: string;
+    recurrence: ReturnType<typeof calendarEventRecurrence>;
+  }>
+> {
   const admin = fullAdminClient();
   const { data, error } = await admin
     .from("mindtasker_items")
@@ -181,10 +190,19 @@ async function listDatedCalendarEvents(
         title: typeof row.title === "string" ? row.title : "",
         content: typeof row.content === "string" ? row.content : "",
         due_date: due,
+        recurrence: calendarEventRecurrence(row.metadata),
       };
     })
-    .filter((event): event is { id: string; title: string; content: string; due_date: string } =>
-      event !== null,
+    .filter(
+      (
+        event,
+      ): event is {
+        id: string;
+        title: string;
+        content: string;
+        due_date: string;
+        recurrence: ReturnType<typeof calendarEventRecurrence>;
+      } => event !== null,
     );
 }
 

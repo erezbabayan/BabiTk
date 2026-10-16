@@ -171,6 +171,16 @@ function nextWeekdayOccurrence(timeZone: string, fromIso: string): string {
   return candidate;
 }
 
+function previousWeekdayOccurrence(timeZone: string, fromIso: string): string {
+  let candidate = addZonedDaysKeepingTime(timeZone, fromIso, -1);
+  for (let i = 0; i < 8; i++) {
+    const weekday = getZonedParts(new Date(candidate), timeZone).weekday;
+    if (isIsraeliWeekday(weekday)) return candidate;
+    candidate = addZonedDaysKeepingTime(timeZone, candidate, -1);
+  }
+  return candidate;
+}
+
 /** Compute the next fire time after `fromIso` for a recurrence rule. */
 export function advanceReminderDueDate(
   fromIso: string,
@@ -189,7 +199,26 @@ export function advanceReminderDueDate(
   }
 }
 
+/** Compute the previous fire time before `fromIso` for a recurrence rule. */
+export function previousReminderDueDate(
+  fromIso: string,
+  recurrence: ReminderRecurrence,
+  timezone = DEFAULT_TIMEZONE,
+): string {
+  switch (recurrence) {
+    case "daily":
+      return addZonedDaysKeepingTime(timezone, fromIso, -1);
+    case "weekly":
+      return addZonedDaysKeepingTime(timezone, fromIso, -7);
+    case "monthly":
+      return addZonedMonthsKeepingTime(timezone, fromIso, -1);
+    case "weekdays":
+      return previousWeekdayOccurrence(timezone, fromIso);
+  }
+}
+
 const MAX_ACTIVE_DUE_STEPS = 400;
+const MAX_CALENDAR_OCCURRENCE_STEPS = 2500;
 
 function zonedDateKey(date: Date, timezone: string): string {
   const parts = getZonedParts(date, timezone);
@@ -239,6 +268,50 @@ export function nextActiveDueDate(
     candidate = next;
   }
   return candidate;
+}
+
+/**
+ * Every occurrence of a reminder that falls on zoned calendar days in
+ * `[fromYmd, toYmd]` (inclusive). One-shot reminders yield the seed when it
+ * lands in range. Recurring reminders walk the series both directions from the
+ * stored due date so a rolled-forward `due_date` still fills the visible month.
+ */
+export function listReminderOccurrencesInRange(
+  seedIso: string,
+  recurrence: ReminderRecurrence | null | undefined,
+  fromYmd: string,
+  toYmd: string,
+  timezone = DEFAULT_TIMEZONE,
+): string[] {
+  if (!Number.isFinite(Date.parse(seedIso))) return [];
+  if (fromYmd > toYmd) return [];
+
+  if (!recurrence) {
+    const key = zonedDateKey(new Date(seedIso), timezone);
+    return key >= fromYmd && key <= toYmd ? [seedIso] : [];
+  }
+
+  let cursor = seedIso;
+  for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_STEPS; step++) {
+    const prev = previousReminderDueDate(cursor, recurrence, timezone);
+    if (prev === cursor) break;
+    if (!Number.isFinite(Date.parse(prev))) break;
+    if (zonedDateKey(new Date(prev), timezone) < fromYmd) break;
+    cursor = prev;
+  }
+
+  const out: string[] = [];
+  for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_STEPS; step++) {
+    const cursorMs = Date.parse(cursor);
+    if (!Number.isFinite(cursorMs)) break;
+    const key = zonedDateKey(new Date(cursorMs), timezone);
+    if (key > toYmd) break;
+    if (key >= fromYmd) out.push(cursor);
+    const next = advanceReminderDueDate(cursor, recurrence, timezone);
+    if (next === cursor) break;
+    cursor = next;
+  }
+  return out;
 }
 
 export interface ResolveItemReminderInput {

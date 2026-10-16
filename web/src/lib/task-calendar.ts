@@ -179,24 +179,170 @@ export function calendarTasks(items: MindtaskerItem[]): MindtaskerItem[] {
   return items.filter(isCalendarTask);
 }
 
+export type CalendarDayTask = {
+  item: MindtaskerItem;
+  dueIso: string;
+};
+
+export type CalendarDayRange = {
+  fromYmd: string;
+  toYmd: string;
+};
+
+/** Range covering the previous month through the next month (busy-day nav). */
+export function calendarMonthExpandRange(
+  year: number,
+  month: number,
+): CalendarDayRange {
+  const prev = shiftMonth(year, month, -1);
+  const afterNext = shiftMonth(year, month, 2);
+  return {
+    fromYmd: monthYmd(prev.year, prev.month),
+    toYmd: addDaysYmd(monthYmd(afterNext.year, afterNext.month), -1),
+  };
+}
+
+type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
+
+function calendarItemRecurrence(metadata: unknown): CalendarRecurrence | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).reminder_recurrence;
+  if (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "weekdays"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function daysInUtcMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function addMonthsYmd(ymd: string, months: number): string {
+  const [year, month, day] = ymd.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1 + months, 1));
+  const nextYear = shifted.getUTCFullYear();
+  const nextMonth = shifted.getUTCMonth() + 1;
+  const nextDay = Math.min(day, daysInUtcMonth(nextYear, nextMonth));
+  return `${nextYear}-${pad2(nextMonth)}-${pad2(nextDay)}`;
+}
+
+function isIsraeliWeekdayYmd(ymd: string): boolean {
+  const weekday = new Date(`${ymd}T12:00:00Z`).getUTCDay();
+  return weekday >= 0 && weekday <= 4;
+}
+
+function nextCalendarRecurrenceYmd(ymd: string, recurrence: CalendarRecurrence): string {
+  switch (recurrence) {
+    case "daily":
+      return addDaysYmd(ymd, 1);
+    case "weekly":
+      return addDaysYmd(ymd, 7);
+    case "monthly":
+      return addMonthsYmd(ymd, 1);
+    case "weekdays": {
+      let candidate = addDaysYmd(ymd, 1);
+      for (let i = 0; i < 8; i += 1) {
+        if (isIsraeliWeekdayYmd(candidate)) return candidate;
+        candidate = addDaysYmd(candidate, 1);
+      }
+      return candidate;
+    }
+  }
+}
+
+function previousCalendarRecurrenceYmd(
+  ymd: string,
+  recurrence: CalendarRecurrence,
+): string {
+  switch (recurrence) {
+    case "daily":
+      return addDaysYmd(ymd, -1);
+    case "weekly":
+      return addDaysYmd(ymd, -7);
+    case "monthly":
+      return addMonthsYmd(ymd, -1);
+    case "weekdays": {
+      let candidate = addDaysYmd(ymd, -1);
+      for (let i = 0; i < 8; i += 1) {
+        if (isIsraeliWeekdayYmd(candidate)) return candidate;
+        candidate = addDaysYmd(candidate, -1);
+      }
+      return candidate;
+    }
+  }
+}
+
+const MAX_CALENDAR_OCCURRENCE_DAYS = 2500;
+
+/** Civil days in `[fromYmd, toYmd]` for a stored due date and recurrence. */
+export function calendarOccurrenceYmds(
+  seedYmd: string,
+  recurrence: CalendarRecurrence | null | undefined,
+  fromYmd: string,
+  toYmd: string,
+): string[] {
+  if (!YMD_RE.test(seedYmd) || fromYmd > toYmd) return [];
+  if (!recurrence) {
+    return seedYmd >= fromYmd && seedYmd <= toYmd ? [seedYmd] : [];
+  }
+
+  let cursor = seedYmd;
+  for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_DAYS; step += 1) {
+    const prev = previousCalendarRecurrenceYmd(cursor, recurrence);
+    if (prev === cursor || prev < fromYmd) break;
+    cursor = prev;
+  }
+
+  const out: string[] = [];
+  for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_DAYS; step += 1) {
+    if (cursor > toYmd) break;
+    if (cursor >= fromYmd) out.push(cursor);
+    const next = nextCalendarRecurrenceYmd(cursor, recurrence);
+    if (next === cursor) break;
+    cursor = next;
+  }
+  return out;
+}
+
+function dueIsoOnYmd(seedIso: string, targetYmd: string): string {
+  const seedYmd = taskCalendarDayKey(seedIso);
+  if (!seedYmd || seedYmd === targetYmd) return seedIso;
+  const seedMs = Date.parse(seedIso);
+  const seedNoon = Date.parse(`${seedYmd}T12:00:00Z`);
+  const targetNoon = Date.parse(`${targetYmd}T12:00:00Z`);
+  if (!Number.isFinite(seedMs) || !Number.isFinite(seedNoon) || !Number.isFinite(targetNoon)) {
+    return seedIso;
+  }
+  return new Date(seedMs + (targetNoon - seedNoon)).toISOString();
+}
+
 export function groupCalendarTasksByDay(
   items: MindtaskerItem[],
-): Map<string, MindtaskerItem[]> {
-  const map = new Map<string, MindtaskerItem[]>();
+  range?: CalendarDayRange,
+): Map<string, CalendarDayTask[]> {
+  const map = new Map<string, CalendarDayTask[]>();
   for (const item of items) {
     const due = calendarItemDueIso(item);
-    const key = due ? taskCalendarDayKey(due) : null;
-    if (!key) continue;
-    const list = map.get(key) ?? [];
-    list.push(item);
-    map.set(key, list);
+    if (!due) continue;
+    const seedYmd = taskCalendarDayKey(due);
+    if (!seedYmd) continue;
+    const recurrence = calendarItemRecurrence(item.metadata);
+    const ymds = range
+      ? calendarOccurrenceYmds(seedYmd, recurrence, range.fromYmd, range.toYmd)
+      : [seedYmd];
+    for (const ymd of ymds) {
+      const list = map.get(ymd) ?? [];
+      list.push({ item, dueIso: dueIsoOnYmd(due, ymd) });
+      map.set(ymd, list);
+    }
   }
   for (const list of map.values()) {
-    list.sort((left, right) => {
-      const a = Date.parse(calendarItemDueIso(left) ?? "");
-      const b = Date.parse(calendarItemDueIso(right) ?? "");
-      return a - b;
-    });
+    list.sort((left, right) => Date.parse(left.dueIso) - Date.parse(right.dueIso));
   }
   return map;
 }
