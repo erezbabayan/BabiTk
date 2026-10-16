@@ -127,6 +127,7 @@ export function buildGoogleAuthUrl(params: {
   clientId: string;
   redirectUri: string;
   state: string;
+  loginHint?: string | null;
 }): string {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", params.clientId);
@@ -137,6 +138,10 @@ export function buildGoogleAuthUrl(params: {
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "true");
   url.searchParams.set("state", params.state);
+  const hint = params.loginHint?.trim() ?? "";
+  if (hint.includes("@")) {
+    url.searchParams.set("login_hint", hint);
+  }
   return url.toString();
 }
 
@@ -247,10 +252,40 @@ export function calendarCallbackHtml(params: {
 </html>`;
 }
 
-export function withCalendarQuery(webAppUrl: string, status: "connected" | "error"): string {
+export function withCalendarQuery(
+  webAppUrl: string,
+  status: "connected" | "error",
+  oauth?: { error?: string | null; description?: string | null },
+): string {
   const url = new URL(webAppUrl);
   url.searchParams.set("calendar", status);
+  const error = oauth?.error?.trim() ?? "";
+  if (status === "error" && error) {
+    url.searchParams.set("error", error);
+    const description = oauth?.description?.trim() ?? "";
+    if (description) url.searchParams.set("error_description", description);
+  }
   return url.toString();
+}
+
+export function googleCalendarLinkState(input: {
+  enabled: boolean;
+  refreshToken?: string | null;
+  oauthConfigured: boolean;
+}): {
+  linked: boolean;
+  writable: boolean;
+  configured: boolean;
+  oauthConfigured: boolean;
+} {
+  const refreshToken = (input.refreshToken ?? "").trim();
+  const writable = input.enabled === true && refreshToken.length > 8;
+  return {
+    linked: writable,
+    writable,
+    configured: input.oauthConfigured === true,
+    oauthConfigured: input.oauthConfigured === true,
+  };
 }
 
 export function icsEscape(text: string): string {

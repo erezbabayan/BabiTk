@@ -13,6 +13,7 @@ import {
   googleCalendarSubscribeUrl,
   icsRruleLine,
   parseCalendarIcsRequest,
+  googleCalendarLinkState,
   googleOAuthSetupPublic,
   icsUtcStamp,
   isCalendarRelevantPatch,
@@ -121,11 +122,12 @@ describe("Google Calendar sync rules", () => {
 });
 
 describe("Google Calendar OAuth helpers", () => {
-  it("builds a consent URL with calendar.events and offline access", () => {
+  it("builds a consent URL with calendar.events, offline access, and login_hint", () => {
     const url = buildGoogleAuthUrl({
       clientId: "abc.apps.googleusercontent.com",
       redirectUri: "https://example.supabase.co/functions/v1/google-calendar/callback",
       state: "user.exp.mac",
+      loginHint: "erezbabayan@gmail.com",
     });
     const parsed = new URL(url);
     assert.equal(parsed.origin, "https://accounts.google.com");
@@ -136,6 +138,44 @@ describe("Google Calendar OAuth helpers", () => {
       "https://www.googleapis.com/auth/calendar.events",
     );
     assert.equal(parsed.searchParams.get("state"), "user.exp.mac");
+    assert.equal(parsed.searchParams.get("login_hint"), "erezbabayan@gmail.com");
+  });
+
+  it("treats ICS-only rows as disconnected until Google OAuth writes a refresh token", () => {
+    assert.deepEqual(
+      googleCalendarLinkState({
+        enabled: true,
+        refreshToken: null,
+        oauthConfigured: true,
+      }),
+      {
+        linked: false,
+        writable: false,
+        configured: true,
+        oauthConfigured: true,
+      },
+    );
+    assert.deepEqual(
+      googleCalendarLinkState({
+        enabled: true,
+        refreshToken: "calendar-refresh-token-value",
+        oauthConfigured: true,
+      }),
+      {
+        linked: true,
+        writable: true,
+        configured: true,
+        oauthConfigured: true,
+      },
+    );
+    assert.equal(
+      googleCalendarLinkState({
+        enabled: false,
+        refreshToken: "",
+        oauthConfigured: false,
+      }).configured,
+      false,
+    );
   });
 
   it("round-trips HMAC state and rejects tampering or expiry", async () => {
@@ -156,6 +196,14 @@ describe("Google Calendar OAuth helpers", () => {
       url,
       "https://erezbabayan.github.io/BabiTk/?calendar=connected",
     );
+    const failed = withCalendarQuery("https://erezbabayan.github.io/BabiTk/", "error", {
+      error: "access_denied",
+      description: "access_denied:403",
+    });
+    const parsed = new URL(failed);
+    assert.equal(parsed.searchParams.get("calendar"), "error");
+    assert.equal(parsed.searchParams.get("error"), "access_denied");
+    assert.equal(parsed.searchParams.get("error_description"), "access_denied:403");
   });
 
   it("recognizes the owner and real Google OAuth client values", () => {

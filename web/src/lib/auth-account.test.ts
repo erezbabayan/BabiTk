@@ -83,10 +83,13 @@ describe("new-user settings stay setup-free", () => {
     assert.match(calendar, /calendarLinkedHelpText/);
     assert.match(calendar, /calendarSettingsButtonLabel/);
     assert.match(calendar, /startGoogleCalendarPrimaryConnect/);
+    assert.match(calendar, /<TaskMonthCalendar/);
+    assert.equal(calendar.includes("{userId ? ("), false);
     assert.equal(calendar.includes("הוסף ליומן הראשי"), false);
     assert.equal(calendar.includes("פרסם ב-Google"), false);
     assert.equal(calendar.includes("הוסף כיומן BabiTk"), false);
     assert.equal(calendar.includes("Client ID"), false);
+    assert.equal(calendar.includes("subscribe"), false);
     assert.match(calendar, /disabled=\{busy \|\| !configured\}/);
 
     assert.match(whatsapp, /isAppOwnerAccount/);

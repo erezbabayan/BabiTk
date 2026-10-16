@@ -194,13 +194,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       <p className="text-slate-600">
         יומן BabiTk מציג משימות לפי תאריך. משימות בלי תאריך נשארות בלוח בלבד.
       </p>
-      {userId ? (
-        <TaskMonthCalendar
-          items={items}
-          compact
-          onSelectItem={(item) => onSelectItem?.(item.id)}
-        />
-      ) : null}
+      <TaskMonthCalendar
+        items={items}
+        compact
+        onSelectItem={(item) => onSelectItem?.(item.id)}
+      />
       {error ? <p className="text-red-600">{error}</p> : null}
       {!writable && configured ? (
         <p className="text-slate-600">{calendarUnlinkedHelpText()}</p>

@@ -152,6 +152,7 @@ export function buildGoogleAuthUrl(params: {
   clientId: string;
   redirectUri: string;
   state: string;
+  loginHint?: string | null;
 }): string {
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", params.clientId);
@@ -162,6 +163,10 @@ export function buildGoogleAuthUrl(params: {
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "true");
   url.searchParams.set("state", params.state);
+  const hint = params.loginHint?.trim() ?? "";
+  if (hint.includes("@")) {
+    url.searchParams.set("login_hint", hint);
+  }
   return url.toString();
 }
 
@@ -272,9 +277,19 @@ export function calendarCallbackHtml(params: {
 </html>`;
 }
 
-export function withCalendarQuery(webAppUrl: string, status: "connected" | "error"): string {
+export function withCalendarQuery(
+  webAppUrl: string,
+  status: "connected" | "error",
+  oauth?: { error?: string | null; description?: string | null },
+): string {
   const url = new URL(webAppUrl);
   url.searchParams.set("calendar", status);
+  const error = oauth?.error?.trim() ?? "";
+  if (status === "error" && error) {
+    url.searchParams.set("error", error);
+    const description = oauth?.description?.trim() ?? "";
+    if (description) url.searchParams.set("error_description", description);
+  }
   return url.toString();
 }
 
@@ -607,17 +622,18 @@ export async function storeGoogleRefreshToken(
 export async function storeGoogleCalendarLink(
   supabase: CalendarDb,
   userId: string,
-  refreshToken?: string | null,
+  refreshToken: string,
 ): Promise<void> {
-  const values: Record<string, unknown> = {
-    google_calendar_enabled: true,
-  };
-  if (typeof refreshToken === "string" && refreshToken.trim().length > 8) {
-    values.google_refresh_token = refreshToken.trim();
+  const token = refreshToken.trim();
+  if (token.length <= 8) {
+    throw new Error("missing_refresh_token");
   }
   const { error } = await supabase
     .from("users")
-    .update(values)
+    .update({
+      google_calendar_enabled: true,
+      google_refresh_token: token,
+    })
     .eq("id", userId)
     .maybeSingle();
   if (error) {
@@ -642,6 +658,26 @@ export async function disconnectGoogleCalendar(
   }
 }
 
+export function googleCalendarLinkState(input: {
+  enabled: boolean;
+  refreshToken?: string | null;
+  oauthConfigured: boolean;
+}): {
+  linked: boolean;
+  writable: boolean;
+  configured: boolean;
+  oauthConfigured: boolean;
+} {
+  const refreshToken = (input.refreshToken ?? "").trim();
+  const writable = input.enabled === true && refreshToken.length > 8;
+  return {
+    linked: writable,
+    writable,
+    configured: input.oauthConfigured === true,
+    oauthConfigured: input.oauthConfigured === true,
+  };
+}
+
 export async function googleCalendarStatus(
   supabase: CalendarDb,
   userId: string,
@@ -657,15 +693,12 @@ export async function googleCalendarStatus(
     .select("google_calendar_enabled, google_refresh_token")
     .eq("id", userId)
     .maybeSingle();
-  const enabled = data?.google_calendar_enabled === true;
-  const refreshToken =
-    typeof data?.google_refresh_token === "string" ? data.google_refresh_token.trim() : "";
-  return {
-    linked: enabled,
-    writable: enabled && refreshToken.length > 8,
-    configured: Boolean(calendarFeedSecret()) || config.configured,
+  return googleCalendarLinkState({
+    enabled: data?.google_calendar_enabled === true,
+    refreshToken:
+      typeof data?.google_refresh_token === "string" ? data.google_refresh_token : null,
     oauthConfigured: config.configured,
-  };
+  });
 }
 
 export type CalendarSyncResult = "created" | "updated" | "deleted" | "skipped";
