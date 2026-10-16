@@ -29,6 +29,8 @@ interface ColumnBoardHeaderProps {
   search?: ReactNode;
   toolbarExtra?: ReactNode;
   action?: ReactNode;
+  /** Visual left of the toolbar row in RTL (last in DOM with justify-end). */
+  toolbarLeading?: ReactNode;
 }
 
 export function ColumnBoardHeader({
@@ -41,8 +43,11 @@ export function ColumnBoardHeader({
   search,
   toolbarExtra,
   action,
+  toolbarLeading,
 }: ColumnBoardHeaderProps) {
-  const hasToolbar = Boolean(search || dateSort || toolbarExtra || action);
+  const hasToolbar = Boolean(
+    search || dateSort || toolbarExtra || action || toolbarLeading,
+  );
 
   return (
     <header data-no-drag-scroll className="overflow-visible pt-0.5">
@@ -85,6 +90,14 @@ export function ColumnBoardHeader({
           {toolbarExtra ? <div className="shrink-0">{toolbarExtra}</div> : null}
           {action ? (
             <div className="flex shrink-0 items-center gap-1">{action}</div>
+          ) : null}
+          {toolbarLeading ? (
+            <div
+              className="relative z-[4] shrink-0"
+              data-babitk-header-slot="toolbar-start"
+            >
+              {toolbarLeading}
+            </div>
           ) : null}
         </div>
       ) : null}
