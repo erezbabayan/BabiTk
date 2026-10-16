@@ -56,6 +56,10 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const [error, setError] = useState<string | null>(null);
   const { items } = useDatedCalendarTasks(userId);
 
+  useEffect(() => {
+    if (isDemoMode) setEventCount(items.length);
+  }, [items.length]);
+
   const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
