@@ -9,6 +9,7 @@ import {
   findVoiceItemByWhatsAppMessage,
   insertPendingWhatsAppVoiceItem,
   isSoftDeletedVoiceItem,
+  isWhatsAppMessageCaptured,
   scheduleBackgroundWork,
   transcribeStoredVoiceItem,
   type VoiceGatewayCredentials,
@@ -142,6 +143,16 @@ export async function catchUpCaptureVoice(options: {
       message.messageId,
     );
     if (row && isSoftDeletedVoiceItem(row)) continue;
+    if (
+      !row &&
+      (await isWhatsAppMessageCaptured(
+        options.supabase,
+        options.userId,
+        message.messageId,
+      ))
+    ) {
+      continue;
+    }
     if (!row) {
       row = await insertPendingWhatsAppVoiceItem(
         options.supabase,
@@ -150,6 +161,7 @@ export async function catchUpCaptureVoice(options: {
       );
       result.inserted += 1;
     }
+    if (row && isSoftDeletedVoiceItem(row)) continue;
     if (needsVoiceTranscription(row.title, row.content)) {
       result.pending += 1;
       toTranscribe.push(row);
@@ -163,6 +175,16 @@ export async function catchUpCaptureVoice(options: {
       message.messageId,
     );
     if (row && isSoftDeletedVoiceItem(row)) continue;
+    if (
+      !row &&
+      (await isWhatsAppMessageCaptured(
+        options.supabase,
+        options.userId,
+        message.messageId,
+      ))
+    ) {
+      continue;
+    }
     if (!row) {
       row = await insertPendingWhatsAppImageItem(
         options.supabase,
@@ -171,6 +193,7 @@ export async function catchUpCaptureVoice(options: {
       );
       result.imagesInserted += 1;
     }
+    if (row && isSoftDeletedVoiceItem(row)) continue;
     if (needsOcrTranscription(row.title, row.content)) {
       toOcr.push({ row, message });
     }

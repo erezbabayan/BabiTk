@@ -27,13 +27,16 @@ export function applyItemRealtimeChange<T extends { id: string; deleted_at?: str
   const id = String(incoming.id ?? outgoing.id ?? "");
   if (!id) return prev;
 
-  const deletedAt = incoming.deleted_at;
+  const deletedAt = incoming.deleted_at ?? outgoing.deleted_at;
   if (event === "DELETE" || (typeof deletedAt === "string" && deletedAt)) {
     return prev.filter((item) => item.id !== id);
   }
 
   const index = prev.findIndex((item) => item.id === id);
   if (index === -1) {
+    if (event === "UPDATE") {
+      return prev;
+    }
     return [{ ...(incoming as T), id }, ...prev];
   }
 

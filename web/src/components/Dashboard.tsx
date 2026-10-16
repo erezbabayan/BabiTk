@@ -1089,24 +1089,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
               markTone="blue"
               notebookLayout
               titleExtra={
-                todayListView === "active" && taskLists.enabled ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
-                      setShowTaskLists(true);
-                    }}
-                    className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
-                    title="הרשימה"
-                    aria-label="הרשימה"
-                    data-babitk-task-lists-button="true"
-                  >
-                    <ListBoardIcon className="h-3.5 w-3.5" />
-                    הרשימה
-                  </button>
-                ) : null
-              }
-              titleTrailing={
                 todayListView === "active" ? (
                   <div
                     className="flex h-7 shrink-0 items-stretch divide-x divide-blue-300/90 overflow-hidden rounded-md border border-blue-300/90 bg-white shadow-sm"
@@ -1171,6 +1153,24 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                         );
                       })}
                   </div>
+                ) : null
+              }
+              titleTrailing={
+                todayListView === "active" && taskLists.enabled ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaskListsMode(activeTaskListsCount > 0 ? "existing" : "create");
+                      setShowTaskLists(true);
+                    }}
+                    className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-blue-300/90 bg-white px-2 text-[11px] font-semibold leading-none text-blue-700 shadow-sm hover:bg-blue-50"
+                    title="הרשימה"
+                    aria-label="הרשימה"
+                    data-babitk-task-lists-button="true"
+                  >
+                    <ListBoardIcon className="h-3.5 w-3.5" />
+                    הרשימה
+                  </button>
                 ) : null
               }
               dateSort={

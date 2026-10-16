@@ -29,6 +29,8 @@ import {
   applyVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
   isSoftDeletedVoiceItem,
+  isStableWhatsAppMessageId,
+  isWhatsAppMessageCaptured,
   insertPendingWhatsAppVoiceItem,
   interceptVoiceItemQuestion,
   repairOnePlaceholderVoiceItem,
@@ -412,8 +414,13 @@ async function alreadyIngested(
   if (await findSystemQuestionReceipt(supabase, userId, messageId)) {
     return true;
   }
+  if (!isStableWhatsAppMessageId(messageId)) {
+    return false;
+  }
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
-  if (!existing) return false;
+  if (!existing) {
+    return await isWhatsAppMessageCaptured(supabase, userId, messageId);
+  }
   if (isSoftDeletedVoiceItem(existing)) return true;
   if (needsVoiceTranscription(existing.title, existing.content)) {
     scheduleBackgroundWork(
@@ -502,6 +509,9 @@ async function ingestMessage(
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
 ): Promise<{ id: string; title: string } | "answered" | null> {
+  if (!isStableWhatsAppMessageId(message.messageId)) {
+    return null;
+  }
   if (await alreadyIngested(supabase, user.id, message.messageId, gateway)) {
     return null;
   }
@@ -510,10 +520,15 @@ async function ingestMessage(
     try {
       pending = await insertPendingWhatsAppVoiceItem(supabase, user.id, message);
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (detail === "whatsapp_message_already_captured") {
+        return null;
+      }
       console.error("pending voice insert failed", error);
       await sendGreenApiText(gateway, replyChatId(message), ASR_FAIL_REPLY);
       return "answered";
     }
+    if (isSoftDeletedVoiceItem(pending)) return null;
     scheduleBackgroundWork(
       finishWhatsAppVoiceItem(supabase, user, message, gateway, pending),
     );
@@ -533,9 +548,14 @@ async function ingestMessage(
     try {
       pending = await insertPendingWhatsAppImageItem(supabase, user.id, message);
     } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (detail === "whatsapp_message_already_captured") {
+        return null;
+      }
       console.error("pending image insert failed", error);
       return null;
     }
+    if (isSoftDeletedVoiceItem(pending)) return null;
     // OCR runs in a separate isolate (`ocr_image`). waitUntil in this
     // isolate is killed before Gemini returns and used to mark the row failed.
     return { id: pending.id, title: pending.title };
@@ -576,6 +596,9 @@ async function insertCapturedItem(
 ): Promise<{ id: string; title: string } | null> {
   if (!isInsertableInboundText(item.title, item.content)) {
     throw new Error("inbound_text_required");
+  }
+  if (await isWhatsAppMessageCaptured(supabase, user.id, message.messageId)) {
+    return null;
   }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase

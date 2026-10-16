@@ -27,6 +27,8 @@ import { queueCalendarSync } from "./google-calendar.ts";
 import type { ParsedGreenApiMessage } from "./green-api.ts";
 import {
   findVoiceItemByWhatsAppMessage,
+  isSoftDeletedVoiceItem,
+  isWhatsAppMessageCaptured,
   scheduleBackgroundWork,
   type VoiceGatewayCredentials,
   type VoiceItemRow,
@@ -209,6 +211,9 @@ export async function insertPendingWhatsAppImageItem(
 ): Promise<ImageItemRow> {
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, message.messageId);
   if (existing) return existing;
+  if (await isWhatsAppMessageCaptured(supabase, userId, message.messageId)) {
+    throw new Error("whatsapp_message_already_captured");
+  }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -288,6 +293,13 @@ export async function applyImageOcr(
     engine?: string;
   },
 ): Promise<void> {
+  if (isSoftDeletedVoiceItem(row)) return;
+  const { data: current } = await supabase
+    .from("mindtasker_items")
+    .select("deleted_at")
+    .eq("id", row.id)
+    .maybeSingle();
+  if (current && isSoftDeletedVoiceItem(current)) return;
   const source = firstSourceMaterial(row);
   const body = notebookBodyFromOcr(transcribed);
   if (!body.content) {
@@ -429,6 +441,9 @@ export async function finishWhatsAppImageItem(
   gateway: VoiceGatewayCredentials | null,
   message?: ParsedGreenApiMessage,
 ): Promise<{ title: string; content: string } | null> {
+  if (isSoftDeletedVoiceItem(row)) {
+    return null;
+  }
   if (!needsOcrTranscription(row.title, row.content)) {
     return { title: row.title, content: row.content };
   }

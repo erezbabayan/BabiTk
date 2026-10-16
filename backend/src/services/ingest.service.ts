@@ -30,8 +30,46 @@ export interface IngestTextParams {
   locale?: string;
 }
 
+function emptyIngestionResult(params: IngestTextParams): SaveIngestionResult {
+  return {
+    sourceMaterial: {
+      id: "00000000-0000-4000-8000-000000000000",
+      user_id: params.userId,
+      source_type: params.sourceType,
+      storage_url: params.storageUrl ?? null,
+      raw_text: params.rawText ?? params.text,
+      metadata: params.metadata ?? {},
+      created_at: new Date().toISOString(),
+    },
+    items: [],
+  };
+}
+
+async function alreadyCapturedWhatsAppMessage(
+  userId: string,
+  messageId: string,
+): Promise<boolean> {
+  if (!env.isSupabaseConfigured || !messageId.trim()) return false;
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase
+    .from("mindtasker_items")
+    .select("id")
+    .eq("user_id", userId)
+    .filter("metadata->>whatsapp_message_id", "eq", messageId.trim())
+    .limit(1);
+  return Boolean(data?.[0]);
+}
+
 export async function ingestText(params: IngestTextParams): Promise<SaveIngestionResult> {
   // Persists AI-parsed rows into the user's Inbox (`items` + `source_materials`).
+  const whatsappMessageId =
+    typeof params.metadata?.whatsapp_message_id === "string"
+      ? params.metadata.whatsapp_message_id
+      : "";
+  if (await alreadyCapturedWhatsAppMessage(params.userId, whatsappMessageId)) {
+    return emptyIngestionResult(params);
+  }
+
   const units = estimateTextParseUnits(params.text);
   await assertAiParseQuota(params.userId, units);
 
@@ -49,17 +87,17 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   const merged = applySplitMergeLessons(parsed, params.text, lessons);
   const existing = await listRecentInboxKeys(params.userId);
   const uniqueItems = filterDuplicateParsedItems(merged.items, existing);
+  if (uniqueItems.length === 0) {
+    return emptyIngestionResult(params);
+  }
 
   const referenceDate = new Date();
-  const enrichedItems = enrichParsedItemsWithAnalysis(
-    uniqueItems.length > 0 ? uniqueItems : merged.items.slice(0, 1),
-    {
-      sourceType: params.sourceType,
-      sourceText: params.text,
-      timezone: params.timezone,
-      referenceDate,
-    },
-  );
+  const enrichedItems = enrichParsedItemsWithAnalysis(uniqueItems, {
+    sourceType: params.sourceType,
+    sourceText: params.text,
+    timezone: params.timezone,
+    referenceDate,
+  });
 
   const result = await saveIngestionResult({
     userId: params.userId,
@@ -97,7 +135,6 @@ async function listRecentInboxKeys(
     .from("mindtasker_items")
     .select("title, content")
     .eq("user_id", userId)
-    .is("deleted_at", null)
     .gte("created_at", since)
     .limit(80);
   return data ?? [];

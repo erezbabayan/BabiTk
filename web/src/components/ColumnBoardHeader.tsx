@@ -21,6 +21,7 @@ interface ColumnBoardHeaderProps {
   markTone: BoardMarkTone;
   /** Kept for call-site compatibility — title always shows inside the panel. */
   notebookLayout?: boolean;
+  /** Visual left in RTL — far side of the title row. */
   titleTrailing?: ReactNode;
   /** Sits next to the title (right in RTL), opposite the trailing controls. */
   titleExtra?: ReactNode;
@@ -59,11 +60,18 @@ export function ColumnBoardHeader({
             {title}
           </h2>
           {titleExtra ? (
-            <div className="relative z-[4] shrink-0">{titleExtra}</div>
+            <div className="relative z-[4] shrink-0" data-babitk-header-slot="title">
+              {titleExtra}
+            </div>
           ) : null}
         </div>
         {titleTrailing ? (
-          <div className="relative z-[4] max-w-full shrink-0">{titleTrailing}</div>
+          <div
+            className="relative z-[4] max-w-full shrink-0"
+            data-babitk-header-slot="start"
+          >
+            {titleTrailing}
+          </div>
         ) : null}
       </div>
       {hasToolbar ? (

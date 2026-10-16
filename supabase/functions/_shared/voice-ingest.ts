@@ -36,6 +36,11 @@ import {
   resolveCaptureChatId,
 } from "./whatsapp-system-question-reply.ts";
 import { parseInboundText, layoutMetadataFromParsed } from "./inbound-item.ts";
+import {
+  isSoftDeletedCapturedItem,
+  isStableWhatsAppMessageId,
+  preferLiveCapturedItem,
+} from "./whatsapp-ingest-state.ts";
 
 type AdminClient = ReturnType<typeof createClient>;
 
@@ -59,10 +64,12 @@ export interface VoiceItemRow {
     | null;
 }
 
+export { isStableWhatsAppMessageId };
+
 export function isSoftDeletedVoiceItem(row: {
   deleted_at?: string | null;
 }): boolean {
-  return typeof row.deleted_at === "string" && row.deleted_at.length > 0;
+  return isSoftDeletedCapturedItem(row);
 }
 
 export const VOICE_PLACEHOLDER_FILTER =
@@ -300,6 +307,9 @@ export async function insertPendingWhatsAppVoiceItem(
 ): Promise<VoiceItemRow> {
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, message.messageId);
   if (existing) return existing;
+  if (await isWhatsAppMessageCaptured(supabase, userId, message.messageId)) {
+    throw new Error("whatsapp_message_already_captured");
+  }
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -378,6 +388,13 @@ export async function applyVoiceTranscription(
     engine?: string;
   },
 ): Promise<void> {
+  if (isSoftDeletedVoiceItem(row)) return;
+  const { data: current } = await supabase
+    .from("mindtasker_items")
+    .select("deleted_at")
+    .eq("id", row.id)
+    .maybeSingle();
+  if (current && isSoftDeletedVoiceItem(current)) return;
   const source = firstSourceMaterial(row);
   const previousSource =
     typeof row.metadata?.source === "string" && row.metadata.source.trim()
@@ -457,24 +474,75 @@ export async function applyVoiceTranscription(
     .eq("id", source.id);
 }
 
+const VOICE_ITEM_SELECT =
+  "id, user_id, title, content, deleted_at, metadata, source_material_id, source_materials ( id, storage_url, metadata )";
+
+async function findSourceMaterialIdsByWhatsAppMessage(
+  supabase: AdminClient,
+  userId: string,
+  messageId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("source_materials")
+    .select("id")
+    .eq("user_id", userId)
+    .filter("metadata->>whatsapp_message_id", "eq", messageId)
+    .limit(8);
+  if (error || !data?.length) return [];
+  return data
+    .map((row) => (typeof row.id === "string" ? row.id : String(row.id ?? "")))
+    .filter((id) => id.length > 0);
+}
+
 export async function findVoiceItemByWhatsAppMessage(
   supabase: AdminClient,
   userId: string,
   messageId: string,
 ): Promise<VoiceItemRow | null> {
+  if (!isStableWhatsAppMessageId(messageId)) return null;
   const { data, error } = await supabase
     .from("mindtasker_items")
-    .select(
-      "id, user_id, title, content, deleted_at, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
-    )
+    .select(VOICE_ITEM_SELECT)
     .eq("user_id", userId)
     .filter("metadata->>whatsapp_message_id", "eq", messageId)
     .order("sort_order", { ascending: true })
     .limit(8);
-  if (error || !data?.[0]) return null;
-  const rows = data as VoiceItemRow[];
-  const live = rows.find((row) => !isSoftDeletedVoiceItem(row));
-  return live ?? rows[0] ?? null;
+  const fromItems = preferLiveCapturedItem((error ? [] : data ?? []) as VoiceItemRow[]);
+  if (fromItems) return fromItems;
+
+  const sourceIds = await findSourceMaterialIdsByWhatsAppMessage(
+    supabase,
+    userId,
+    messageId,
+  );
+  if (sourceIds.length === 0) return null;
+  const { data: bySource, error: sourceError } = await supabase
+    .from("mindtasker_items")
+    .select(VOICE_ITEM_SELECT)
+    .eq("user_id", userId)
+    .in("source_material_id", sourceIds)
+    .order("sort_order", { ascending: true })
+    .limit(8);
+  return preferLiveCapturedItem(
+    (sourceError ? [] : bySource ?? []) as VoiceItemRow[],
+  );
+}
+
+export async function isWhatsAppMessageCaptured(
+  supabase: AdminClient,
+  userId: string,
+  messageId: string,
+): Promise<boolean> {
+  if (!isStableWhatsAppMessageId(messageId)) return false;
+  if (await findVoiceItemByWhatsAppMessage(supabase, userId, messageId)) {
+    return true;
+  }
+  const sourceIds = await findSourceMaterialIdsByWhatsAppMessage(
+    supabase,
+    userId,
+    messageId,
+  );
+  return sourceIds.length > 0;
 }
 
 async function loadUserGateway(
@@ -555,6 +623,14 @@ export async function transcribeStoredVoiceItem(
   audioUrl: string | null;
   answered?: boolean;
 }> {
+  if (isSoftDeletedVoiceItem(row)) {
+    return {
+      rawText: row.content,
+      content: row.content,
+      title: row.title,
+      audioUrl: firstSourceMaterial(row)?.storage_url ?? null,
+    };
+  }
   if (!needsVoiceTranscription(row.title, row.content)) {
     return {
       rawText: row.content,
