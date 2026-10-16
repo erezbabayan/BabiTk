@@ -3,11 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 import { useDatedCalendarTasks } from "../hooks/useDatedCalendarTasks";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
+  calendarBabiTkCaption,
   calendarGoogleOpenLabel,
   calendarLinkedHelpText,
   calendarOauthPublishHelp,
   calendarOauthPublishLabel,
+  calendarOauthPublishTitle,
   calendarPrimaryButtonLabel,
+  calendarPrimaryCaption,
+  calendarPublishCaption,
   calendarSettingsButtonLabel,
   calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
@@ -244,19 +248,6 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
         <p className="text-slate-600">{calendarTestingDeniedUserMessage()}</p>
       ) : null}
-      {canConfigure && configured && !writable ? (
-        <div className="space-y-2">
-          <p className="text-slate-600">{calendarOauthPublishHelp()}</p>
-          <a
-            href={GOOGLE_AUTH_AUDIENCE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="relative z-10 inline-block rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
-          >
-            {calendarOauthPublishLabel()}
-          </a>
-        </div>
-      ) : null}
       {canConfigure && !configured ? (
         <GoogleOAuthEnable
           onEnabled={() => {
@@ -268,31 +259,50 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       {!configured && !canConfigure ? (
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-3">
+        {canConfigure && configured && !writable ? (
+          <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+            <p className="font-medium text-slate-800">{calendarOauthPublishTitle()}</p>
+            <p className="text-slate-600">{calendarOauthPublishHelp()}</p>
+            <a
+              href={GOOGLE_AUTH_AUDIENCE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 block w-full rounded-lg border border-slate-300 px-4 py-2 text-center hover:bg-slate-50"
+            >
+              {calendarOauthPublishLabel()}
+            </a>
+            <p className="text-xs text-slate-500">{calendarPublishCaption()}</p>
+          </div>
+        ) : null}
         {linked && !writable ? (
-          <button
-            type="button"
-            data-calendar-primary="true"
-            onClick={() => void handleAddToPrimary()}
-            disabled={busy || !configured}
-            className="relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100 disabled:opacity-60"
-          >
-            {calendarPrimaryButtonLabel(busy)}
-          </button>
+          <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+            <p className="font-medium text-slate-800">{calendarPrimaryButtonLabel(false)}</p>
+            <p className="text-slate-600">{calendarPrimaryCaption()}</p>
+            <button
+              type="button"
+              data-calendar-primary="true"
+              onClick={() => void handleAddToPrimary()}
+              disabled={busy || !configured}
+              className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {calendarPrimaryButtonLabel(busy)}
+            </button>
+          </div>
         ) : null}
         {linked && googleUrl ? (
-          <a
-            href={googleUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={
-              writable
-                ? "relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
-                : "relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50"
-            }
-          >
-            {calendarGoogleOpenLabel(writable)}
-          </a>
+          <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
+            <p className="font-medium text-slate-800">{calendarGoogleOpenLabel(writable)}</p>
+            {writable ? null : <p className="text-slate-600">{calendarBabiTkCaption()}</p>}
+            <a
+              href={googleUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 block w-full rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-center text-blue-800 hover:bg-blue-100"
+            >
+              {calendarGoogleOpenLabel(writable)}
+            </a>
+          </div>
         ) : null}
         {linked ? (
           <button
@@ -301,7 +311,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
             data-calendar-writable={writable ? "true" : "false"}
             onClick={() => void handleDisconnect()}
             disabled={busy}
-            className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+            className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
           >
             {calendarSettingsButtonLabel(true, busy)}
           </button>
@@ -311,7 +321,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
             data-calendar-linked="false"
             onClick={() => void handleConnect()}
             disabled={busy || !configured}
-            className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+            className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
           >
             {calendarSettingsButtonLabel(false, busy)}
           </button>

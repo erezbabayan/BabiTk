@@ -7,6 +7,8 @@ import {
   GOOGLE_TESTING_DENIED_MESSAGE,
   calendarOauthPublishHelp,
   calendarOauthPublishLabel,
+  calendarOauthPublishTitle,
+  calendarPublishCaption,
   calendarTestingDeniedUserMessage,
   isGoogleOauthTestingDenied,
 } from "./google-oauth-errors.ts";
@@ -23,11 +25,15 @@ describe("Google OAuth testing-mode 403", () => {
     assert.equal(isGoogleOauthTestingDenied("access_denied"), false);
     assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /מצב בדיקות/);
     assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /Publish app/);
+    assert.match(GOOGLE_TESTING_DENIED_MESSAGE, /במחשב/);
     assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
     assert.match(BABITK_PRIVACY_URL, /privacy\.html/);
-    assert.equal(calendarOauthPublishLabel(), "פרסם ב-Google");
+    assert.equal(calendarOauthPublishTitle(), "פרסם ב-Google");
+    assert.match(calendarOauthPublishLabel(), /מחשב/);
     assert.match(calendarOauthPublishHelp(), /Publish app/);
     assert.match(calendarOauthPublishHelp(), /יומן הראשי/);
+    assert.match(calendarOauthPublishHelp(), /לא מפרסם מהטלפון/);
+    assert.match(calendarPublishCaption(), /מחשב/);
     assert.equal(calendarOauthPublishHelp().includes("Client ID"), false);
     assert.match(calendarTestingDeniedUserMessage(), /יומן BabiTk/);
   });
