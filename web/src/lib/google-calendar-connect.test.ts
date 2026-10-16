@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  calendarBabiTkCaption,
-  calendarGoogleOpenLabel,
   calendarLinkedHelpText,
-  calendarPrimaryButtonLabel,
-  calendarPrimaryCaption,
   calendarSettingsButtonLabel,
   calendarUnlinkedHelpText,
   formatCalendarConnectError,
@@ -56,24 +52,19 @@ describe("simple Google Calendar connect", () => {
     assert.deepEqual(planGoogleCalendarConnect(null, denied), { kind: "error", error: denied });
   });
 
-  it("explains that an iOS Yes on webcal does not fill the primary Google Calendar", () => {
+  it("uses one Connect button for the in-app calendar and Google primary", () => {
+    assert.match(calendarUnlinkedHelpText(), /«חבר»/);
+    assert.match(calendarUnlinkedHelpText(), /יומן BabiTk במערכת/);
     assert.match(calendarUnlinkedHelpText(), /יומן Google הראשי/);
     assert.match(
       calendarLinkedHelpText({ writable: false, eventCount: 34 }),
-      /הוסף כיומן BabiTk/,
+      /לחצו «חבר»/,
     );
-    assert.match(calendarLinkedHelpText({ writable: false, eventCount: 34 }), /פרסום במחשב/);
-    assert.match(calendarPrimaryCaption(), /יומן Google האישי/);
-    assert.match(calendarBabiTkCaption(), /יומנים אחרים/);
     assert.equal(
       calendarLinkedHelpText({ writable: true, eventCount: 34 }),
-      "34 משימות עם תאריך נכתבות ליומן Google הראשי.",
+      "34 משימות עם תאריך מופיעות ביומן BabiTk ונכתבות ליומן Google הראשי.",
     );
-    assert.match(calendarLinkedHelpText({ writable: true, eventCount: 0 }), /היומן הראשי מחובר/);
-    assert.equal(calendarPrimaryButtonLabel(false), "הוסף ליומן הראשי");
-    assert.equal(calendarPrimaryButtonLabel(true), "מתחבר...");
-    assert.equal(calendarGoogleOpenLabel(true), "פתח ביומן Google");
-    assert.equal(calendarGoogleOpenLabel(false), "הוסף כיומן BabiTk");
+    assert.match(calendarLinkedHelpText({ writable: true, eventCount: 0 }), /בשניהם/);
     assert.equal(calendarUnlinkedHelpText().includes("Client ID"), false);
   });
 
@@ -101,9 +92,8 @@ describe("simple Google Calendar connect", () => {
     );
     assert.equal(isGoogleOauthTestingDenied("access_denied"), false);
     const message = formatCalendarConnectError(new Error("access_denied:403"));
-    assert.match(message, /מצב בדיקות/);
-    assert.match(message, /Publish app/);
-    assert.match(message, /מחשב/);
+    assert.match(message, /יומן הראשי/);
+    assert.match(message, /במערכת/);
     assert.equal(message.includes("Client ID"), false);
     assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
   });

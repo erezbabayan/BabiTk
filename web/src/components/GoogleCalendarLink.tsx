@@ -3,25 +3,13 @@ import { useCallback, useEffect, useState } from "react";
 import { useDatedCalendarTasks } from "../hooks/useDatedCalendarTasks";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
-  calendarBabiTkCaption,
-  calendarGoogleOpenLabel,
   calendarLinkedHelpText,
-  calendarOauthPublishHelp,
-  calendarOauthPublishLabel,
-  calendarOauthPublishTitle,
-  calendarPrimaryButtonLabel,
-  calendarPrimaryCaption,
-  calendarPublishCaption,
   calendarSettingsButtonLabel,
   calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
-  GOOGLE_AUTH_AUDIENCE_URL,
   isGoogleOauthTestingDenied,
 } from "../lib/google-calendar-connect";
-import {
-  startGoogleCalendarConnect,
-  startGoogleCalendarPrimaryConnect,
-} from "../lib/google-calendar-client";
+import { startGoogleCalendarPrimaryConnect } from "../lib/google-calendar-client";
 import {
   CALENDAR_OAUTH_ATTEMPT_KEY,
   CALENDAR_OAUTH_ERROR_KEY,
@@ -33,15 +21,6 @@ import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
-
-function readCalendarButtonsPreview(): boolean {
-  if (!isDemoMode) return false;
-  try {
-    return new URLSearchParams(window.location.search).get("calendarPreview") === "1";
-  } catch {
-    return false;
-  }
-}
 
 function readDemoLinked(): boolean {
   try {
@@ -70,7 +49,6 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const [writable, setWritable] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [canConfigure, setCanConfigure] = useState(false);
-  const [googleUrl, setGoogleUrl] = useState<string | null>(null);
   const [eventCount, setEventCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -84,15 +62,6 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
-        if (readCalendarButtonsPreview()) {
-          setLinked(true);
-          setWritable(false);
-          setConfigured(true);
-          setCanConfigure(true);
-          setGoogleUrl("https://calendar.google.com/calendar/r?cid=https://example.test/babitk.ics");
-          setEventCount(items.length);
-          return;
-        }
         const demoLinked = readDemoLinked();
         setLinked(demoLinked);
         setWritable(demoLinked);
@@ -104,7 +73,6 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       setWritable(status.writable === true);
       setConfigured(status.configured !== false);
       setCanConfigure(status.canConfigure === true);
-      setGoogleUrl(status.googleUrl ?? null);
       setEventCount(status.eventCount ?? 0);
       if (status.writable) {
         setError(null);
@@ -189,30 +157,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         requestOpenTaskCalendar();
         return;
       }
-      await startGoogleCalendarConnect();
-      requestOpenTaskCalendar();
-      await refreshStatus();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleAddToPrimary() {
-    setError(null);
-    setBusy(true);
-    try {
-      if (isDemoMode) {
-        writeDemoLinked(true);
-        setLinked(true);
-        setWritable(true);
-        requestOpenTaskCalendar();
-        return;
-      }
       await startGoogleCalendarPrimaryConnect();
+      requestOpenTaskCalendar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
+      requestOpenTaskCalendar();
     } finally {
       setBusy(false);
     }
@@ -226,13 +175,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         writeDemoLinked(false);
         setLinked(false);
         setWritable(false);
-        setGoogleUrl(null);
         return;
       }
       await disconnectGoogleCalendarApi();
       setLinked(false);
       setWritable(false);
-      setGoogleUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לבטל את החיבור כרגע.");
     } finally {
@@ -255,10 +202,10 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         />
       ) : null}
       {error ? <p className="text-red-600">{error}</p> : null}
-      {!linked && configured ? (
+      {!writable && configured ? (
         <p className="text-slate-600">{calendarUnlinkedHelpText()}</p>
       ) : null}
-      {linked ? (
+      {writable ? (
         <p className="text-slate-600">
           {calendarLinkedHelpText({ writable, eventCount })}
         </p>
@@ -277,74 +224,29 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       {!configured && !canConfigure ? (
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
-      <div className="flex flex-col gap-3">
-        {canConfigure && configured && !writable ? (
-          <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <p className="font-medium text-slate-800">{calendarOauthPublishTitle()}</p>
-            <p className="text-slate-600">{calendarOauthPublishHelp()}</p>
-            <a
-              href={GOOGLE_AUTH_AUDIENCE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="relative z-10 block w-full rounded-lg border border-slate-300 px-4 py-2 text-center hover:bg-slate-50"
-            >
-              {calendarOauthPublishLabel()}
-            </a>
-            <p className="text-xs text-slate-500">{calendarPublishCaption()}</p>
-          </div>
-        ) : null}
-        {linked && !writable ? (
-          <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-            <p className="font-medium text-slate-800">{calendarPrimaryButtonLabel(false)}</p>
-            <p className="text-slate-600">{calendarPrimaryCaption()}</p>
-            <button
-              type="button"
-              data-calendar-primary="true"
-              onClick={() => void handleAddToPrimary()}
-              disabled={busy || !configured}
-              className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {calendarPrimaryButtonLabel(busy)}
-            </button>
-          </div>
-        ) : null}
-        {linked && googleUrl ? (
-          <div className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-3">
-            <p className="font-medium text-slate-800">{calendarGoogleOpenLabel(writable)}</p>
-            {writable ? null : <p className="text-slate-600">{calendarBabiTkCaption()}</p>}
-            <a
-              href={googleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="relative z-10 block w-full rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-center text-blue-800 hover:bg-blue-100"
-            >
-              {calendarGoogleOpenLabel(writable)}
-            </a>
-          </div>
-        ) : null}
-        {linked ? (
-          <button
-            type="button"
-            data-calendar-linked="true"
-            data-calendar-writable={writable ? "true" : "false"}
-            onClick={() => void handleDisconnect()}
-            disabled={busy}
-            className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-          >
-            {calendarSettingsButtonLabel(true, busy)}
-          </button>
-        ) : (
-          <button
-            type="button"
-            data-calendar-linked="false"
-            onClick={() => void handleConnect()}
-            disabled={busy || !configured}
-            className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-          >
-            {calendarSettingsButtonLabel(false, busy)}
-          </button>
-        )}
-      </div>
+      {writable ? (
+        <button
+          type="button"
+          data-calendar-linked="true"
+          data-calendar-writable="true"
+          onClick={() => void handleDisconnect()}
+          disabled={busy}
+          className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+        >
+          {calendarSettingsButtonLabel(true, busy)}
+        </button>
+      ) : (
+        <button
+          type="button"
+          data-calendar-linked={linked ? "true" : "false"}
+          data-calendar-writable="false"
+          onClick={() => void handleConnect()}
+          disabled={busy || !configured}
+          className="relative z-10 w-full rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+        >
+          {calendarSettingsButtonLabel(false, busy)}
+        </button>
+      )}
     </div>
   );
 }

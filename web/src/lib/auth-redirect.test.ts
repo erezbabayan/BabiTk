@@ -46,7 +46,7 @@ describe("OAuth callback parsing", () => {
     assert.match(formatOAuthSignInError("access_denied"), /בוטלה/);
     assert.match(
       formatOAuthSignInError("access_denied:403", "הגישה חסומה תהליך האימות לא הושלם"),
-      /מצב בדיקות/,
+      /יומן הראשי/,
     );
     const disabled = formatOAuthSignInError(
       "Unsupported provider: provider is not enabled",
