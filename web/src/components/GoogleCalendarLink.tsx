@@ -8,6 +8,8 @@ import {
   calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
   isGoogleOauthTestingDenied,
+  readGoogleCalendarAdded,
+  writeGoogleCalendarAdded,
 } from "../lib/google-calendar-connect";
 import { startGoogleCalendarPrimaryConnect } from "../lib/google-calendar-client";
 import {
@@ -56,8 +58,8 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const { items } = useDatedCalendarTasks(userId);
 
   useEffect(() => {
-    if (isDemoMode) setEventCount(items.length);
-  }, [items.length]);
+    if (isDemoMode || linked) setEventCount(items.length);
+  }, [items.length, linked]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -69,7 +71,8 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         return;
       }
       const status = await getGoogleCalendarStatus();
-      setLinked(status.linked);
+      const googleLinked = status.writable === true || readGoogleCalendarAdded();
+      setLinked(googleLinked);
       setWritable(status.writable === true);
       setConfigured(status.configured !== false);
       setCanConfigure(status.canConfigure === true);
@@ -166,6 +169,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         return;
       }
       await startGoogleCalendarPrimaryConnect();
+      setLinked(true);
       requestOpenTaskCalendar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
@@ -185,6 +189,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         setWritable(false);
         return;
       }
+      writeGoogleCalendarAdded(false);
       await disconnectGoogleCalendarApi();
       setLinked(false);
       setWritable(false);
@@ -208,12 +213,16 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         onSelectItem={(item) => onSelectItem?.(item.id)}
       />
       {error ? <p className="text-red-600">{error}</p> : null}
-      {!writable && configured ? (
+      {!writable && !linked && configured ? (
         <p className="text-slate-600">{calendarUnlinkedHelpText()}</p>
       ) : null}
-      {writable ? (
+      {writable || linked ? (
         <p className="text-slate-600">
-          {calendarLinkedHelpText({ writable, eventCount })}
+          {calendarLinkedHelpText({
+            writable,
+            eventCount,
+            googleLinked: linked && !writable,
+          })}
         </p>
       ) : null}
       {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
@@ -230,11 +239,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       {!configured && !canConfigure ? (
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
-      {writable ? (
+      {writable || linked ? (
         <button
           type="button"
           data-calendar-linked="true"
-          data-calendar-writable="true"
+          data-calendar-writable={writable ? "true" : "false"}
           onClick={() => void handleDisconnect()}
           disabled={busy}
           className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"

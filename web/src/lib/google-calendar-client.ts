@@ -10,6 +10,7 @@ import {
   planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
   shouldPersistGoogleCalendarSessionLink,
+  writeGoogleCalendarAdded,
 } from "./google-calendar-connect";
 import {
   googleCalendarHealthFromUnknown,
@@ -144,6 +145,7 @@ export async function getGoogleCalendarHealth(): Promise<GoogleCalendarHealth> {
 }
 
 export async function disconnectGoogleCalendarFromEdge(): Promise<void> {
+  writeGoogleCalendarAdded(false);
   await invokeCalendar("disconnect", { method: "POST", body: {} });
 }
 
@@ -206,18 +208,34 @@ export async function startGoogleCalendarConnect(): Promise<void> {
   await startGoogleCalendarPrimaryConnect();
 }
 
+function openGoogleCalendarUrl(url: string): void {
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  if (!opened) window.location.assign(url);
+}
+
 export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
   if (isDemoMode) {
     requestOpenTaskCalendar();
     return;
   }
   try {
-    const oauth = await invokeCalendar<{ url?: string }>("connect");
-    if (!oauth.url) {
-      throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
+    const googleAdd = await invokeCalendar<{ url?: string }>("google-add", {
+      method: "POST",
+      body: {},
+    }).catch(() => null);
+    const oauth = googleAdd?.url ? null : await invokeCalendar<{ url?: string }>("connect");
+    const planned = planGoogleCalendarConnect(oauth, null, googleAdd);
+    if (planned.kind === "error") {
+      throw hebrewGoogleAuthError(planned.error);
+    }
+    if (planned.kind === "google") {
+      writeGoogleCalendarAdded(true);
+      openGoogleCalendarUrl(planned.url);
+      requestOpenTaskCalendar();
+      return;
     }
     markCalendarOauthAttempt();
-    window.location.assign(oauth.url);
+    window.location.assign(planned.url);
   } catch (error) {
     throw hebrewGoogleAuthError(error);
   }
