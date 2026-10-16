@@ -17,6 +17,7 @@ import {
 interface BoardItemViewContextValue {
   view: BoardItemView;
   toggleView: () => void;
+  setView: (view: BoardItemView) => void;
 }
 
 const BoardItemViewContext = createContext<BoardItemViewContextValue | null>(null);
@@ -32,7 +33,15 @@ export function BoardItemViewProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ view, toggleView }), [view, toggleView]);
+  const setItemView = useCallback((next: BoardItemView) => {
+    writeBoardItemView(next);
+    setView(next);
+  }, []);
+
+  const value = useMemo(
+    () => ({ view, toggleView, setView: setItemView }),
+    [view, toggleView, setItemView],
+  );
 
   return (
     <BoardItemViewContext.Provider value={value}>{children}</BoardItemViewContext.Provider>
@@ -50,5 +59,5 @@ export function useBoardItemView(): BoardItemViewContextValue {
 /** Safe for panels that may render outside the provider during tests. */
 export function useBoardItemViewOptional(): BoardItemViewContextValue {
   const ctx = useContext(BoardItemViewContext);
-  return ctx ?? { view: "list", toggleView: () => undefined };
+  return ctx ?? { view: "list", toggleView: () => undefined, setView: () => undefined };
 }

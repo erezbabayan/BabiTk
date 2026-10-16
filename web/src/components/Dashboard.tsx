@@ -56,6 +56,7 @@ import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
 import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
+import { resolveTaskBoardView } from "../lib/board-item-view";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
 import { ItemEditModal } from "./ItemEditModal";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
@@ -70,7 +71,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: DashboardProps) {
-  const { view: boardItemView } = useBoardItemViewOptional();
+  const { view: boardItemView, setView: setBoardItemView } = useBoardItemViewOptional();
   const swipeSquares = boardItemView === "squares";
   const isDesktop = useIsDesktopBoard();
   const [showArchive, setShowArchive] = useState(false);
@@ -175,7 +176,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const [snoozeItem, setSnoozeItem] = useState<MindtaskerItem | null>(null);
   const [undoComplete, setUndoComplete] = useState<MindtaskerItem | null>(null);
   const [focusEditItem, setFocusEditItem] = useState<MindtaskerItem | null>(null);
-  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
+  const [showTaskCalendar, setShowTaskCalendar] = useState(true);
   useEffect(() => {
     if (!undoComplete) return;
     const timer = window.setTimeout(() => setUndoComplete(null), 8000);
@@ -496,7 +497,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
-    setShowTaskCalendar(false);
+    setShowTaskCalendar(true);
     setTaskListsMode("create");
     setMobileTab("inbox");
     setTagByBoard({ inbox: null, today: null, notes: null });
@@ -1096,40 +1097,62 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       aria-label="תצוגת משימות"
                       data-babitk-task-view-toggle="true"
                     >
-                      <button
-                        type="button"
-                        onClick={() => setShowTaskCalendar(false)}
-                        className={`inline-flex items-center whitespace-nowrap px-2 text-[11px] font-semibold leading-none ${
-                          showTaskCalendar
-                            ? "bg-white text-blue-700 hover:bg-blue-50"
-                            : "bg-blue-100 text-blue-800"
-                        }`}
-                        title="תצוגת רשימה"
-                        aria-label="תצוגת רשימה"
-                        aria-pressed={!showTaskCalendar}
-                        data-babitk-task-view="list"
-                      >
-                        רשימה
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowTaskCalendar(true);
-                          exitSelect();
-                        }}
-                        className={`inline-flex items-center whitespace-nowrap px-2 text-[11px] font-semibold leading-none ${
-                          showTaskCalendar
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-white text-blue-700 hover:bg-blue-50"
-                        }`}
-                        title="תצוגת יומן"
-                        aria-label="תצוגת יומן"
-                        aria-pressed={showTaskCalendar}
-                        data-babitk-task-view="calendar"
-                        data-babitk-calendar-toggle="true"
-                      >
-                        יומן
-                      </button>
+                      {(
+                        [
+                          {
+                            id: "calendar" as const,
+                            label: "יומן",
+                            title: "תצוגת יומן",
+                            onClick: () => {
+                              setShowTaskCalendar(true);
+                              exitSelect();
+                            },
+                          },
+                          {
+                            id: "list" as const,
+                            label: "שורות",
+                            title: "תצוגת שורות",
+                            onClick: () => {
+                              setShowTaskCalendar(false);
+                              setBoardItemView("list");
+                            },
+                          },
+                          {
+                            id: "squares" as const,
+                            label: "קוביות",
+                            title: "תצוגת קוביות",
+                            onClick: () => {
+                              setShowTaskCalendar(false);
+                              setBoardItemView("squares");
+                              exitSelect();
+                            },
+                          },
+                        ] as const
+                      ).map((option) => {
+                        const active =
+                          resolveTaskBoardView(showTaskCalendar, boardItemView) === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={option.onClick}
+                            className={`inline-flex items-center whitespace-nowrap px-2 text-[11px] font-semibold leading-none ${
+                              active
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-white text-blue-700 hover:bg-blue-50"
+                            }`}
+                            title={option.title}
+                            aria-label={option.title}
+                            aria-pressed={active}
+                            data-babitk-task-view={option.id}
+                            data-babitk-calendar-toggle={
+                              option.id === "calendar" ? "true" : undefined
+                            }
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     {taskLists.enabled ? (
                       <button

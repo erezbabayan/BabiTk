@@ -1,4 +1,5 @@
 export type BoardItemView = "list" | "squares";
+export type TaskBoardView = "calendar" | "list" | "squares";
 
 const STORAGE_KEY = "mindtasker.boardItemView";
 
@@ -26,4 +27,11 @@ export function writeBoardItemView(view: BoardItemView): void {
 
 export function toggleBoardItemView(view: BoardItemView): BoardItemView {
   return view === "list" ? "squares" : "list";
+}
+
+export function resolveTaskBoardView(
+  showCalendar: boolean,
+  itemView: BoardItemView,
+): TaskBoardView {
+  return showCalendar ? "calendar" : itemView;
 }
