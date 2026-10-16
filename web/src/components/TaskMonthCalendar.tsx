@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+} from "react";
 
 import { formatItemTime } from "../lib/item-display";
 import {
   HEBREW_WEEKDAYS,
   calendarItemDueIso,
   calendarMonthFromYmd,
+  calendarSwipeMonthDelta,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
   monthGrid,
@@ -57,12 +66,67 @@ export function TaskMonthCalendar({
     return count;
   }, [byDay, monthPrefix]);
 
-  function goMonth(delta: number) {
-    const next = shiftMonth(year, month, delta);
-    const prefix = `${next.year}-${String(next.month).padStart(2, "0")}`;
-    const busyDays = [...byDay.keys()].filter((ymd) => ymd.startsWith(prefix)).sort();
-    setCursor(next);
-    setSelectedYmd((ymd) => (ymd.startsWith(prefix) ? ymd : busyDays[0] ?? `${prefix}-01`));
+  const goMonth = useCallback(
+    (delta: number) => {
+      const next = shiftMonth(year, month, delta);
+      const prefix = `${next.year}-${String(next.month).padStart(2, "0")}`;
+      const busyDays = [...byDay.keys()].filter((ymd) => ymd.startsWith(prefix)).sort();
+      setCursor(next);
+      setSelectedYmd((ymd) => (ymd.startsWith(prefix) ? ymd : busyDays[0] ?? `${prefix}-01`));
+    },
+    [byDay, month, year],
+  );
+
+  const swipe = useRef({
+    active: false,
+    locked: null as boolean | null,
+    x: 0,
+    y: 0,
+  });
+  const suppressClick = useRef(false);
+
+  function onSwipePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    swipe.current = { active: true, locked: null, x: event.clientX, y: event.clientY };
+  }
+
+  function onSwipePointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (!swipe.current.active) return;
+    const dx = event.clientX - swipe.current.x;
+    const dy = event.clientY - swipe.current.y;
+    if (swipe.current.locked === null) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      const horizontal = Math.abs(dx) > Math.abs(dy);
+      swipe.current.locked = horizontal;
+      if (!horizontal) {
+        swipe.current.active = false;
+        return;
+      }
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    if (swipe.current.locked) event.preventDefault();
+  }
+
+  function endSwipePointer(event: PointerEvent<HTMLDivElement>, commit: boolean) {
+    const started = swipe.current.active;
+    const locked = swipe.current.locked;
+    const dx = event.clientX - swipe.current.x;
+    swipe.current = { active: false, locked: null, x: 0, y: 0 };
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (!commit || !started || locked !== true) return;
+    const delta = calendarSwipeMonthDelta(dx);
+    if (!delta) return;
+    suppressClick.current = true;
+    goMonth(delta);
+  }
+
+  function onSwipeClickCapture(event: MouseEvent<HTMLDivElement>) {
+    if (!suppressClick.current) return;
+    suppressClick.current = false;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   return (
@@ -72,16 +136,17 @@ export function TaskMonthCalendar({
       data-babitk-calendar="month"
       data-babitk-calendar-focus={selectedYmd || undefined}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2" dir="ltr">
         <button
           type="button"
           className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
           onClick={() => goMonth(-1)}
           aria-label="חודש קודם"
+          data-babitk-calendar-nav="prev"
         >
-          ›
+          ‹
         </button>
-        <div className="text-center">
+        <div className="text-center" dir="rtl">
           <p className="font-semibold text-slate-800">{hebrewMonthTitle(year, month)}</p>
           <p className="text-[11px] text-slate-500">
             {monthTaskCount > 0
@@ -94,12 +159,21 @@ export function TaskMonthCalendar({
           className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50"
           onClick={() => goMonth(1)}
           aria-label="חודש הבא"
+          data-babitk-calendar-nav="next"
         >
-          ‹
+          ›
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-px rounded-lg border border-slate-200 bg-slate-200 text-center">
+      <div
+        className="grid touch-pan-y grid-cols-7 gap-px rounded-lg border border-slate-200 bg-slate-200 text-center"
+        data-babitk-calendar-swipe="true"
+        onPointerDown={onSwipePointerDown}
+        onPointerMove={onSwipePointerMove}
+        onPointerUp={(event) => endSwipePointer(event, true)}
+        onPointerCancel={(event) => endSwipePointer(event, false)}
+        onClickCapture={onSwipeClickCapture}
+      >
         {HEBREW_WEEKDAYS.map((label) => (
           <div
             key={label}

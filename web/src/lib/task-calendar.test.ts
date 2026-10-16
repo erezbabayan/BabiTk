@@ -6,6 +6,7 @@ import {
   addDaysYmd,
   calendarChipFocusYmd,
   calendarMonthFromYmd,
+  calendarSwipeMonthDelta,
   calendarTasks,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
@@ -89,5 +90,12 @@ describe("BabiTk task calendar", () => {
     assert.deepEqual(calendarMonthFromYmd("2026-11-01"), { year: 2026, month: 11 });
     const monthEnd = new Date("2026-10-31T10:00:00.000Z");
     assert.equal(calendarChipFocusYmd("tomorrow", monthEnd), "2026-11-01");
+  });
+
+  it("maps a horizontal swipe to previous or next month", () => {
+    assert.equal(calendarSwipeMonthDelta(80), -1);
+    assert.equal(calendarSwipeMonthDelta(-80), 1);
+    assert.equal(calendarSwipeMonthDelta(10), 0);
+    assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
   });
 });
