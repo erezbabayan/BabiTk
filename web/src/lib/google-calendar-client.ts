@@ -6,6 +6,8 @@ import {
   GOOGLE_CALENDAR_SCOPE,
   formatCalendarConnectError,
   googleCalendarIdentityOptions,
+  isGoogleCalendarNotConfiguredError,
+  planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
 } from "./google-calendar-connect";
 import {
@@ -66,16 +68,7 @@ async function invokeCalendar<T>(
   return data as T;
 }
 
-export function isGoogleCalendarNotConfiguredError(error: unknown): boolean {
-  const err = error instanceof Error ? error : null;
-  const message = err?.message ?? String(error);
-  const name = err?.name ?? "";
-  return (
-    name === "google_not_configured" ||
-    message === "google_not_configured" ||
-    message.includes("עדיין לא הוגדר")
-  );
-}
+export { isGoogleCalendarNotConfiguredError, planGoogleCalendarConnect };
 
 export async function getGoogleCalendarConnectUrlFromEdge(): Promise<string> {
   const data = await invokeCalendar<{ url: string }>("connect");
@@ -87,6 +80,7 @@ export async function getGoogleCalendarConnectUrlFromEdge(): Promise<string> {
 
 export async function getGoogleCalendarStatusFromEdge(): Promise<{
   linked: boolean;
+  writable?: boolean;
   configured: boolean;
   canConfigure?: boolean;
   eventCount?: number;
@@ -94,6 +88,7 @@ export async function getGoogleCalendarStatusFromEdge(): Promise<{
 }> {
   return invokeCalendar<{
     linked: boolean;
+    writable?: boolean;
     configured: boolean;
     canConfigure?: boolean;
     eventCount?: number;
@@ -202,6 +197,21 @@ export async function startGoogleCalendarConnect(): Promise<void> {
     requestOpenTaskCalendar();
     return;
   }
+  let oauth: { url?: string } | null = null;
+  let oauthError: unknown = null;
+  try {
+    oauth = await invokeCalendar<{ url?: string }>("connect");
+  } catch (error) {
+    oauthError = error;
+  }
+  const plan = planGoogleCalendarConnect(oauth, oauthError);
+  if (plan.kind === "oauth") {
+    window.location.assign(plan.url);
+    return;
+  }
+  if (plan.kind === "error") {
+    throw hebrewGoogleAuthError(plan.error);
+  }
   const data = await invokeCalendar<{ url?: string; eventCount?: number }>("subscribe", {
     method: "POST",
     body: {},
@@ -211,6 +221,22 @@ export async function startGoogleCalendarConnect(): Promise<void> {
   }
   window.open(data.url, "_blank", "noopener,noreferrer");
   requestOpenTaskCalendar();
+}
+
+export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
+  if (isDemoMode) {
+    requestOpenTaskCalendar();
+    return;
+  }
+  try {
+    const oauth = await invokeCalendar<{ url?: string }>("connect");
+    if (!oauth.url) {
+      throw hebrewGoogleAuthError("לא התקבלה כתובת חיבור ליומן");
+    }
+    window.location.assign(oauth.url);
+  } catch (error) {
+    throw hebrewGoogleAuthError(error);
+  }
 }
 
 export async function persistGoogleCalendarSessionLink(force = false): Promise<boolean> {

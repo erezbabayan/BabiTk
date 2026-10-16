@@ -80,7 +80,9 @@ describe("new-user settings stay setup-free", () => {
 
     assert.match(calendar, /canConfigure && !configured/);
     assert.match(calendar, /חיבור היומן עדיין לא זמין/);
-    assert.match(calendar, /הזנת יומן/);
+    assert.match(calendar, /calendarLinkedHelpText/);
+    assert.match(calendar, /calendarPrimaryButtonLabel/);
+    assert.match(calendar, /startGoogleCalendarPrimaryConnect/);
     assert.equal(calendar.includes("Client ID"), false);
     assert.match(calendar, /disabled=\{busy \|\| !configured\}/);
 

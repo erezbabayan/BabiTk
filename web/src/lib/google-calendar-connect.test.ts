@@ -2,11 +2,17 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  calendarGoogleOpenLabel,
+  calendarLinkedHelpText,
+  calendarPrimaryButtonLabel,
   calendarSettingsButtonLabel,
+  calendarUnlinkedHelpText,
   formatCalendarConnectError,
   GOOGLE_AUTH_AUDIENCE_URL,
   googleCalendarIdentityOptions,
+  isGoogleCalendarNotConfiguredError,
   isGoogleOauthTestingDenied,
+  planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
 } from "./google-calendar-connect.ts";
 
@@ -35,6 +41,38 @@ describe("simple Google Calendar connect", () => {
     assert.equal(calendarSettingsButtonLabel(true, true), "מנתק...");
   });
 
+  it("prefers OAuth write to the primary calendar over an ICS subscribe dialog", () => {
+    assert.deepEqual(
+      planGoogleCalendarConnect({ url: "https://accounts.google.com/o/oauth2/v2/auth" }, null),
+      { kind: "oauth", url: "https://accounts.google.com/o/oauth2/v2/auth" },
+    );
+    const notConfigured = new Error("google_not_configured");
+    notConfigured.name = "google_not_configured";
+    assert.equal(isGoogleCalendarNotConfiguredError(notConfigured), true);
+    assert.deepEqual(planGoogleCalendarConnect(null, notConfigured), { kind: "ics" });
+    const denied = new Error("access_denied:403");
+    assert.deepEqual(planGoogleCalendarConnect(null, denied), { kind: "error", error: denied });
+  });
+
+  it("explains that an iOS Yes on webcal does not fill the primary Google Calendar", () => {
+    assert.match(calendarUnlinkedHelpText(), /יומן Google הראשי/);
+    assert.match(
+      calendarLinkedHelpText({ writable: false, eventCount: 34 }),
+      /יומן נפרד בשם BabiTk/,
+    );
+    assert.match(calendarLinkedHelpText({ writable: false, eventCount: 34 }), /הוסף ליומן הראשי/);
+    assert.equal(
+      calendarLinkedHelpText({ writable: true, eventCount: 34 }),
+      "34 משימות עם תאריך נכתבות ליומן Google הראשי.",
+    );
+    assert.match(calendarLinkedHelpText({ writable: true, eventCount: 0 }), /היומן הראשי מחובר/);
+    assert.equal(calendarPrimaryButtonLabel(false), "הוסף ליומן הראשי");
+    assert.equal(calendarPrimaryButtonLabel(true), "מתחבר...");
+    assert.equal(calendarGoogleOpenLabel(true), "פתח ביומן Google");
+    assert.equal(calendarGoogleOpenLabel(false), "הוסף כיומן BabiTk");
+    assert.equal(calendarUnlinkedHelpText().includes("Client ID"), false);
+  });
+
   it("does not send users to Client ID setup copy", () => {
     const message = formatCalendarConnectError(
       new Error("Unsupported provider: provider is not enabled"),
@@ -42,6 +80,14 @@ describe("simple Google Calendar connect", () => {
     assert.equal(message, "חיבור היומן דורש חשבון Google.");
     assert.equal(message.includes("Client ID"), false);
     assert.equal(message.includes("Google Cloud"), false);
+    assert.equal(
+      formatCalendarConnectError(new Error("google_not_configured")),
+      "חיבור ליומן Google הראשי עדיין לא זמין.",
+    );
+    assert.equal(
+      formatCalendarConnectError(new Error("לא התקבלה כתובת חיבור ליומן")),
+      "לא התקבלה כתובת חיבור ליומן",
+    );
   });
 
   it("maps Google testing-mode 403 to a publish step, not Client ID paste", () => {

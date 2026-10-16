@@ -6,6 +6,8 @@ export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 export const CALENDAR_TIMEZONE = "Asia/Jerusalem";
 export const EVENT_DURATION_MS = 60 * 60 * 1000;
 export const DEFAULT_WEB_APP_URL = "https://erezbabayan.github.io/BabiTk/";
+export const GOOGLE_CALENDAR_PRIMARY_URL = "https://calendar.google.com/calendar/r";
+export type CalendarReminderRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
 export const DEFAULT_SUPABASE_URL = "https://ghibfuinantybqidwadj.supabase.co";
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 export const GOOGLE_OAUTH_JAVASCRIPT_ORIGINS = [
@@ -70,6 +72,7 @@ export type CalendarItemSnapshot = {
   due_date: string | null;
   deleted_at?: string | null;
   calendar_event_id?: string | null;
+  recurrence?: CalendarReminderRecurrence | null;
 };
 
 export function isCalendarRelevantPatch(patch: Record<string, unknown>): boolean {
@@ -92,13 +95,14 @@ export function shouldDeleteCalendarEvent(item: CalendarItemSnapshot): boolean {
 }
 
 export function calendarEventBody(
-  item: Pick<CalendarItemSnapshot, "title" | "content" | "due_date">,
+  item: Pick<CalendarItemSnapshot, "title" | "content" | "due_date" | "recurrence">,
   timeZone = CALENDAR_TIMEZONE,
 ): {
   summary: string;
   description: string;
   start: { dateTime: string; timeZone: string };
   end: { dateTime: string; timeZone: string };
+  recurrence?: string[];
 } {
   if (!item.due_date) {
     throw new Error("invalid_due_date");
@@ -109,11 +113,13 @@ export function calendarEventBody(
   }
   const end = new Date(start.getTime() + EVENT_DURATION_MS);
   const content = item.content.trim();
+  const rrule = icsRruleLine(item.recurrence ?? null);
   return {
     summary: item.title.trim() || "משימה",
     description: content ? `${content}\n\n— BabiTk` : "— BabiTk",
     start: { dateTime: start.toISOString(), timeZone },
     end: { dateTime: end.toISOString(), timeZone },
+    ...(rrule ? { recurrence: [rrule] } : {}),
   };
 }
 
@@ -264,8 +270,6 @@ export function icsUtcStamp(iso: string): string {
   return start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
-export type CalendarReminderRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
-
 export function calendarEventRecurrence(
   metadata: unknown,
 ): CalendarReminderRecurrence | null {
@@ -393,7 +397,10 @@ export function parseCalendarIcsRequest(
 }
 
 export function googleCalendarSubscribeUrl(feedUrl: string): string {
-  const url = new URL("https://calendar.google.com/calendar/render");
-  url.searchParams.set("cid", webcalFeedUrl(feedUrl));
+  const url = new URL(GOOGLE_CALENDAR_PRIMARY_URL);
+  // Google's importer fetches HTTPS. webcal:// opens an iOS confirm dialog
+  // but does not write events into the user's primary Google Calendar.
+  const httpsFeed = feedUrl.replace(/^webcal:\/\//i, "https://");
+  url.searchParams.set("cid", httpsFeed);
   return url.toString();
 }

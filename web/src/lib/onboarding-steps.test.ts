@@ -52,5 +52,9 @@ describe("first-login onboarding steps", () => {
     assert.equal(ONBOARDING_STEPS[0]?.settingsSection, null);
     assert.equal(ONBOARDING_STEPS.at(-1)?.id, "calendar");
     assert.ok(ONBOARDING_STEPS[0]?.body.includes("הגדרות"));
+    assert.match(
+      ONBOARDING_STEPS.at(-1)?.body ?? "",
+      /יומן Google הראשי/,
+    );
   });
 });

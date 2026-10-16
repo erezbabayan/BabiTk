@@ -3,10 +3,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useDatedCalendarTasks } from "../hooks/useDatedCalendarTasks";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
+  calendarGoogleOpenLabel,
+  calendarLinkedHelpText,
+  calendarPrimaryButtonLabel,
   calendarSettingsButtonLabel,
+  calendarUnlinkedHelpText,
   isGoogleOauthTestingDenied,
 } from "../lib/google-calendar-connect";
-import { startGoogleCalendarConnect } from "../lib/google-calendar-client";
+import {
+  startGoogleCalendarConnect,
+  startGoogleCalendarPrimaryConnect,
+} from "../lib/google-calendar-client";
 import { CALENDAR_OAUTH_ERROR_KEY } from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
 import { requestOpenTaskCalendar } from "../lib/task-calendar";
@@ -39,6 +46,7 @@ interface GoogleCalendarLinkProps {
 
 export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkProps) {
   const [linked, setLinked] = useState(false);
+  const [writable, setWritable] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [canConfigure, setCanConfigure] = useState(false);
   const [googleUrl, setGoogleUrl] = useState<string | null>(null);
@@ -51,12 +59,15 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const refreshStatus = useCallback(async () => {
     try {
       if (isDemoMode) {
-        setLinked(readDemoLinked());
+        const demoLinked = readDemoLinked();
+        setLinked(demoLinked);
+        setWritable(demoLinked);
         setConfigured(true);
         return;
       }
       const status = await getGoogleCalendarStatus();
       setLinked(status.linked);
+      setWritable(status.writable === true);
       setConfigured(status.configured !== false);
       setCanConfigure(status.canConfigure === true);
       setGoogleUrl(status.googleUrl ?? null);
@@ -106,12 +117,32 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       if (isDemoMode) {
         writeDemoLinked(true);
         setLinked(true);
+        setWritable(true);
         requestOpenTaskCalendar();
         return;
       }
       await startGoogleCalendarConnect();
       requestOpenTaskCalendar();
       await refreshStatus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAddToPrimary() {
+    setError(null);
+    setBusy(true);
+    try {
+      if (isDemoMode) {
+        writeDemoLinked(true);
+        setLinked(true);
+        setWritable(true);
+        requestOpenTaskCalendar();
+        return;
+      }
+      await startGoogleCalendarPrimaryConnect();
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
     } finally {
@@ -126,11 +157,13 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       if (isDemoMode) {
         writeDemoLinked(false);
         setLinked(false);
+        setWritable(false);
         setGoogleUrl(null);
         return;
       }
       await disconnectGoogleCalendarApi();
       setLinked(false);
+      setWritable(false);
       setGoogleUrl(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לבטל את החיבור כרגע.");
@@ -155,15 +188,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       ) : null}
       {error ? <p className="text-red-600">{error}</p> : null}
       {!linked && configured ? (
-        <p className="text-slate-600">
-          «חבר» מוסיף את אותן משימות כהזנת יומן ל-Google Calendar, בלי access_denied:403.
-        </p>
+        <p className="text-slate-600">{calendarUnlinkedHelpText()}</p>
       ) : null}
       {linked ? (
         <p className="text-slate-600">
-          {eventCount > 0
-            ? `${eventCount} משימות עם תאריך מסונכרנות ליומן Google.`
-            : "היומן מחובר. הוסיפו תאריך למשימה כדי שתופיע גם ב-Google."}
+          {calendarLinkedHelpText({ writable, eventCount })}
         </p>
       ) : null}
       {error && isGoogleOauthTestingDenied(error) ? (
@@ -181,20 +210,36 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
+        {linked && !writable ? (
+          <button
+            type="button"
+            data-calendar-primary="true"
+            onClick={() => void handleAddToPrimary()}
+            disabled={busy || !configured}
+            className="relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+          >
+            {calendarPrimaryButtonLabel(busy)}
+          </button>
+        ) : null}
         {linked && googleUrl ? (
           <a
             href={googleUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
+            className={
+              writable
+                ? "relative z-10 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
+                : "relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50"
+            }
           >
-            פתח ביומן Google
+            {calendarGoogleOpenLabel(writable)}
           </a>
         ) : null}
         {linked ? (
           <button
             type="button"
             data-calendar-linked="true"
+            data-calendar-writable={writable ? "true" : "false"}
             onClick={() => void handleDisconnect()}
             disabled={busy}
             className="relative z-10 rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
