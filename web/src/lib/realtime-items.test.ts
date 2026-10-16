@@ -30,4 +30,23 @@ describe("applyItemRealtimeChange", () => {
     );
     assert.deepEqual(next, []);
   });
+
+  it("does not resurrect a soft-deleted notebook row from a later update", () => {
+    const next = applyItemRealtimeChange<Row>(
+      [],
+      {
+        eventType: "UPDATE",
+        new: { id: "gone", title: "חזר", deleted_at: "2026-10-16T04:00:00.000Z" },
+      },
+    );
+    assert.deepEqual(next, []);
+  });
+
+  it("does not re-insert an unknown row on UPDATE", () => {
+    const next = applyItemRealtimeChange<Row>(
+      [{ id: "a", title: "ישן" }],
+      { eventType: "UPDATE", new: { id: "gone", title: "OCR" } },
+    );
+    assert.deepEqual(next.map((row) => row.id), ["a"]);
+  });
 });

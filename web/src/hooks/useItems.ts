@@ -291,15 +291,13 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
         }
 
         const supabase = requireSupabase();
-        const { data, error } = await supabase
-          .from("mindtasker_items")
-          .update(patch)
-          .eq("id", id)
-          .select("id")
-          .maybeSingle();
-
+        const isRestore = typedPatch.deleted_at === null;
+        let query = supabase.from("mindtasker_items").update(patch).eq("id", id);
+        if (!isRestore) {
+          query = query.is("deleted_at", null);
+        }
+        const { error } = await query;
         if (error) throw error;
-        if (!data) throw new Error("העדכון לא נשמר");
         queueGoogleCalendarItemSync(id, patch);
       } catch (error) {
         await refresh();
@@ -367,7 +365,12 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       try {
         await Promise.all(
           normalized.map(async ({ id, patch }) => {
-            const { error } = await supabase.from("mindtasker_items").update(patch).eq("id", id);
+            const isRestore = (patch as { deleted_at?: unknown }).deleted_at === null;
+            let query = supabase.from("mindtasker_items").update(patch).eq("id", id);
+            if (!isRestore) {
+              query = query.is("deleted_at", null);
+            }
+            const { error } = await query;
             if (error) throw error;
             queueGoogleCalendarItemSync(id, patch);
           }),

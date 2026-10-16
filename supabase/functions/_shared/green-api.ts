@@ -233,7 +233,7 @@ function parseTextMessage(payload: GreenApiWebhookPayload): ParsedGreenApiMessag
   const text = extractText(payload);
   if (!text || isSystemWhatsAppReply(text)) return null;
   return {
-    messageId: payload.idMessage ?? `green-${Date.now()}`,
+    messageId: payload.idMessage?.trim() || "",
     senderId: id.senderId,
     senderPhone: id.senderPhone,
     chatId: id.chatId,
@@ -254,7 +254,7 @@ function parseFileMessage(
   const caption = file?.caption?.trim();
   const downloadUrl = file?.downloadUrl?.trim() || file?.jpegUrl?.trim() || undefined;
   const base = {
-    messageId: payload.idMessage ?? `green-${Date.now()}`,
+    messageId: payload.idMessage?.trim() || "",
     senderId: id.senderId,
     senderPhone: id.senderPhone,
     chatId: id.chatId,
