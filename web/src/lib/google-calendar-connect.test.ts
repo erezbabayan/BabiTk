@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  calendarBabiTkCaption,
   calendarGoogleOpenLabel,
   calendarLinkedHelpText,
   calendarPrimaryButtonLabel,
+  calendarPrimaryCaption,
   calendarSettingsButtonLabel,
   calendarUnlinkedHelpText,
   formatCalendarConnectError,
@@ -58,9 +60,11 @@ describe("simple Google Calendar connect", () => {
     assert.match(calendarUnlinkedHelpText(), /יומן Google הראשי/);
     assert.match(
       calendarLinkedHelpText({ writable: false, eventCount: 34 }),
-      /יומן נפרד בשם BabiTk/,
+      /הוסף כיומן BabiTk/,
     );
-    assert.match(calendarLinkedHelpText({ writable: false, eventCount: 34 }), /הוסף ליומן הראשי/);
+    assert.match(calendarLinkedHelpText({ writable: false, eventCount: 34 }), /פרסום במחשב/);
+    assert.match(calendarPrimaryCaption(), /יומן Google האישי/);
+    assert.match(calendarBabiTkCaption(), /יומנים אחרים/);
     assert.equal(
       calendarLinkedHelpText({ writable: true, eventCount: 34 }),
       "34 משימות עם תאריך נכתבות ליומן Google הראשי.",
@@ -99,7 +103,7 @@ describe("simple Google Calendar connect", () => {
     const message = formatCalendarConnectError(new Error("access_denied:403"));
     assert.match(message, /מצב בדיקות/);
     assert.match(message, /Publish app/);
-    assert.match(message, /פרסם ב-Google/);
+    assert.match(message, /מחשב/);
     assert.equal(message.includes("Client ID"), false);
     assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
   });

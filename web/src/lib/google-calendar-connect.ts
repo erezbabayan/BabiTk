@@ -11,6 +11,8 @@ export {
   GOOGLE_TESTING_DENIED_MESSAGE,
   calendarOauthPublishHelp,
   calendarOauthPublishLabel,
+  calendarOauthPublishTitle,
+  calendarPublishCaption,
   calendarTestingDeniedUserMessage,
   isGoogleOauthTestingDenied,
 } from "./google-oauth-errors.ts";
@@ -114,6 +116,14 @@ export function calendarGoogleOpenLabel(writable: boolean): string {
   return writable ? "פתח ביומן Google" : "הוסף כיומן BabiTk";
 }
 
+export function calendarPrimaryCaption(): string {
+  return "כותב משימות עם תאריך ליומן Google האישי שלכם. יעבוד רק אחרי פרסום במחשב — בטלפון Google חוסם.";
+}
+
+export function calendarBabiTkCaption(): string {
+  return "מוסיף יומן נפרד בשם BabiTk תחת «יומנים אחרים». לא נכנס ליומן הראשי, ועובד בלי פרסום.";
+}
+
 export function calendarUnlinkedHelpText(): string {
   return "«חבר» מוסיף את המשימות עם תאריך ישירות ליומן Google הראשי שלכם.";
 }
@@ -123,7 +133,7 @@ export function calendarLinkedHelpText(input: {
   eventCount: number;
 }): string {
   if (!input.writable) {
-    return "לחיצה על «כן» בטלפון מוסיפה יומן נפרד בשם BabiTk, ולא כותבת ליומן הראשי. לכן לא רואים שם את המשימות. לחצו «הוסף ליומן הראשי» כדי לכתוב אותן ישירות ליומן Google שלכם.";
+    return "כל כפתור עושה דבר אחר. ההסבר מופיע מתחתיו. «הוסף כיומן BabiTk» עובד עכשיו; היומן הראשי דורש פרסום במחשב.";
   }
   if (input.eventCount > 0) {
     return `${input.eventCount} משימות עם תאריך נכתבות ליומן Google הראשי.`;
