@@ -11,7 +11,7 @@ import {
 import { formatItemTime } from "../lib/item-display";
 import {
   HEBREW_WEEKDAYS,
-  calendarItemDueIso,
+  calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   groupCalendarTasksByDay,
@@ -55,15 +55,23 @@ export function TaskMonthCalendar({
     setSelectedYmd(focusYmd);
   }, [focusYmd]);
   const cells = useMemo(() => monthGrid(year, month), [year, month]);
-  const byDay = useMemo(() => groupCalendarTasksByDay(items), [items]);
+  const expandRange = useMemo(
+    () => calendarMonthExpandRange(year, month),
+    [year, month],
+  );
+  const byDay = useMemo(
+    () => groupCalendarTasksByDay(items, expandRange),
+    [items, expandRange],
+  );
   const selectedTasks = byDay.get(selectedYmd) ?? [];
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const monthTaskCount = useMemo(() => {
-    let count = 0;
+    const ids = new Set<string>();
     for (const [ymd, list] of byDay) {
-      if (ymd.startsWith(monthPrefix)) count += list.length;
+      if (!ymd.startsWith(monthPrefix)) continue;
+      for (const entry of list) ids.add(entry.item.id);
     }
-    return count;
+    return ids.size;
   }, [byDay, monthPrefix]);
 
   const goMonth = useCallback(
@@ -223,9 +231,9 @@ export function TaskMonthCalendar({
             אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
           </p>
         ) : (
-          selectedTasks.map((item) => (
+          selectedTasks.map(({ item, dueIso }) => (
             <button
-              key={item.id}
+              key={`${item.id}:${dueIso}`}
               type="button"
               onClick={() => onSelectItem?.(item)}
               className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right hover:bg-blue-50"
@@ -234,7 +242,7 @@ export function TaskMonthCalendar({
                 {item.title.trim() || "משימה"}
               </span>
               <span className="shrink-0 text-[11px] text-slate-500">
-                {formatItemTime(calendarItemDueIso(item)) ?? ""}
+                {formatItemTime(dueIso) ?? ""}
               </span>
             </button>
           ))

@@ -9,7 +9,7 @@ export const COLUMN_SEARCH_WIDTH_CLASS = "w-[13rem] min-w-[5.5rem] max-w-full sh
 
 /** Title row height — shared across boards for subgrid alignment. */
 export const BOARD_HEADER_TITLE_ROW_CLASS =
-  "board-notebook-chrome flex min-h-9 shrink-0 items-center justify-between gap-1";
+  "board-notebook-chrome flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1";
 
 /** Toolbar row — packed to the inline end (left in RTL); DOM: search → archive. */
 export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
@@ -47,17 +47,17 @@ export function ColumnBoardHeader({
         data-no-drag-scroll
         onWheel={blockHeaderWheel}
       >
-        <div className="flex min-w-0 flex-1 items-center justify-start gap-2 overflow-visible">
+        <div className="flex min-w-min flex-1 items-center justify-start gap-2 overflow-visible">
           {/* First in RTL → sits to the right of the title */}
           <BoardBrushMark tone={markTone} />
           <h2
-            className={`board-title-hand min-w-0 truncate whitespace-nowrap text-end text-[1.25rem] leading-snug text-slate-900 sm:text-[1.4rem] ${titleClassName}`}
+            className={`board-title-hand whitespace-nowrap text-end text-[1.25rem] leading-snug text-slate-900 sm:text-[1.4rem] ${titleClassName}`}
           >
             {title}
           </h2>
         </div>
         {titleTrailing ? (
-          <div className="relative z-[4] shrink-0">{titleTrailing}</div>
+          <div className="relative z-[4] max-w-full shrink-0">{titleTrailing}</div>
         ) : null}
       </div>
       {hasToolbar ? (

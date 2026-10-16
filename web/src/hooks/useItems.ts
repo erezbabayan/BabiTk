@@ -27,6 +27,7 @@ import {
   applyColumnPatch,
   buildColumnMovePatch,
   getItemColumn,
+  isActiveBoardItem,
   itemsInColumn,
   sortColumnItems,
   type DashboardColumn,
@@ -103,6 +104,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
   const syncVersionRef = useRef<number | null>(null);
 
   const refreshInFlightRef = useRef(false);
+  const refreshGenerationRef = useRef(0);
 
 
 
@@ -129,6 +131,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     if (refreshInFlightRef.current) return;
 
     refreshInFlightRef.current = true;
+    const generation = refreshGenerationRef.current;
 
 
 
@@ -136,9 +139,9 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     if (isDemoMode) {
       const snapshot = await getDemoItemsSnapshot(syncVersionRef.current);
+      if (generation !== refreshGenerationRef.current) return;
       syncVersionRef.current = snapshot.version;
       setItems(snapshot.items);
-      setLoading(false);
       return;
     }
 
@@ -156,16 +159,15 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
         .range(from, to),
     );
 
+    if (generation !== refreshGenerationRef.current) return;
     setItems(data as unknown as MindtaskerItem[]);
-
-    setLoading(false);
 
     } catch (error) {
       console.error(error);
-      setLoading(false);
     } finally {
 
       refreshInFlightRef.current = false;
+      setLoading(false);
 
     }
 
@@ -270,11 +272,17 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       if (!enabled) return;
 
       const typedPatch = patch as Partial<MindtaskerItem>;
-      setItems((prev) =>
-        prev.map((item) =>
+      if (typeof typedPatch.deleted_at === "string" && typedPatch.deleted_at) {
+        refreshGenerationRef.current += 1;
+      }
+      setItems((prev) => {
+        if (typeof typedPatch.deleted_at === "string" && typedPatch.deleted_at) {
+          return prev.filter((item) => item.id !== id);
+        }
+        return prev.map((item) =>
           item.id === id ? ({ ...item, ...typedPatch } as MindtaskerItem) : item,
-        ),
-      );
+        );
+      });
 
       try {
         if (isDemoMode) {
@@ -325,10 +333,19 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       }
       const normalized = [...merged.entries()].map(([id, patch]) => ({ id, patch }));
 
+      if (
+        [...merged.values()].some(
+          (patch) => typeof patch.deleted_at === "string" && patch.deleted_at,
+        )
+      ) {
+        refreshGenerationRef.current += 1;
+      }
       setItems((prev) =>
-        prev.map((item) => {
+        prev.flatMap((item) => {
           const patch = merged.get(item.id);
-          return patch ? ({ ...item, ...patch } as MindtaskerItem) : item;
+          if (!patch) return [item];
+          if (typeof patch.deleted_at === "string" && patch.deleted_at) return [];
+          return [{ ...item, ...patch } as MindtaskerItem];
         }),
       );
 
@@ -823,19 +840,21 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   const inboxArchive = items.filter(
 
-    (item) => item.status === "snoozed_archive" && item.is_actionable,
+    (item) =>
+      isActiveBoardItem(item) && item.status === "snoozed_archive" && item.is_actionable,
 
   );
 
   const notesArchive = items.filter(
 
-    (item) => item.status === "snoozed_archive" && !item.is_actionable,
+    (item) =>
+      isActiveBoardItem(item) && item.status === "snoozed_archive" && !item.is_actionable,
 
   );
 
   const completedTasks = items.filter(
 
-    (item) => item.is_actionable && item.status === "completed",
+    (item) => isActiveBoardItem(item) && item.is_actionable && item.status === "completed",
 
   );
 

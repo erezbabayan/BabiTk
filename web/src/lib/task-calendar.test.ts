@@ -5,6 +5,7 @@ import type { MindtaskerItem } from "../types.ts";
 import {
   addDaysYmd,
   calendarChipFocusYmd,
+  calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   calendarTasks,
@@ -70,9 +71,90 @@ describe("BabiTk task calendar", () => {
       ["keep", "inbox", "analysis"],
     );
     const grouped = groupCalendarTasksByDay(tasks);
-    assert.equal(grouped.get("2026-10-15")?.[0]?.title, "פגישה");
-    assert.equal(grouped.get("2026-10-16")?.[0]?.id, "inbox");
-    assert.equal(grouped.get("2026-10-17")?.[0]?.id, "analysis");
+    assert.equal(grouped.get("2026-10-15")?.[0]?.item.title, "פגישה");
+    assert.equal(grouped.get("2026-10-16")?.[0]?.item.id, "inbox");
+    assert.equal(grouped.get("2026-10-17")?.[0]?.item.id, "analysis");
+  });
+
+  it("expands a daily recurring task onto every day in the visible month", () => {
+    const range = { fromYmd: "2026-10-01", toYmd: "2026-10-31" };
+    const grouped = groupCalendarTasksByDay(
+      [
+        item({
+          id: "daily",
+          title: "תרופה",
+          due_date: "2026-10-15T07:00:00.000Z",
+          metadata: { reminder_recurrence: "daily" },
+        }),
+      ],
+      range,
+    );
+    assert.equal(grouped.get("2026-10-01")?.[0]?.item.id, "daily");
+    assert.equal(grouped.get("2026-10-31")?.[0]?.item.id, "daily");
+    assert.equal(grouped.get("2026-09-30"), undefined);
+    assert.equal(grouped.get("2026-11-01"), undefined);
+    assert.equal(grouped.get("2026-10-16")?.length, 1);
+  });
+
+  it("expands weekly and Israeli weekday recurrence across the month", () => {
+    const range = { fromYmd: "2026-10-01", toYmd: "2026-10-31" };
+    const weekly = groupCalendarTasksByDay(
+      [
+        item({
+          id: "weekly",
+          due_date: "2026-10-15T07:00:00.000Z",
+          metadata: { reminder_recurrence: "weekly" },
+        }),
+      ],
+      range,
+    );
+    // 2026-10-15 is Thursday; series is every Thursday.
+    assert.equal(weekly.get("2026-10-08")?.[0]?.item.id, "weekly");
+    assert.equal(weekly.get("2026-10-15")?.[0]?.item.id, "weekly");
+    assert.equal(weekly.get("2026-10-22")?.[0]?.item.id, "weekly");
+    assert.equal(weekly.get("2026-10-16"), undefined);
+
+    const weekdays = groupCalendarTasksByDay(
+      [
+        item({
+          id: "weekdays",
+          due_date: "2026-10-15T07:00:00.000Z",
+          metadata: { reminder_recurrence: "weekdays" },
+        }),
+      ],
+      range,
+    );
+    assert.equal(weekdays.get("2026-10-15")?.[0]?.item.id, "weekdays");
+    assert.equal(weekdays.get("2026-10-16"), undefined);
+    assert.equal(weekdays.get("2026-10-17"), undefined);
+    assert.equal(weekdays.get("2026-10-18")?.[0]?.item.id, "weekdays");
+    assert.equal(weekdays.get("2026-10-19")?.[0]?.item.id, "weekdays");
+  });
+
+  it("expands a monthly task onto the matching day of nearby months", () => {
+    const october = groupCalendarTasksByDay(
+      [
+        item({
+          id: "monthly",
+          due_date: "2026-10-15T07:00:00.000Z",
+          metadata: { reminder_recurrence: "monthly" },
+        }),
+      ],
+      calendarMonthExpandRange(2026, 10),
+    );
+    assert.equal(october.get("2026-10-15")?.[0]?.item.id, "monthly");
+    assert.equal(october.get("2026-10-16"), undefined);
+    const november = groupCalendarTasksByDay(
+      [
+        item({
+          id: "monthly",
+          due_date: "2026-10-15T07:00:00.000Z",
+          metadata: { reminder_recurrence: "monthly" },
+        }),
+      ],
+      calendarMonthExpandRange(2026, 11),
+    );
+    assert.equal(november.get("2026-11-15")?.[0]?.item.id, "monthly");
   });
 
   it("keys due dates in Asia/Jerusalem", () => {
@@ -92,9 +174,16 @@ describe("BabiTk task calendar", () => {
     assert.equal(calendarChipFocusYmd("tomorrow", monthEnd), "2026-11-01");
   });
 
+  it("pads month expand range with the previous and next months", () => {
+    assert.deepEqual(calendarMonthExpandRange(2026, 10), {
+      fromYmd: "2026-09-01",
+      toYmd: "2026-11-30",
+    });
+  });
+
   it("maps a horizontal swipe to previous or next month", () => {
-    assert.equal(calendarSwipeMonthDelta(80), -1);
-    assert.equal(calendarSwipeMonthDelta(-80), 1);
+    assert.equal(calendarSwipeMonthDelta(80), 1);
+    assert.equal(calendarSwipeMonthDelta(-80), -1);
     assert.equal(calendarSwipeMonthDelta(10), 0);
     assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
   });

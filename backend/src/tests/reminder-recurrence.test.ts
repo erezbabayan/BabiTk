@@ -7,7 +7,9 @@ import {
   buildInferredReminderPatch,
   buildManualReminderPatch,
   getReminderRecurrence,
+  listReminderOccurrencesInRange,
   nextActiveDueDate,
+  previousReminderDueDate,
 } from "../../../convex/lib/resolveItemReminder.js";
 import * as backendCopy from "../lib/reminderRecurrence.js";
 
@@ -24,7 +26,25 @@ describe("backend reminder recurrence copy stays in sync with convex", () => {
         advanceReminderDueDate(from, recurrence, TZ),
         `recurrence ${recurrence} drifted`,
       );
+      assert.equal(
+        backendCopy.previousReminderDueDate(from, recurrence, TZ),
+        previousReminderDueDate(from, recurrence, TZ),
+        `previous ${recurrence} drifted`,
+      );
     }
+  });
+
+  it("lists occurrences in a range identically", () => {
+    assert.deepEqual(
+      backendCopy.listReminderOccurrencesInRange(
+        from,
+        "daily",
+        "2026-07-14",
+        "2026-07-16",
+        TZ,
+      ),
+      listReminderOccurrencesInRange(from, "daily", "2026-07-14", "2026-07-16", TZ),
+    );
   });
 
   it("builds the same after-sent patch", () => {
@@ -74,6 +94,30 @@ describe("reminder recurrence", () => {
       advanceReminderDueDate(thursday, "weekdays", TZ),
       "2026-07-19T09:00:00+03:00",
     );
+    assert.equal(
+      previousReminderDueDate("2026-07-19T09:00:00+03:00", "weekdays", TZ),
+      thursday,
+    );
+  });
+
+  it("walks daily and weekly backward keeping local time", () => {
+    const from = "2026-07-13T09:00:00+03:00";
+    assert.equal(previousReminderDueDate(from, "daily", TZ), "2026-07-12T09:00:00+03:00");
+    assert.equal(previousReminderDueDate(from, "weekly", TZ), "2026-07-06T09:00:00+03:00");
+    assert.equal(previousReminderDueDate(from, "monthly", TZ), "2026-06-13T09:00:00+03:00");
+  });
+
+  it("fills every matching day in a month for a rolled-forward daily task", () => {
+    const days = listReminderOccurrencesInRange(
+      "2026-10-16T09:00:00+03:00",
+      "daily",
+      "2026-10-01",
+      "2026-10-31",
+      TZ,
+    );
+    assert.equal(days.length, 31);
+    assert.equal(days[0], "2026-10-01T09:00:00+03:00");
+    assert.equal(days[30], "2026-10-31T09:00:00+02:00");
   });
 
   it("stores recurrence on manual reminder and clears reminder_sent", () => {

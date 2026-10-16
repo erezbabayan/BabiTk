@@ -28,6 +28,7 @@ import {
 import {
   applyVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
+  isSoftDeletedVoiceItem,
   insertPendingWhatsAppVoiceItem,
   interceptVoiceItemQuestion,
   repairOnePlaceholderVoiceItem,
@@ -413,6 +414,7 @@ async function alreadyIngested(
   }
   const existing = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
   if (!existing) return false;
+  if (isSoftDeletedVoiceItem(existing)) return true;
   if (needsVoiceTranscription(existing.title, existing.content)) {
     scheduleBackgroundWork(
       transcribeStoredVoiceItem(supabase, existing, gateway).then(() => undefined),
@@ -801,6 +803,9 @@ Deno.serve(async (req) => {
     const pending = await findVoiceItemByWhatsAppMessage(supabase, userId, messageId);
     if (!pending) {
       return json({ ok: false, reason: "item_not_found" });
+    }
+    if (isSoftDeletedVoiceItem(pending)) {
+      return json({ ok: true, skipped: "deleted" });
     }
     const message: ParsedGreenApiMessage = {
       messageId,

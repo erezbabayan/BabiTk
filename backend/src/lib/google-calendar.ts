@@ -264,8 +264,50 @@ export function icsUtcStamp(iso: string): string {
   return start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 }
 
+export type CalendarReminderRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
+
+export function calendarEventRecurrence(
+  metadata: unknown,
+): CalendarReminderRecurrence | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const value = (metadata as Record<string, unknown>).reminder_recurrence;
+  if (
+    value === "daily" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "weekdays"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+/** ICS recurrence so Google Calendar expands the same series as the in-app month grid. */
+export function icsRruleLine(
+  recurrence: CalendarReminderRecurrence | null | undefined,
+): string | null {
+  switch (recurrence) {
+    case "daily":
+      return "RRULE:FREQ=DAILY";
+    case "weekly":
+      return "RRULE:FREQ=WEEKLY";
+    case "monthly":
+      return "RRULE:FREQ=MONTHLY";
+    case "weekdays":
+      return "RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH";
+    default:
+      return null;
+  }
+}
+
 export function buildCalendarIcs(
-  events: Array<{ id: string; title: string; content: string; due_date: string }>,
+  events: Array<{
+    id: string;
+    title: string;
+    content: string;
+    due_date: string;
+    recurrence?: CalendarReminderRecurrence | null;
+  }>,
 ): string {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -287,6 +329,7 @@ export function buildCalendarIcs(
     const description = icsEscape(
       event.content.trim() ? `${event.content.trim()}\n\n— BabiTk` : "— BabiTk",
     );
+    const rrule = icsRruleLine(event.recurrence);
     lines.push(
       "BEGIN:VEVENT",
       `UID:${icsEscape(event.id)}@babitk`,
@@ -295,8 +338,9 @@ export function buildCalendarIcs(
       `DTEND:${end}`,
       `SUMMARY:${summary}`,
       `DESCRIPTION:${description}`,
-      "END:VEVENT",
     );
+    if (rrule) lines.push(rrule);
+    lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
   return `${lines.join("\r\n")}\r\n`;

@@ -50,12 +50,19 @@ export interface VoiceItemRow {
   user_id?: string;
   title: string;
   content: string;
+  deleted_at?: string | null;
   metadata: Record<string, unknown> | null;
   source_material_id: string | null;
   source_materials:
     | { id: string; storage_url: string | null; metadata: Record<string, unknown> | null }
     | Array<{ id: string; storage_url: string | null; metadata: Record<string, unknown> | null }>
     | null;
+}
+
+export function isSoftDeletedVoiceItem(row: {
+  deleted_at?: string | null;
+}): boolean {
+  return typeof row.deleted_at === "string" && row.deleted_at.length > 0;
 }
 
 export const VOICE_PLACEHOLDER_FILTER =
@@ -458,15 +465,16 @@ export async function findVoiceItemByWhatsAppMessage(
   const { data, error } = await supabase
     .from("mindtasker_items")
     .select(
-      "id, user_id, title, content, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
+      "id, user_id, title, content, deleted_at, metadata, source_material_id, source_materials ( id, storage_url, metadata )",
     )
     .eq("user_id", userId)
     .filter("metadata->>whatsapp_message_id", "eq", messageId)
-    .is("deleted_at", null)
     .order("sort_order", { ascending: true })
-    .limit(1);
+    .limit(8);
   if (error || !data?.[0]) return null;
-  return data[0] as VoiceItemRow;
+  const rows = data as VoiceItemRow[];
+  const live = rows.find((row) => !isSoftDeletedVoiceItem(row));
+  return live ?? rows[0] ?? null;
 }
 
 async function loadUserGateway(

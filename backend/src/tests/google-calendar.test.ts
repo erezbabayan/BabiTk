@@ -5,11 +5,13 @@ import {
   buildCalendarIcs,
   buildGoogleAuthUrl,
   calendarEventBody,
+  calendarEventRecurrence,
   calendarFeedToken,
   calendarFeedTokenValid,
   calendarIcsFeedUrl,
   createOAuthState,
   googleCalendarSubscribeUrl,
+  icsRruleLine,
   parseCalendarIcsRequest,
   webcalFeedUrl,
   googleOAuthSetupPublic,
@@ -173,6 +175,30 @@ describe("Google Calendar OAuth helpers", () => {
     assert.match(ics, /REFRESH-INTERVAL;VALUE=DURATION:PT15M/);
     assert.match(ics, /SUMMARY:פגישה\\; דחוף/);
     assert.match(ics, /DTSTART:20260918T070000Z/);
+    assert.equal(/RRULE:/.test(ics), false);
+
+    const recurring = buildCalendarIcs([
+      {
+        id: "item-2",
+        title: "תרופה",
+        content: "",
+        due_date: "2026-09-18T07:00:00.000Z",
+        recurrence: "daily",
+      },
+      {
+        id: "item-3",
+        title: "ימי חול",
+        content: "",
+        due_date: "2026-09-18T07:00:00.000Z",
+        recurrence: "weekdays",
+      },
+    ]);
+    assert.match(recurring, /RRULE:FREQ=DAILY/);
+    assert.match(recurring, /RRULE:FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH/);
+    assert.equal(icsRruleLine("weekly"), "RRULE:FREQ=WEEKLY");
+    assert.equal(icsRruleLine("monthly"), "RRULE:FREQ=MONTHLY");
+    assert.equal(calendarEventRecurrence({ reminder_recurrence: "daily" }), "daily");
+    assert.equal(calendarEventRecurrence({}), null);
     assert.equal(icsUtcStamp("2026-09-18T07:00:00.000Z"), "20260918T070000Z");
     const token = await calendarFeedToken("user-1", "secret");
     assert.equal(await calendarFeedTokenValid("user-1", token, "secret"), true);
