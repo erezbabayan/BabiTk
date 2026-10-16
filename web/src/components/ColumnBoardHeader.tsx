@@ -14,7 +14,7 @@ export const BOARD_HEADER_TOOLBAR_ROW_CLASS =
 
 /** Search sits on its own row so the field can use the full column width. */
 export const BOARD_HEADER_SEARCH_ROW_CLASS =
-  "board-notebook-chrome mt-1.5 min-w-0 w-full";
+  "board-notebook-chrome mt-1.5 mb-2 min-w-0 w-full";
 
 interface ColumnBoardHeaderProps {
   title: string;
