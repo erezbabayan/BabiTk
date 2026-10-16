@@ -79,6 +79,9 @@ describe("new-user settings stay setup-free", () => {
     assert.equal(userSettings.includes("Client ID"), false);
 
     assert.match(calendar, /canConfigure && !configured/);
+    assert.match(calendar, /canConfigure && configured && !writable/);
+    assert.match(calendar, /GOOGLE_AUTH_AUDIENCE_URL/);
+    assert.match(calendar, /calendarOauthPublishLabel/);
     assert.match(calendar, /חיבור היומן עדיין לא זמין/);
     assert.match(calendar, /calendarLinkedHelpText/);
     assert.match(calendar, /calendarPrimaryButtonLabel/);

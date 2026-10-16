@@ -99,6 +99,7 @@ describe("simple Google Calendar connect", () => {
     const message = formatCalendarConnectError(new Error("access_denied:403"));
     assert.match(message, /מצב בדיקות/);
     assert.match(message, /Publish app/);
+    assert.match(message, /פרסם ב-Google/);
     assert.equal(message.includes("Client ID"), false);
     assert.match(GOOGLE_AUTH_AUDIENCE_URL, /auth\/audience\?project=babaitk/);
   });

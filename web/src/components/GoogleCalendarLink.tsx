@@ -5,16 +5,24 @@ import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api
 import {
   calendarGoogleOpenLabel,
   calendarLinkedHelpText,
+  calendarOauthPublishHelp,
+  calendarOauthPublishLabel,
   calendarPrimaryButtonLabel,
   calendarSettingsButtonLabel,
+  calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
+  GOOGLE_AUTH_AUDIENCE_URL,
   isGoogleOauthTestingDenied,
 } from "../lib/google-calendar-connect";
 import {
   startGoogleCalendarConnect,
   startGoogleCalendarPrimaryConnect,
 } from "../lib/google-calendar-client";
-import { CALENDAR_OAUTH_ERROR_KEY } from "../lib/google-oauth-errors";
+import {
+  CALENDAR_OAUTH_ATTEMPT_KEY,
+  CALENDAR_OAUTH_ERROR_KEY,
+  CALENDAR_OAUTH_INCOMPLETE_MESSAGE,
+} from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
 import { requestOpenTaskCalendar } from "../lib/task-calendar";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
@@ -76,7 +84,39 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       setCanConfigure(status.canConfigure === true);
       setGoogleUrl(status.googleUrl ?? null);
       setEventCount(status.eventCount ?? 0);
-      if (status.linked) setError(null);
+      if (status.writable) {
+        setError(null);
+        try {
+          sessionStorage.removeItem(CALENDAR_OAUTH_ATTEMPT_KEY);
+        } catch {
+          // ignore
+        }
+      } else {
+        let attempted = false;
+        try {
+          attempted = sessionStorage.getItem(CALENDAR_OAUTH_ATTEMPT_KEY) === "1";
+          if (attempted) sessionStorage.removeItem(CALENDAR_OAUTH_ATTEMPT_KEY);
+        } catch {
+          attempted = false;
+        }
+        if (attempted) {
+          setError((current) => {
+            if (current) return current;
+            try {
+              const stored = sessionStorage.getItem(CALENDAR_OAUTH_ERROR_KEY);
+              if (stored) {
+                sessionStorage.removeItem(CALENDAR_OAUTH_ERROR_KEY);
+                return stored;
+              }
+            } catch {
+              // ignore
+            }
+            return status.canConfigure === true
+              ? CALENDAR_OAUTH_INCOMPLETE_MESSAGE
+              : calendarTestingDeniedUserMessage();
+          });
+        }
+      }
     } catch {
       setLinked(false);
     } finally {
@@ -108,9 +148,11 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
     }
     window.addEventListener("message", onMessage);
     window.addEventListener("focus", onFocus);
+    window.addEventListener("pageshow", onFocus);
     return () => {
       window.removeEventListener("message", onMessage);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("pageshow", onFocus);
     };
   }, [refreshStatus]);
 
@@ -199,8 +241,21 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
           {calendarLinkedHelpText({ writable, eventCount })}
         </p>
       ) : null}
-      {error && isGoogleOauthTestingDenied(error) ? (
-        <p className="text-slate-600">לחצו «חבר» שוב — החיבור עובר עכשיו דרך יומן Google בלי אימות אפליקציה.</p>
+      {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
+        <p className="text-slate-600">{calendarTestingDeniedUserMessage()}</p>
+      ) : null}
+      {canConfigure && configured && !writable ? (
+        <div className="space-y-2">
+          <p className="text-slate-600">{calendarOauthPublishHelp()}</p>
+          <a
+            href={GOOGLE_AUTH_AUDIENCE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 inline-block rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100"
+          >
+            {calendarOauthPublishLabel()}
+          </a>
+        </div>
       ) : null}
       {canConfigure && !configured ? (
         <GoogleOAuthEnable
