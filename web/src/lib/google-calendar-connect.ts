@@ -17,7 +17,10 @@ export {
   isGoogleOauthTestingDenied,
 } from "./google-oauth-errors.ts";
 
-export function googleCalendarIdentityOptions(redirectTo: string): {
+export function googleCalendarIdentityOptions(
+  redirectTo: string,
+  loginHint?: string | null,
+): {
   provider: "google";
   options: {
     redirectTo: string;
@@ -26,9 +29,11 @@ export function googleCalendarIdentityOptions(redirectTo: string): {
       access_type: "offline";
       prompt: "consent";
       include_granted_scopes: string;
+      login_hint?: string;
     };
   };
 } {
+  const hint = loginHint?.trim() ?? "";
   return {
     provider: "google",
     options: {
@@ -38,6 +43,7 @@ export function googleCalendarIdentityOptions(redirectTo: string): {
         access_type: "offline",
         prompt: "consent",
         include_granted_scopes: "true",
+        ...(hint.includes("@") ? { login_hint: hint } : {}),
       },
     },
   };
@@ -62,7 +68,6 @@ export function isGoogleCalendarNotConfiguredError(error: unknown): boolean {
 
 export type GoogleCalendarConnectPlan =
   | { kind: "oauth"; url: string }
-  | { kind: "ics" }
   | { kind: "error"; error: unknown };
 
 export function planGoogleCalendarConnect(
@@ -71,10 +76,8 @@ export function planGoogleCalendarConnect(
 ): GoogleCalendarConnectPlan {
   const url = oauth?.url?.trim() ?? "";
   if (url.length > 0) return { kind: "oauth", url };
-  if (oauthError && !isGoogleCalendarNotConfiguredError(oauthError)) {
-    return { kind: "error", error: oauthError };
-  }
-  return { kind: "ics" };
+  if (oauthError) return { kind: "error", error: oauthError };
+  return { kind: "error", error: new Error("לא התקבלה כתובת חיבור ליומן") };
 }
 
 export function formatCalendarConnectError(error: unknown): string {
@@ -109,7 +112,7 @@ export function calendarSettingsButtonLabel(linked: boolean, busy: boolean): str
 }
 
 export function calendarUnlinkedHelpText(): string {
-  return "«חבר» מחבר את יומן BabiTk במערכת וכותב משימות עם תאריך גם ליומן Google הראשי.";
+  return "יומן BabiTk במערכת מציג משימות לפי תאריך. «חבר» כותב אותן גם ליומן Google הראשי.";
 }
 
 export function calendarLinkedHelpText(input: {
@@ -117,10 +120,17 @@ export function calendarLinkedHelpText(input: {
   eventCount: number;
 }): string {
   if (!input.writable) {
-    return "לחצו «חבר» כדי לחבר את יומן Google הראשי. יומן BabiTk במערכת כבר מציג משימות לפי תאריך.";
+    return "לחצו «חבר» כדי לכתוב משימות עם תאריך ליומן Google הראשי. יומן BabiTk במערכת כבר פעיל.";
   }
   if (input.eventCount > 0) {
     return `${input.eventCount} משימות עם תאריך מופיעות ביומן BabiTk ונכתבות ליומן Google הראשי.`;
   }
   return "היומן במערכת מחובר ליומן Google הראשי. הוסיפו תאריך למשימה כדי שתופיע בשניהם.";
+}
+
+export function shouldPersistGoogleCalendarSessionLink(input: {
+  pendingIdentityLink: boolean;
+  refreshToken?: string | null;
+}): boolean {
+  return input.pendingIdentityLink && (input.refreshToken ?? "").trim().length > 8;
 }

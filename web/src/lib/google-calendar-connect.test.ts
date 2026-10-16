@@ -12,16 +12,21 @@ import {
   isGoogleOauthTestingDenied,
   planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
+  shouldPersistGoogleCalendarSessionLink,
 } from "./google-calendar-connect.ts";
 
 describe("simple Google Calendar connect", () => {
   it("asks Google for calendar scope on the signed-in user", () => {
-    const spec = googleCalendarIdentityOptions("https://erezbabayan.github.io/BabiTk/");
+    const spec = googleCalendarIdentityOptions(
+      "https://erezbabayan.github.io/BabiTk/",
+      "erezbabayan@gmail.com",
+    );
     assert.equal(spec.provider, "google");
     assert.equal(spec.options.redirectTo, "https://erezbabayan.github.io/BabiTk/");
     assert.match(spec.options.scopes, /calendar\.events/);
     assert.equal(spec.options.queryParams.access_type, "offline");
     assert.equal(spec.options.queryParams.prompt, "consent");
+    assert.equal(spec.options.queryParams.login_hint, "erezbabayan@gmail.com");
   });
 
   it("detects an existing Google identity", () => {
@@ -39,7 +44,7 @@ describe("simple Google Calendar connect", () => {
     assert.equal(calendarSettingsButtonLabel(true, true), "מנתק...");
   });
 
-  it("prefers OAuth write to the primary calendar over an ICS subscribe dialog", () => {
+  it("connects Google Calendar with OAuth only — never ICS subscribe", () => {
     assert.deepEqual(
       planGoogleCalendarConnect({ url: "https://accounts.google.com/o/oauth2/v2/auth" }, null),
       { kind: "oauth", url: "https://accounts.google.com/o/oauth2/v2/auth" },
@@ -47,15 +52,43 @@ describe("simple Google Calendar connect", () => {
     const notConfigured = new Error("google_not_configured");
     notConfigured.name = "google_not_configured";
     assert.equal(isGoogleCalendarNotConfiguredError(notConfigured), true);
-    assert.deepEqual(planGoogleCalendarConnect(null, notConfigured), { kind: "ics" });
+    const missing = planGoogleCalendarConnect(null, notConfigured);
+    assert.equal(missing.kind, "error");
+    assert.equal(planGoogleCalendarConnect(null, null).kind, "error");
     const denied = new Error("access_denied:403");
     assert.deepEqual(planGoogleCalendarConnect(null, denied), { kind: "error", error: denied });
   });
 
-  it("uses one Connect button for the in-app calendar and Google primary", () => {
+  it("does not overwrite a calendar refresh token with a Google sign-in token", () => {
+    assert.equal(
+      shouldPersistGoogleCalendarSessionLink({
+        pendingIdentityLink: false,
+        refreshToken: "sign-in-refresh-token-value",
+      }),
+      false,
+    );
+    assert.equal(
+      shouldPersistGoogleCalendarSessionLink({
+        pendingIdentityLink: true,
+        refreshToken: "short",
+      }),
+      false,
+    );
+    assert.equal(
+      shouldPersistGoogleCalendarSessionLink({
+        pendingIdentityLink: true,
+        refreshToken: "calendar-refresh-token-value",
+      }),
+      true,
+    );
+  });
+
+  it("uses one Connect button for Google primary while the in-app calendar stays on", () => {
     assert.match(calendarUnlinkedHelpText(), /«חבר»/);
     assert.match(calendarUnlinkedHelpText(), /יומן BabiTk במערכת/);
     assert.match(calendarUnlinkedHelpText(), /יומן Google הראשי/);
+    assert.equal(calendarUnlinkedHelpText().includes("ICS"), false);
+    assert.equal(calendarUnlinkedHelpText().includes("Webcal"), false);
     assert.match(
       calendarLinkedHelpText({ writable: false, eventCount: 34 }),
       /לחצו «חבר»/,

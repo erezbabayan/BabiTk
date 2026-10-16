@@ -227,12 +227,6 @@ function ConfiguredApp() {
       setBillingNotice("יומן BabiTk מחובר. משימות עם תאריך מופיעות ביומן לפי יום וגם ב-Google.");
       params.delete("calendar");
       replaced = true;
-      void persistGoogleCalendarSessionLink(true).catch((error) => {
-        console.warn(
-          "[calendar] persist link failed:",
-          error instanceof Error ? error.message : String(error),
-        );
-      });
     } else if (calendar === "error") {
       setSettingsOpen(true);
       setSettingsSection("calendar");

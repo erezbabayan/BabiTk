@@ -9,6 +9,7 @@ import {
   isGoogleCalendarNotConfiguredError,
   planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
+  shouldPersistGoogleCalendarSessionLink,
 } from "./google-calendar-connect";
 import {
   googleCalendarHealthFromUnknown,
@@ -222,17 +223,22 @@ export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
   }
 }
 
-export async function persistGoogleCalendarSessionLink(force = false): Promise<boolean> {
+export async function persistGoogleCalendarSessionLink(): Promise<boolean> {
   if (isDemoMode || !isSupabaseConfigured) return false;
   const pending = sessionStorage.getItem(CALENDAR_LINK_FLAG) === "1";
-  const params = new URLSearchParams(window.location.search);
-  const fromRedirect = params.get("calendar") === "connected";
-  if (!force && !pending && !fromRedirect) return false;
+  const tokens = await currentProviderTokens();
+  if (
+    !shouldPersistGoogleCalendarSessionLink({
+      pendingIdentityLink: pending,
+      refreshToken: tokens.refreshToken,
+    })
+  ) {
+    return false;
+  }
 
   const { data } = await requireSupabase().auth.getSession();
   if (!data.session) return false;
 
-  const tokens = await currentProviderTokens();
   await linkGoogleCalendarFromEdge(tokens.refreshToken);
   sessionStorage.removeItem(CALENDAR_LINK_FLAG);
   if (tokens.accessToken) {

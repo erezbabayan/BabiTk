@@ -8,15 +8,12 @@ import {
   buildGoogleAuthUrl,
   calendarCallbackHtml,
   calendarFeedSecret,
-  calendarFeedToken,
   calendarFeedTokenValid,
-  calendarIcsFeedUrl,
   createOAuthState,
   disconnectGoogleCalendar,
   exchangeGoogleCode,
   googleCalendarConfig,
   googleCalendarStatus,
-  googleCalendarSubscribeUrl,
   GOOGLE_CALENDAR_PRIMARY_URL,
   googleOAuthSetupPublic,
   parseCalendarIcsRequest,
@@ -238,11 +235,20 @@ async function handleCallback(req: Request): Promise<Response> {
   const state = url.searchParams.get("state");
 
   if (oauthError || !code || !state) {
+    const description = url.searchParams.get("error_description");
+    const testingDenied =
+      (oauthError ?? "").includes("access_denied") &&
+      `${oauthError ?? ""} ${description ?? ""}`.toLowerCase().includes("403");
     return html(
       calendarCallbackHtml({
         ok: false,
-        webAppUrl: withCalendarQuery(webAppUrl, "error"),
-        message: "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.",
+        webAppUrl: withCalendarQuery(webAppUrl, "error", {
+          error: oauthError,
+          description,
+        }),
+        message: testingDenied
+          ? "Google חוסם כרגע כתיבה ליומן הראשי. יומן BabiTk במערכת ממשיך לעבוד."
+          : "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.",
       }),
       400,
     );
@@ -380,21 +386,14 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === "POST" && action === "subscribe") {
-      const secret = calendarFeedSecret();
-      if (!secret) {
-        return json({ error: "google_not_configured" }, 503);
-      }
-      const token = await calendarFeedToken(userId, secret);
-      await storeGoogleCalendarLink(adminClient(), userId);
-      const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
-      const events = await listDatedCalendarEvents(userId);
-      return json({
-        ok: true,
-        linked: true,
-        eventCount: events.length,
-        feedUrl,
-        url: googleCalendarSubscribeUrl(feedUrl),
-      });
+      return json(
+        {
+          error: "ics_removed",
+          message:
+            "הזנת ICS הוסרה. לחצו «חבר» כדי לכתוב משימות ליומן Google הראשי. יומן BabiTk במערכת נשאר פעיל.",
+        },
+        410,
+      );
     }
 
     if (req.method === "GET" && (action === "connect" || action === "start")) {
@@ -420,29 +419,21 @@ Deno.serve(async (req) => {
         clientId: config.clientId,
         redirectUri: config.redirectUri,
         state,
+        loginHint: user.email,
       });
       return json({ url, configured: true });
     }
 
     if (req.method === "GET" && action === "status") {
       const status = await googleCalendarStatus(adminClient(), userId);
-      let eventCount = 0;
-      let googleUrl: string | undefined;
-      const secret = calendarFeedSecret();
-      if (status.writable) {
-        googleUrl = GOOGLE_CALENDAR_PRIMARY_URL;
-        eventCount = (await listDatedCalendarEvents(userId)).length;
-      } else if (status.linked && secret) {
-        const token = await calendarFeedToken(userId, secret);
-        const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
-        googleUrl = googleCalendarSubscribeUrl(feedUrl);
-        eventCount = (await listDatedCalendarEvents(userId)).length;
-      }
+      const eventCount = status.writable
+        ? (await listDatedCalendarEvents(userId)).length
+        : 0;
       return json({
         ...status,
         canConfigure,
         eventCount,
-        googleUrl,
+        googleUrl: status.writable ? GOOGLE_CALENDAR_PRIMARY_URL : undefined,
       });
     }
 
@@ -456,9 +447,18 @@ Deno.serve(async (req) => {
       const refreshToken =
         typeof body.refreshToken === "string" && body.refreshToken.trim().length > 8
           ? body.refreshToken.trim()
-          : null;
+          : "";
+      if (!refreshToken) {
+        return json(
+          {
+            error: "missing_refresh_token",
+            message: "חסר אסימון רענון מ-Google. לחצו «חבר» כדי לחבר את היומן הראשי.",
+          },
+          400,
+        );
+      }
       await storeGoogleCalendarLink(adminClient(), userId, refreshToken);
-      return json({ ok: true, linked: true });
+      return json({ ok: true, linked: true, writable: true });
     }
 
     if (req.method === "POST" && (action === "sync" || action === "sync-all" || action === "")) {
