@@ -137,6 +137,7 @@ export function buildGoogleAuthUrl(params: {
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   url.searchParams.set("include_granted_scopes", "true");
+  url.searchParams.set("hl", "he");
   url.searchParams.set("state", params.state);
   const hint = params.loginHint?.trim() ?? "";
   if (hint.includes("@")) {
@@ -210,6 +211,34 @@ export async function parseOAuthState(
   return userId;
 }
 
+export function calendarOauthFailureMessage(reason: string): string {
+  const raw = reason.trim();
+  const lower = raw.toLowerCase();
+  if (raw === "missing_refresh_token") {
+    return "Google לא החזיר הרשאת רענון. בטלו את הגישה ל-BabiTk בחשבון Google ונסו שוב.";
+  }
+  if (raw === "invalid_state" || raw === "expired_state") {
+    return "פג תוקף חיבור היומן. לחצו «חבר» שוב מאותו חלון.";
+  }
+  if (raw === "calendar_user_not_found") {
+    return "לא נמצא חשבון לשמירת חיבור היומן. היכנסו שוב ונסו «חבר».";
+  }
+  if (raw === "google_not_configured") {
+    return "חיבור ליומן Google הראשי עדיין לא זמין.";
+  }
+  if (
+    lower.includes("access_denied") &&
+    (lower.includes("403") || lower.includes("testing") || raw.includes("בדיקה"))
+  ) {
+    return "Google חוסם כרגע כתיבה ליומן הראשי. יומן BabiTk במערכת ממשיך לעבוד.";
+  }
+  if (lower.includes("access_denied")) {
+    return "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.";
+  }
+  if (/[\u0590-\u05FF]/.test(raw)) return raw;
+  return "לא הצלחנו לשמור את חיבור היומן. נסו שוב מההגדרות.";
+}
+
 export function calendarCallbackHtml(params: {
   ok: boolean;
   webAppUrl: string;
@@ -221,6 +250,11 @@ export function calendarCallbackHtml(params: {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
   const safeUrl = params.webAppUrl.replaceAll('"', "&quot;");
+  const payload = JSON.stringify({
+    type: "babitk-calendar",
+    ok: params.ok,
+    error: params.ok ? null : params.message,
+  });
   return `<!doctype html>
 <html lang="he" dir="rtl">
 <head>
@@ -239,7 +273,7 @@ export function calendarCallbackHtml(params: {
   <script>
     try {
       if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type: "babitk-calendar", ok: ${params.ok ? "true" : "false"} }, "*");
+        window.opener.postMessage(${payload}, "*");
         window.close();
       } else {
         location.replace("${safeUrl}");

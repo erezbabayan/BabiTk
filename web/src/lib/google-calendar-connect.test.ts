@@ -13,6 +13,7 @@ import {
   planGoogleCalendarConnect,
   sessionHasGoogleIdentity,
   shouldPersistGoogleCalendarSessionLink,
+  calendarReturnFromQuery,
 } from "./google-calendar-connect.ts";
 
 describe("simple Google Calendar connect", () => {
@@ -116,6 +117,27 @@ describe("simple Google Calendar connect", () => {
       formatCalendarConnectError(new Error("לא התקבלה כתובת חיבור ליומן")),
       "לא התקבלה כתובת חיבור ליומן",
     );
+  });
+
+  it("keeps the real OAuth failure when returning from Google", () => {
+    assert.deepEqual(calendarReturnFromQuery("?calendar=connected"), {
+      connected: true,
+      failed: false,
+      error: null,
+    });
+    const denied = calendarReturnFromQuery(
+      "?calendar=error&error=access_denied&error_description=access_denied%3A403",
+    );
+    assert.equal(denied.connected, false);
+    assert.equal(denied.failed, true);
+    assert.match(denied.error ?? "", /יומן הראשי/);
+    const missing = calendarReturnFromQuery("?calendar=error&error=missing_refresh_token");
+    assert.match(missing.error ?? "", /הרשאת רענון/);
+    assert.deepEqual(calendarReturnFromQuery(""), {
+      connected: false,
+      failed: false,
+      error: null,
+    });
   });
 
   it("maps Google testing-mode 403 to a publish step, not Client ID paste", () => {

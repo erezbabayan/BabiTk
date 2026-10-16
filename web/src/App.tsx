@@ -22,6 +22,7 @@ import {
   CALENDAR_LINK_FLAG,
   persistGoogleCalendarSessionLink,
 } from "./lib/google-calendar-client";
+import { calendarReturnFromQuery } from "./lib/google-calendar-connect";
 import {
   CALENDAR_OAUTH_ERROR_KEY,
   isGoogleOauthTestingDenied,
@@ -207,7 +208,6 @@ function ConfiguredApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const billing = params.get("billing");
-    const calendar = params.get("calendar");
     let replaced = false;
 
     if (billing === "success") {
@@ -221,17 +221,27 @@ function ConfiguredApp() {
       replaced = true;
     }
 
-    if (calendar === "connected") {
+    const calendarReturn = calendarReturnFromQuery(window.location.search);
+    if (calendarReturn.connected) {
       setSettingsOpen(true);
       setSettingsSection("calendar");
       setBillingNotice("יומן BabiTk מחובר. משימות עם תאריך מופיעות ביומן לפי יום וגם ב-Google.");
       params.delete("calendar");
       replaced = true;
-    } else if (calendar === "error") {
+    } else if (calendarReturn.failed) {
       setSettingsOpen(true);
       setSettingsSection("calendar");
-      setBillingNotice("חיבור Google Calendar לא הושלם. אפשר לנסות שוב בהגדרות.");
+      const message =
+        calendarReturn.error ?? "חיבור Google Calendar לא הושלם. אפשר לנסות שוב בהגדרות.";
+      try {
+        sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, message);
+      } catch {
+        // ignore
+      }
+      setBillingNotice(message);
       params.delete("calendar");
+      params.delete("error");
+      params.delete("error_description");
       replaced = true;
     }
 

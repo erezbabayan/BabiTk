@@ -24,6 +24,7 @@ import {
   shouldDeleteCalendarEvent,
   shouldUpsertCalendarEvent,
   withCalendarQuery,
+  calendarOauthFailureMessage,
 } from "../lib/google-calendar.js";
 
 describe("Google Calendar sync rules", () => {
@@ -139,6 +140,15 @@ describe("Google Calendar OAuth helpers", () => {
     );
     assert.equal(parsed.searchParams.get("state"), "user.exp.mac");
     assert.equal(parsed.searchParams.get("login_hint"), "erezbabayan@gmail.com");
+    assert.equal(parsed.searchParams.get("hl"), "he");
+  });
+
+  it("maps callback failures to Hebrew instead of a generic incomplete banner", () => {
+    assert.match(calendarOauthFailureMessage("missing_refresh_token"), /הרשאת רענון/);
+    assert.match(calendarOauthFailureMessage("invalid_state"), /«חבר»/);
+    assert.match(calendarOauthFailureMessage("calendar_user_not_found"), /לא נמצא חשבון/);
+    assert.match(calendarOauthFailureMessage("access_denied:403"), /חוסם/);
+    assert.match(calendarOauthFailureMessage("access_denied"), /בוטל/);
   });
 
   it("treats ICS-only rows as disconnected until Google OAuth writes a refresh token", () => {

@@ -129,8 +129,16 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
 
   useEffect(() => {
     function onMessage(event: MessageEvent) {
-      const data = event.data as { type?: string } | null;
+      const data = event.data as { type?: string; ok?: boolean; error?: string | null } | null;
       if (data?.type !== "babitk-calendar") return;
+      if (data.ok === false && data.error) {
+        setError(data.error);
+        try {
+          sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, data.error);
+        } catch {
+          // ignore
+        }
+      }
       void refreshStatus();
     }
     function onFocus() {

@@ -24,6 +24,7 @@ import {
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
   syncItemToGoogleCalendar,
+  calendarOauthFailureMessage,
   withCalendarQuery,
   type CalendarDb,
 } from "../_shared/google-calendar.ts";
@@ -246,9 +247,11 @@ async function handleCallback(req: Request): Promise<Response> {
           error: oauthError,
           description,
         }),
-        message: testingDenied
-          ? "Google חוסם כרגע כתיבה ליומן הראשי. יומן BabiTk במערכת ממשיך לעבוד."
-          : "החיבור ליומן בוטל או נכשל. אפשר לנסות שוב מההגדרות.",
+        message: calendarOauthFailureMessage(
+          testingDenied
+            ? `${oauthError ?? "access_denied"}:403 ${description ?? ""}`
+            : (oauthError ?? "access_denied"),
+        ),
       }),
       400,
     );
@@ -276,14 +279,15 @@ async function handleCallback(req: Request): Promise<Response> {
     );
   } catch (error) {
     const reason = error instanceof Error ? error.message : "oauth_failed";
-    const message =
-      reason === "missing_refresh_token"
-        ? "Google לא החזיר הרשאת רענון. בטלו את הגישה ל-BabiTk בחשבון Google ונסו שוב."
-        : "לא הצלחנו לשמור את חיבור היומן. נסו שוב מההגדרות.";
+    const message = calendarOauthFailureMessage(reason);
+    console.error("google-calendar oauth callback", reason);
     return html(
       calendarCallbackHtml({
         ok: false,
-        webAppUrl: withCalendarQuery(webAppUrl, "error"),
+        webAppUrl: withCalendarQuery(webAppUrl, "error", {
+          error: reason,
+          description: reason,
+        }),
         message,
       }),
       400,
