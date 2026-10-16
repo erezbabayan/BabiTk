@@ -8,6 +8,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   findVoiceItemByWhatsAppMessage,
   insertPendingWhatsAppVoiceItem,
+  isSoftDeletedVoiceItem,
   scheduleBackgroundWork,
   transcribeStoredVoiceItem,
   type VoiceGatewayCredentials,
@@ -140,6 +141,7 @@ export async function catchUpCaptureVoice(options: {
       options.userId,
       message.messageId,
     );
+    if (row && isSoftDeletedVoiceItem(row)) continue;
     if (!row) {
       row = await insertPendingWhatsAppVoiceItem(
         options.supabase,
@@ -160,6 +162,7 @@ export async function catchUpCaptureVoice(options: {
       options.userId,
       message.messageId,
     );
+    if (row && isSoftDeletedVoiceItem(row)) continue;
     if (!row) {
       row = await insertPendingWhatsAppImageItem(
         options.supabase,

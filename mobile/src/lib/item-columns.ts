@@ -32,11 +32,19 @@ export function getItemColumn(item: MindtaskerItem): DashboardColumn | null {
   return null;
 }
 
+export function isActiveBoardItem(
+  item: Pick<MindtaskerItem, "deleted_at">,
+): boolean {
+  return !item.deleted_at;
+}
+
 export function itemsInColumn(
   items: MindtaskerItem[],
   column: DashboardColumn,
 ): MindtaskerItem[] {
-  return items.filter((item) => getItemColumn(item) === column);
+  return items.filter(
+    (item) => isActiveBoardItem(item) && getItemColumn(item) === column,
+  );
 }
 
 export function sortColumnItems(list: MindtaskerItem[]): MindtaskerItem[] {

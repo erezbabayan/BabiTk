@@ -80,14 +80,14 @@ export function monthYmd(year: number, month: number): string {
 
 export const CALENDAR_SWIPE_THRESHOLD_PX = 48;
 
-/** Swipe right goes to the previous month; swipe left goes to the next month. */
+/** Swipe right goes to the next month; swipe left goes to the previous month. */
 export function calendarSwipeMonthDelta(
   dx: number,
   thresholdPx = CALENDAR_SWIPE_THRESHOLD_PX,
 ): -1 | 0 | 1 {
   if (!Number.isFinite(dx) || thresholdPx <= 0) return 0;
-  if (dx >= thresholdPx) return -1;
-  if (dx <= -thresholdPx) return 1;
+  if (dx >= thresholdPx) return 1;
+  if (dx <= -thresholdPx) return -1;
   return 0;
 }
 

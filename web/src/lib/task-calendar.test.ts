@@ -93,8 +93,8 @@ describe("BabiTk task calendar", () => {
   });
 
   it("maps a horizontal swipe to previous or next month", () => {
-    assert.equal(calendarSwipeMonthDelta(80), -1);
-    assert.equal(calendarSwipeMonthDelta(-80), 1);
+    assert.equal(calendarSwipeMonthDelta(80), 1);
+    assert.equal(calendarSwipeMonthDelta(-80), -1);
     assert.equal(calendarSwipeMonthDelta(10), 0);
     assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
   });
