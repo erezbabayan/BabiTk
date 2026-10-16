@@ -8,7 +8,10 @@ import {
   buildGoogleAuthUrl,
   calendarCallbackHtml,
   calendarFeedSecret,
+  calendarFeedToken,
   calendarFeedTokenValid,
+  calendarIcsFeedUrl,
+  googleCalendarSubscribeUrl,
   createOAuthState,
   disconnectGoogleCalendar,
   exchangeGoogleCode,
@@ -389,15 +392,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (req.method === "POST" && action === "subscribe") {
-      return json(
-        {
-          error: "ics_removed",
-          message:
-            "הזנת ICS הוסרה. לחצו «חבר» כדי לכתוב משימות ליומן Google הראשי. יומן BabiTk במערכת נשאר פעיל.",
-        },
-        410,
-      );
+    if (req.method === "POST" && (action === "google-add" || action === "subscribe")) {
+      const secret = calendarFeedSecret();
+      if (!secret) {
+        return json({ error: "google_not_configured" }, 503);
+      }
+      const token = await calendarFeedToken(userId, secret);
+      const feedUrl = calendarIcsFeedUrl(SUPABASE_URL, userId, token);
+      const events = await listDatedCalendarEvents(userId);
+      return json({
+        ok: true,
+        url: googleCalendarSubscribeUrl(feedUrl),
+        eventCount: events.length,
+      });
     }
 
     if (req.method === "GET" && (action === "connect" || action === "start")) {

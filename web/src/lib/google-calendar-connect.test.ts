@@ -45,10 +45,18 @@ describe("simple Google Calendar connect", () => {
     assert.equal(calendarSettingsButtonLabel(true, true), "מנתק...");
   });
 
-  it("connects Google Calendar with OAuth only — never ICS subscribe", () => {
+  it("adds the calendar in Google when OAuth is blocked", () => {
     assert.deepEqual(
       planGoogleCalendarConnect({ url: "https://accounts.google.com/o/oauth2/v2/auth" }, null),
       { kind: "oauth", url: "https://accounts.google.com/o/oauth2/v2/auth" },
+    );
+    assert.deepEqual(
+      planGoogleCalendarConnect(
+        { url: "https://accounts.google.com/o/oauth2/v2/auth" },
+        null,
+        { url: "https://calendar.google.com/calendar/r?cid=https://example/feed" },
+      ),
+      { kind: "google", url: "https://calendar.google.com/calendar/r?cid=https://example/feed" },
     );
     const notConfigured = new Error("google_not_configured");
     notConfigured.name = "google_not_configured";
@@ -84,15 +92,19 @@ describe("simple Google Calendar connect", () => {
     );
   });
 
-  it("uses one Connect button for Google primary while the in-app calendar stays on", () => {
+  it("uses one Connect button for Google while the in-app calendar stays on", () => {
     assert.match(calendarUnlinkedHelpText(), /«חבר»/);
     assert.match(calendarUnlinkedHelpText(), /יומן BabiTk במערכת/);
-    assert.match(calendarUnlinkedHelpText(), /יומן Google הראשי/);
+    assert.match(calendarUnlinkedHelpText(), /יומן Google/);
     assert.equal(calendarUnlinkedHelpText().includes("ICS"), false);
     assert.equal(calendarUnlinkedHelpText().includes("Webcal"), false);
     assert.match(
       calendarLinkedHelpText({ writable: false, eventCount: 34 }),
       /לחצו «חבר»/,
+    );
+    assert.equal(
+      calendarLinkedHelpText({ writable: false, eventCount: 34, googleLinked: true }),
+      "34 משימות עם תאריך מופיעות ביומן BabiTk וביומן Google.",
     );
     assert.equal(
       calendarLinkedHelpText({ writable: true, eventCount: 34 }),
