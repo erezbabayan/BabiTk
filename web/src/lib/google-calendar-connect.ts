@@ -68,8 +68,12 @@ export function isGoogleCalendarNotConfiguredError(error: unknown): boolean {
 
 export type GoogleCalendarConnectPlan =
   | { kind: "oauth"; url: string }
-  | { kind: "google"; url: string }
+  | { kind: "google"; url: string; feedUrl?: string }
   | { kind: "error"; error: unknown };
+
+/** Google Calendar web page that accepts an HTTPS ICS URL. The mobile app cannot. */
+export const GOOGLE_CALENDAR_ADD_BY_URL =
+  "https://calendar.google.com/calendar/u/0/r/settings/addbyurl";
 
 export const GOOGLE_CALENDAR_ADDED_KEY = "babitk-google-calendar-added";
 
@@ -93,14 +97,36 @@ export function writeGoogleCalendarAdded(added: boolean): void {
 export function planGoogleCalendarConnect(
   oauth: { url?: string } | null,
   oauthError: unknown | null,
-  googleAdd?: { url?: string } | null,
+  googleAdd?: { url?: string; feedUrl?: string } | null,
 ): GoogleCalendarConnectPlan {
   const addUrl = googleAdd?.url?.trim() ?? "";
-  if (addUrl.length > 0) return { kind: "google", url: addUrl };
+  const feedUrl = googleAdd?.feedUrl?.trim() ?? "";
+  if (addUrl.length > 0) {
+    return feedUrl
+      ? { kind: "google", url: addUrl, feedUrl }
+      : { kind: "google", url: addUrl };
+  }
   const url = oauth?.url?.trim() ?? "";
   if (url.length > 0) return { kind: "oauth", url };
   if (oauthError) return { kind: "error", error: oauthError };
   return { kind: "error", error: new Error("לא התקבלה כתובת חיבור ליומן") };
+}
+
+export function googleCalendarAppCapturesAdd(userAgent: string): boolean {
+  return /Android|iPhone|iPad|iPod/i.test(userAgent);
+}
+
+export function calendarGoogleAppHelpText(): string {
+  return "באפליקציית Google Calendar אי אפשר להוסיף יומן מכתובת. מוסיפים במחשב, ואז הוא מופיע באפליקציה תחת «יומנים אחרים» בשם BabiTk — צריך לסמן אותו.";
+}
+
+export function calendarFromUrlSteps(): string[] {
+  return [
+    "העתיקו את כתובת היומן.",
+    "במחשב פתחו את Google Calendar בדפדפן (לא באפליקציה).",
+    "משמאל: יומנים אחרים → + → מכתובת URL, הדביקו והוסיפו.",
+    "באפליקציה: תפריט הצד → סמנו את BabiTk תחת יומנים אחרים.",
+  ];
 }
 
 export function formatCalendarConnectError(error: unknown): string {
@@ -160,9 +186,9 @@ export function calendarLinkedHelpText(input: {
   }
   if (input.googleLinked) {
     if (input.eventCount > 0) {
-      return `${input.eventCount} משימות עם תאריך מופיעות ביומן BabiTk וביומן Google.`;
+      return `${input.eventCount} משימות עם תאריך ביומן BabiTk. ב-Google הן תחת «יומנים אחרים» בשם BabiTk — סמנו אותו בתפריט האפליקציה.`;
     }
-    return "היומן במערכת מחובר ליומן Google. הוסיפו תאריך למשימה כדי שתופיע בשניהם.";
+    return "היומן במערכת מחובר. ב-Google חפשו BabiTk תחת «יומנים אחרים» וסמנו אותו באפליקציה.";
   }
   return "לחצו «חבר» כדי להוסיף משימות עם תאריך ליומן Google. יומן BabiTk במערכת כבר פעיל.";
 }
