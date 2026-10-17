@@ -202,9 +202,11 @@ export function calendarMonthExpandRange(
   };
 }
 
-type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
+export type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
 
-function calendarItemRecurrence(metadata: unknown): CalendarRecurrence | null {
+export function calendarItemRecurrence(
+  metadata: unknown,
+): CalendarRecurrence | null {
   if (!metadata || typeof metadata !== "object") return null;
   const value = (metadata as Record<string, unknown>).reminder_recurrence;
   if (
@@ -216,6 +218,28 @@ function calendarItemRecurrence(metadata: unknown): CalendarRecurrence | null {
     return value;
   }
   return null;
+}
+
+export function isCalendarRecurringItem(
+  item: Pick<MindtaskerItem, "metadata">,
+): boolean {
+  return calendarItemRecurrence(item.metadata) !== null;
+}
+
+const CALENDAR_DAY_ROW_BASE =
+  "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-right";
+
+/** Light mint for repeating items so they are distinct from one-off white rows. */
+export function calendarDayTaskRowClass(recurring: boolean): string {
+  return recurring
+    ? `${CALENDAR_DAY_ROW_BASE} border-emerald-200 bg-emerald-50 hover:bg-emerald-100`
+    : `${CALENDAR_DAY_ROW_BASE} border-slate-200 bg-white hover:bg-blue-50`;
+}
+
+export function calendarDayDotClass(recurring: boolean): string {
+  return recurring
+    ? "h-1 w-1 rounded-full bg-emerald-300"
+    : "h-1 w-1 rounded-full bg-blue-500";
 }
 
 function daysInUtcMonth(year: number, month: number): number {

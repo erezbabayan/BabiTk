@@ -5,12 +5,15 @@ import type { MindtaskerItem } from "../types.ts";
 import {
   addDaysYmd,
   calendarChipFocusYmd,
+  calendarDayDotClass,
+  calendarDayTaskRowClass,
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   calendarTasks,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
+  isCalendarRecurringItem,
   monthGrid,
   shiftMonth,
   taskCalendarDayKey,
@@ -186,5 +189,25 @@ describe("BabiTk task calendar", () => {
     assert.equal(calendarSwipeMonthDelta(-80), -1);
     assert.equal(calendarSwipeMonthDelta(10), 0);
     assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
+  });
+
+  it("uses a light mint tone for recurring calendar items", () => {
+    assert.equal(isCalendarRecurringItem(item()), false);
+    assert.equal(
+      isCalendarRecurringItem(item({ metadata: { reminder_recurrence: "daily" } })),
+      true,
+    );
+    assert.equal(
+      isCalendarRecurringItem(item({ metadata: { reminder_recurrence: "weekly" } })),
+      true,
+    );
+    const once = calendarDayTaskRowClass(false);
+    const repeating = calendarDayTaskRowClass(true);
+    assert.match(once, /bg-white/);
+    assert.doesNotMatch(once, /bg-emerald-50/);
+    assert.match(repeating, /bg-emerald-50/);
+    assert.match(repeating, /border-emerald-200/);
+    assert.match(calendarDayDotClass(true), /bg-emerald-300/);
+    assert.match(calendarDayDotClass(false), /bg-blue-500/);
   });
 });

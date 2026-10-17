@@ -12,11 +12,14 @@ import { formatItemTime } from "../lib/item-display";
 import { boardSwipeActions } from "../lib/item-swipe-actions";
 import {
   HEBREW_WEEKDAYS,
+  calendarDayDotClass,
+  calendarDayTaskRowClass,
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
+  isCalendarRecurringItem,
   monthGrid,
   shiftMonth,
   taskCalendarDayKey,
@@ -65,8 +68,8 @@ function CalendarDayTaskRow({
           "tasks",
         )
       : null;
-  const rowClass =
-    "flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right hover:bg-blue-50";
+  const recurring = isCalendarRecurringItem(item);
+  const rowClass = calendarDayTaskRowClass(recurring);
   const body = (
     <>
       <span className="min-w-0 truncate font-medium text-slate-800">
@@ -82,6 +85,7 @@ function CalendarDayTaskRow({
       <button
         type="button"
         data-babitk-calendar-task={item.id}
+        data-babitk-calendar-recurring={recurring ? "true" : undefined}
         onClick={() => onSelectItem?.(item)}
         className={rowClass}
       >
@@ -97,6 +101,7 @@ function CalendarDayTaskRow({
     >
       <div
         data-babitk-calendar-task={item.id}
+        data-babitk-calendar-recurring={recurring ? "true" : undefined}
         onClick={() => onSelectItem?.(item)}
         onKeyDown={(event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
@@ -269,7 +274,8 @@ export function TaskMonthCalendar({
           </div>
         ))}
         {cells.map((cell) => {
-          const count = byDay.get(cell.ymd)?.length ?? 0;
+          const dayTasks = byDay.get(cell.ymd) ?? [];
+          const count = dayTasks.length;
           const selected = cell.ymd === selectedYmd;
           const today = cell.ymd === todayYmd;
           return (
@@ -290,12 +296,16 @@ export function TaskMonthCalendar({
               {cell.day}
               {count > 0 ? (
                 <span className="mt-0.5 flex justify-center gap-0.5">
-                  {Array.from({ length: Math.min(count, 3) }, (_, index) => (
-                    <span
-                      key={index}
-                      className="h-1 w-1 rounded-full bg-blue-500"
-                    />
-                  ))}
+                  {dayTasks.slice(0, 3).map((entry, index) => {
+                    const recurring = isCalendarRecurringItem(entry.item);
+                    return (
+                      <span
+                        key={`${entry.item.id}:${entry.dueIso}:${index}`}
+                        data-babitk-calendar-dot={recurring ? "recurring" : "once"}
+                        className={calendarDayDotClass(recurring)}
+                      />
+                    );
+                  })}
                 </span>
               ) : null}
             </button>

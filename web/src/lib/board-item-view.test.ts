@@ -29,4 +29,12 @@ describe("task board view", () => {
     assert.match(dashboard, /onArchive=\{\(item\) => void archiveItem\(item\)\}/);
     assert.match(dashboard, /onDelete=\{confirmDelete\}/);
   });
+
+  it("paints recurring calendar items in a light color", () => {
+    const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
+    assert.match(calendar, /isCalendarRecurringItem/);
+    assert.match(calendar, /calendarDayTaskRowClass/);
+    assert.match(calendar, /calendarDayDotClass/);
+    assert.match(calendar, /data-babitk-calendar-recurring/);
+  });
 });
