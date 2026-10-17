@@ -1312,6 +1312,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     items={calendarBoardItems}
                     focusYmd={calendarChipFocusYmd(dateFilterByBoard.today)}
                     onSelectItem={(item) => setFocusEditItem(item)}
+                    onArchive={(item) => void archiveItem(item)}
+                    onDelete={confirmDelete}
+                    swipeDisabled={isSelecting("today-active")}
                   />
                 </div>
               ) : (

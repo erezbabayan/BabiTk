@@ -54,6 +54,7 @@ export function SwipeableItemCard({
   const containerRef = useRef<HTMLDivElement>(null);
   const drag = useRef({ active: false, locked: null as boolean | null, x: 0, y: 0 });
   const offsetRef = useRef(0);
+  const ignoreClick = useRef(false);
   const reveal = squares ? REVEAL_SQUARES : compact ? REVEAL_COMPACT : REVEAL;
   const threshold = squares ? THRESHOLD_SQUARES : compact ? THRESHOLD_COMPACT : THRESHOLD;
   const actionWidthClass = squares ? "w-12 gap-0 px-0.5" : compact ? "w-14 gap-0 px-0.5" : "w-20 gap-0.5 px-1";
@@ -179,6 +180,7 @@ export function SwipeableItemCard({
 
     if (!wasSwiping) return;
 
+    ignoreClick.current = true;
     const side = resolveSwipeRelease(current, threshold);
     if (side === "right" && rightAction) {
       rightAction.onTrigger();
@@ -276,6 +278,12 @@ export function SwipeableItemCard({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
+        onClickCapture={(event) => {
+          if (!ignoreClick.current) return;
+          ignoreClick.current = false;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
       >
         {children}
       </div>

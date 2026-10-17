@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { formatItemTime } from "../lib/item-display";
+import { boardSwipeActions } from "../lib/item-swipe-actions";
 import {
   HEBREW_WEEKDAYS,
   calendarMonthExpandRange,
@@ -21,12 +22,16 @@ import {
   taskCalendarDayKey,
 } from "../lib/task-calendar";
 import type { MindtaskerItem } from "../types";
+import { SwipeableItemCard } from "./SwipeableItemCard";
 
 interface TaskMonthCalendarProps {
   items: MindtaskerItem[];
   focusYmd?: string | null;
   onSelectItem?: (item: MindtaskerItem) => void;
+  onArchive?: (item: MindtaskerItem) => void;
+  onDelete?: (item: MindtaskerItem) => void;
   compact?: boolean;
+  swipeDisabled?: boolean;
 }
 
 function initialMonth(now = new Date()): { year: number; month: number } {
@@ -37,11 +42,84 @@ function initialMonth(now = new Date()): { year: number; month: number } {
   };
 }
 
+function CalendarDayTaskRow({
+  item,
+  dueIso,
+  onSelectItem,
+  onArchive,
+  onDelete,
+  swipeDisabled,
+}: {
+  item: MindtaskerItem;
+  dueIso: string;
+  onSelectItem?: (item: MindtaskerItem) => void;
+  onArchive?: (item: MindtaskerItem) => void;
+  onDelete?: (item: MindtaskerItem) => void;
+  swipeDisabled?: boolean;
+}) {
+  const swipe =
+    onArchive && onDelete && !swipeDisabled
+      ? boardSwipeActions(
+          () => onArchive(item),
+          () => onDelete(item),
+          "tasks",
+        )
+      : null;
+  const rowClass =
+    "flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right hover:bg-blue-50";
+  const body = (
+    <>
+      <span className="min-w-0 truncate font-medium text-slate-800">
+        {item.title.trim() || "משימה"}
+      </span>
+      <span className="shrink-0 text-[11px] text-slate-500">
+        {formatItemTime(dueIso) ?? ""}
+      </span>
+    </>
+  );
+  if (!swipe) {
+    return (
+      <button
+        type="button"
+        data-babitk-calendar-task={item.id}
+        onClick={() => onSelectItem?.(item)}
+        className={rowClass}
+      >
+        {body}
+      </button>
+    );
+  }
+  return (
+    <SwipeableItemCard
+      compact
+      leftAction={swipe.left}
+      rightAction={swipe.right}
+    >
+      <div
+        data-babitk-calendar-task={item.id}
+        onClick={() => onSelectItem?.(item)}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onSelectItem?.(item);
+        }}
+        tabIndex={0}
+        className={`${rowClass} cursor-pointer`}
+      >
+        {body}
+      </div>
+    </SwipeableItemCard>
+  );
+}
+
 export function TaskMonthCalendar({
   items,
   focusYmd = null,
   onSelectItem,
+  onArchive,
+  onDelete,
   compact = false,
+  swipeDisabled = false,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
   const [{ year, month }, setCursor] = useState(initialMonth);
@@ -232,19 +310,15 @@ export function TaskMonthCalendar({
           </p>
         ) : (
           selectedTasks.map(({ item, dueIso }) => (
-            <button
+            <CalendarDayTaskRow
               key={`${item.id}:${dueIso}`}
-              type="button"
-              onClick={() => onSelectItem?.(item)}
-              className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right hover:bg-blue-50"
-            >
-              <span className="min-w-0 truncate font-medium text-slate-800">
-                {item.title.trim() || "משימה"}
-              </span>
-              <span className="shrink-0 text-[11px] text-slate-500">
-                {formatItemTime(dueIso) ?? ""}
-              </span>
-            </button>
+              item={item}
+              dueIso={dueIso}
+              onSelectItem={onSelectItem}
+              onArchive={onArchive}
+              onDelete={onDelete}
+              swipeDisabled={swipeDisabled}
+            />
           ))
         )}
       </div>
