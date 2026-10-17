@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  calendarFromUrlSteps,
+  calendarGoogleAppHelpText,
   calendarLinkedHelpText,
   calendarSettingsButtonLabel,
   calendarUnlinkedHelpText,
   formatCalendarConnectError,
   GOOGLE_AUTH_AUDIENCE_URL,
+  GOOGLE_CALENDAR_ADD_BY_URL,
+  googleCalendarAppCapturesAdd,
   googleCalendarIdentityOptions,
   isGoogleCalendarNotConfiguredError,
   isGoogleOauthTestingDenied,
@@ -54,9 +58,16 @@ describe("simple Google Calendar connect", () => {
       planGoogleCalendarConnect(
         { url: "https://accounts.google.com/o/oauth2/v2/auth" },
         null,
-        { url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics" },
+        {
+          url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics",
+          feedUrl: "https://example/feed.ics",
+        },
       ),
-      { kind: "google", url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics" },
+      {
+        kind: "google",
+        url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics",
+        feedUrl: "https://example/feed.ics",
+      },
     );
     const notConfigured = new Error("google_not_configured");
     notConfigured.name = "google_not_configured";
@@ -102,9 +113,13 @@ describe("simple Google Calendar connect", () => {
       calendarLinkedHelpText({ writable: false, eventCount: 34 }),
       /לחצו «חבר»/,
     );
-    assert.equal(
+    assert.match(
       calendarLinkedHelpText({ writable: false, eventCount: 34, googleLinked: true }),
-      "34 משימות עם תאריך מופיעות ביומן BabiTk וביומן Google.",
+      /יומנים אחרים/,
+    );
+    assert.match(
+      calendarLinkedHelpText({ writable: false, eventCount: 34, googleLinked: true }),
+      /BabiTk/,
     );
     assert.equal(
       calendarLinkedHelpText({ writable: true, eventCount: 34 }),
@@ -112,6 +127,15 @@ describe("simple Google Calendar connect", () => {
     );
     assert.match(calendarLinkedHelpText({ writable: true, eventCount: 0 }), /בשניהם/);
     assert.equal(calendarUnlinkedHelpText().includes("Client ID"), false);
+    assert.equal(googleCalendarAppCapturesAdd("Mozilla/5.0 (Linux; Android 14) Chrome/120"), true);
+    assert.equal(googleCalendarAppCapturesAdd("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)"), true);
+    assert.equal(googleCalendarAppCapturesAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64)"), false);
+    assert.match(calendarGoogleAppHelpText(), /באפליקציית Google Calendar/);
+    assert.match(calendarGoogleAppHelpText(), /יומנים אחרים/);
+    assert.equal(calendarGoogleAppHelpText().includes("ICS"), false);
+    assert.equal(calendarFromUrlSteps().length, 4);
+    assert.match(calendarFromUrlSteps()[2] ?? "", /מכתובת URL/);
+    assert.match(GOOGLE_CALENDAR_ADD_BY_URL, /addbyurl/);
   });
 
   it("does not send users to Client ID setup copy", () => {

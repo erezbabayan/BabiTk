@@ -11,6 +11,7 @@ import {
   sessionHasGoogleIdentity,
   shouldPersistGoogleCalendarSessionLink,
   writeGoogleCalendarAdded,
+  type GoogleCalendarConnectPlan,
 } from "./google-calendar-connect";
 import {
   googleCalendarHealthFromUnknown,
@@ -208,18 +209,20 @@ export async function startGoogleCalendarConnect(): Promise<void> {
   await startGoogleCalendarPrimaryConnect();
 }
 
-function openGoogleCalendarUrl(url: string): void {
+export function openGoogleCalendarUrl(url: string): void {
   const opened = window.open(url, "_blank", "noopener,noreferrer");
   if (!opened) window.location.assign(url);
 }
 
-export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
+export async function startGoogleCalendarPrimaryConnect(): Promise<
+  Extract<GoogleCalendarConnectPlan, { kind: "google" } | { kind: "oauth" }>
+> {
   if (isDemoMode) {
     requestOpenTaskCalendar();
-    return;
+    return { kind: "google", url: "", feedUrl: "" };
   }
   try {
-    const googleAdd = await invokeCalendar<{ url?: string }>("google-add", {
+    const googleAdd = await invokeCalendar<{ url?: string; feedUrl?: string }>("google-add", {
       method: "POST",
       body: {},
     }).catch(() => null);
@@ -228,14 +231,10 @@ export async function startGoogleCalendarPrimaryConnect(): Promise<void> {
     if (planned.kind === "error") {
       throw hebrewGoogleAuthError(planned.error);
     }
-    if (planned.kind === "google") {
-      writeGoogleCalendarAdded(true);
-      openGoogleCalendarUrl(planned.url);
-      requestOpenTaskCalendar();
-      return;
+    if (planned.kind === "oauth") {
+      markCalendarOauthAttempt();
     }
-    markCalendarOauthAttempt();
-    window.location.assign(planned.url);
+    return planned;
   } catch (error) {
     throw hebrewGoogleAuthError(error);
   }

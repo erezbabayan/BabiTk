@@ -407,6 +407,7 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         url: googleCalendarSubscribeUrl(feedUrl),
+        feedUrl,
         eventCount: events.length,
       });
     }

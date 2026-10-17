@@ -3,15 +3,22 @@ import { useCallback, useEffect, useState } from "react";
 import { useDatedCalendarTasks } from "../hooks/useDatedCalendarTasks";
 import { disconnectGoogleCalendarApi, getGoogleCalendarStatus } from "../lib/api";
 import {
+  GOOGLE_CALENDAR_ADD_BY_URL,
+  calendarFromUrlSteps,
+  calendarGoogleAppHelpText,
   calendarLinkedHelpText,
   calendarSettingsButtonLabel,
   calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
+  googleCalendarAppCapturesAdd,
   isGoogleOauthTestingDenied,
   readGoogleCalendarAdded,
   writeGoogleCalendarAdded,
 } from "../lib/google-calendar-connect";
-import { startGoogleCalendarPrimaryConnect } from "../lib/google-calendar-client";
+import {
+  openGoogleCalendarUrl,
+  startGoogleCalendarPrimaryConnect,
+} from "../lib/google-calendar-client";
 import {
   CALENDAR_OAUTH_ATTEMPT_KEY,
   CALENDAR_OAUTH_ERROR_KEY,
@@ -55,6 +62,9 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedUrl, setFeedUrl] = useState("");
+  const [showFromUrlHelp, setShowFromUrlHelp] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { items } = useDatedCalendarTasks(userId);
 
   useEffect(() => {
@@ -168,8 +178,26 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         requestOpenTaskCalendar();
         return;
       }
-      await startGoogleCalendarPrimaryConnect();
-      setLinked(true);
+      const planned = await startGoogleCalendarPrimaryConnect();
+      if (planned.kind === "oauth") {
+        window.location.assign(planned.url);
+        return;
+      }
+      const feed = planned.feedUrl?.trim() ?? "";
+      setFeedUrl(feed);
+      setShowFromUrlHelp(true);
+      if (feed) {
+        try {
+          await navigator.clipboard.writeText(feed);
+          setCopied(true);
+        } catch {
+          setCopied(false);
+        }
+      }
+      const opensInCalendarApp = googleCalendarAppCapturesAdd(navigator.userAgent);
+      if (!opensInCalendarApp) {
+        openGoogleCalendarUrl(GOOGLE_CALENDAR_ADD_BY_URL);
+      }
       requestOpenTaskCalendar();
     } catch (err) {
       setError(err instanceof Error ? err.message : "לא ניתן לחבר את היומן כרגע.");
@@ -190,6 +218,8 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         return;
       }
       writeGoogleCalendarAdded(false);
+      setShowFromUrlHelp(false);
+      setFeedUrl("");
       await disconnectGoogleCalendarApi();
       setLinked(false);
       setWritable(false);
@@ -213,7 +243,53 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         onSelectItem={(item) => onSelectItem?.(item.id)}
       />
       {error ? <p className="text-red-600">{error}</p> : null}
-      {!writable && !linked && configured ? (
+      {showFromUrlHelp && !writable ? (
+        <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-slate-700">
+          <p>{calendarGoogleAppHelpText()}</p>
+          <ol className="list-decimal space-y-1 pr-5">
+            {calendarFromUrlSteps().map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          {feedUrl ? (
+            <input
+              readOnly
+              dir="ltr"
+              value={feedUrl}
+              aria-label="כתובת היומן"
+              className="w-full rounded border border-slate-300 bg-white px-2 py-1 font-mono text-xs"
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-blue-800 hover:bg-blue-100"
+              onClick={() => {
+                if (!feedUrl) return;
+                void navigator.clipboard.writeText(feedUrl).then(
+                  () => setCopied(true),
+                  () => setCopied(false),
+                );
+              }}
+            >
+              {copied ? "הכתובת הועתקה" : "העתק כתובת"}
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 hover:bg-slate-50"
+              onClick={() => {
+                writeGoogleCalendarAdded(true);
+                setLinked(true);
+                setShowFromUrlHelp(false);
+              }}
+            >
+              הוספתי
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {!writable && !linked && configured && !showFromUrlHelp ? (
         <p className="text-slate-600">{calendarUnlinkedHelpText()}</p>
       ) : null}
       {writable || linked ? (
@@ -224,6 +300,9 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
             googleLinked: linked && !writable,
           })}
         </p>
+      ) : null}
+      {linked && !writable && !showFromUrlHelp ? (
+        <p className="text-slate-600">{calendarGoogleAppHelpText()}</p>
       ) : null}
       {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
         <p className="text-slate-600">{calendarTestingDeniedUserMessage()}</p>
@@ -240,16 +319,28 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         <p className="text-slate-600">חיבור היומן עדיין לא זמין. אפשר להמשיך להשתמש בלוח בינתיים.</p>
       ) : null}
       {writable || linked ? (
-        <button
-          type="button"
-          data-calendar-linked="true"
-          data-calendar-writable={writable ? "true" : "false"}
-          onClick={() => void handleDisconnect()}
-          disabled={busy}
-          className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
-        >
-          {calendarSettingsButtonLabel(true, busy)}
-        </button>
+        <div className="space-y-2">
+          {linked && !writable ? (
+            <button
+              type="button"
+              onClick={() => void handleConnect()}
+              disabled={busy}
+              className="relative z-10 w-full rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-blue-800 hover:bg-blue-100 disabled:opacity-60"
+            >
+              הוספה במחשב ליומן Google
+            </button>
+          ) : null}
+          <button
+            type="button"
+            data-calendar-linked="true"
+            data-calendar-writable={writable ? "true" : "false"}
+            onClick={() => void handleDisconnect()}
+            disabled={busy}
+            className="relative z-10 w-full rounded-lg border border-slate-300 px-4 py-2 hover:bg-slate-50 disabled:opacity-60"
+          >
+            {calendarSettingsButtonLabel(true, busy)}
+          </button>
+        </div>
       ) : (
         <button
           type="button"
