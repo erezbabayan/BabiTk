@@ -334,6 +334,11 @@ export function icsEscape(text: string): string {
     .replaceAll(",", "\\,");
 }
 
+function isUtf8ContinuationByte(bytes: Uint8Array, index: number): boolean {
+  const value = bytes[index];
+  return value !== undefined && (value & 0xc0) === 0x80;
+}
+
 /** RFC 5545: fold at 75 octets with CRLF + space. Google drops feeds with long lines. */
 export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string {
   const encoder = new TextEncoder();
@@ -346,12 +351,12 @@ export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string 
   while (offset < bytes.length) {
     const budget = first ? limit : Math.max(1, limit - 1);
     let end = Math.min(offset + budget, bytes.length);
-    while (end > offset && end < bytes.length && (bytes[end] & 0xc0) === 0x80) {
+    while (end > offset && end < bytes.length && isUtf8ContinuationByte(bytes, end)) {
       end -= 1;
     }
     if (end <= offset) {
       end = Math.min(offset + 1, bytes.length);
-      while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end += 1;
+      while (end < bytes.length && isUtf8ContinuationByte(bytes, end)) end += 1;
     }
     const piece = decoder.decode(bytes.slice(offset, end));
     chunks.push(first ? piece : ` ${piece}`);
