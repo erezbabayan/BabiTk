@@ -7,6 +7,9 @@ export const CALENDAR_TIMEZONE = "Asia/Jerusalem";
 export const EVENT_DURATION_MS = 60 * 60 * 1000;
 export const DEFAULT_WEB_APP_URL = "https://erezbabayan.github.io/BabiTk/";
 export const GOOGLE_CALENDAR_PRIMARY_URL = "https://calendar.google.com/calendar/r";
+export const GOOGLE_CALENDAR_SUBSCRIBE_RENDER_URL =
+  "https://www.google.com/calendar/render";
+export const ICS_LINE_OCTET_LIMIT = 75;
 export type CalendarReminderRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
 export const DEFAULT_SUPABASE_URL = "https://ghibfuinantybqidwadj.supabase.co";
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
@@ -337,6 +340,39 @@ export function icsEscape(text: string): string {
     .replaceAll(",", "\\,");
 }
 
+/** RFC 5545: fold at 75 octets with CRLF + space. Google drops feeds with long lines. */
+export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const bytes = encoder.encode(line);
+  if (bytes.length <= limit) return line;
+  const chunks: string[] = [];
+  let offset = 0;
+  let first = true;
+  while (offset < bytes.length) {
+    const budget = first ? limit : Math.max(1, limit - 1);
+    let end = Math.min(offset + budget, bytes.length);
+    while (end > offset && end < bytes.length && (bytes[end] & 0xc0) === 0x80) {
+      end -= 1;
+    }
+    if (end <= offset) {
+      end = Math.min(offset + 1, bytes.length);
+      while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end += 1;
+    }
+    const piece = decoder.decode(bytes.slice(offset, end));
+    chunks.push(first ? piece : ` ${piece}`);
+    first = false;
+    offset = end;
+  }
+  return chunks.join("\r\n");
+}
+
+function icsDescription(content: string): string {
+  const trimmed = content.trim();
+  const snippet = trimmed.length > 280 ? `${trimmed.slice(0, 280)}…` : trimmed;
+  return icsEscape(snippet ? `${snippet}\n\n— BabiTk` : "— BabiTk");
+}
+
 export function icsUtcStamp(iso: string): string {
   const start = new Date(iso);
   if (Number.isNaN(start.getTime())) {
@@ -405,9 +441,7 @@ export function buildCalendarIcs(
       new Date(new Date(event.due_date).getTime() + EVENT_DURATION_MS).toISOString(),
     );
     const summary = icsEscape(event.title.trim() || "משימה");
-    const description = icsEscape(
-      event.content.trim() ? `${event.content.trim()}\n\n— BabiTk` : "— BabiTk",
-    );
+    const description = icsDescription(event.content);
     const rrule = icsRruleLine(event.recurrence);
     lines.push(
       "BEGIN:VEVENT",
@@ -422,7 +456,7 @@ export function buildCalendarIcs(
     lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
-  return `${lines.join("\r\n")}\r\n`;
+  return `${lines.map((line) => icsFoldLine(line)).join("\r\n")}\r\n`;
 }
 
 export async function calendarFeedToken(userId: string, secret: string): Promise<string> {
@@ -449,7 +483,7 @@ export function calendarIcsFeedUrl(
   token: string,
 ): string {
   const base = supabaseUrl.replace(/\/$/, "") || DEFAULT_SUPABASE_URL;
-  return `${base}/functions/v1/google-calendar/ics/${encodeURIComponent(userId)}/${encodeURIComponent(token)}`;
+  return `${base}/functions/v1/google-calendar/ics/${encodeURIComponent(userId)}/${encodeURIComponent(token)}.ics`;
 }
 
 export function webcalFeedUrl(httpsUrl: string): string {
@@ -466,17 +500,21 @@ export function parseCalendarIcsRequest(
   const fromPathUser = parts[0] ? decodeURIComponent(parts[0]) : "";
   const fromPathToken = parts[1] ? decodeURIComponent(parts[1]) : "";
   return {
-    userId: (fromPathUser || search.get("u") || "").trim(),
-    token: (fromPathToken || search.get("s") || "").trim(),
+    userId: stripIcsSuffix(fromPathUser || search.get("u") || "").trim(),
+    token: stripIcsSuffix(fromPathToken || search.get("s") || "").trim(),
   };
 }
 
+function stripIcsSuffix(value: string): string {
+  return value.replace(/\.ics$/i, "");
+}
+
 export function googleCalendarSubscribeUrl(feedUrl: string): string {
-  const url = new URL(GOOGLE_CALENDAR_PRIMARY_URL);
-  // Google's importer fetches HTTPS. webcal:// opens an iOS confirm dialog
-  // but does not write events into the user's primary Google Calendar.
-  const httpsFeed = feedUrl.replace(/^webcal:\/\//i, "https://");
-  url.searchParams.set("cid", httpsFeed);
+  // /calendar/r?cid=https://... treats the URL as a Google calendar id and
+  // shows "added" without importing events. cid must be webcal://, and the
+  // classic render endpoint is what actually subscribes to the ICS feed.
+  const url = new URL(GOOGLE_CALENDAR_SUBSCRIBE_RENDER_URL);
+  url.searchParams.set("cid", webcalFeedUrl(feedUrl));
   return url.toString();
 }
 

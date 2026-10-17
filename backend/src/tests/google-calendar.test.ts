@@ -11,6 +11,8 @@ import {
   calendarIcsFeedUrl,
   createOAuthState,
   googleCalendarSubscribeUrl,
+  ICS_LINE_OCTET_LIMIT,
+  icsFoldLine,
   icsRruleLine,
   parseCalendarIcsRequest,
   googleCalendarLinkState,
@@ -26,6 +28,16 @@ import {
   withCalendarQuery,
   calendarOauthFailureMessage,
 } from "../lib/google-calendar.js";
+
+function maxIcsLineOctets(ics: string): number {
+  const encoder = new TextEncoder();
+  return Math.max(
+    ...ics
+      .replace(/\n$/, "")
+      .split("\r\n")
+      .map((line) => encoder.encode(line).length),
+  );
+}
 
 describe("Google Calendar sync rules", () => {
   it("upserts only dated actionable tasks that are not deleted", () => {
@@ -274,21 +286,38 @@ describe("Google Calendar OAuth helpers", () => {
       token,
     );
     assert.match(feed, /\/google-calendar\/ics\//);
+    assert.match(feed, /\.ics$/);
     assert.equal(feed.includes("?"), false);
     const parsed = parseCalendarIcsRequest(new URL(feed).pathname, new URL(feed).searchParams);
     assert.equal(parsed.userId, "user-1");
     assert.equal(parsed.token, token);
     const subscribe = googleCalendarSubscribeUrl(feed);
-    assert.equal(new URL(subscribe).hostname, "calendar.google.com");
-    assert.equal(new URL(subscribe).searchParams.get("cid"), feed);
-    assert.equal(new URL(subscribe).searchParams.get("cid")?.startsWith("https://"), true);
+    const subscribeUrl = new URL(subscribe);
+    assert.equal(subscribeUrl.hostname, "www.google.com");
+    assert.equal(subscribeUrl.pathname, "/calendar/render");
+    const cid = subscribeUrl.searchParams.get("cid") ?? "";
+    assert.equal(cid.startsWith("webcal://"), true);
+    assert.equal(cid.includes("/google-calendar/ics/user-1/"), true);
+    assert.equal(cid.endsWith(".ics"), true);
     const fromWebcal = googleCalendarSubscribeUrl(
-      "webcal://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token",
+      "webcal://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token.ics",
     );
     assert.equal(
       new URL(fromWebcal).searchParams.get("cid"),
-      "https://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token",
+      "webcal://ghibfuinantybqidwadj.supabase.co/functions/v1/google-calendar/ics/user-1/token.ics",
     );
+    const longIcs = buildCalendarIcs([
+      {
+        id: "item-long",
+        title: "פגישה ארוכה מאוד עם כותרת שחייבת להתקפל לפי התקן",
+        content: `${"א".repeat(200)} ${"details, with; punctuation\nand newlines ".repeat(8)}`,
+        due_date: "2026-09-18T07:00:00.000Z",
+      },
+    ]);
+    assert.equal(maxIcsLineOctets(longIcs) <= ICS_LINE_OCTET_LIMIT, true);
+    assert.match(longIcs, /\r\n /);
+    const folded = icsFoldLine(`DESCRIPTION:${"x".repeat(200)}`);
+    assert.equal(maxIcsLineOctets(`${folded}\r\n`) <= ICS_LINE_OCTET_LIMIT, true);
   });
 
   it("exposes the live Google Cloud redirect URIs", () => {
