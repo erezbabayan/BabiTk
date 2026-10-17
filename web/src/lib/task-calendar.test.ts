@@ -7,6 +7,7 @@ import {
   calendarChipFocusYmd,
   calendarDayDotClass,
   calendarDayTaskRowClass,
+  calendarDayTaskRowStyle,
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
@@ -201,13 +202,21 @@ describe("BabiTk task calendar", () => {
       isCalendarRecurringItem(item({ metadata: { reminder_recurrence: "weekly" } })),
       true,
     );
+    assert.equal(
+      isCalendarRecurringItem(
+        item({ metadata: '{"reminder_recurrence":"monthly"}' as unknown as MindtaskerItem["metadata"] }),
+      ),
+      true,
+    );
     const once = calendarDayTaskRowClass(false);
     const repeating = calendarDayTaskRowClass(true);
     assert.match(once, /bg-white/);
-    assert.doesNotMatch(once, /bg-emerald-50/);
-    assert.match(repeating, /bg-emerald-50/);
-    assert.match(repeating, /border-emerald-200/);
-    assert.match(calendarDayDotClass(true), /bg-emerald-300/);
+    assert.doesNotMatch(once, /babitk-calendar-day-task--recurring/);
+    assert.match(repeating, /babitk-calendar-day-task--recurring/);
+    assert.match(repeating, /bg-teal-100/);
+    assert.equal(calendarDayTaskRowStyle(false), undefined);
+    assert.equal(calendarDayTaskRowStyle(true)?.backgroundColor, "#c5f6e4");
+    assert.match(calendarDayDotClass(true), /bg-teal-400/);
     assert.match(calendarDayDotClass(false), /bg-blue-500/);
   });
 });

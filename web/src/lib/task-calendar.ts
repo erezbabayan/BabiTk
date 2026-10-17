@@ -204,11 +204,29 @@ export function calendarMonthExpandRange(
 
 export type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
 
+function metadataRecord(metadata: unknown): Record<string, unknown> | null {
+  if (!metadata) return null;
+  if (typeof metadata === "string") {
+    try {
+      const parsed: unknown = JSON.parse(metadata);
+      if (parsed && typeof parsed === "object") {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  if (typeof metadata === "object") return metadata as Record<string, unknown>;
+  return null;
+}
+
 export function calendarItemRecurrence(
   metadata: unknown,
 ): CalendarRecurrence | null {
-  if (!metadata || typeof metadata !== "object") return null;
-  const value = (metadata as Record<string, unknown>).reminder_recurrence;
+  const record = metadataRecord(metadata);
+  if (!record) return null;
+  const value = record.reminder_recurrence;
   if (
     value === "daily" ||
     value === "weekly" ||
@@ -229,16 +247,27 @@ export function isCalendarRecurringItem(
 const CALENDAR_DAY_ROW_BASE =
   "flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-right";
 
+export const CALENDAR_RECURRING_ROW_TONE = {
+  backgroundColor: "#c5f6e4",
+  borderColor: "#7dd3b0",
+} as const;
+
 /** Light mint for repeating items so they are distinct from one-off white rows. */
 export function calendarDayTaskRowClass(recurring: boolean): string {
   return recurring
-    ? `${CALENDAR_DAY_ROW_BASE} border-emerald-200 bg-emerald-50 hover:bg-emerald-100`
+    ? `${CALENDAR_DAY_ROW_BASE} babitk-calendar-day-task--recurring border-teal-300 bg-teal-100 hover:bg-teal-200`
     : `${CALENDAR_DAY_ROW_BASE} border-slate-200 bg-white hover:bg-blue-50`;
+}
+
+export function calendarDayTaskRowStyle(
+  recurring: boolean,
+): { backgroundColor: string; borderColor: string } | undefined {
+  return recurring ? { ...CALENDAR_RECURRING_ROW_TONE } : undefined;
 }
 
 export function calendarDayDotClass(recurring: boolean): string {
   return recurring
-    ? "h-1 w-1 rounded-full bg-emerald-300"
+    ? "h-1.5 w-1.5 rounded-full bg-teal-400"
     : "h-1 w-1 rounded-full bg-blue-500";
 }
 
