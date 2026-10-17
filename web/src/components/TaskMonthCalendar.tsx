@@ -10,10 +10,13 @@ import {
 
 import { formatItemTime } from "../lib/item-display";
 import { boardSwipeActions } from "../lib/item-swipe-actions";
+import { formatReminderRecurrenceLabel } from "../lib/resolve-item-reminder";
 import {
   HEBREW_WEEKDAYS,
   calendarDayDotClass,
   calendarDayTaskRowClass,
+  calendarDayTaskRowStyle,
+  calendarItemRecurrence,
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
@@ -70,13 +73,20 @@ function CalendarDayTaskRow({
       : null;
   const recurring = isCalendarRecurringItem(item);
   const rowClass = calendarDayTaskRowClass(recurring);
+  const rowStyle = calendarDayTaskRowStyle(recurring);
+  const recurrenceLabel = formatReminderRecurrenceLabel(
+    calendarItemRecurrence(item.metadata),
+  );
+  const timeLabel = formatItemTime(dueIso) ?? "";
   const body = (
     <>
       <span className="min-w-0 truncate font-medium text-slate-800">
         {item.title.trim() || "משימה"}
       </span>
-      <span className="shrink-0 text-[11px] text-slate-500">
-        {formatItemTime(dueIso) ?? ""}
+      <span
+        className={`shrink-0 text-[11px] ${recurring ? "font-medium text-teal-800" : "text-slate-500"}`}
+      >
+        {recurrenceLabel ? `${recurrenceLabel}${timeLabel ? ` · ${timeLabel}` : ""}` : timeLabel}
       </span>
     </>
   );
@@ -88,6 +98,7 @@ function CalendarDayTaskRow({
         data-babitk-calendar-recurring={recurring ? "true" : undefined}
         onClick={() => onSelectItem?.(item)}
         className={rowClass}
+        style={rowStyle}
       >
         {body}
       </button>
@@ -110,6 +121,7 @@ function CalendarDayTaskRow({
         }}
         tabIndex={0}
         className={`${rowClass} cursor-pointer`}
+        style={rowStyle}
       >
         {body}
       </div>

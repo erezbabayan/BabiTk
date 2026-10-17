@@ -32,9 +32,13 @@ describe("task board view", () => {
 
   it("paints recurring calendar items in a light color", () => {
     const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
+    const css = readFileSync(join(here, "../index.css"), "utf8");
     assert.match(calendar, /isCalendarRecurringItem/);
     assert.match(calendar, /calendarDayTaskRowClass/);
+    assert.match(calendar, /calendarDayTaskRowStyle/);
     assert.match(calendar, /calendarDayDotClass/);
     assert.match(calendar, /data-babitk-calendar-recurring/);
+    assert.match(css, /\.babitk-calendar-day-task--recurring/);
+    assert.match(css, /#c5f6e4/);
   });
 });

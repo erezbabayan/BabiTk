@@ -525,6 +525,15 @@ body {
   @apply flex flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
 }
 
+/* Recurring calendar-day rows: light mint, strong enough to see on white. */
+.babitk-calendar-day-task--recurring {
+  background-color: #c5f6e4;
+  border-color: #7dd3b0;
+}
+.babitk-calendar-day-task--recurring:hover {
+  background-color: #a9e9cf;
+}
+
 .board-notebook-item--dense {
   @apply h-auto min-h-0 rounded-md shadow-none hover:shadow-sm;
 }
