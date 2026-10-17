@@ -44,7 +44,7 @@ const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
 };
 
 function json(body: unknown, status = 200): Response {
@@ -310,23 +310,27 @@ Deno.serve(async (req) => {
     return handleCallback(req);
   }
 
-  if (req.method === "GET" && action === "ics") {
+  if ((req.method === "GET" || req.method === "HEAD") && action === "ics") {
     const url = new URL(req.url);
     const { userId, token } = parseCalendarIcsRequest(url.pathname, url.searchParams);
     const secret = calendarFeedSecret();
     if (!secret || !(await calendarFeedTokenValid(userId, token, secret))) {
       return new Response("not_found", { status: 404, headers: CORS });
     }
+    const headers = {
+      ...CORS,
+      "Content-Type": "text/calendar; charset=utf-8",
+      "Content-Disposition": 'inline; filename="babitk.ics"',
+      "Cache-Control": "public, max-age=300",
+    };
+    if (req.method === "HEAD") {
+      return new Response(null, { status: 200, headers });
+    }
     try {
       const events = await listDatedCalendarEvents(userId);
       return new Response(buildCalendarIcs(events), {
         status: 200,
-        headers: {
-          ...CORS,
-          "Content-Type": "text/calendar; charset=utf-8",
-          "Content-Disposition": 'inline; filename="babitk.ics"',
-          "Cache-Control": "public, max-age=300",
-        },
+        headers,
       });
     } catch {
       return new Response("calendar_failed", { status: 500, headers: CORS });

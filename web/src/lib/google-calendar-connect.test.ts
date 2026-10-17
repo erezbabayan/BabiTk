@@ -54,9 +54,9 @@ describe("simple Google Calendar connect", () => {
       planGoogleCalendarConnect(
         { url: "https://accounts.google.com/o/oauth2/v2/auth" },
         null,
-        { url: "https://calendar.google.com/calendar/r?cid=https://example/feed" },
+        { url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics" },
       ),
-      { kind: "google", url: "https://calendar.google.com/calendar/r?cid=https://example/feed" },
+      { kind: "google", url: "https://www.google.com/calendar/render?cid=webcal://example/feed.ics" },
     );
     const notConfigured = new Error("google_not_configured");
     notConfigured.name = "google_not_configured";
