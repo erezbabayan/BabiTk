@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react";
 
+import { isoDateToDdMmYyyy } from "../lib/date-display";
 import { formatItemTime } from "../lib/item-display";
 import { boardSwipeActions } from "../lib/item-swipe-actions";
 import { formatReminderRecurrenceLabel } from "../lib/resolve-item-reminder";
@@ -20,12 +21,14 @@ import {
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
+  groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
   isCalendarRecurringItem,
   monthGrid,
   shiftMonth,
   taskCalendarDayKey,
+  uniqueCalendarSearchHits,
 } from "../lib/task-calendar";
 import type { MindtaskerItem } from "../types";
 import { SwipeableItemCard } from "./SwipeableItemCard";
@@ -52,6 +55,8 @@ function initialMonth(now = new Date()): { year: number; month: number } {
 function CalendarDayTaskRow({
   item,
   dueIso,
+  extraDayCount = 0,
+  rowId,
   onSelectItem,
   onArchive,
   onDelete,
@@ -59,6 +64,8 @@ function CalendarDayTaskRow({
 }: {
   item: MindtaskerItem;
   dueIso: string;
+  extraDayCount?: number;
+  rowId?: string;
   onSelectItem?: (item: MindtaskerItem) => void;
   onArchive?: (item: MindtaskerItem) => void;
   onDelete?: (item: MindtaskerItem) => void;
@@ -79,6 +86,8 @@ function CalendarDayTaskRow({
     calendarItemRecurrence(item.metadata),
   );
   const timeLabel = formatItemTime(dueIso) ?? "";
+  const extraLabel = extraDayCount > 0 ? "בכמה תאריכים" : "";
+  const meta = [recurrenceLabel, extraLabel, timeLabel].filter(Boolean).join(" · ");
   const body = (
     <>
       <span className="min-w-0 truncate font-medium text-slate-800">
@@ -87,7 +96,7 @@ function CalendarDayTaskRow({
       <span
         className={`shrink-0 text-[11px] ${recurring ? "font-medium text-teal-800" : "text-slate-500"}`}
       >
-        {recurrenceLabel ? `${recurrenceLabel}${timeLabel ? ` · ${timeLabel}` : ""}` : timeLabel}
+        {meta}
       </span>
     </>
   );
@@ -95,6 +104,7 @@ function CalendarDayTaskRow({
     return (
       <button
         type="button"
+        id={rowId}
         data-babitk-calendar-task={item.id}
         data-babitk-calendar-recurring={recurring ? "true" : undefined}
         onClick={() => onSelectItem?.(item)}
@@ -112,6 +122,7 @@ function CalendarDayTaskRow({
       rightAction={swipe.right}
     >
       <div
+        id={rowId}
         data-babitk-calendar-task={item.id}
         data-babitk-calendar-recurring={recurring ? "true" : undefined}
         onClick={() => onSelectItem?.(item)}
@@ -162,6 +173,14 @@ export function TaskMonthCalendar({
     [items, expandRange],
   );
   const selectedTasks = byDay.get(selectedYmd) ?? [];
+  const searchHits = useMemo(
+    () => (searching ? uniqueCalendarSearchHits(byDay, todayYmd || selectedYmd) : []),
+    [byDay, searching, selectedYmd, todayYmd],
+  );
+  const searchGroups = useMemo(
+    () => groupCalendarSearchHitsByDay(searchHits),
+    [searchHits],
+  );
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
   const monthTaskCount = useMemo(() => {
     const ids = new Set<string>();
@@ -298,13 +317,30 @@ export function TaskMonthCalendar({
           const count = dayTasks.length;
           const selected = cell.ymd === selectedYmd;
           const today = cell.ymd === todayYmd;
+          const searchHit = searching && count > 0;
           return (
             <button
               key={cell.ymd}
               type="button"
               data-babitk-calendar-day={cell.ymd}
               data-babitk-calendar-selected={selected ? "true" : undefined}
-              onClick={() => setSelectedYmd(cell.ymd)}
+              data-babitk-calendar-search-day={searchHit ? "true" : undefined}
+              onClick={() => {
+                setSelectedYmd(cell.ymd);
+                if (!searching) return;
+                window.requestAnimationFrame(() => {
+                  const group = document.getElementById(`babitk-calendar-search-${cell.ymd}`);
+                  if (group) {
+                    group.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                    return;
+                  }
+                  const first = dayTasks[0];
+                  if (!first) return;
+                  document
+                    .getElementById(`babitk-calendar-search-item-${first.item.id}`)
+                    ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                });
+              }}
               className={`relative min-h-[2.75rem] bg-white px-0.5 py-1 text-xs ${
                 cell.inMonth ? "text-slate-800" : "text-slate-300"
               } ${selected ? "bg-blue-50 ring-1 ring-inset ring-blue-400" : ""} ${
@@ -321,8 +357,10 @@ export function TaskMonthCalendar({
                     return (
                       <span
                         key={`${entry.item.id}:${entry.dueIso}:${index}`}
-                        data-babitk-calendar-dot={recurring ? "recurring" : "once"}
-                        className={calendarDayDotClass(recurring)}
+                        data-babitk-calendar-dot={
+                          searching ? "search" : recurring ? "recurring" : "once"
+                        }
+                        className={calendarDayDotClass(recurring, { searchHit: searching })}
                       />
                     );
                   })}
@@ -334,13 +372,48 @@ export function TaskMonthCalendar({
       </div>
 
       <div className="space-y-1">
-        {selectedTasks.length === 0 ? (
+        {searching ? (
+          searchHits.length === 0 ? (
+            <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
+              אין משימות מתאימות לחיפוש.
+            </p>
+          ) : (
+            <div className="space-y-3" data-babitk-calendar-search-results="true">
+              <p className="px-1 text-[11px] font-semibold text-slate-600">
+                {`כל התוצאות (${searchHits.length})`}
+              </p>
+              {searchGroups.map((group) => (
+                <div
+                  key={group.ymd}
+                  id={`babitk-calendar-search-${group.ymd}`}
+                  data-babitk-calendar-search-group={group.ymd}
+                  className={`space-y-1 rounded-lg ${
+                    group.ymd === selectedYmd ? "ring-1 ring-inset ring-red-200" : ""
+                  }`}
+                >
+                  <p className="px-1 text-[11px] font-medium text-red-700">
+                    {isoDateToDdMmYyyy(group.ymd)}
+                  </p>
+                  {group.hits.map((hit) => (
+                    <CalendarDayTaskRow
+                      key={`${hit.item.id}:${hit.dueIso}`}
+                      rowId={`babitk-calendar-search-item-${hit.item.id}`}
+                      item={hit.item}
+                      dueIso={hit.dueIso}
+                      extraDayCount={hit.extraDayCount}
+                      onSelectItem={onSelectItem}
+                      onArchive={onArchive}
+                      onDelete={onDelete}
+                      swipeDisabled={swipeDisabled}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )
+        ) : selectedTasks.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-            {searching && byDay.size === 0
-              ? "אין משימות מתאימות לחיפוש."
-              : searching
-                ? "אין משימות מתאימות לחיפוש ביום הזה."
-                : "אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן."}
+            אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
           </p>
         ) : (
           selectedTasks.map(({ item, dueIso }) => (

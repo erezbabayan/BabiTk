@@ -534,6 +534,10 @@ body {
   background-color: #a9e9cf;
 }
 
+.babitk-calendar-dot--search {
+  background-color: #ef4444;
+}
+
 .board-notebook-item--dense {
   @apply h-auto min-h-0 rounded-md shadow-none hover:shadow-sm;
 }
