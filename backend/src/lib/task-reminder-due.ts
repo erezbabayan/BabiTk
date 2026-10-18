@@ -62,6 +62,11 @@ export function reminderDueQueryCutoffIso(nowMs = Date.now()): string {
   return new Date(nowMs + REMINDER_DUE_LOOKAHEAD_MS).toISOString();
 }
 
+/** Ignore stale open dues that are outside the send window. */
+export function reminderDueQueryFloorIso(nowMs = Date.now()): string {
+  return new Date(nowMs - REMINDER_MAX_OVERDUE_MS).toISOString();
+}
+
 /** Local-day digest: due dates from yesterday through tomorrow. */
 export function digestDueWindowIso(nowMs = Date.now()): { start: string; end: string } {
   const span = 36 * 60 * 60 * 1000;

@@ -765,11 +765,22 @@ Deno.serve(async (req) => {
   if (action === "catchup_voice" || action === "catchup_image") {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
-    const { data: gatewayRow } = await supabase
+    const payload = body as { userId?: unknown; instanceId?: unknown };
+    const instanceId =
+      typeof payload.instanceId === "string" ? payload.instanceId.trim() : "";
+    const payloadUserId =
+      typeof payload.userId === "string" ? payload.userId.trim() : "";
+    let gatewayQuery = supabase
       .from("whatsapp_gateways")
-      .select("user_id,instance_id,api_token,api_url,webhook_token")
-      .limit(1)
-      .maybeSingle();
+      .select("user_id,instance_id,api_token,api_url,webhook_token");
+    if (instanceId) {
+      gatewayQuery = gatewayQuery.eq("instance_id", instanceId);
+    } else if (payloadUserId) {
+      gatewayQuery = gatewayQuery.eq("user_id", payloadUserId);
+    } else {
+      return json({ error: "gateway_missing" }, 400);
+    }
+    const { data: gatewayRow } = await gatewayQuery.maybeSingle();
     const allowed = [SERVICE_ROLE, gatewayRow?.webhook_token].filter(
       (value): value is string => typeof value === "string" && value.length > 0,
     );
@@ -897,7 +908,11 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${secret}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ action: "catchup_voice" }),
+        body: JSON.stringify({
+          action: "catchup_voice",
+          userId: gateway.user_id,
+          instanceId: gateway.instance_id,
+        }),
         signal: AbortSignal.timeout(90_000),
       }).then(async (response) => {
         await response.text();
@@ -930,11 +945,9 @@ Deno.serve(async (req) => {
     );
   };
   if (parsed.ignored) {
-    kickVoiceCatchup();
     return json({ received: true, ignored: true, reason: parsed.reason ?? "not_inbound" });
   }
   if (parsed.messages.length === 0) {
-    kickVoiceCatchup();
     return json({
       received: true,
       messages: [],

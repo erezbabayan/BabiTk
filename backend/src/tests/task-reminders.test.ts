@@ -5,6 +5,7 @@ import {
   digestDueWindowIso,
   isCronReminderDue,
   reminderDueQueryCutoffIso,
+  reminderDueQueryFloorIso,
   resolveCronReminderFireAt,
 } from "../lib/task-reminder-due.js";
 
@@ -91,6 +92,13 @@ describe("task reminder due window", () => {
     assert.equal(
       reminderDueQueryCutoffIso(NOW),
       "2026-09-16T13:00:00.000Z",
+    );
+  });
+
+  it("floor is one day behind now so stale dues are not scanned", () => {
+    assert.equal(
+      reminderDueQueryFloorIso(NOW),
+      "2026-09-15T12:00:00.000Z",
     );
   });
 });

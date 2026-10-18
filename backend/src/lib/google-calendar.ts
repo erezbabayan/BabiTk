@@ -339,11 +339,12 @@ function isUtf8ContinuationByte(bytes: Uint8Array, index: number): boolean {
   return value !== undefined && (value & 0xc0) === 0x80;
 }
 
+const ICS_ENCODER = new TextEncoder();
+const ICS_DECODER = new TextDecoder();
+
 /** RFC 5545: fold at 75 octets with CRLF + space. Google drops feeds with long lines. */
 export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const bytes = encoder.encode(line);
+  const bytes = ICS_ENCODER.encode(line);
   if (bytes.length <= limit) return line;
   const chunks: string[] = [];
   let offset = 0;
@@ -358,7 +359,7 @@ export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string 
       end = Math.min(offset + 1, bytes.length);
       while (end < bytes.length && isUtf8ContinuationByte(bytes, end)) end += 1;
     }
-    const piece = decoder.decode(bytes.slice(offset, end));
+    const piece = ICS_DECODER.decode(bytes.slice(offset, end));
     chunks.push(first ? piece : ` ${piece}`);
     first = false;
     offset = end;

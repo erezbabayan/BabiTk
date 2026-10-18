@@ -8,6 +8,11 @@ export function reminderDueQueryCutoffIso(nowMs = Date.now()): string {
   return new Date(nowMs + REMINDER_DUE_LOOKAHEAD_MS).toISOString();
 }
 
+/** Ignore stale open dues that are outside the send window. */
+export function reminderDueQueryFloorIso(nowMs = Date.now()): string {
+  return new Date(nowMs - REMINDER_MAX_OVERDUE_MS).toISOString();
+}
+
 export function isReminderOverdueBeyondWindow(
   fireAt: string,
   nowMs = Date.now(),

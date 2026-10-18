@@ -1,3 +1,5 @@
+import { advanceZonedDueDate } from "./zoned-time.ts";
+
 export type ReminderKind = "task" | "note" | "list";
 
 export type ReminderDestination =
@@ -151,19 +153,7 @@ export function patchAfterReminderSent(
   if (Number.isNaN(from.getTime())) {
     return { metadata: { ...metadata, reminder_sent: true } };
   }
-  const next = new Date(from);
-  if (recurrence === "weekly") {
-    next.setUTCDate(next.getUTCDate() + 7);
-  } else if (recurrence === "monthly") {
-    next.setUTCMonth(next.getUTCMonth() + 1);
-  } else if (recurrence === "weekdays") {
-    do {
-      next.setUTCDate(next.getUTCDate() + 1);
-    } while (next.getUTCDay() === 5 || next.getUTCDay() === 6);
-  } else {
-    next.setUTCDate(next.getUTCDate() + 1);
-  }
-  const nextIso = next.toISOString();
+  const nextIso = advanceZonedDueDate(fromIso, recurrence);
   const analysisRaw = metadata.analysis;
   const analysis =
     analysisRaw && typeof analysisRaw === "object"

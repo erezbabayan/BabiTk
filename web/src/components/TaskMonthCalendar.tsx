@@ -353,7 +353,7 @@ export function TaskMonthCalendar({
               {count > 0 ? (
                 <span className="mt-0.5 flex justify-center gap-0.5">
                   {dayTasks.slice(0, 3).map((entry, index) => {
-                    const recurring = isCalendarRecurringItem(entry.item);
+                    const recurring = entry.recurring;
                     return (
                       <span
                         key={`${entry.item.id}:${entry.dueIso}:${index}`}

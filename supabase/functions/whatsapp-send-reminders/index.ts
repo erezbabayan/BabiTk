@@ -28,8 +28,8 @@ import {
   digestDueWindowIso,
   isReminderOverdueBeyondWindow,
   reminderDueQueryCutoffIso,
+  reminderDueQueryFloorIso,
 } from "../_shared/task-reminder-due.ts";
-import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -111,31 +111,6 @@ Deno.serve(async (req) => {
       }
     } catch {
       body = {};
-    }
-  }
-
-  if (cron) {
-    const { data: gateways } = await admin
-      .from("whatsapp_gateways")
-      .select("user_id, instance_id, api_token, api_url");
-    for (const gateway of gateways ?? []) {
-      if (!gateway.user_id) continue;
-      try {
-        await catchUpCaptureVoice({
-          supabase: admin,
-          userId: String(gateway.user_id),
-          gateway: {
-            instance_id: String(gateway.instance_id),
-            api_token: String(gateway.api_token),
-            api_url: String(gateway.api_url),
-            user_id: String(gateway.user_id),
-          },
-          transcribe: true,
-          count: 12,
-        });
-      } catch (error) {
-        console.error("voice catchup failed", error);
-      }
     }
   }
 
@@ -269,6 +244,7 @@ Deno.serve(async (req) => {
     .in("status", ["inbox", "pending"])
     .is("deleted_at", null)
     .not("due_date", "is", null)
+    .gte("due_date", reminderDueQueryFloorIso(nowMs))
     .lte("due_date", reminderDueQueryCutoffIso(nowMs));
   if (scopedUserId) itemsQuery = itemsQuery.eq("user_id", scopedUserId);
 
@@ -319,6 +295,7 @@ Deno.serve(async (req) => {
     .eq("status", "active")
     .is("deleted_at", null)
     .not("reminder_at", "is", null)
+    .gte("reminder_at", reminderDueQueryFloorIso(nowMs))
     .lte("reminder_at", nowIso);
   if (scopedUserId) listsQuery = listsQuery.eq("user_id", scopedUserId);
   const { data: lists, error: listsError } = await listsQuery;
@@ -355,13 +332,8 @@ Deno.serve(async (req) => {
   const weekdayNum = localWeekday(now);
   const digestSelect =
     "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots";
-  let digestUsersQuery = admin.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
-  let { data: digestUsers, error: digestUsersError } = await digestUsersQuery;
-  if (digestUsersError) {
-    const fallback = await admin.from("users").select(digestSelect);
-    digestUsers = fallback.data;
-    digestUsersError = fallback.error;
-  }
+  const digestUsersQuery = admin.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
+  const { data: digestUsers, error: digestUsersError } = await digestUsersQuery;
   if (digestUsersError) {
     return json({ error: digestUsersError.message, sent, digests }, 500);
   }

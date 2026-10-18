@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildApproveInboxPatch,
@@ -104,6 +104,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
   const syncVersionRef = useRef<number | null>(null);
 
   const refreshInFlightRef = useRef(false);
+  const refreshQueuedRef = useRef(false);
   const refreshGenerationRef = useRef(0);
 
 
@@ -128,7 +129,10 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
     }
 
-    if (refreshInFlightRef.current) return;
+    if (refreshInFlightRef.current) {
+      refreshQueuedRef.current = true;
+      return;
+    }
 
     refreshInFlightRef.current = true;
     const generation = refreshGenerationRef.current;
@@ -168,6 +172,10 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       refreshInFlightRef.current = false;
       setLoading(false);
+      if (refreshQueuedRef.current) {
+        refreshQueuedRef.current = false;
+        void refresh();
+      }
 
     }
 
@@ -833,32 +841,45 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
-  const inbox = sortColumnItems(itemsInColumn(items, "inbox"));
-
-  const todayTasks = sortColumnItems(itemsInColumn(items, "today"));
-
-  const notes = sortColumnItems(itemsInColumn(items, "notes"));
-
-
-
-  const inboxArchive = items.filter(
-
-    (item) =>
-      isActiveBoardItem(item) && item.status === "snoozed_archive" && item.is_actionable,
-
+  const inbox = useMemo(
+    () => sortColumnItems(itemsInColumn(items, "inbox")),
+    [items],
   );
 
-  const notesArchive = items.filter(
-
-    (item) =>
-      isActiveBoardItem(item) && item.status === "snoozed_archive" && !item.is_actionable,
-
+  const todayTasks = useMemo(
+    () => sortColumnItems(itemsInColumn(items, "today")),
+    [items],
   );
 
-  const completedTasks = items.filter(
+  const notes = useMemo(
+    () => sortColumnItems(itemsInColumn(items, "notes")),
+    [items],
+  );
 
-    (item) => isActiveBoardItem(item) && item.is_actionable && item.status === "completed",
+  const inboxArchive = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          isActiveBoardItem(item) && item.status === "snoozed_archive" && item.is_actionable,
+      ),
+    [items],
+  );
 
+  const notesArchive = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          isActiveBoardItem(item) && item.status === "snoozed_archive" && !item.is_actionable,
+      ),
+    [items],
+  );
+
+  const completedTasks = useMemo(
+    () =>
+      items.filter(
+        (item) => isActiveBoardItem(item) && item.is_actionable && item.status === "completed",
+      ),
+    [items],
   );
 
 

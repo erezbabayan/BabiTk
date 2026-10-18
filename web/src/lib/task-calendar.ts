@@ -182,6 +182,7 @@ export function calendarTasks(items: MindtaskerItem[]): MindtaskerItem[] {
 export type CalendarDayTask = {
   item: MindtaskerItem;
   dueIso: string;
+  recurring: boolean;
 };
 
 export type CalendarDayRange = {
@@ -202,6 +203,99 @@ export function calendarMonthExpandRange(
   };
 }
 
+function ymdDiffDays(fromYmd: string, toYmd: string): number {
+  const from = Date.parse(`${fromYmd}T12:00:00Z`);
+  const to = Date.parse(`${toYmd}T12:00:00Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.round((to - from) / 86_400_000);
+}
+
+/** First series day that is >= `fromYmd` (daily/weekdays fill the whole window). */
+function firstOccurrenceOnOrAfter(
+  seedYmd: string,
+  recurrence: CalendarRecurrence,
+  fromYmd: string,
+): string {
+  switch (recurrence) {
+    case "daily":
+      return fromYmd;
+    case "weekdays": {
+      let cursor = fromYmd;
+      for (let i = 0; i < 8; i += 1) {
+        if (isIsraeliWeekdayYmd(cursor)) return cursor;
+        cursor = addDaysYmd(cursor, 1);
+      }
+      return cursor;
+    }
+    case "weekly": {
+      const delta = ymdDiffDays(seedYmd, fromYmd);
+      if (delta <= 0) {
+        return addDaysYmd(seedYmd, -7 * Math.floor(ymdDiffDays(fromYmd, seedYmd) / 7));
+      }
+      return addDaysYmd(seedYmd, 7 * Math.ceil(delta / 7));
+    }
+    case "monthly": {
+      if (seedYmd >= fromYmd) {
+        let cursor = seedYmd;
+        for (let step = 0; step < 240; step += 1) {
+          const prev = previousCalendarRecurrenceYmd(cursor, "monthly");
+          if (prev === cursor || prev < fromYmd) return cursor;
+          cursor = prev;
+        }
+        return cursor;
+      }
+      let cursor = seedYmd;
+      for (let step = 0; step < 240; step += 1) {
+        if (cursor >= fromYmd) return cursor;
+        const next = nextCalendarRecurrenceYmd(cursor, "monthly");
+        if (next === cursor) return next;
+        cursor = next;
+      }
+      return cursor;
+    }
+  }
+}
+
+function lastOccurrenceOnOrBefore(
+  seedYmd: string,
+  recurrence: CalendarRecurrence,
+  toYmd: string,
+): string {
+  switch (recurrence) {
+    case "daily":
+      return toYmd;
+    case "weekdays": {
+      let cursor = toYmd;
+      for (let i = 0; i < 8; i += 1) {
+        if (isIsraeliWeekdayYmd(cursor)) return cursor;
+        cursor = addDaysYmd(cursor, -1);
+      }
+      return cursor;
+    }
+    case "weekly":
+      return addDaysYmd(seedYmd, 7 * Math.floor(ymdDiffDays(seedYmd, toYmd) / 7));
+    case "monthly": {
+      if (seedYmd <= toYmd) {
+        let cursor = seedYmd;
+        for (let step = 0; step < 240; step += 1) {
+          const next = nextCalendarRecurrenceYmd(cursor, "monthly");
+          if (next === cursor || next > toYmd) return cursor;
+          cursor = next;
+        }
+        return cursor;
+      }
+      let cursor = seedYmd;
+      for (let step = 0; step < 240; step += 1) {
+        if (cursor <= toYmd) return cursor;
+        const prev = previousCalendarRecurrenceYmd(cursor, "monthly");
+        if (prev === cursor) return prev;
+        cursor = prev;
+      }
+      return cursor;
+    }
+  }
+}
+
 /** First day with a calendar item, preferring on/after `aroundYmd`. */
 export function firstBusyCalendarYmd(
   items: MindtaskerItem[],
@@ -209,15 +303,38 @@ export function firstBusyCalendarYmd(
 ): string | null {
   const origin = calendarMonthFromYmd(aroundYmd);
   if (!origin) return null;
-  const from = shiftMonth(origin.year, origin.month, -6);
+  const fromShift = shiftMonth(origin.year, origin.month, -6);
   const afterTo = shiftMonth(origin.year, origin.month, 12);
-  const grouped = groupCalendarTasksByDay(items, {
-    fromYmd: monthYmd(from.year, from.month),
-    toYmd: addDaysYmd(monthYmd(afterTo.year, afterTo.month), -1),
-  });
-  const ymds = [...grouped.keys()].sort();
-  if (ymds.length === 0) return null;
-  return ymds.find((ymd) => ymd >= aroundYmd) ?? ymds[ymds.length - 1] ?? null;
+  const fromYmd = monthYmd(fromShift.year, fromShift.month);
+  const toYmd = addDaysYmd(monthYmd(afterTo.year, afterTo.month), -1);
+
+  let bestOnOrAfter: string | null = null;
+  let bestAny: string | null = null;
+
+  const consider = (ymd: string | null | undefined) => {
+    if (!ymd || ymd < fromYmd || ymd > toYmd) return;
+    if (!bestAny || ymd > bestAny) bestAny = ymd;
+    if (ymd >= aroundYmd && (!bestOnOrAfter || ymd < bestOnOrAfter)) {
+      bestOnOrAfter = ymd;
+    }
+  };
+
+  for (const item of items) {
+    const due = calendarItemDueIso(item);
+    if (!due) continue;
+    const seedYmd = taskCalendarDayKey(due);
+    if (!seedYmd) continue;
+    const recurrence = calendarItemRecurrence(item.metadata);
+    if (!recurrence) {
+      consider(seedYmd);
+      continue;
+    }
+    const start = aroundYmd > fromYmd ? aroundYmd : fromYmd;
+    consider(firstOccurrenceOnOrAfter(seedYmd, recurrence, start));
+    consider(lastOccurrenceOnOrBefore(seedYmd, recurrence, toYmd));
+  }
+
+  return bestOnOrAfter ?? bestAny;
 }
 
 export type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
@@ -368,12 +485,7 @@ export function calendarOccurrenceYmds(
     return seedYmd >= fromYmd && seedYmd <= toYmd ? [seedYmd] : [];
   }
 
-  let cursor = seedYmd;
-  for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_DAYS; step += 1) {
-    const prev = previousCalendarRecurrenceYmd(cursor, recurrence);
-    if (prev === cursor || prev < fromYmd) break;
-    cursor = prev;
-  }
+  let cursor = firstOccurrenceOnOrAfter(seedYmd, recurrence, fromYmd);
 
   const out: string[] = [];
   for (let step = 0; step < MAX_CALENDAR_OCCURRENCE_DAYS; step += 1) {
@@ -409,12 +521,13 @@ export function groupCalendarTasksByDay(
     const seedYmd = taskCalendarDayKey(due);
     if (!seedYmd) continue;
     const recurrence = calendarItemRecurrence(item.metadata);
+    const recurring = recurrence !== null;
     const ymds = range
       ? calendarOccurrenceYmds(seedYmd, recurrence, range.fromYmd, range.toYmd)
       : [seedYmd];
     for (const ymd of ymds) {
       const list = map.get(ymd) ?? [];
-      list.push({ item, dueIso: dueIsoOnYmd(due, ymd) });
+      list.push({ item, dueIso: dueIsoOnYmd(due, ymd), recurring });
       map.set(ymd, list);
     }
   }

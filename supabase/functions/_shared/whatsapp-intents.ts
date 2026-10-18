@@ -1,5 +1,7 @@
 /** Canned WhatsApp group questions + reply commands for the live Green-API webhook. */
 
+import { advanceZonedDueDate } from "./zoned-time.ts";
+
 export type BriefingDay = "today" | "tomorrow" | "overdue" | "inbox" | "week" | "plan";
 
 export type WhatsAppQuery = {
@@ -264,18 +266,7 @@ function advanceDueIso(
 ): string {
   const next = new Date(iso);
   if (Number.isNaN(next.getTime())) return iso;
-  if (recurrence === "weekly") {
-    next.setUTCDate(next.getUTCDate() + 7);
-  } else if (recurrence === "monthly") {
-    next.setUTCMonth(next.getUTCMonth() + 1);
-  } else if (recurrence === "weekdays") {
-    do {
-      next.setUTCDate(next.getUTCDate() + 1);
-    } while (next.getUTCDay() === 5 || next.getUTCDay() === 6);
-  } else {
-    next.setUTCDate(next.getUTCDate() + 1);
-  }
-  return next.toISOString();
+  return advanceZonedDueDate(iso, recurrence);
 }
 
 /** Roll a recurring due date until its Jerusalem day is today or later. */
