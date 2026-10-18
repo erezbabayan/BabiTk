@@ -62,7 +62,12 @@ import { ItemEditModal } from "./ItemEditModal";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
 import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
-import { calendarChipFocusYmd, OPEN_TASK_CALENDAR_EVENT } from "../lib/task-calendar";
+import {
+  calendarChipFocusYmd,
+  firstBusyCalendarYmd,
+  OPEN_TASK_CALENDAR_EVENT,
+  taskCalendarDayKey,
+} from "../lib/task-calendar";
 interface DashboardProps {
   userId: string;
   refreshTick?: number;
@@ -276,7 +281,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const calendarBoardItems = useMemo(
     () =>
       applyBoardItemFilters(
-        [...inbox, ...todayTasks, ...notes],
+        mergeSearchResults(
+          [...inbox, ...todayTasks, ...notes],
+          todaySearch.activeQuery,
+          todaySearch.semanticHits,
+        ),
         tagByBoard.today,
         priorityOnlyByBoard.today,
         dateFilterByBoard.today === "today" || dateFilterByBoard.today === "tomorrow"
@@ -287,11 +296,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       inbox,
       todayTasks,
       notes,
+      todaySearch.activeQuery,
+      todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
       dateFilterByBoard.today,
     ],
   );
+  const calendarSearchFocusYmd = useMemo(() => {
+    if (!todaySearch.activeQuery.trim()) return null;
+    const today = taskCalendarDayKey(new Date());
+    if (!today) return null;
+    return firstBusyCalendarYmd(calendarBoardItems, today);
+  }, [calendarBoardItems, todaySearch.activeQuery]);
   const filteredTasksArchive = useMemo(
     () =>
       applyBoardDateSort(
@@ -1310,7 +1327,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                   <TaskMonthCalendar
                     items={calendarBoardItems}
-                    focusYmd={calendarChipFocusYmd(dateFilterByBoard.today)}
+                    focusYmd={
+                      calendarChipFocusYmd(dateFilterByBoard.today) ?? calendarSearchFocusYmd
+                    }
+                    searchQuery={todaySearch.activeQuery}
                     onSelectItem={(item) => setFocusEditItem(item)}
                     onArchive={(item) => void archiveItem(item)}
                     onDelete={confirmDelete}

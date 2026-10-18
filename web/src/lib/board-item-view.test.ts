@@ -30,6 +30,16 @@ describe("task board view", () => {
     assert.match(dashboard, /onDelete=\{confirmDelete\}/);
   });
 
+  it("filters the task calendar with the same board search as the list", () => {
+    const dashboard = readFileSync(join(here, "../components/Dashboard.tsx"), "utf8");
+    const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
+    assert.match(dashboard, /const calendarBoardItems[\s\S]*mergeSearchResults\(/);
+    assert.match(dashboard, /searchQuery=\{todaySearch\.activeQuery\}/);
+    assert.match(dashboard, /firstBusyCalendarYmd/);
+    assert.match(calendar, /searchQuery/);
+    assert.match(calendar, /data-babitk-calendar-search/);
+  });
+
   it("paints recurring calendar items in a light color", () => {
     const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
     const css = readFileSync(join(here, "../index.css"), "utf8");
