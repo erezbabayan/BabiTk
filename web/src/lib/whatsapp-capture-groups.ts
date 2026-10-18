@@ -26,21 +26,32 @@ async function listGroupsViaConnect(): Promise<GreenApiGroup[]> {
   return collectGroupsFromUnknown((data as { groups?: unknown }).groups);
 }
 
-async function listGroupsViaGateway(): Promise<GreenApiGroup[]> {
+export async function loadGreenApiGateway(): Promise<{
+  instanceId: string;
+  apiToken: string;
+  apiUrl: string;
+} | null> {
   const supabase = requireSupabase();
   const userId = await currentUserId();
-  if (!userId) throw new Error("Not authenticated");
+  if (!userId) return null;
   const { data, error } = await supabase
     .from("whatsapp_gateways")
     .select("instance_id,api_token,api_url")
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error || !data) return null;
   const instanceId =
-    data && typeof data.instance_id === "string" ? data.instance_id : "";
-  const apiToken = data && typeof data.api_token === "string" ? data.api_token : "";
-  const apiUrl = data && typeof data.api_url === "string" ? data.api_url : "";
-  return await fetchGreenApiGroups({ instanceId, apiToken, apiUrl });
+    typeof data.instance_id === "string" ? data.instance_id.trim() : "";
+  const apiToken = typeof data.api_token === "string" ? data.api_token.trim() : "";
+  const apiUrl = typeof data.api_url === "string" ? data.api_url.trim() : "";
+  if (!instanceId || apiToken.length < 8) return null;
+  return { instanceId, apiToken, apiUrl };
+}
+
+async function listGroupsViaGateway(): Promise<GreenApiGroup[]> {
+  const gateway = await loadGreenApiGateway();
+  if (!gateway) throw new Error("Green-API לא מוגדר");
+  return await fetchGreenApiGroups(gateway);
 }
 
 async function listGroupsViaItems(): Promise<GreenApiGroup[]> {

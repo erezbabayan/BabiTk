@@ -16,6 +16,7 @@ import {
   resolveCaptureGroup,
   type GreenApiGroup,
 } from "../lib/whatsapp-capture-groups";
+import { catchUpWhatsAppGroupInbox } from "../lib/whatsapp-group-catchup";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 import { WhatsAppWebhookDeployBanner } from "./WhatsAppWebhookDeployBanner";
 
@@ -48,6 +49,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [groupOptions, setGroupOptions] = useState<GreenApiGroup[]>([]);
+  const [catchingUp, setCatchingUp] = useState(false);
   const autoBindAttempted = useRef(false);
 
   async function refresh() {
@@ -116,7 +118,12 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         if (cancelled) return;
         setProfile(next);
         setGroupName(matched.name);
-        setMessage(`הקבוצה «${matched.name}» נקשרה לקליטה.`);
+        const pulled = await catchUpWhatsAppGroupInbox();
+        setMessage(
+          pulled.inserted > 0
+            ? `הקבוצה «${matched.name}» נקשרה. נקלטו ${pulled.inserted} משימות למחברת.`
+            : `הקבוצה «${matched.name}» נקשרה לקליטה.`,
+        );
       })
       .catch(() => undefined);
     return () => {
@@ -184,11 +191,34 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       });
       setProfile(next);
       setGroupName(matched.name);
-      setMessage(`הקבוצה «${matched.name}» נשמרה וקליטה פעילה.`);
+      const pulled = await catchUpWhatsAppGroupInbox();
+      setMessage(
+        pulled.inserted > 0
+          ? `הקבוצה «${matched.name}» נשמרה. נקלטו ${pulled.inserted} משימות למחברת.`
+          : `הקבוצה «${matched.name}» נשמרה וקליטה פעילה.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת הקבוצה");
     } finally {
       setSavingGroup(false);
+    }
+  }
+
+  async function handlePullGroupTasks() {
+    setCatchingUp(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const pulled = await catchUpWhatsAppGroupInbox();
+      setMessage(
+        pulled.inserted > 0
+          ? `נקלטו ${pulled.inserted} משימות מקבוצת הוואטסאפ למחברת.`
+          : "לא מצאתי משימות חדשות מהקבוצה בשבוע האחרון.",
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "משיכת המשימות מהקבוצה נכשלה");
+    } finally {
+      setCatchingUp(false);
     }
   }
 
@@ -467,6 +497,14 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
             אם הרשימה ריקה אפשר להדביק מזהה קבוצה שמסתיים ב-@g.us
           </p>
         )}
+        <button
+          type="button"
+          disabled={catchingUp}
+          onClick={() => void handlePullGroupTasks()}
+          className="w-full rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-900 hover:bg-sky-100 disabled:opacity-50"
+        >
+          {catchingUp ? "מושך משימות…" : "משוך משימות מהקבוצה למחברת"}
+        </button>
         <button
           type="submit"
           disabled={savingGroup || !groupName.trim()}

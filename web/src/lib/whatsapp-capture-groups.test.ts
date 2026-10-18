@@ -7,9 +7,12 @@ import { fileURLToPath } from "node:url";
 import {
   collectGroupsFromItemMetadata,
   collectGroupsFromUnknown,
+  collectJournalTexts,
   isPersonalCaptureLabel,
   parseGroupChatId,
   pickMatchingGroup,
+  selectCatchupMessages,
+  shouldCatchupCaptureText,
 } from "../../../supabase/functions/_shared/green-api-chats.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -80,6 +83,40 @@ describe("isPersonalCaptureLabel", () => {
   });
 });
 
+describe("catch-up journal texts", () => {
+  it("keeps owner group tasks and skips questions", () => {
+    assert.equal(
+      shouldCatchupCaptureText(
+        "לקבלן מאליקים הוראת שינוי-הגדלה בפרויקט ברקן 2 , לבדוק מולו עוד יומיים",
+      ),
+      true,
+    );
+    assert.equal(shouldCatchupCaptureText("בבי מה המשימות היום"), false);
+    assert.equal(shouldCatchupCaptureText("תפריט"), false);
+    const rows = collectJournalTexts([
+      {
+        idMessage: "out-1",
+        type: "outgoing",
+        chatId: "120363aaa@g.us",
+        textMessage:
+          "לקבלן מאליקים הוראת שינוי-הגדלה בפרויקט ברקן 2 , לבדוק מולו עוד יומיים",
+        timestamp: 1_700_000_000,
+      },
+      {
+        idMessage: "in-q",
+        type: "incoming",
+        chatId: "120363aaa@g.us",
+        textMessage: "בבי מה יש היום",
+        timestamp: 1_700_000_100,
+      },
+    ]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.messageId, "out-1");
+    const selected = selectCatchupMessages(rows, null, 1_700_000_200);
+    assert.equal(selected.length, 1);
+  });
+});
+
 describe("settings persist the group chat id", () => {
   it("saves whatsapp_capture_group_chat_id from the matched group", () => {
     const source = readFileSync(
@@ -89,6 +126,7 @@ describe("settings persist the group chat id", () => {
     assert.match(source, /resolveCaptureGroup/);
     assert.match(source, /whatsapp_capture_group_chat_id: matched.chatId/);
     assert.match(source, /autoBindAttempted/);
+    assert.match(source, /catchUpWhatsAppGroupInbox/);
     assert.equal(
       source.includes("whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null"),
       false,
