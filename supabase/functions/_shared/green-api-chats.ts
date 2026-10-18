@@ -64,6 +64,7 @@ export function mergeGreenApiGroups(groups: GreenApiGroup[]): GreenApiGroup[] {
 
 type RawChatRow = {
   id?: unknown;
+  idMessage?: unknown;
   chatId?: unknown;
   name?: unknown;
   contactName?: unknown;
@@ -71,6 +72,13 @@ type RawChatRow = {
   senderName?: unknown;
   type?: unknown;
   senderData?: unknown;
+  textMessage?: unknown;
+  caption?: unknown;
+  text?: unknown;
+  timestamp?: unknown;
+  sendByApi?: unknown;
+  isDeleted?: unknown;
+  extendedTextMessage?: unknown;
 };
 
 function stringField(value: unknown): string {
@@ -145,11 +153,182 @@ export function collectGroupsFromItemMetadata(
   return mergeGreenApiGroups(out);
 }
 
-export async function fetchGreenApiGroups(input: {
+export type GreenApiCreds = {
   instanceId: string;
   apiToken: string;
   apiUrl?: string;
-}): Promise<GreenApiGroup[]> {
+};
+
+export type GreenApiJournalText = {
+  messageId: string;
+  chatId: string;
+  text: string;
+  timestamp: number;
+  chatName: string;
+  outgoing: boolean;
+};
+
+function greenApiBase(apiUrl?: string): string {
+  return (apiUrl?.trim() || "https://api.greenapi.com").replace(/\/$/, "");
+}
+
+function requireGreenApiCreds(input: GreenApiCreds): { instanceId: string; apiToken: string; base: string } {
+  const instanceId = input.instanceId.trim();
+  const apiToken = input.apiToken.trim();
+  if (!instanceId || apiToken.length < 8) {
+    throw new Error("Green-API לא מוגדר");
+  }
+  return { instanceId, apiToken, base: greenApiBase(input.apiUrl) };
+}
+
+function journalTextFromRow(row: RawChatRow): string {
+  const extended =
+    row.extendedTextMessage && typeof row.extendedTextMessage === "object"
+      ? stringField((row.extendedTextMessage as Record<string, unknown>).text)
+      : "";
+  return (
+    stringField(row.textMessage) ||
+    stringField(row.caption) ||
+    stringField(row.text) ||
+    extended
+  );
+}
+
+export function shouldCatchupCaptureText(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (
+    trimmed.startsWith("BabiTk") ||
+    trimmed.startsWith("נפתחו ") ||
+    trimmed.startsWith("קלטתי") ||
+    trimmed.startsWith("נקלט ") ||
+    trimmed.startsWith("לא הצלחתי")
+  ) {
+    return false;
+  }
+  if (
+    /^(?:בבי[\s,:\-]|תפריט$|בוצע(?:\s+\d+)?$|דחה\b|מחר$|\*|עזרה$)/u.test(trimmed)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function selectCatchupMessages(
+  rows: GreenApiJournalText[],
+  captureChatId: string | null,
+  nowSec = Math.floor(Date.now() / 1000),
+): GreenApiJournalText[] {
+  const capture = captureChatId ? parseGroupChatId(captureChatId) : null;
+  const oldest = nowSec - 7 * 24 * 60 * 60;
+  const seen = new Set<string>();
+  const out: GreenApiJournalText[] = [];
+  for (const row of rows) {
+    if (row.timestamp > 0 && row.timestamp < oldest) continue;
+    if (!shouldCatchupCaptureText(row.text)) continue;
+    if (capture) {
+      if (row.chatId !== capture) continue;
+    } else if (!row.outgoing) {
+      continue;
+    }
+    if (seen.has(row.messageId)) continue;
+    seen.add(row.messageId);
+    out.push(row);
+  }
+  return out;
+}
+
+export function collectJournalTexts(
+  data: unknown,
+  fallbackChatId = "",
+): GreenApiJournalText[] {
+  const fallback = parseGroupChatId(fallbackChatId) ?? "";
+  const out: GreenApiJournalText[] = [];
+  const seen = new Set<string>();
+  for (const row of asRows(data)) {
+    if (row.sendByApi === true || row.isDeleted === true) continue;
+    const sender = row.senderData;
+    const rawId =
+      stringField(row.chatId) ||
+      nestedString(sender, "chatId") ||
+      fallback;
+    const chatId = parseGroupChatId(rawId);
+    if (!chatId) continue;
+    const text = journalTextFromRow(row);
+    if (!shouldCatchupCaptureText(text)) continue;
+    const messageId = stringField(row.idMessage);
+    if (!messageId || seen.has(messageId)) continue;
+    seen.add(messageId);
+    const timestampRaw = row.timestamp;
+    const timestamp =
+      typeof timestampRaw === "number"
+        ? timestampRaw
+        : typeof timestampRaw === "string" && /^\d+$/.test(timestampRaw)
+          ? Number(timestampRaw)
+          : 0;
+    out.push({
+      messageId,
+      chatId,
+      text,
+      timestamp,
+      chatName:
+        stringField(row.chatName) ||
+        nestedString(sender, "chatName") ||
+        stringField(row.name) ||
+        "",
+      outgoing: stringField(row.type).toLowerCase() === "outgoing",
+    });
+  }
+  return out;
+}
+
+export async function fetchGreenApiJournalTexts(
+  input: GreenApiCreds,
+  minutes = 10080,
+): Promise<GreenApiJournalText[]> {
+  const { instanceId, apiToken, base } = requireGreenApiCreds(input);
+  const urls = [
+    `${base}/waInstance${instanceId}/lastOutgoingMessages/${apiToken}?minutes=${minutes}`,
+    `${base}/waInstance${instanceId}/lastIncomingMessages/${apiToken}?minutes=${minutes}`,
+  ];
+  const rows: GreenApiJournalText[] = [];
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      rows.push(...collectJournalTexts(await response.json()));
+    } catch {
+      // browser CORS or transient Green-API errors
+    }
+  }
+  return rows;
+}
+
+export async function fetchGreenApiChatHistoryTexts(
+  input: GreenApiCreds,
+  chatId: string,
+  count = 80,
+): Promise<GreenApiJournalText[]> {
+  const groupId = parseGroupChatId(chatId);
+  if (!groupId) return [];
+  const { instanceId, apiToken, base } = requireGreenApiCreds(input);
+  try {
+    const response = await fetch(
+      `${base}/waInstance${instanceId}/getChatHistory/${apiToken}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: groupId, count }),
+      },
+    );
+    if (!response.ok) return [];
+    return collectJournalTexts(await response.json(), groupId);
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchGreenApiGroups(input: GreenApiCreds): Promise<GreenApiGroup[]> {
   const instanceId = input.instanceId.trim();
   const apiToken = input.apiToken.trim();
   const base = (input.apiUrl?.trim() || "https://api.greenapi.com").replace(/\/$/, "");

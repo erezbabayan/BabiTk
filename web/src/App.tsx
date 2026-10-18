@@ -33,6 +33,7 @@ import { normalizeLoginIdentifier } from "./lib/login-aliases";
 import { resolveLoginEmail } from "./lib/resolve-login-email";
 import { signInWithGoogle } from "./lib/google-auth";
 import { ensureOwnUserProfile } from "./lib/user-profile";
+import { catchUpWhatsAppGroupInbox } from "./lib/whatsapp-group-catchup";
 import {
   formatOAuthSignInError,
   readOAuthCallback,
@@ -275,6 +276,26 @@ function ConfiguredApp() {
       .finally(() => {
         window.history.replaceState({}, "", window.location.pathname);
       });
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    const run = () => {
+      void catchUpWhatsAppGroupInbox()
+        .then((result) => {
+          if (cancelled || result.inserted <= 0) return;
+          setCaptureTick((tick) => tick + 1);
+          setBillingNotice(`נקלטו ${result.inserted} משימות מקבוצת הוואטסאפ.`);
+        })
+        .catch(() => undefined);
+    };
+    run();
+    const timer = window.setInterval(run, 45_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [userId]);
 
   useEffect(() => {
