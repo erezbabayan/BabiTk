@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
@@ -10,6 +10,12 @@ import {
   type CloudUserProfile,
   type DigestDays,
 } from "../lib/user-profile";
+import {
+  isPersonalCaptureLabel,
+  listCaptureGroups,
+  resolveCaptureGroup,
+  type GreenApiGroup,
+} from "../lib/whatsapp-capture-groups";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 import { WhatsAppWebhookDeployBanner } from "./WhatsAppWebhookDeployBanner";
 
@@ -41,6 +47,8 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [testingReminder, setTestingReminder] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [groupOptions, setGroupOptions] = useState<GreenApiGroup[]>([]);
+  const autoBindAttempted = useRef(false);
 
   async function refresh() {
     const next = await getCloudUserProfile();
@@ -66,13 +74,55 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   }, []);
 
   const linkedPhone = profile?.phone_verified ? profile.phone : null;
-  const groupConnected = Boolean(profile?.whatsapp_capture_group_name?.trim());
   const digestHours = profile?.whatsapp_digest_hours ?? [9];
   const digestDays: DigestDays = profile?.whatsapp_digest_days ?? "everyday";
   const captureChatId = profile?.whatsapp_capture_group_chat_id?.trim() ?? "";
   const notifyWhatsAppGroup = profile?.notify_whatsapp_group === true;
   const captureIsPersonal = Boolean(captureChatId.toLowerCase().endsWith("@c.us"));
   const captureIsGroup = captureChatId.toLowerCase().endsWith("@g.us");
+
+  useEffect(() => {
+    if (!linkedPhone) {
+      setGroupOptions([]);
+      return;
+    }
+    let cancelled = false;
+    void listCaptureGroups()
+      .then((groups) => {
+        if (!cancelled) setGroupOptions(groups);
+      })
+      .catch(() => {
+        if (!cancelled) setGroupOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedPhone]);
+
+  useEffect(() => {
+    const savedName = profile?.whatsapp_capture_group_name?.trim() ?? "";
+    if (autoBindAttempted.current || !linkedPhone || captureIsGroup) return;
+    if (!savedName || isPersonalCaptureLabel(savedName)) return;
+    autoBindAttempted.current = true;
+    let cancelled = false;
+    void resolveCaptureGroup(savedName)
+      .then(async (matched) => {
+        if (cancelled || !matched.chatId.toLowerCase().endsWith("@g.us")) return;
+        const next = await updateCloudUserProfile({
+          whatsapp_capture_group_name: matched.name,
+          whatsapp_capture_group_chat_id: matched.chatId,
+          notify_whatsapp_group: true,
+        });
+        if (cancelled) return;
+        setProfile(next);
+        setGroupName(matched.name);
+        setMessage(`הקבוצה «${matched.name}» נקשרה לקליטה.`);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedPhone, captureIsGroup, profile?.whatsapp_capture_group_name]);
 
   useEffect(() => {
     if (!profile || !captureIsGroup || notifyWhatsAppGroup) return;
@@ -126,13 +176,15 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     setError(null);
     setMessage(null);
     try {
+      const matched = await resolveCaptureGroup(name);
       const next = await updateCloudUserProfile({
-        whatsapp_capture_group_name: name,
-        whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null,
+        whatsapp_capture_group_name: matched.name,
+        whatsapp_capture_group_chat_id: matched.chatId,
         notify_whatsapp_group: true,
       });
       setProfile(next);
-      setMessage(`הקבוצה «${name}» נשמרה בחשבון.`);
+      setGroupName(matched.name);
+      setMessage(`הקבוצה «${matched.name}» נשמרה וקליטה פעילה.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת הקבוצה");
     } finally {
@@ -337,26 +389,28 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         </p>
       </div>
 
-      {groupConnected ? (
+      {captureIsGroup ? (
         <div className="mt-3 rounded-lg border border-emerald-300 bg-white px-3 py-2">
           <p className="text-emerald-900">
-            {captureIsPersonal ? "יעד קליטה: " : "מחובר לקבוצה: "}
-            <strong>
-              {profile?.whatsapp_capture_group_name?.trim() ||
-                (captureIsPersonal ? "הודעה לעצמי" : "קבוצה")}
-            </strong>
+            מחובר לקבוצה:{" "}
+            <strong>{profile?.whatsapp_capture_group_name?.trim() || "קבוצה"}</strong>
+          </p>
+          <p className="mt-1 font-mono text-[11px] text-emerald-800" dir="ltr">
+            {captureChatId}
           </p>
           <button
             type="button"
             className="mt-2 text-xs font-medium text-sky-800 underline"
             onClick={() => void handleDisconnectGroup()}
           >
-            {captureIsPersonal ? "נתק יעד קליטה" : "נתק מהקבוצה"}
+            נתק מהקבוצה
           </button>
         </div>
       ) : (
         <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-950">
-          עדיין לא מחובר לקבוצה — הזינו שם ושמרו.
+          {captureIsPersonal
+            ? "יעד הקליטה כרגע הודעה אישית. שמרו קבוצה מהרשימה — בלי מזהה @g.us משימות מהקבוצה לא מגיעות למחברת."
+            : "עדיין לא מחובר לקבוצה — בחרו קבוצה מהרשימה ושמרו. בלי מזהה @g.us המשימות מהקבוצה לא מגיעות למחברת."}
         </p>
       )}
 
@@ -395,11 +449,24 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         <label className="block text-xs font-medium text-sky-900">שם קבוצה קיימת</label>
         <input
           type="text"
-          placeholder="למשל משימות ארז"
+          list="babitk-whatsapp-groups"
+          placeholder="למשל משימות ארז או מזהה @g.us"
           value={groupName}
           onChange={(event) => setGroupName(event.target.value)}
           className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-slate-900"
         />
+        <datalist id="babitk-whatsapp-groups">
+          {groupOptions.map((group) => (
+            <option key={group.chatId} value={group.name} />
+          ))}
+        </datalist>
+        {groupOptions.length > 0 ? (
+          <p className="text-[11px] text-sky-800">נמצאו {groupOptions.length} קבוצות בחיבור הוואטסאפ</p>
+        ) : (
+          <p className="text-[11px] text-sky-800">
+            אם הרשימה ריקה אפשר להדביק מזהה קבוצה שמסתיים ב-@g.us
+          </p>
+        )}
         <button
           type="submit"
           disabled={savingGroup || !groupName.trim()}

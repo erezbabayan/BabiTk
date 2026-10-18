@@ -21,6 +21,7 @@ const VERIFY_JWT: Record<string, boolean> = {
 export const OWNER_REPAIR_SLUGS = [
   "github-oidc-mint",
   "whatsapp-green-webhook",
+  "whatsapp-green-connect",
 ] as const;
 
 type GithubContentItem = {
