@@ -237,6 +237,12 @@ describe("classifyWhatsAppInbound hard split", () => {
     });
     assert.deepEqual(classifyWhatsAppInbound("לקנות חלב מחר"), { lane: "capture" });
     assert.deepEqual(
+      classifyWhatsAppInbound(
+        "לקבלן מאליקים הוראת שינוי-הגדלה בפרויקט ברקן 2 , לבדוק מולו עוד יומיים",
+      ),
+      { lane: "capture" },
+    );
+    assert.deepEqual(
       classifyWhatsAppInbound("בבי תכניס משימה יום רביעי שבוע הבא"),
       { lane: "capture" },
     );

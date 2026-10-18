@@ -48,85 +48,43 @@ jobs:
           PROJECT_REF="ghibfuinantybqidwadj"
           TOKEN="${SECRET_TOKEN:-}"
           if [ -z "$TOKEN" ]; then TOKEN="${INPUT_TOKEN:-}"; fi
-
-          token_ok() {
-            local t="${1:-}"
-            [ -n "$t" ] || return 1
-            local code
-            code="$(curl -sS -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer ${t}" \
-              -H "apikey: ${t}" \
-              "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
-            echo "token probe HTTP ${code}"
-            [ "$code" = "200" ]
-          }
-
-          mint_oidc() {
-            local REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
-            if [ -z "$REQUEST_URL" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-              echo "GitHub OIDC is not available in this job."
-              return 1
+          PROBE_CODE=""
+          if [ -n "$TOKEN" ]; then
+            PROBE_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${TOKEN}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
+            echo "stored token probe HTTP ${PROBE_CODE}"
+          fi
+          if [ "$PROBE_CODE" != "200" ]; then
+            if [ -n "$TOKEN" ]; then
+              echo "::warning::Stored SUPABASE_ACCESS_TOKEN was rejected; trying GitHub OIDC mint."
             fi
-            local SEP="&"
+            REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
+            if [ -z "$REQUEST_URL" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+              echo "::error::GitHub OIDC is not available in this job."
+              exit 1
+            fi
+            SEP="&"
             case "$REQUEST_URL" in
               *"?"*) ;;
               *) SEP="?" ;;
             esac
-            local OIDC_JSON JWT HTTP_CODE BODY minted
-            OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-              "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
-            JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
-            BODY="$(mktemp)"
-            HTTP_CODE="$(curl -sS -o "$BODY" -w "%{http_code}" -X POST \
-              "https://${PROJECT_REF}.supabase.co/functions/v1/github-oidc-mint" \
-              -H "Authorization: Bearer ${JWT}" \
-              -H "Content-Type: application/json" || true)"
-            echo "OIDC mint HTTP ${HTTP_CODE}"
-            minted="$(python3 -c 'import json,sys
-try:
-    data=json.load(sys.stdin)
-except Exception:
-    data={}
-print(data.get("access_token") or "")' <"$BODY")"
-            if [ -z "$minted" ]; then
-              python3 -c 'import json,re,sys
-raw=sys.stdin.read()
-try:
-    data=json.loads(raw)
-    print("mint error:", data.get("error") or list(data)[:8])
-except Exception:
-    print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", raw)[:800])' <"$BODY"
-              rm -f "$BODY"
-              return 1
-            fi
-            rm -f "$BODY"
-            printf '%s' "$minted"
-          }
-
-          if ! token_ok "$TOKEN"; then
-            if [ -n "$TOKEN" ]; then
-              echo "::warning::Stored SUPABASE_ACCESS_TOKEN was rejected; trying GitHub OIDC mint."
-            fi
+            LAST_RESP=""
             TOKEN=""
             for attempt in 1 2 3 4; do
-              set +e
-              MINTED="$(mint_oidc)"
-              MINT_STATUS=$?
-              set -e
-              if [ "$MINT_STATUS" -eq 0 ] && [ -n "$MINTED" ]; then
-                TOKEN="$MINTED"
+              OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
+              JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
+              LAST_RESP="$(curl -sS -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/github-oidc-mint" -H "Authorization: Bearer ${JWT}" -H "Content-Type: application/json")"
+              TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$LAST_RESP")"
+              if [ -n "$TOKEN" ]; then
                 break
               fi
               echo "OIDC mint attempt ${attempt} failed; retrying..."
+              python3 -c 'import json,re,sys; d=sys.stdin.read(); j=json.loads(d) if d.lstrip()[:1]=="{" else {}; print("mint error:", j.get("error") or re.sub(r"sbp_[A-Za-z0-9]+","sbp_[redacted]",d)[:400])' <<<"$LAST_RESP"
               sleep $((attempt * 8))
             done
             if [ -z "$TOKEN" ]; then
               echo "::error::Could not mint a Supabase token via GitHub OIDC."
+              python3 -c 'import re,sys; print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", sys.stdin.read())[:800])' <<<"$LAST_RESP"
               exit 1
-            fi
-            # A minted PAT can still deploy even if the account probe is picky.
-            if ! token_ok "$TOKEN"; then
-              echo "::warning::Minted token did not pass the Management API probe; continuing to functions deploy."
             fi
           fi
           echo "::add-mask::$TOKEN"
