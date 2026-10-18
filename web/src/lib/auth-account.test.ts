@@ -94,6 +94,9 @@ describe("new-user settings stay setup-free", () => {
 
     assert.match(whatsapp, /isAppOwnerAccount/);
     assert.match(whatsapp, /if \(!owner \|\| ready !== false\) return null/);
+    assert.match(whatsapp, /הפעל קליטה/);
+    assert.match(whatsapp, /repairDeployToken/);
+    assert.equal(whatsapp.includes("Client ID"), false);
 
     assert.match(passwordForm, /הוסיפו סיסמה/);
     assert.match(passwordForm, /setPasswordForSignedInUser/);

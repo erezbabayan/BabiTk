@@ -46,17 +46,28 @@ jobs:
         run: |
           set -euo pipefail
           PROJECT_REF="ghibfuinantybqidwadj"
-          TOKEN="${SECRET_TOKEN:-}"
-          if [ -z "$TOKEN" ]; then TOKEN="${INPUT_TOKEN:-}"; fi
-          PROBE_CODE=""
-          if [ -n "$TOKEN" ]; then
-            PROBE_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${TOKEN}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
-            echo "stored token probe HTTP ${PROBE_CODE}"
-          fi
-          if [ "$PROBE_CODE" != "200" ]; then
-            if [ -n "$TOKEN" ]; then
-              echo "::warning::Stored SUPABASE_ACCESS_TOKEN was rejected; trying GitHub OIDC mint."
+          probe_token() {
+            local candidate="$1"
+            if [ -z "$candidate" ]; then
+              echo ""
+              return 0
             fi
+            curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${candidate}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true
+          }
+          TOKEN=""
+          PROBE_CODE=""
+          if [ -n "${INPUT_TOKEN:-}" ]; then
+            PROBE_CODE="$(probe_token "$INPUT_TOKEN")"
+            echo "dispatch token probe HTTP ${PROBE_CODE}"
+            if [ "$PROBE_CODE" = "200" ]; then TOKEN="$INPUT_TOKEN"; fi
+          fi
+          if [ -z "$TOKEN" ] && [ -n "${SECRET_TOKEN:-}" ]; then
+            PROBE_CODE="$(probe_token "$SECRET_TOKEN")"
+            echo "stored token probe HTTP ${PROBE_CODE}"
+            if [ "$PROBE_CODE" = "200" ]; then TOKEN="$SECRET_TOKEN"; fi
+          fi
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::No valid SUPABASE_ACCESS_TOKEN in dispatch input or GitHub secret; trying GitHub OIDC mint."
             REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
             if [ -z "$REQUEST_URL" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
               echo "::error::GitHub OIDC is not available in this job."
@@ -150,7 +161,9 @@ jobs:
           supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy google-login --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase secrets set --project-ref "$PROJECT_REF" "GITHUB_OIDC_DEPLOY_TOKEN=${SUPABASE_ACCESS_TOKEN}" >/dev/null
-          echo "synced GITHUB_OIDC_DEPLOY_TOKEN"
+          supabase secrets set --project-ref "$PROJECT_REF" \
+            "GITHUB_OIDC_DEPLOY_TOKEN=${SUPABASE_ACCESS_TOKEN}" \
+            "BABITK_MANAGEMENT_TOKEN=${SUPABASE_ACCESS_TOKEN}" >/dev/null
+          echo "synced GITHUB_OIDC_DEPLOY_TOKEN and BABITK_MANAGEMENT_TOKEN"
           SUPABASE_PROJECT_REF="$PROJECT_REF" node "$GITHUB_WORKSPACE/scripts/configure-supabase-auth.mjs"
 

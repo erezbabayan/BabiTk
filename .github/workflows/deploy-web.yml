@@ -84,7 +84,13 @@ jobs:
           SECRET_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          TOKEN="${SECRET_TOKEN:-}"
+          PROJECT_REF="ghibfuinantybqidwadj"
+          TOKEN=""
+          if [ -n "${SECRET_TOKEN:-}" ]; then
+            PROBE_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${SECRET_TOKEN}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
+            echo "stored token probe HTTP ${PROBE_CODE}"
+            if [ "$PROBE_CODE" = "200" ]; then TOKEN="$SECRET_TOKEN"; fi
+          fi
           if [ -z "$TOKEN" ]; then
             REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL}"
             SEP="&"

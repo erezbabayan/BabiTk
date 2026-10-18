@@ -17,7 +17,11 @@ export function projectRefFromUrl(url: string): string {
 }
 
 export function managementToken(): string {
-  return (Deno.env.get("BABITK_MANAGEMENT_TOKEN") ?? "").trim();
+  return (
+    Deno.env.get("BABITK_MANAGEMENT_TOKEN") ??
+    Deno.env.get("GITHUB_OIDC_DEPLOY_TOKEN") ??
+    ""
+  ).trim();
 }
 
 export function supabaseEnv(): { url: string; anon: string; serviceRole: string } {
