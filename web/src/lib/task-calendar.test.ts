@@ -12,6 +12,7 @@ import {
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   calendarTasks,
+  firstBusyCalendarYmd,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
   isCalendarRecurringItem,
@@ -190,6 +191,35 @@ describe("BabiTk task calendar", () => {
     assert.equal(calendarSwipeMonthDelta(-80), -1);
     assert.equal(calendarSwipeMonthDelta(10), 0);
     assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
+  });
+
+  it("picks the first busy calendar day on or after today for search jumps", () => {
+    const around = "2026-10-15";
+    assert.equal(
+      firstBusyCalendarYmd(
+        [
+          item({
+            id: "later",
+            title: "פגישה",
+            due_date: "2026-10-20T07:00:00.000Z",
+          }),
+          item({
+            id: "past",
+            title: "עבר",
+            due_date: "2026-10-01T07:00:00.000Z",
+          }),
+        ],
+        around,
+      ),
+      "2026-10-20",
+    );
+    assert.equal(
+      firstBusyCalendarYmd(
+        [item({ id: "none", title: "בלי תאריך", due_date: null })],
+        around,
+      ),
+      null,
+    );
   });
 
   it("uses a light mint tone for recurring calendar items", () => {

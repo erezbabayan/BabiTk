@@ -33,6 +33,7 @@ import { SwipeableItemCard } from "./SwipeableItemCard";
 interface TaskMonthCalendarProps {
   items: MindtaskerItem[];
   focusYmd?: string | null;
+  searchQuery?: string;
   onSelectItem?: (item: MindtaskerItem) => void;
   onArchive?: (item: MindtaskerItem) => void;
   onDelete?: (item: MindtaskerItem) => void;
@@ -132,6 +133,7 @@ function CalendarDayTaskRow({
 export function TaskMonthCalendar({
   items,
   focusYmd = null,
+  searchQuery = "",
   onSelectItem,
   onArchive,
   onDelete,
@@ -139,6 +141,7 @@ export function TaskMonthCalendar({
   swipeDisabled = false,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
+  const searching = searchQuery.trim().length > 0;
   const [{ year, month }, setCursor] = useState(initialMonth);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
 
@@ -238,6 +241,7 @@ export function TaskMonthCalendar({
       dir="rtl"
       data-babitk-calendar="month"
       data-babitk-calendar-focus={selectedYmd || undefined}
+      data-babitk-calendar-search={searching ? searchQuery.trim() : undefined}
     >
       <div className="flex items-center justify-between gap-2" dir="ltr">
         <button
@@ -252,9 +256,13 @@ export function TaskMonthCalendar({
         <div className="text-center" dir="rtl">
           <p className="font-semibold text-slate-800">{hebrewMonthTitle(year, month)}</p>
           <p className="text-[11px] text-slate-500">
-            {monthTaskCount > 0
-              ? `${monthTaskCount} משימות עם תאריך בחודש זה`
-              : "אין משימות עם תאריך בחודש זה"}
+            {searching
+              ? monthTaskCount > 0
+                ? `${monthTaskCount} משימות מתאימות בחודש זה`
+                : "אין משימות מתאימות בחודש זה"
+              : monthTaskCount > 0
+                ? `${monthTaskCount} משימות עם תאריך בחודש זה`
+                : "אין משימות עם תאריך בחודש זה"}
           </p>
         </div>
         <button
@@ -328,7 +336,11 @@ export function TaskMonthCalendar({
       <div className="space-y-1">
         {selectedTasks.length === 0 ? (
           <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-            אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
+            {searching && byDay.size === 0
+              ? "אין משימות מתאימות לחיפוש."
+              : searching
+                ? "אין משימות מתאימות לחיפוש ביום הזה."
+                : "אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן."}
           </p>
         ) : (
           selectedTasks.map(({ item, dueIso }) => (

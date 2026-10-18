@@ -202,6 +202,24 @@ export function calendarMonthExpandRange(
   };
 }
 
+/** First day with a calendar item, preferring on/after `aroundYmd`. */
+export function firstBusyCalendarYmd(
+  items: MindtaskerItem[],
+  aroundYmd: string,
+): string | null {
+  const origin = calendarMonthFromYmd(aroundYmd);
+  if (!origin) return null;
+  const from = shiftMonth(origin.year, origin.month, -6);
+  const afterTo = shiftMonth(origin.year, origin.month, 12);
+  const grouped = groupCalendarTasksByDay(items, {
+    fromYmd: monthYmd(from.year, from.month),
+    toYmd: addDaysYmd(monthYmd(afterTo.year, afterTo.month), -1),
+  });
+  const ymds = [...grouped.keys()].sort();
+  if (ymds.length === 0) return null;
+  return ymds.find((ymd) => ymd >= aroundYmd) ?? ymds[ymds.length - 1] ?? null;
+}
+
 export type CalendarRecurrence = "daily" | "weekly" | "monthly" | "weekdays";
 
 function metadataRecord(metadata: unknown): Record<string, unknown> | null {
