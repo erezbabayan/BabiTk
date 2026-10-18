@@ -16,13 +16,13 @@ export function parseChecklist(metadata: unknown): ChecklistEntry[] {
   const raw = (metadata as Record<string, unknown>).checklist;
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((row) => {
+    .map((row, index) => {
       if (!row || typeof row !== "object") return null;
       const rec = row as Record<string, unknown>;
       const text = typeof rec.text === "string" ? rec.text.trim() : "";
       if (!text) return null;
       return {
-        id: typeof rec.id === "string" && rec.id ? rec.id : randomId(),
+        id: typeof rec.id === "string" && rec.id ? rec.id : `chk-${index}`,
         text,
         done: rec.done === true,
       };

@@ -26,6 +26,7 @@ import {
   parseOAuthState,
   storeGoogleCalendarLink,
   storeGoogleRefreshToken,
+  syncDatedItemRowsToGoogle,
   syncItemToGoogleCalendar,
   calendarOauthFailureMessage,
   withCalendarQuery,
@@ -167,19 +168,14 @@ async function syncDatedTasksToGoogle(
   const admin = fullAdminClient();
   const { data, error } = await admin
     .from("mindtasker_items")
-    .select("id")
+    .select("id, title, content, is_actionable, due_date, deleted_at, calendar_event_id, user_id, metadata")
     .eq("user_id", userId)
     .eq("is_actionable", true)
     .not("due_date", "is", null)
     .is("deleted_at", null)
     .limit(100);
   if (error) throw new Error(error.message);
-  const ids = (data ?? []).map((row) => String(row.id));
-  const db = adminClient();
-  for (const itemId of ids) {
-    await syncItemToGoogleCalendar(db, userId, itemId, { accessToken });
-  }
-  return ids.length;
+  return syncDatedItemRowsToGoogle(adminClient(), userId, data ?? [], { accessToken });
 }
 
 async function listDatedCalendarEvents(

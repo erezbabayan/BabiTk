@@ -3,6 +3,7 @@ import {
   digestDueWindowIso,
   isCronReminderDue,
   reminderDueQueryCutoffIso,
+  reminderDueQueryFloorIso,
   resolveCronReminderFireAt,
 } from "../lib/task-reminder-due.js";
 import {
@@ -97,13 +98,8 @@ export async function sendDailyDigests(): Promise<number> {
 
   const digestSelect =
     "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_digest_hours, whatsapp_digest_days, whatsapp_digest_slots";
-  let usersQuery = supabase.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
-  let { data: users, error } = await usersQuery;
-  if (error) {
-    const fallback = await supabase.from("users").select(digestSelect);
-    users = fallback.data;
-    error = fallback.error;
-  }
+  const usersQuery = supabase.from("users").select(digestSelect).contains("whatsapp_digest_hours", [hour]);
+  const { data: users, error } = await usersQuery;
 
   if (error) {
     throw new Error(`Failed to load users for digest: ${error.message}`);
@@ -302,6 +298,7 @@ export async function sendTaskReminders(): Promise<number> {
     .in("status", ["inbox", "pending"])
     .is("deleted_at", null)
     .not("due_date", "is", null)
+    .gte("due_date", reminderDueQueryFloorIso(nowMs))
     .lte("due_date", reminderDueQueryCutoffIso(nowMs));
 
   if (error) {
@@ -369,6 +366,7 @@ export async function sendTaskReminders(): Promise<number> {
     .eq("status", "active")
     .is("deleted_at", null)
     .not("reminder_at", "is", null)
+    .gte("reminder_at", reminderDueQueryFloorIso(nowMs))
     .lte("reminder_at", nowIso);
 
   if (listsError) {

@@ -92,7 +92,6 @@ export function DraggableItemList({
   const listRootRef = useRef<HTMLDivElement>(null);
   const scrollElement = useBoardScrollParent(listRootRef);
   const shouldVirtualize =
-    !disabled &&
     !isSquares &&
     draggingId === null &&
     items.length >= VIRTUALIZE_MIN_ITEMS &&

@@ -345,11 +345,12 @@ function isUtf8ContinuationByte(bytes: Uint8Array, index: number): boolean {
   return value !== undefined && (value & 0xc0) === 0x80;
 }
 
+const ICS_ENCODER = new TextEncoder();
+const ICS_DECODER = new TextDecoder();
+
 /** RFC 5545: fold at 75 octets with CRLF + space. Google drops feeds with long lines. */
 export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const bytes = encoder.encode(line);
+  const bytes = ICS_ENCODER.encode(line);
   if (bytes.length <= limit) return line;
   const chunks: string[] = [];
   let offset = 0;
@@ -364,7 +365,7 @@ export function icsFoldLine(line: string, limit = ICS_LINE_OCTET_LIMIT): string 
       end = Math.min(offset + 1, bytes.length);
       while (end < bytes.length && isUtf8ContinuationByte(bytes, end)) end += 1;
     }
-    const piece = decoder.decode(bytes.slice(offset, end));
+    const piece = ICS_DECODER.decode(bytes.slice(offset, end));
     chunks.push(first ? piece : ` ${piece}`);
     first = false;
     offset = end;
@@ -866,6 +867,50 @@ async function applyCalendarEventChange(
     return "deleted";
   }
   return "skipped";
+}
+
+export async function syncDatedItemRowsToGoogle(
+  supabase: CalendarDb,
+  userId: string,
+  rows: Array<Record<string, unknown> & { id?: unknown }>,
+  options: { accessToken?: string } = {},
+): Promise<number> {
+  if (!userId.trim() || rows.length === 0) return 0;
+
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("google_refresh_token, google_calendar_enabled")
+    .eq("id", userId)
+    .maybeSingle();
+  if (userError) throw new Error(userError.message);
+  if (user?.google_calendar_enabled !== true) return 0;
+  const refreshToken =
+    typeof user?.google_refresh_token === "string" ? user.google_refresh_token : "";
+
+  const accessToken = await resolveCalendarAccessToken(
+    supabase,
+    userId,
+    refreshToken,
+    options.accessToken,
+  );
+  if (!accessToken) return 0;
+
+  const pending = [...rows];
+  const workers = Math.min(4, pending.length);
+  let synced = 0;
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (pending.length > 0) {
+        const row = pending.shift();
+        if (!row) break;
+        const itemId = typeof row.id === "string" ? row.id : String(row.id ?? "");
+        if (!itemId) continue;
+        await applyCalendarEventChange(supabase, itemId, asItemSnapshot(row), accessToken);
+        synced += 1;
+      }
+    }),
+  );
+  return synced;
 }
 
 export async function syncItemToGoogleCalendar(

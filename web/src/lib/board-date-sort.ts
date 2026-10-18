@@ -35,9 +35,14 @@ export function applyBoardDateSort(
 
   const factor = direction === "asc" ? 1 : -1;
 
+  const timestamps = new Map<string, number | null>();
+  for (const item of list) {
+    timestamps.set(item.id, itemSortTimestamp(item));
+  }
+
   return [...list].sort((a, b) => {
-    const aTs = itemSortTimestamp(a);
-    const bTs = itemSortTimestamp(b);
+    const aTs = timestamps.get(a.id) ?? null;
+    const bTs = timestamps.get(b.id) ?? null;
 
     if (aTs !== null && bTs !== null && aTs !== bTs) {
       return (aTs - bTs) * factor;

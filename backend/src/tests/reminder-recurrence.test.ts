@@ -246,4 +246,18 @@ describe("nextActiveDueDate", () => {
       null,
     );
   });
+
+  it("jumps a stale daily series to today without hundreds of steps", () => {
+    assert.equal(
+      nextActiveDueDate(
+        {
+          due_date: "2026-01-02T09:00:00+02:00",
+          metadata: { reminder_recurrence: "daily" },
+        },
+        now,
+        TZ,
+      ),
+      "2026-09-17T09:00:00+03:00",
+    );
+  });
 });

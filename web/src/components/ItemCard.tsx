@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
+import { memo, useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import type { MindtaskerItem } from "../types";
 import { ItemEditModal, type ItemEditInput } from "./ItemEditModal";
 import { SourceIndicator } from "./SourceIndicator";
@@ -166,7 +166,7 @@ function TaskCheckbox({ onClick, dense = false }: { onClick: () => void; dense?:
   );
 }
 
-export function ItemCard({
+function ItemCardComponent({
   item,
   onEdit,
   onToggleType,
@@ -569,3 +569,5 @@ export function ItemCard({
     </>
   );
 }
+
+export const ItemCard = memo(ItemCardComponent);

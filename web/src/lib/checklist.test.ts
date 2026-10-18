@@ -22,6 +22,7 @@ describe("checklist metadata", () => {
     assert.equal(rows[0]?.id, "a");
     assert.equal(rows[0]?.done, true);
     assert.equal(rows[1]?.text, "לחם");
+    assert.equal(rows[1]?.id, "chk-1");
     assert.equal(rows[1]?.done, false);
   });
 

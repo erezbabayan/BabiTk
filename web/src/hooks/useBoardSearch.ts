@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
 import { searchItemsApi, type NoteSearchHit, type SearchScope } from "../lib/api";
-import { isIgnorableBoardSearchError } from "../lib/board-search";
+import {
+  isIgnorableBoardSearchError,
+  isLegacyExpressApiAvailable,
+  shouldRunRemoteBoardSearch,
+} from "../lib/board-search";
 
 const EMPTY_HITS: NoteSearchHit[] = [];
 
@@ -36,6 +40,16 @@ export function useBoardSearch(scope: SearchScope) {
     const query = input.trim();
     setActiveQuery(query);
     if (query.length < 2) {
+      setSemanticHits(EMPTY_HITS);
+      setError(null);
+      return;
+    }
+    if (
+      !shouldRunRemoteBoardSearch(
+        false,
+        isLegacyExpressApiAvailable(import.meta.env.VITE_API_URL),
+      )
+    ) {
       setSemanticHits(EMPTY_HITS);
       setError(null);
       return;

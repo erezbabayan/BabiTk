@@ -12,6 +12,7 @@ import {
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
   calendarTasks,
+  calendarOccurrenceYmds,
   firstBusyCalendarYmd,
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
@@ -195,6 +196,17 @@ describe("BabiTk task calendar", () => {
     assert.equal(calendarSwipeMonthDelta(Number.NaN), 0);
   });
 
+  it("jumps daily recurrence across a range without walking back from the seed", () => {
+    assert.deepEqual(
+      calendarOccurrenceYmds("2026-01-01", "daily", "2026-10-15", "2026-10-17"),
+      ["2026-10-15", "2026-10-16", "2026-10-17"],
+    );
+    assert.deepEqual(
+      calendarOccurrenceYmds("2026-10-01", "weekly", "2026-10-15", "2026-10-29"),
+      ["2026-10-15", "2026-10-22", "2026-10-29"],
+    );
+  });
+
   it("picks the first busy calendar day on or after today for search jumps", () => {
     const around = "2026-10-15";
     assert.equal(
@@ -221,6 +233,20 @@ describe("BabiTk task calendar", () => {
         around,
       ),
       null,
+    );
+    assert.equal(
+      firstBusyCalendarYmd(
+        [
+          item({
+            id: "daily",
+            title: "תרופה",
+            due_date: "2026-01-02T07:00:00.000Z",
+            metadata: { reminder_recurrence: "daily" },
+          }),
+        ],
+        around,
+      ),
+      around,
     );
   });
 

@@ -77,8 +77,8 @@ export function isItemOverdue(item: DatedItem, now = Date.now()): boolean {
   return ts !== null && ts < now;
 }
 
-export function isItemUndated(item: DatedItem): boolean {
-  return itemDueTimestamp(item) === null;
+export function isItemUndated(item: DatedItem, now: Date | number = Date.now()): boolean {
+  return itemDueTimestamp(item, now) === null;
 }
 
 export function filterItemsDueToday(
@@ -96,18 +96,17 @@ export function filterItemsByDate(
   now = Date.now(),
 ): MindtaskerItem[] {
   if (dateFilter === "all") return items;
+  const today = new Date(now);
   if (dateFilter === "today") {
-    const today = new Date(now);
     return items.filter((item) => isItemDueToday(item, today));
   }
   if (dateFilter === "tomorrow") {
-    const today = new Date(now);
     return items.filter((item) => isItemDueTomorrow(item, today));
   }
   if (dateFilter === "overdue") {
     return items.filter((item) => isItemOverdue(item, now));
   }
-  return items.filter((item) => isItemUndated(item));
+  return items.filter((item) => isItemUndated(item, now));
 }
 
 export function applyBoardItemFilters(

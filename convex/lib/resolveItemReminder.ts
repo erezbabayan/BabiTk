@@ -225,6 +225,36 @@ function zonedDateKey(date: Date, timezone: string): string {
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
+function ymdDiffDays(fromYmd: string, toYmd: string): number {
+  const from = Date.parse(`${fromYmd}T12:00:00Z`);
+  const to = Date.parse(`${toYmd}T12:00:00Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+  return Math.round((to - from) / 86_400_000);
+}
+
+/** Jump close to today so the roll loop does a few steps, not hundreds. */
+function skipTowardActiveDueDate(
+  dueDate: string,
+  recurrence: ReminderRecurrence,
+  todayKey: string,
+  timezone: string,
+): string {
+  const dueKey = zonedDateKey(new Date(dueDate), timezone);
+  if (dueKey >= todayKey) return dueDate;
+  const daysBehind = ymdDiffDays(dueKey, todayKey);
+  if (daysBehind <= 0) return dueDate;
+  switch (recurrence) {
+    case "daily":
+      return addZonedDaysKeepingTime(timezone, dueDate, daysBehind);
+    case "weekly":
+      return addZonedDaysKeepingTime(timezone, dueDate, Math.ceil(daysBehind / 7) * 7);
+    case "weekdays":
+      return addZonedDaysKeepingTime(timezone, dueDate, Math.max(0, daysBehind - 6));
+    case "monthly":
+      return dueDate;
+  }
+}
+
 /**
  * Next occurrence that is still active: stored due date if one-shot, otherwise
  * roll the recurrence until its zoned calendar day is today or later.
@@ -256,7 +286,7 @@ export function nextActiveDueDate(
   const nowDate = now instanceof Date ? now : new Date(now);
   const todayKey = zonedDateKey(nowDate, timezone);
 
-  let candidate = dueDate;
+  let candidate = skipTowardActiveDueDate(dueDate, recurrence, todayKey, timezone);
   for (let step = 0; step < MAX_ACTIVE_DUE_STEPS; step++) {
     const candidateMs = Date.parse(candidate);
     if (!Number.isFinite(candidateMs)) return dueDate;

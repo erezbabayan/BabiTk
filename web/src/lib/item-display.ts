@@ -189,8 +189,7 @@ export function buildItemDisplayFields(
     dateLabel: formatItemDate(scheduleIso),
     timeLabel: formatItemTime(scheduleIso),
     reminderLabel: (() => {
-      const fireAt = resolveScheduleIso(item, analysis, now);
-      const base = formatItemReminder(fireAt);
+      const base = formatItemReminder(scheduleIso);
       if (!base) return recurrenceLabel ? `חוזרת · ${recurrenceLabel}` : null;
       if (!recurrenceLabel) return base;
       return `${base} · ${recurrenceLabel}`;
