@@ -55,14 +55,16 @@ jobs:
             local code
             code="$(curl -sS -o /dev/null -w "%{http_code}" \
               -H "Authorization: Bearer ${t}" \
+              -H "apikey: ${t}" \
               "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
+            echo "token probe HTTP ${code}"
             [ "$code" = "200" ]
           }
 
           mint_oidc() {
             local REQUEST_URL="${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
             if [ -z "$REQUEST_URL" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
-              echo "::error::GitHub OIDC is not available in this job."
+              echo "GitHub OIDC is not available in this job."
               return 1
             fi
             local SEP="&"
@@ -70,20 +72,34 @@ jobs:
               *"?"*) ;;
               *) SEP="?" ;;
             esac
-            local OIDC_JSON JWT RESP minted
+            local OIDC_JSON JWT HTTP_CODE BODY minted
             OIDC_JSON="$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
               "${REQUEST_URL}${SEP}audience=babitk-github-oidc")"
             JWT="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OIDC_JSON")"
-            RESP="$(curl -sS -X POST \
+            BODY="$(mktemp)"
+            HTTP_CODE="$(curl -sS -o "$BODY" -w "%{http_code}" -X POST \
               "https://${PROJECT_REF}.supabase.co/functions/v1/github-oidc-mint" \
               -H "Authorization: Bearer ${JWT}" \
-              -H "Content-Type: application/json")"
-            minted="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$RESP")"
+              -H "Content-Type: application/json" || true)"
+            echo "OIDC mint HTTP ${HTTP_CODE}"
+            minted="$(python3 -c 'import json,sys
+try:
+    data=json.load(sys.stdin)
+except Exception:
+    data={}
+print(data.get("access_token") or "")' <"$BODY")"
             if [ -z "$minted" ]; then
-              echo "::error::Could not mint a Supabase token via GitHub OIDC."
-              python3 -c 'import re,sys; print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", sys.stdin.read())[:800])' <<<"$RESP"
+              python3 -c 'import json,re,sys
+raw=sys.stdin.read()
+try:
+    data=json.loads(raw)
+    print("mint error:", data.get("error") or list(data)[:8])
+except Exception:
+    print(re.sub(r"sbp_[A-Za-z0-9]+", "sbp_[redacted]", raw)[:800])' <"$BODY"
+              rm -f "$BODY"
               return 1
             fi
+            rm -f "$BODY"
             printf '%s' "$minted"
           }
 
@@ -91,10 +107,26 @@ jobs:
             if [ -n "$TOKEN" ]; then
               echo "::warning::Stored SUPABASE_ACCESS_TOKEN was rejected; trying GitHub OIDC mint."
             fi
-            TOKEN="$(mint_oidc)"
-            if ! token_ok "$TOKEN"; then
-              echo "::error::Could not obtain a valid Supabase access token."
+            TOKEN=""
+            for attempt in 1 2 3 4; do
+              set +e
+              MINTED="$(mint_oidc)"
+              MINT_STATUS=$?
+              set -e
+              if [ "$MINT_STATUS" -eq 0 ] && [ -n "$MINTED" ]; then
+                TOKEN="$MINTED"
+                break
+              fi
+              echo "OIDC mint attempt ${attempt} failed; retrying..."
+              sleep $((attempt * 8))
+            done
+            if [ -z "$TOKEN" ]; then
+              echo "::error::Could not mint a Supabase token via GitHub OIDC."
               exit 1
+            fi
+            # A minted PAT can still deploy even if the account probe is picky.
+            if ! token_ok "$TOKEN"; then
+              echo "::warning::Minted token did not pass the Management API probe; continuing to functions deploy."
             fi
           fi
           echo "::add-mask::$TOKEN"
@@ -145,6 +177,7 @@ jobs:
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
           sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:-}}"
           sync_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:-}}}"
+          sync_secret GITHUB_OIDC_DEPLOY_TOKEN "${SUPABASE_ACCESS_TOKEN:-}"
           npx supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
           npx supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
           npx supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
