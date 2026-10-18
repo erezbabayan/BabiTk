@@ -773,6 +773,7 @@ Deno.serve(async (req) => {
       asr: "inline-whisper-v11",
       ocr: "notebook-v2",
       qa: "babi-v5",
+      capture: "group-lid-v1",
       layout: "task-v1",
       engines: {
         gemini: Boolean(Deno.env.get("GEMINI_API_KEY")?.trim()),
