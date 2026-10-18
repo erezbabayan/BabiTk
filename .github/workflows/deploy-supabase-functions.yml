@@ -87,6 +87,12 @@ jobs:
               exit 1
             fi
           fi
+          FINAL_PROBE="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${TOKEN}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
+          echo "final token probe HTTP ${FINAL_PROBE}"
+          if [ "$FINAL_PROBE" != "200" ]; then
+            echo "::error::Supabase deploy token is invalid (HTTP ${FINAL_PROBE}). Create an sbp_ token at https://supabase.com/dashboard/account/tokens then set GitHub secret SUPABASE_ACCESS_TOKEN or paste it into Actions → Deploy Supabase Functions → Run workflow."
+            exit 1
+          fi
           echo "::add-mask::$TOKEN"
           echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
       - name: Deploy Edge Functions and schema
@@ -135,15 +141,16 @@ jobs:
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
           sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:-}}"
           sync_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:-}}}"
-          sync_secret GITHUB_OIDC_DEPLOY_TOKEN "${SUPABASE_ACCESS_TOKEN:-}"
-          npx supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
-          npx supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
-          npx supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
-          npx supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --no-verify-jwt
-          npx supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
-          npx supabase functions deploy ingest-notebook --project-ref "$PROJECT_REF"
-          npx supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
-          npx supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt
-          npx supabase functions deploy google-login --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
+          supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
+          supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
+          supabase functions deploy ingest-notebook --project-ref "$PROJECT_REF"
+          supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy google-login --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase secrets set --project-ref "$PROJECT_REF" "GITHUB_OIDC_DEPLOY_TOKEN=${SUPABASE_ACCESS_TOKEN}" >/dev/null
+          echo "synced GITHUB_OIDC_DEPLOY_TOKEN"
           SUPABASE_PROJECT_REF="$PROJECT_REF" node "$GITHUB_WORKSPACE/scripts/configure-supabase-auth.mjs"
 

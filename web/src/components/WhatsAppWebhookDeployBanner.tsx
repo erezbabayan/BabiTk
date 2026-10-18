@@ -45,10 +45,10 @@ export function WhatsAppWebhookDeployBanner() {
 
   return (
     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" dir="rtl">
-      <p className="font-semibold">שאלות בקבוצה עדיין לא פעילות בשרת החי</p>
+      <p className="font-semibold">קליטת משימות מהקבוצה עדיין לא פעילה בשרת החי</p>
       <p className="mt-1 text-xs leading-5 text-amber-900">
-        הקוד כבר בגיטהאב, אבל פונקציית הוואטסאפ לא עלתה כי חסר טוקן פריסה. בלי זה `*` / `?` / «בבי»
-        נכנסים כפריט במקום לקבל מענה בקבוצה.
+        הוובהוק החי לא עודכן, לכן הודעות כמו משימות לקבלן נזרקות ולא מגיעות למחברת. צריך טוקן פריסה
+        תקין של Supabase — בלי זה התיקון בגיטהאב לא עולה.
       </p>
       <ol className="mt-2 list-decimal space-y-1 pr-4 text-xs leading-5 text-amber-950">
         <li>
