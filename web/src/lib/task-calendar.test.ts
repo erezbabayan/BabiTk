@@ -13,7 +13,9 @@ import {
   calendarSwipeMonthDelta,
   calendarTasks,
   firstBusyCalendarYmd,
+  groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
+  uniqueCalendarSearchHits,
   hebrewMonthTitle,
   isCalendarRecurringItem,
   monthGrid,
@@ -222,6 +224,38 @@ describe("BabiTk task calendar", () => {
     );
   });
 
+  it("lists unique search hits across dates and paints matching days red", () => {
+    const grouped = groupCalendarTasksByDay(
+      [
+        item({
+          id: "a",
+          title: "רופא",
+          due_date: "2026-10-16T07:00:00.000Z",
+        }),
+        item({
+          id: "b",
+          title: "תרופה",
+          due_date: "2026-10-20T07:00:00.000Z",
+          metadata: { reminder_recurrence: "daily" },
+        }),
+      ],
+      { fromYmd: "2026-10-15", toYmd: "2026-10-22" },
+    );
+    const hits = uniqueCalendarSearchHits(grouped, "2026-10-15");
+    assert.deepEqual(
+      hits.map((hit) => hit.item.id),
+      ["b", "a"],
+    );
+    assert.equal(hits[0]?.ymd, "2026-10-15");
+    assert.equal(hits[1]?.ymd, "2026-10-16");
+    assert.ok((hits[0]?.extraDayCount ?? 0) > 0);
+    const groups = groupCalendarSearchHitsByDay(hits);
+    assert.equal(groups[0]?.ymd, "2026-10-15");
+    assert.equal(groups[1]?.ymd, "2026-10-16");
+    assert.match(calendarDayDotClass(false, { searchHit: true }), /bg-red-500/);
+    assert.match(calendarDayDotClass(false, { searchHit: true }), /babitk-calendar-dot--search/);
+  });
+
   it("uses a light mint tone for recurring calendar items", () => {
     assert.equal(isCalendarRecurringItem(item()), false);
     assert.equal(
@@ -248,5 +282,6 @@ describe("BabiTk task calendar", () => {
     assert.equal(calendarDayTaskRowStyle(true)?.backgroundColor, "#c5f6e4");
     assert.match(calendarDayDotClass(true), /bg-teal-400/);
     assert.match(calendarDayDotClass(false), /bg-blue-500/);
+    assert.doesNotMatch(calendarDayDotClass(true), /bg-red-500/);
   });
 });

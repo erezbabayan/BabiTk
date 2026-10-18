@@ -38,6 +38,9 @@ describe("task board view", () => {
     assert.match(dashboard, /firstBusyCalendarYmd/);
     assert.match(calendar, /searchQuery/);
     assert.match(calendar, /data-babitk-calendar-search/);
+    assert.match(calendar, /data-babitk-calendar-search-results/);
+    assert.match(calendar, /uniqueCalendarSearchHits/);
+    assert.match(calendar, /searchHit: searching/);
   });
 
   it("paints recurring calendar items in a light color", () => {

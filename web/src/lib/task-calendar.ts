@@ -283,7 +283,13 @@ export function calendarDayTaskRowStyle(
   return recurring ? { ...CALENDAR_RECURRING_ROW_TONE } : undefined;
 }
 
-export function calendarDayDotClass(recurring: boolean): string {
+export function calendarDayDotClass(
+  recurring: boolean,
+  options?: { searchHit?: boolean },
+): string {
+  if (options?.searchHit) {
+    return "h-1.5 w-1.5 rounded-full babitk-calendar-dot--search bg-red-500";
+  }
   return recurring
     ? "h-1.5 w-1.5 rounded-full bg-teal-400"
     : "h-1 w-1 rounded-full bg-blue-500";
@@ -416,6 +422,59 @@ export function groupCalendarTasksByDay(
     list.sort((left, right) => Date.parse(left.dueIso) - Date.parse(right.dueIso));
   }
   return map;
+}
+
+export type CalendarSearchHit = {
+  item: MindtaskerItem;
+  dueIso: string;
+  ymd: string;
+  extraDayCount: number;
+};
+
+/** One row per item, on the occurrence on/after `preferYmd` when possible. */
+export function uniqueCalendarSearchHits(
+  byDay: Map<string, CalendarDayTask[]>,
+  preferYmd: string,
+): CalendarSearchHit[] {
+  const dayCount = new Map<string, number>();
+  const chosen = new Map<string, { item: MindtaskerItem; dueIso: string; ymd: string }>();
+  const ymds = [...byDay.keys()].sort();
+  for (const ymd of ymds) {
+    for (const entry of byDay.get(ymd) ?? []) {
+      dayCount.set(entry.item.id, (dayCount.get(entry.item.id) ?? 0) + 1);
+      const existing = chosen.get(entry.item.id);
+      if (!existing) {
+        chosen.set(entry.item.id, { item: entry.item, dueIso: entry.dueIso, ymd });
+        continue;
+      }
+      const existingOk = existing.ymd >= preferYmd;
+      const nextOk = ymd >= preferYmd;
+      if (!existingOk && nextOk) {
+        chosen.set(entry.item.id, { item: entry.item, dueIso: entry.dueIso, ymd });
+      }
+    }
+  }
+  return [...chosen.values()]
+    .map((hit) => ({
+      ...hit,
+      extraDayCount: Math.max(0, (dayCount.get(hit.item.id) ?? 1) - 1),
+    }))
+    .sort(
+      (left, right) =>
+        left.ymd.localeCompare(right.ymd) || Date.parse(left.dueIso) - Date.parse(right.dueIso),
+    );
+}
+
+export function groupCalendarSearchHitsByDay(
+  hits: CalendarSearchHit[],
+): Array<{ ymd: string; hits: CalendarSearchHit[] }> {
+  const groups: Array<{ ymd: string; hits: CalendarSearchHit[] }> = [];
+  for (const hit of hits) {
+    const last = groups[groups.length - 1];
+    if (last && last.ymd === hit.ymd) last.hits.push(hit);
+    else groups.push({ ymd: hit.ymd, hits: [hit] });
+  }
+  return groups;
 }
 
 export function requestOpenTaskCalendar(): void {
