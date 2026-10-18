@@ -88,4 +88,21 @@ describe("evaluateCaptureGate", () => {
       assert.equal(decision.bind?.chatId, CAPTURE_GROUP);
     }
   });
+
+  it("upgrades personal capture to the first group even with a custom saved name", () => {
+    const decision = evaluateCaptureGate(
+      {
+        phone: OWNER_PHONE,
+        captureGroupChatId: PERSONAL,
+        captureGroupName: "קבוצת העבודה",
+      },
+      CAPTURE_GROUP,
+      "שיווקים",
+    );
+    assert.equal(decision.allowed, true);
+    if (decision.allowed) {
+      assert.equal(decision.bind?.chatId, CAPTURE_GROUP);
+      assert.equal(decision.bind?.name, "שיווקים");
+    }
+  });
 });

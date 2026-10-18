@@ -100,16 +100,16 @@ export function evaluateCaptureGate(
     return { allowed: true };
   }
 
+  // Connect stores a personal @c.us chat until the first group post.
+  // Settings can save a custom group name without the @g.us id — still bind.
   if (isPersonalWhatsAppChat(configuredNorm) && isGroupWhatsAppChat(incoming)) {
-    if (isDefaultPersonalCaptureName(configuredName)) {
-      return {
-        allowed: true,
-        bind: {
-          chatId: incoming,
-          name: chatName?.trim() || "קבוצת קליטה",
-        },
-      };
-    }
+    return {
+      allowed: true,
+      bind: {
+        chatId: incoming,
+        name: chatName?.trim() || configuredName || "קבוצת קליטה",
+      },
+    };
   }
 
   return { allowed: false, reason: "wrong_capture_group" };
