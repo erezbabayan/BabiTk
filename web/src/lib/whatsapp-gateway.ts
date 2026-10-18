@@ -14,7 +14,8 @@ export type GreenConnectAction =
   | "configureWebhook"
   | "pairingCode"
   | "sendWelcome"
-  | "ensureInstance";
+  | "ensureInstance"
+  | "listGroups";
 
 export interface GreenConnectStatus {
   configured: boolean;

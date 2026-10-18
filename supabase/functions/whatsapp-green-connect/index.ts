@@ -22,6 +22,7 @@ import {
 } from "../_shared/green-api-auth.ts";
 import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
 import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
+import { fetchGreenApiGroups } from "../_shared/green-api-chats.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -824,6 +825,30 @@ Deno.serve(async (req) => {
         },
         502,
       );
+    }
+  }
+
+  if (action === "listGroups") {
+    if (!gateway) {
+      return json({
+        ok: false,
+        groups: [],
+        reason: "חברו וואטסאפ קודם",
+      });
+    }
+    try {
+      const groups = await fetchGreenApiGroups({
+        instanceId: gateway.instance_id,
+        apiToken: gateway.api_token,
+        apiUrl: gateway.api_url,
+      });
+      return json({ ok: true, groups });
+    } catch (error) {
+      return json({
+        ok: false,
+        groups: [],
+        reason: error instanceof Error ? error.message : "טעינת קבוצות נכשלה",
+      });
     }
   }
 
