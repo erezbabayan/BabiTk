@@ -37,6 +37,7 @@ import {
 } from "./whatsapp-system-question-reply.ts";
 import { parseInboundText, layoutMetadataFromParsed } from "./inbound-item.ts";
 import {
+  ensureWhatsAppMessageId,
   isSoftDeletedCapturedItem,
   isStableWhatsAppMessageId,
   preferLiveCapturedItem,
@@ -64,7 +65,7 @@ export interface VoiceItemRow {
     | null;
 }
 
-export { isStableWhatsAppMessageId };
+export { ensureWhatsAppMessageId, isStableWhatsAppMessageId };
 
 export function isSoftDeletedVoiceItem(row: {
   deleted_at?: string | null;

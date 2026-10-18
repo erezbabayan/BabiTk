@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   instanceIdFromPayload,
   isGroupWhatsAppChat,
+  isWhatsAppLidId,
   parseGreenApiWebhook,
   phoneLookupVariants,
   verifyGreenApiWebhookAuth,
@@ -28,6 +29,7 @@ import {
 import {
   applyVoiceTranscription,
   findVoiceItemByWhatsAppMessage,
+  ensureWhatsAppMessageId,
   isSoftDeletedVoiceItem,
   isStableWhatsAppMessageId,
   isWhatsAppMessageCaptured,
@@ -186,6 +188,46 @@ async function findUserByCaptureGroup(
     .eq("phone_verified", true)
     .maybeSingle();
   return (core.data as UserRow | null) ?? null;
+}
+
+async function findUserById(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+): Promise<UserRow | null> {
+  const trimmed = userId.trim();
+  if (!trimmed) return null;
+  const full = await supabase
+    .from("users")
+    .select(USER_SELECT)
+    .eq("id", trimmed)
+    .maybeSingle();
+  if (full.data) return full.data as UserRow;
+  if (!full.error || !isMissingSchemaError(full.error)) {
+    return (full.data as UserRow | null) ?? null;
+  }
+  const core = await supabase
+    .from("users")
+    .select(USER_SELECT_CORE)
+    .eq("id", trimmed)
+    .maybeSingle();
+  return (core.data as UserRow | null) ?? null;
+}
+
+function phonesForUserLookup(message: ParsedGreenApiMessage, body: unknown): string[] {
+  const payload = body as {
+    instanceData?: { wid?: string };
+    senderData?: { sender?: string };
+  };
+  const candidates = [
+    message.senderPhone,
+    payload.instanceData?.wid ?? "",
+    payload.senderData?.sender ?? "",
+  ];
+  return candidates.filter((phone) => {
+    const trimmed = phone.trim();
+    if (!trimmed) return false;
+    return !isWhatsAppLidId(trimmed);
+  });
 }
 
 async function rememberLastItemIds(
@@ -509,9 +551,7 @@ async function ingestMessage(
   message: ParsedGreenApiMessage,
   gateway: GatewayRow | null,
 ): Promise<{ id: string; title: string } | "answered" | null> {
-  if (!isStableWhatsAppMessageId(message.messageId)) {
-    return null;
-  }
+  message.messageId = ensureWhatsAppMessageId(message.messageId);
   if (await alreadyIngested(supabase, user.id, message.messageId, gateway)) {
     return null;
   }
@@ -960,16 +1000,10 @@ Deno.serve(async (req) => {
   const skipped: Array<{ messageId: string; reason: string }> = [];
 
   for (const message of parsed.messages) {
-    const payload = body as {
-      instanceData?: { wid?: string };
-      senderData?: { sender?: string };
-    };
     const user =
-      (await findVerifiedUser(supabase, [
-        message.senderPhone,
-        payload.instanceData?.wid ?? "",
-        payload.senderData?.sender ?? "",
-      ])) ?? (await findUserByCaptureGroup(supabase, message.chatId));
+      (await findVerifiedUser(supabase, phonesForUserLookup(message, body))) ??
+      (await findUserByCaptureGroup(supabase, message.chatId)) ??
+      (gateway?.user_id ? await findUserById(supabase, gateway.user_id) : null);
     if (!user) {
       skipped.push({ messageId: message.messageId, reason: "not_linked" });
       continue;

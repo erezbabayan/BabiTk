@@ -14,6 +14,17 @@ export function isStableWhatsAppMessageId(messageId: string): boolean {
   return true;
 }
 
+/** Durable capture key: keep a real WhatsApp id, otherwise mint `wa-<uuid>`. */
+export function ensureWhatsAppMessageId(messageId: string): string {
+  const trimmed = messageId.trim();
+  if (isStableWhatsAppMessageId(trimmed)) return trimmed;
+  const uuid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
+  return `wa-${uuid}`;
+}
+
 export function preferLiveCapturedItem<T extends { deleted_at?: string | null }>(
   rows: T[],
 ): T | null {

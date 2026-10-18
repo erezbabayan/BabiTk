@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  ensureWhatsAppMessageId,
   isSoftDeletedCapturedItem,
   isStableWhatsAppMessageId,
   preferLiveCapturedItem,
@@ -27,5 +28,18 @@ describe("whatsapp ingest tombstones", () => {
     assert.equal(isStableWhatsAppMessageId(""), false);
     assert.equal(isStableWhatsAppMessageId("green-1710000000000"), false);
     assert.equal(isStableWhatsAppMessageId("true_123@c.us_ABCDEF"), true);
+  });
+
+  it("mints a durable wa- id when Green-API omitted idMessage", () => {
+    const minted = ensureWhatsAppMessageId("");
+    assert.match(minted, /^wa-[0-9a-f-]+$/i);
+    assert.equal(isStableWhatsAppMessageId(minted), true);
+    assert.equal(
+      ensureWhatsAppMessageId("true_123@c.us_ABCDEF"),
+      "true_123@c.us_ABCDEF",
+    );
+    const fromGreen = ensureWhatsAppMessageId("green-1710000000000");
+    assert.match(fromGreen, /^wa-/);
+    assert.notEqual(fromGreen, "green-1710000000000");
   });
 });
