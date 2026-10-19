@@ -1,6 +1,7 @@
 import { resolveDueDateFromText, hasTemporalHint } from "./ingest/hebrewDates";
 import {
   addZonedDays,
+  addZonedMinutes,
   getZonedParts,
   normalizeDueDateIso,
   zonedLocalToIso,
@@ -109,6 +110,20 @@ export function defaultTomorrowReminderIso(
   referenceDate = new Date(),
 ): string {
   return addZonedDays(timezone, referenceDate, 1, 9, 0);
+}
+
+export type AlertSnoozeKind = "hour" | "tomorrow";
+
+/** When the in-app reminder popup snoozes: +1 hour, or tomorrow 09:00 local. */
+export function alertSnoozeDueAt(
+  kind: AlertSnoozeKind,
+  now = new Date(),
+  timezone = DEFAULT_TIMEZONE,
+): string {
+  if (kind === "hour") {
+    return addZonedMinutes(timezone, now, 60);
+  }
+  return defaultTomorrowReminderIso(timezone, now);
 }
 
 function daysInMonth(year: number, month: number): number {

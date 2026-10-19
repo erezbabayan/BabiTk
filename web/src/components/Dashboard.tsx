@@ -58,6 +58,11 @@ import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import { resolveTaskBoardView } from "../lib/board-item-view";
 import { itemIdFromOpenEvent, OPEN_ITEM_EVENT } from "../lib/user-notifications";
+import {
+  registerAlertSnoozeHandler,
+  snoozeReminderAlert,
+} from "../lib/reminder-alert-snooze";
+import type { AlertSnoozeKind } from "../lib/resolve-item-reminder";
 import { ItemEditModal } from "./ItemEditModal";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
 import type { ChecklistEntry } from "../lib/checklist";
@@ -137,11 +142,22 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     () => [...inbox, ...todayTasks, ...notes],
     [inbox, todayTasks, notes],
   );
+  const reminderItemsRef = useRef(reminderItems);
+  reminderItemsRef.current = reminderItems;
   const dueReminders = useDueDateReminderAlerts(
     reminderItems,
     true,
     (item, fireAt) => markReminderFired(item as MindtaskerItem, fireAt),
   );
+
+  useEffect(() => {
+    registerAlertSnoozeHandler(async (itemId, dueIso) => {
+      const found = reminderItemsRef.current.find((entry) => entry.id === itemId);
+      if (!found) return;
+      await snoozeTask(found, dueIso);
+    });
+    return () => registerAlertSnoozeHandler(null);
+  }, [snoozeTask]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -1545,6 +1561,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         alert={dueReminders.alert}
         onDismiss={() => dueReminders.dismiss()}
         onAcknowledge={() => void dueReminders.acknowledge()}
+        onSnooze={(kind: AlertSnoozeKind) => {
+          const itemId = dueReminders.alert?.itemId;
+          void snoozeReminderAlert(itemId, kind).finally(() => dueReminders.dismiss());
+        }}
         onOpen={() => {
           const itemId = dueReminders.alert?.itemId;
           if (!itemId) return;

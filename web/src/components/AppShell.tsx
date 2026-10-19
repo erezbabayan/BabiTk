@@ -10,6 +10,7 @@ import { AppHeader } from "./AppHeader";
 import { BoardViewToggle } from "./BoardViewToggle";
 import { NotificationsPanel } from "./NotificationsPanel";
 import { QuickCapture } from "./QuickCapture";
+import { snoozeReminderAlert } from "../lib/reminder-alert-snooze";
 import { ReminderAlertModal } from "./ReminderAlertModal";
 
 interface AppShellProps {
@@ -155,6 +156,12 @@ function AppShellWithNotifications({
         onDismiss={() => reminderAlerts.dismiss()}
         onAcknowledge={() => void reminderAlerts.acknowledge()}
         onOpen={() => openItem(reminderAlerts.alert?.itemId)}
+        onSnooze={(kind) => {
+          const itemId = reminderAlerts.alert?.itemId;
+          void snoozeReminderAlert(itemId, kind).finally(() => {
+            void reminderAlerts.acknowledge();
+          });
+        }}
       />
     </>
   );

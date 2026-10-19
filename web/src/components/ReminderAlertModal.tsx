@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 
 import type { ReminderAlertItem } from "../hooks/useReminderAlerts";
+import type { AlertSnoozeKind } from "../lib/resolve-item-reminder";
 
 interface ReminderAlertModalProps {
   alert: ReminderAlertItem | null;
@@ -8,6 +9,7 @@ interface ReminderAlertModalProps {
   onAcknowledge: () => void;
   onOpen?: () => void;
   onComplete?: () => void;
+  onSnooze?: (kind: AlertSnoozeKind) => void;
 }
 
 export function ReminderAlertModal({
@@ -16,8 +18,11 @@ export function ReminderAlertModal({
   onAcknowledge,
   onOpen,
   onComplete,
+  onSnooze,
 }: ReminderAlertModalProps) {
   if (!alert) return null;
+
+  const canSnooze = Boolean(onSnooze && alert.itemId);
 
   return createPortal(
     <div
@@ -80,14 +85,36 @@ export function ReminderAlertModal({
           >
             סמן כנקרא
           </button>
+        </div>
+        {canSnooze ? (
+          <div className="mt-3 border-t border-amber-100 pt-3">
+            <p className="mb-2 text-xs font-medium text-slate-500">דחה למועד אחר</p>
+            <div className="flex flex-row-reverse flex-wrap justify-start gap-2">
+              <button
+                type="button"
+                onClick={() => onSnooze?.("hour")}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                עוד שעה
+              </button>
+              <button
+                type="button"
+                onClick={() => onSnooze?.("tomorrow")}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                מחר ב-09:00
+              </button>
+            </div>
+          </div>
+        ) : (
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-lg border border-transparent px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
+            className="mt-3 rounded-lg border border-transparent px-3 py-2 text-sm text-slate-500 hover:bg-slate-50"
           >
             מאוחר יותר
           </button>
-        </div>
+        )}
       </div>
       <style>{`
         @keyframes reminderPop {
