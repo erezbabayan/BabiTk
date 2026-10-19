@@ -23,6 +23,8 @@ const MAX_TIMER_MS = 2_147_000_000;
 
 export type DueDateReminderItem = ReminderSourceItem;
 
+type PendingFire = { item: DueDateReminderItem; fireAt: string };
+
 /**
  * Watch open tasks and fire an in-app reminder (popup + chime + browser
  * notification) when the due date arrives. Used on the GitHub Pages /
@@ -40,6 +42,7 @@ export function useDueDateReminderAlerts(
   const itemsRef = useRef(items);
   const onFiredRef = useRef(onFired);
   const persistedIds = useRef(new Set<string>());
+  const pendingFireRef = useRef(new Map<string, PendingFire>());
 
   itemsRef.current = items;
   onFiredRef.current = onFired;
@@ -60,9 +63,21 @@ export function useDueDateReminderAlerts(
       return;
     }
     showingRef.current = true;
-    setAlert(next);
-    playReminderChime();
-    showBrowserReminderNotification(next.title, next.body);
+    void (async () => {
+      const pending = pendingFireRef.current.get(next._id);
+      if (pending) {
+        pendingFireRef.current.delete(next._id);
+        try {
+          await onFiredRef.current?.(pending.item, pending.fireAt);
+        } catch {
+          persistedIds.current.delete(next._id);
+        }
+      }
+      if (!showingRef.current) return;
+      setAlert(next);
+      playReminderChime();
+      showBrowserReminderNotification(next.title, next.body);
+    })();
   }
 
   function enqueue(next: ReminderAlertItem[]) {
@@ -90,11 +105,9 @@ export function useDueDateReminderAlerts(
         body: formatReminderAlertBody(item, fireAt),
         itemId: item.id,
       });
+      pendingFireRef.current.set(id, { item, fireAt });
       if (!persistedIds.current.has(id)) {
         persistedIds.current.add(id);
-        void Promise.resolve(onFiredRef.current?.(item, fireAt)).catch(() => {
-          persistedIds.current.delete(id);
-        });
         void insertUserNotification({
           title: item.title || "תזכורת",
           body: formatReminderAlertBody(item, fireAt),

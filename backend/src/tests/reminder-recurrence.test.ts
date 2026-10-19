@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   advanceReminderDueDate,
+  alertSnoozeDueAt,
   buildAfterReminderSentPatch,
   buildClearReminderPatch,
   buildInferredReminderPatch,
   buildManualReminderPatch,
+  defaultTomorrowReminderIso,
   getReminderRecurrence,
   listReminderOccurrencesInRange,
   nextActiveDueDate,
@@ -259,5 +261,38 @@ describe("nextActiveDueDate", () => {
       ),
       "2026-09-17T09:00:00+03:00",
     );
+  });
+});
+
+describe("alert snooze from reminder popup", () => {
+  it("postpones one hour in Asia/Jerusalem", () => {
+    const now = new Date("2026-10-19T22:15:00+03:00");
+    assert.equal(alertSnoozeDueAt("hour", now, TZ), "2026-10-19T23:15:00+03:00");
+  });
+
+  it("postpones to tomorrow morning at 09:00", () => {
+    const now = new Date("2026-10-19T22:15:00+03:00");
+    assert.equal(alertSnoozeDueAt("tomorrow", now, TZ), "2026-10-20T09:00:00+03:00");
+    assert.equal(
+      alertSnoozeDueAt("tomorrow", now, TZ),
+      defaultTomorrowReminderIso(TZ, now),
+    );
+  });
+
+  it("clears reminder_sent so the snoozed time can fire again", () => {
+    const now = new Date("2026-10-19T08:00:00+03:00");
+    const due = alertSnoozeDueAt("hour", now, TZ);
+    const patch = buildManualReminderPatch(
+      {
+        title: "תזכורת",
+        content: "",
+        due_date: "2026-10-19T07:00:00+03:00",
+        metadata: { reminder_sent: true },
+        is_actionable: true,
+      },
+      due,
+    );
+    assert.equal(patch.due_date, due);
+    assert.equal(patch.metadata.reminder_sent, false);
   });
 });

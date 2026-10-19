@@ -1,5 +1,6 @@
 export {
   advanceReminderDueDate,
+  alertSnoozeDueAt,
   buildAfterReminderSentPatch,
   buildClearReminderPatch,
   buildInferredReminderPatch,
@@ -17,6 +18,7 @@ export {
   resolveItemReminder,
   REMINDER_RECURRENCE_LABELS,
   REMINDER_RECURRENCE_OPTIONS,
+  type AlertSnoozeKind,
   type ReminderFlags,
   type ReminderRecurrence,
   type ResolveItemReminderInput,
