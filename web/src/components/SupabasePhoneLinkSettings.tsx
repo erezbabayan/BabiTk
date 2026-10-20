@@ -11,7 +11,6 @@ import {
   type DigestDays,
 } from "../lib/user-profile";
 import {
-  isPersonalCaptureLabel,
   listCaptureGroups,
   parseGroupChatId,
   resolveCaptureGroup,
@@ -104,27 +103,22 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   }, [linkedPhone]);
 
   useEffect(() => {
-    const savedName = profile?.whatsapp_capture_group_name?.trim() ?? "";
     if (autoBindAttempted.current || !linkedPhone || captureIsGroup) return;
-    if (!savedName || isPersonalCaptureLabel(savedName)) return;
     autoBindAttempted.current = true;
     let cancelled = false;
-    void resolveCaptureGroup(savedName)
-      .then(async (matched) => {
-        if (cancelled || !matched.chatId.toLowerCase().endsWith("@g.us")) return;
-        const next = await updateCloudUserProfile({
-          whatsapp_capture_group_name: matched.name,
-          whatsapp_capture_group_chat_id: matched.chatId,
-          notify_whatsapp_group: true,
-        });
+    void catchUpWhatsAppGroupInbox()
+      .then(async (pulled) => {
         if (cancelled) return;
-        setProfile(next);
-        setGroupName(matched.name);
-        const pulled = await catchUpWhatsAppGroupInbox();
+        const next = await refresh();
+        if (cancelled) return;
+        const bound = next.whatsapp_capture_group_chat_id?.toLowerCase().endsWith("@g.us")
+          ? next.whatsapp_capture_group_chat_id
+          : pulled.boundChatId;
+        if (!bound?.toLowerCase().endsWith("@g.us")) return;
         setMessage(
           pulled.inserted > 0
-            ? `הקבוצה «${matched.name}» נקשרה. נקלטו ${pulled.inserted} משימות למחברת.`
-            : `הקבוצה «${matched.name}» נקשרה לקליטה.`,
+            ? `הקבוצה נקשרה. נקלטו ${pulled.inserted} משימות למחברת.`
+            : "הקבוצה נקשרה לקליטה.",
         );
       })
       .catch(() => undefined);

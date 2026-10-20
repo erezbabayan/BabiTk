@@ -145,13 +145,51 @@ export function collectGroupsFromItemMetadata(
       : "";
     const chatId = parseGroupChatId(rawId);
     if (!chatId) continue;
-    const title = stringField(row.title);
-    out.push({
-      chatId,
-      name: title && !title.startsWith("…") ? title : chatId,
-    });
+    const named =
+      (metadata
+        ? stringField(metadata.chat_name) ||
+          stringField(metadata.chatName) ||
+          stringField(metadata.group_name)
+        : "") || chatId;
+    out.push({ chatId, name: named });
   }
   return mergeGreenApiGroups(out);
+}
+
+/** Most common @g.us in previously ingested WhatsApp items. */
+export function preferredCaptureGroupFromItems(
+  rows: Array<{ title?: unknown; metadata?: unknown }>,
+): GreenApiGroup | null {
+  const counts = new Map<string, { n: number; name: string }>();
+  for (const row of rows) {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const rawId = metadata
+      ? stringField(metadata.chat_id) || stringField(metadata.chatId)
+      : "";
+    const chatId = parseGroupChatId(rawId);
+    if (!chatId) continue;
+    const named =
+      (metadata
+        ? stringField(metadata.chat_name) ||
+          stringField(metadata.chatName) ||
+          stringField(metadata.group_name)
+        : "") || "";
+    const prev = counts.get(chatId);
+    if (!prev) counts.set(chatId, { n: 1, name: named || chatId });
+    else counts.set(chatId, { n: prev.n + 1, name: named || prev.name });
+  }
+  let best: GreenApiGroup | null = null;
+  let bestN = -1;
+  for (const [chatId, info] of counts) {
+    if (info.n > bestN) {
+      bestN = info.n;
+      best = { chatId, name: info.name };
+    }
+  }
+  return best;
 }
 
 export type GreenApiCreds = {

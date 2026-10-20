@@ -12,6 +12,7 @@ import {
   isPersonalCaptureLabel,
   parseGroupChatId,
   pickMatchingGroup,
+  preferredCaptureGroupFromItems,
   selectCatchupMessages,
   type GreenApiCreds,
   type GreenApiJournalText,
@@ -99,6 +100,23 @@ async function bindCaptureGroup(
   if (current.chatId) return current.chatId;
 
   const savedName = current.name;
+  const { data: itemRows } = await admin
+    .from("mindtasker_items")
+    .select("title, metadata")
+    .eq("user_id", userId)
+    .limit(EXISTING_ID_LIMIT);
+  const fromItems = preferredCaptureGroupFromItems(itemRows ?? []);
+  if (fromItems?.chatId.endsWith("@g.us")) {
+    const name =
+      savedName && !isPersonalCaptureLabel(savedName)
+        ? savedName
+        : fromItems.name !== fromItems.chatId
+          ? fromItems.name
+          : savedName || "קבוצת קליטה";
+    await saveCapture(admin, userId, fromItems.chatId, name);
+    return fromItems.chatId;
+  }
+
   if (savedName && !isPersonalCaptureLabel(savedName)) {
     try {
       const groups = await fetchGreenApiGroups(creds);

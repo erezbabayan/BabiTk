@@ -18,7 +18,10 @@ function personalChatIdFromPhone(phone: string | null | undefined): string | nul
   return `${digits}@c.us`;
 }
 
-/** Live webhook (babi-v5) rejects group posts when a custom name is saved on a personal @c.us id. */
+/**
+ * Live webhook (babi-v5) rejects group posts when a custom name is saved on a personal @c.us id
+ * AND the incoming chatName does not match. Do not wipe the custom name — restore @g.us instead.
+ */
 export function liveCaptureGateBlocksGroup(profile: CaptureProfile): boolean {
   const id = profile.whatsapp_capture_group_chat_id?.trim() ?? "";
   if (id.toLowerCase().endsWith("@g.us")) return false;

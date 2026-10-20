@@ -6,13 +6,10 @@ import {
 } from "./user-profile";
 import {
   isPersonalCaptureLabel,
+  recoverCaptureGroupFromItems,
   resolveCaptureGroup,
 } from "./whatsapp-capture-groups";
 import { currentAccessToken, currentUserId, invokeGreenConnect } from "./whatsapp-gateway";
-import {
-  liveCaptureGateBlocksGroup,
-  personalCaptureRepairPatch,
-} from "./whatsapp-live-capture-gate";
 
 export type WhatsAppCatchupResult = {
   boundChatId: string | null;
@@ -23,6 +20,18 @@ export type WhatsAppCatchupResult = {
 };
 
 let catchupInFlight: Promise<WhatsAppCatchupResult> | null = null;
+
+function captureNameForBind(
+  savedName: string,
+  recoveredName: string,
+  chatId: string,
+): string {
+  if (savedName && !isPersonalCaptureLabel(savedName)) return savedName;
+  if (recoveredName && recoveredName !== chatId && !isPersonalCaptureLabel(recoveredName)) {
+    return recoveredName;
+  }
+  return savedName || "קבוצת קליטה";
+}
 
 async function existingWhatsAppMessageIds(userId: string): Promise<Set<string>> {
   const supabase = requireSupabase();
@@ -47,21 +56,24 @@ async function existingWhatsAppMessageIds(userId: string): Promise<Set<string>> 
   return ids;
 }
 
-async function repairLiveCaptureGateIfNeeded(): Promise<boolean> {
-  const profile = await getCloudUserProfile();
-  if (!liveCaptureGateBlocksGroup(profile)) return false;
-  await updateCloudUserProfile({
-    ...personalCaptureRepairPatch(profile),
-    notify_whatsapp_group: true,
-  });
-  return true;
-}
-
 async function bindCaptureGroupIfNeeded(): Promise<string | null> {
   const profile = await getCloudUserProfile();
   const existing = parseGroupChatId(profile.whatsapp_capture_group_chat_id ?? "");
   if (existing) return existing;
   const savedName = profile.whatsapp_capture_group_name?.trim() ?? "";
+  const recovered = await recoverCaptureGroupFromItems();
+  if (recovered?.chatId.endsWith("@g.us")) {
+    await updateCloudUserProfile({
+      whatsapp_capture_group_name: captureNameForBind(
+        savedName,
+        recovered.name,
+        recovered.chatId,
+      ),
+      whatsapp_capture_group_chat_id: recovered.chatId,
+      notify_whatsapp_group: true,
+    });
+    return recovered.chatId;
+  }
   if (!savedName || isPersonalCaptureLabel(savedName)) return null;
   try {
     const matched = await resolveCaptureGroup(savedName);
@@ -114,18 +126,17 @@ async function catchUpWhatsAppGroupInboxOnce(): Promise<WhatsAppCatchupResult> {
   const userId = await currentUserId();
   if (!userId) return empty;
 
-  const repairedGate = await repairLiveCaptureGateIfNeeded();
+  const boundBefore = await bindCaptureGroupIfNeeded();
   const viaConnect = await catchUpViaConnectAction();
   if (viaConnect) {
-    return { ...viaConnect, repairedGate: repairedGate || viaConnect.repairedGate };
+    return { ...viaConnect, repairedGate: false };
   }
 
-  const boundBefore = await bindCaptureGroupIfNeeded();
   const knownBefore = await existingWhatsAppMessageIds(userId);
   try {
     await invokeGreenConnect("status");
   } catch {
-    // live connect may be unauthorized; profile repair still unblocks the webhook
+    // live connect may be unauthorized; restoring @g.us still unblocks the webhook
   }
   const profile = await getCloudUserProfile();
   const boundChatId =
@@ -140,7 +151,7 @@ async function catchUpWhatsAppGroupInboxOnce(): Promise<WhatsAppCatchupResult> {
     scanned: knownAfter.size,
     inserted,
     needsGroupPost: !boundChatId,
-    repairedGate,
+    repairedGate: false,
   };
 }
 

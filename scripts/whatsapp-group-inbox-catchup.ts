@@ -12,6 +12,7 @@ import {
   isPersonalCaptureLabel,
   parseGroupChatId,
   pickMatchingGroup,
+  preferredCaptureGroupFromItems,
   selectCatchupMessages,
   type GreenApiCreds,
   type GreenApiJournalText,
@@ -111,6 +112,27 @@ async function bindCaptureGroup(
   const existing = parseGroupChatId(user.whatsapp_capture_group_chat_id ?? "");
   if (existing) return existing;
   const savedName = user.whatsapp_capture_group_name?.trim() ?? "";
+  const itemRows = (await supabaseRest(
+    `mindtasker_items?user_id=eq.${user.id}&select=title,metadata&limit=${EXISTING_ID_LIMIT}`,
+  )) as Array<{ title?: unknown; metadata?: unknown }>;
+  const fromItems = preferredCaptureGroupFromItems(itemRows ?? []);
+  if (fromItems?.chatId.endsWith("@g.us")) {
+    const name =
+      savedName && !isPersonalCaptureLabel(savedName)
+        ? savedName
+        : fromItems.name !== fromItems.chatId
+          ? fromItems.name
+          : savedName || "קבוצת קליטה";
+    await supabaseRest(`users?id=eq.${user.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        whatsapp_capture_group_chat_id: fromItems.chatId,
+        whatsapp_capture_group_name: name,
+        notify_whatsapp_group: true,
+      }),
+    });
+    return fromItems.chatId;
+  }
   if (savedName && !isPersonalCaptureLabel(savedName)) {
     try {
       const groups = await fetchGreenApiGroups(creds);

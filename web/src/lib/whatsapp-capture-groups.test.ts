@@ -11,6 +11,7 @@ import {
   isPersonalCaptureLabel,
   parseGroupChatId,
   pickMatchingGroup,
+  preferredCaptureGroupFromItems,
   selectCatchupMessages,
   shouldCatchupCaptureText,
 } from "../../../supabase/functions/_shared/green-api-chats.ts";
@@ -78,6 +79,16 @@ describe("collectGroupsFromItemMetadata", () => {
     ]);
     assert.equal(groups.length, 1);
     assert.equal(groups[0]?.chatId, "120363zzz@g.us");
+  });
+
+  it("picks the most frequent group chat, not the task title", () => {
+    const preferred = preferredCaptureGroupFromItems([
+      { title: "לקבלן", metadata: { chat_id: "120363aaa@g.us" } },
+      { title: "חשבונית", metadata: { chat_id: "120363aaa@g.us" } },
+      { title: "משפחה", metadata: { chat_id: "120363bbb@g.us", chat_name: "משפחה" } },
+    ]);
+    assert.equal(preferred?.chatId, "120363aaa@g.us");
+    assert.equal(preferred?.name, "120363aaa@g.us");
   });
 });
 
@@ -213,11 +224,14 @@ describe("live capture gate repair", () => {
 });
 
 describe("server-side group inbox catch-up", () => {
-  it("repairs the live gate and backfills via connect status, not browser Green-API", () => {
+  it("restores @g.us from existing items and backfills via connect status, without wiping the group name", () => {
     const source = readFileSync(join(here, "whatsapp-group-catchup.ts"), "utf8");
     assert.match(source, /action: "catchupInbox"/);
     assert.match(source, /invokeGreenConnect\("status"\)/);
-    assert.match(source, /repairLiveCaptureGateIfNeeded/);
+    assert.match(source, /recoverCaptureGroupFromItems/);
+    assert.match(source, /bindCaptureGroupIfNeeded/);
+    assert.equal(source.includes("repairLiveCaptureGateIfNeeded"), false);
+    assert.equal(source.includes("personalCaptureRepairPatch"), false);
     assert.equal(source.includes("fetchGreenApiJournalTexts"), false);
   });
 
