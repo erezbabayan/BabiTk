@@ -572,6 +572,10 @@ export const getLiveConnectionStatus = action({
     if (!userId) {
       throw new Error("Not authenticated");
     }
+    const role = await ctx.runQuery(internal.users.getRoleInternal, { userId });
+    if (role !== "admin") {
+      throw new Error("Admin access required");
+    }
     return await ctx.runAction(internal.whatsappOps.checkGreenApiConnection, {});
   },
 });
