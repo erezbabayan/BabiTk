@@ -83,6 +83,17 @@ describe("parseInputLocally — end-to-end Hebrew NLU regression", () => {
     assert.equal(item.title, "לקנות חלב");
   });
 
+  it("explicit date with בשעה uses that clock", () => {
+    const item = parseInputLocally({
+      text: "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+      timezone: TZ,
+      referenceDate: new Date("2026-10-20T12:00:00+03:00"),
+    }).items[0]!;
+
+    assert.equal(item.is_actionable, true);
+    assert.match(item.due_date!, /2026-10-24T22:00:00\+03:00/);
+  });
+
   it("Sunday morning without explicit hour defaults to 09:00", () => {
     const item = parseOne("יום ראשון בבוקר לטפל בדואר");
 

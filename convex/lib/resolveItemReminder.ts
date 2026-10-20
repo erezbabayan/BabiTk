@@ -1,4 +1,8 @@
-import { resolveDueDateFromText, hasTemporalHint } from "./ingest/hebrewDates";
+import {
+  applyTextClockToIso,
+  hasTemporalHint,
+  resolveDueDateFromText,
+} from "./ingest/hebrewDates";
 import {
   addZonedDays,
   addZonedMinutes,
@@ -486,12 +490,15 @@ export function resolveItemReminder(
   const text = `${input.title} ${input.content}`.trim();
   const fromContent = resolveDueDateFromText(text, { timezone, referenceDate });
   const normalizedExisting = normalizeDueDateIso(input.dueDate, timezone);
-  const dueDate =
+  let dueDate =
     normalizedExisting ??
     fromContent ??
     (hasTemporalHint(text)
       ? null
       : defaultTomorrowReminderIso(timezone, referenceDate));
+  if (dueDate) {
+    dueDate = applyTextClockToIso(dueDate, text, timezone);
+  }
 
   metadata = patchReminderMetadata(metadata, { manual: false, disabled: false });
   if (dueDate) {
@@ -566,7 +573,13 @@ export function effectiveTaskDueDate(item: {
     return flags.manual && item.due_date ? item.due_date : null;
   }
 
-  if (item.due_date) return item.due_date;
+  if (item.due_date) {
+    if (flags.manual) return item.due_date;
+    return applyTextClockToIso(
+      item.due_date,
+      `${item.title} ${item.content}`.trim(),
+    );
+  }
   return resolveItemReminder({
     title: item.title,
     content: item.content,

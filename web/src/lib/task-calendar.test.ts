@@ -11,6 +11,7 @@ import {
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
+  calendarItemDueIso,
   calendarTasks,
   calendarOccurrenceYmds,
   firstBusyCalendarYmd,
@@ -54,6 +55,19 @@ describe("BabiTk task calendar", () => {
     assert.equal(cells[4]?.inMonth, true);
     assert.equal(cells[0]?.inMonth, false);
     assert.equal(hebrewMonthTitle(2026, 10), "אוקטובר 2026");
+  });
+
+  it("uses בשעה from the item text instead of the default 09:00 due", () => {
+    const iso = calendarItemDueIso(
+      item({
+        title: "הגשת עבודה בסימולציה עסקית בלימודים",
+        content: "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+        due_date: "2026-10-24T06:00:00.000Z",
+      }),
+    );
+    assert.ok(iso);
+    assert.equal(taskCalendarDayKey(iso), "2026-10-24");
+    assert.equal(new Date(iso).toISOString(), "2026-10-24T19:00:00.000Z");
   });
 
   it("groups dated tasks by Jerusalem day, including inbox and analysis dates", () => {

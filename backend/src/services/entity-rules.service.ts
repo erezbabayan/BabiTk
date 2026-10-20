@@ -1,5 +1,6 @@
 import type { ParsedItem, ParseInputResponse } from "../types/ai.js";
 import {
+  applyTextClockToIso,
   resolveDueDateFromText,
   stripTemporalPhrases,
 } from "./hebrew-date-resolver.service.js";
@@ -229,7 +230,7 @@ function resolveTaskDueDate(
   }
 
   if (fromAi) {
-    return fromAi;
+    return applyTextClockToIso(fromAi, inferenceText, timezone);
   }
 
   if (fromText) {

@@ -1,3 +1,4 @@
+import { applyTextClockToIso } from "../../../convex/lib/ingest/hebrewDates.ts";
 import type { MindtaskerItem } from "../types";
 
 export const TASK_CALENDAR_TZ = "Asia/Jerusalem";
@@ -156,7 +157,7 @@ export function calendarItemDueIso(
     (typeof item.due_date === "string" && item.due_date.length > 0 ? item.due_date : null) ||
     analysisScheduleIso(item.metadata);
   if (!source || Number.isNaN(Date.parse(source))) return null;
-  return source;
+  return applyTextClockToIso(source, `${item.title} ${item.content}`.trim());
 }
 
 export function isCalendarTask(

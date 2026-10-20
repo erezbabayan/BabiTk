@@ -1,7 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { enforceEntityRules } from "../services/entity-rules.service.js";
-import { resolveDueDateFromText } from "../services/hebrew-date-resolver.service.js";
+import {
+  applyTextClockToIso,
+  resolveDueDateFromText,
+} from "../services/hebrew-date-resolver.service.js";
 import { extractTimeOfDay } from "../utils/hebrew-time-words.js";
 import {
   buildFormattedAnalysis,
@@ -107,6 +110,31 @@ describe("resolveDueDateFromText", () => {
       null,
     );
   });
+
+  it("uses בשעה on an explicit date instead of default 09:00", () => {
+    const due = resolveDueDateFromText(
+      "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+      { timezone: TZ, referenceDate: new Date("2026-10-20T12:00:00+03:00") },
+    );
+    assert.match(due!, /2026-10-24T22:00:00\+03:00/);
+  });
+
+  it("keeps explicit date at 09:00 when no clock is given", () => {
+    const due = resolveDueDateFromText("להגיש עבודה בתאריך 24/10/2026", {
+      timezone: TZ,
+      referenceDate: new Date("2026-10-20T12:00:00+03:00"),
+    });
+    assert.match(due!, /2026-10-24T09:00:00\+03:00/);
+  });
+
+  it("overlays a text clock onto a stored 09:00 due", () => {
+    const overlaid = applyTextClockToIso(
+      "2026-10-24T09:00:00+03:00",
+      "הגשת עבודה בתאריך 24/10/2026 בשעה 22:00",
+      TZ,
+    );
+    assert.match(overlaid, /2026-10-24T22:00:00\+03:00/);
+  });
 });
 
 describe("enforceEntityRules", () => {
@@ -174,6 +202,32 @@ describe("enforceEntityRules", () => {
       { timezone: TZ, referenceDate: REF, sourceText: "לקנות חלב בערב" },
     );
     assert.match(item.due_date!, /2025-06-18T19:00:00\+03:00/);
+  });
+
+  it("overrides AI morning default when text has בשעה 22:00 on an explicit date", () => {
+    const item = enforceEntityRules(
+      {
+        title: "הגשת עבודה בסימולציה עסקית בלימודים",
+        content: "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+        is_actionable: true,
+        due_date: "2026-10-24T09:00:00+03:00",
+        tags: [],
+        analysis: {
+          goal: "הגשה",
+          data_points: "סימולציה עסקית; מועד: 24/10/2026",
+          task: "הגשת עבודה",
+          urgency: "חסר",
+          time_mention: "24/10/2026",
+        },
+      },
+      {
+        timezone: TZ,
+        referenceDate: new Date("2026-10-20T12:00:00+03:00"),
+        sourceText:
+          "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+      },
+    );
+    assert.match(item.due_date!, /2026-10-24T22:00:00\+03:00/);
   });
 
   it("overrides AI morning default when text says עשר בלילה", () => {
