@@ -14,7 +14,12 @@ import {
   showBrowserReminderNotification,
 } from "../lib/reminder-chime";
 import {
+  claimLocalReminderPopup,
+  wasLocalReminderItemClaimed,
+} from "../lib/reminder-popup-dedupe";
+import {
   insertUserNotification,
+  markNotificationRead,
   rememberLocallyPresentedNotification,
 } from "../lib/user-notifications";
 
@@ -43,6 +48,8 @@ export function useDueDateReminderAlerts(
   const onFiredRef = useRef(onFired);
   const persistedIds = useRef(new Set<string>());
   const pendingFireRef = useRef(new Map<string, PendingFire>());
+  const notificationIds = useRef(new Map<string, string>());
+  const handledAlertIds = useRef(new Set<string>());
 
   itemsRef.current = items;
   onFiredRef.current = onFired;
@@ -98,7 +105,11 @@ export function useDueDateReminderAlerts(
       const fireAt = resolveItemReminderFireAt(item);
       if (!fireAt) continue;
       const id = reminderAlertId(item.id, fireAt);
-      if (seenIds.current.has(id)) continue;
+      if (seenIds.current.has(id) || wasLocalReminderItemClaimed(item.id)) {
+        seenIds.current.add(id);
+        continue;
+      }
+      claimLocalReminderPopup(item.id);
       due.push({
         _id: id,
         title: item.title || "תזכורת",
@@ -114,7 +125,12 @@ export function useDueDateReminderAlerts(
           itemId: item.id,
         })
           .then((row) => {
-            if (row?.id) rememberLocallyPresentedNotification(row.id);
+            if (!row?.id) return;
+            rememberLocallyPresentedNotification(row.id);
+            notificationIds.current.set(id, row.id);
+            if (handledAlertIds.current.has(id)) {
+              void markNotificationRead(row.id).catch(() => {});
+            }
           })
           .catch(() => {
             /* Bell history is best-effort when the table is not migrated yet. */
@@ -154,16 +170,24 @@ export function useDueDateReminderAlerts(
     };
   }, [enabled, itemKey]);
 
-  function dismiss() {
+  function finishShownAlert() {
+    const shownId = alert?._id;
+    if (shownId) {
+      handledAlertIds.current.add(shownId);
+      const rowId = notificationIds.current.get(shownId);
+      if (rowId) void markNotificationRead(rowId).catch(() => {});
+    }
     showingRef.current = false;
     setAlert(null);
     queueMicrotask(() => presentNext());
   }
 
+  function dismiss() {
+    finishShownAlert();
+  }
+
   async function acknowledge() {
-    showingRef.current = false;
-    setAlert(null);
-    queueMicrotask(() => presentNext());
+    finishShownAlert();
   }
 
   return { alert, dismiss, acknowledge };
