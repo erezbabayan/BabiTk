@@ -10,7 +10,7 @@ export function SystemActivityButton({ pressed = false, onClick }: SystemActivit
       type="button"
       className="system-activity-btn"
       aria-label="לוח פעילות"
-      title="לוח פעילות"
+      title="לוח פעילות — מה שנעשה במערכת"
       aria-pressed={pressed}
       onClick={onClick}
     >
