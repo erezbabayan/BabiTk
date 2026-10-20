@@ -23,7 +23,7 @@ import {
   loadGreenApiGateway,
   resolveCaptureGroup,
 } from "./whatsapp-capture-groups";
-import { currentUserId } from "./whatsapp-gateway";
+import { currentAccessToken, currentUserId } from "./whatsapp-gateway";
 
 const CATCHUP_MAX_INSERTS = 25;
 
@@ -182,12 +182,37 @@ async function insertCatchupTexts(
   return messages.length;
 }
 
+async function catchUpViaConnect(): Promise<WhatsAppCatchupResult | null> {
+  const accessToken = await currentAccessToken();
+  if (!accessToken) return null;
+  const supabase = requireSupabase();
+  const { data, error } = await supabase.functions.invoke("whatsapp-green-connect", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: { action: "catchupInbox" },
+  });
+  if (error || !data || typeof data !== "object") return null;
+  const row = data as {
+    catchup?: unknown;
+    boundChatId?: unknown;
+    scanned?: unknown;
+    inserted?: unknown;
+  };
+  if (row.catchup !== true) return null;
+  return {
+    boundChatId: typeof row.boundChatId === "string" ? row.boundChatId : null,
+    scanned: typeof row.scanned === "number" ? row.scanned : 0,
+    inserted: typeof row.inserted === "number" ? row.inserted : 0,
+  };
+}
+
 async function catchUpWhatsAppGroupInboxOnce(): Promise<WhatsAppCatchupResult> {
   const empty: WhatsAppCatchupResult = {
     boundChatId: null,
     scanned: 0,
     inserted: 0,
   };
+  const viaConnect = await catchUpViaConnect();
+  if (viaConnect) return viaConnect;
   const userId = await currentUserId();
   const gateway = await loadGreenApiGateway();
   if (!userId || !gateway) return empty;

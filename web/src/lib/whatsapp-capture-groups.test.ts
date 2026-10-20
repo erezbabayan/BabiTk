@@ -115,6 +115,42 @@ describe("catch-up journal texts", () => {
     const selected = selectCatchupMessages(rows, null, 1_700_000_200);
     assert.equal(selected.length, 1);
   });
+
+  it("treats lastOutgoingMessages rows as outgoing even when type is outgoingMessage", () => {
+    const rows = collectJournalTexts(
+      [
+        {
+          id: "hist-1",
+          type: "outgoingMessage",
+          chatId: "120363aaa@g.us",
+          textMessage: "לקבלן מאליקים לבדוק מולו עוד יומיים",
+          timestamp: 1_700_000_000,
+        },
+      ],
+      "",
+      { defaultOutgoing: true },
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.messageId, "hist-1");
+    assert.equal(rows[0]?.outgoing, true);
+  });
+
+  it("keeps incoming contractor texts once the capture group id is bound", () => {
+    const rows = collectJournalTexts([
+      {
+        idMessage: "in-1",
+        type: "incoming",
+        chatId: "120363aaa@g.us",
+        textMessage: "שלחתי הצעת מחיר",
+        timestamp: 1_700_000_050,
+      },
+    ]);
+    assert.equal(rows.length, 1);
+    const unbound = selectCatchupMessages(rows, null, 1_700_000_200);
+    assert.equal(unbound.length, 0);
+    const bound = selectCatchupMessages(rows, "120363aaa@g.us", 1_700_000_200);
+    assert.equal(bound.length, 1);
+  });
 });
 
 describe("settings persist the group chat id", () => {
@@ -131,5 +167,31 @@ describe("settings persist the group chat id", () => {
       source.includes("whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null"),
       false,
     );
+  });
+});
+
+describe("server-side group inbox catch-up", () => {
+  it("tries the connect function before Green-API in the browser", () => {
+    const source = readFileSync(join(here, "whatsapp-group-catchup.ts"), "utf8");
+    assert.match(source, /action: "catchupInbox"/);
+    assert.match(source, /row\.catchup !== true/);
+  });
+
+  it("exposes catchupInbox on the connect function", () => {
+    const source = readFileSync(
+      join(here, "../../../supabase/functions/whatsapp-green-connect/index.ts"),
+      "utf8",
+    );
+    assert.match(source, /action === "catchupInbox"/);
+    assert.match(source, /runWhatsAppGroupInboxCatchup/);
+  });
+
+  it("ships a service-role GitHub Action that does not need Edge Function deploy", () => {
+    const source = readFileSync(
+      join(here, "../../../.github/workflows/whatsapp-group-catchup.yml"),
+      "utf8",
+    );
+    assert.match(source, /whatsapp-group-inbox-catchup.ts/);
+    assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
   });
 });

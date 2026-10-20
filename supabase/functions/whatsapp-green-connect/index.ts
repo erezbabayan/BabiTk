@@ -23,6 +23,7 @@ import {
 import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
 import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 import { fetchGreenApiGroups } from "../_shared/green-api-chats.ts";
+import { runWhatsAppGroupInboxCatchup } from "../_shared/whatsapp-group-inbox-catchup.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -849,6 +850,41 @@ Deno.serve(async (req) => {
         groups: [],
         reason: error instanceof Error ? error.message : "טעינת קבוצות נכשלה",
       });
+    }
+  }
+
+  if (action === "catchupInbox") {
+    if (!gateway) {
+      return json({
+        ok: false,
+        catchup: true,
+        boundChatId: null,
+        scanned: 0,
+        inserted: 0,
+        reason: "חברו וואטסאפ קודם",
+      });
+    }
+    if (!SERVICE_ROLE) {
+      return json({ error: "missing_supabase_env" }, 500);
+    }
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    try {
+      const result = await runWhatsAppGroupInboxCatchup(admin, userId, gateway);
+      return json(result);
+    } catch (error) {
+      return json(
+        {
+          ok: false,
+          catchup: true,
+          boundChatId: null,
+          scanned: 0,
+          inserted: 0,
+          reason: error instanceof Error ? error.message : "משיכת המשימות מהקבוצה נכשלה",
+        },
+        502,
+      );
     }
   }
 

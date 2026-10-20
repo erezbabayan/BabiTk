@@ -71,6 +71,7 @@ type RawChatRow = {
   chatName?: unknown;
   senderName?: unknown;
   type?: unknown;
+  typeWebhook?: unknown;
   senderData?: unknown;
   textMessage?: unknown;
   caption?: unknown;
@@ -238,11 +239,31 @@ export function selectCatchupMessages(
   return out;
 }
 
+export type CollectJournalOptions = {
+  defaultOutgoing?: boolean;
+};
+
+function messageIdFromRow(row: RawChatRow): string {
+  const fromField = stringField(row.idMessage);
+  if (fromField) return fromField;
+  const id = stringField(row.id);
+  if (id && !id.includes("@")) return id;
+  return "";
+}
+
+function rowIsOutgoing(row: RawChatRow, defaultOutgoing: boolean): boolean {
+  if (defaultOutgoing) return true;
+  const type = `${stringField(row.type)} ${stringField(row.typeWebhook)}`.toLowerCase();
+  return type.includes("outgoing");
+}
+
 export function collectJournalTexts(
   data: unknown,
   fallbackChatId = "",
+  options: CollectJournalOptions = {},
 ): GreenApiJournalText[] {
   const fallback = parseGroupChatId(fallbackChatId) ?? "";
+  const defaultOutgoing = options.defaultOutgoing === true;
   const out: GreenApiJournalText[] = [];
   const seen = new Set<string>();
   for (const row of asRows(data)) {
@@ -256,7 +277,7 @@ export function collectJournalTexts(
     if (!chatId) continue;
     const text = journalTextFromRow(row);
     if (!shouldCatchupCaptureText(text)) continue;
-    const messageId = stringField(row.idMessage);
+    const messageId = messageIdFromRow(row);
     if (!messageId || seen.has(messageId)) continue;
     seen.add(messageId);
     const timestampRaw = row.timestamp;
@@ -276,7 +297,7 @@ export function collectJournalTexts(
         nestedString(sender, "chatName") ||
         stringField(row.name) ||
         "",
-      outgoing: stringField(row.type).toLowerCase() === "outgoing",
+      outgoing: rowIsOutgoing(row, defaultOutgoing),
     });
   }
   return out;
@@ -296,7 +317,11 @@ export async function fetchGreenApiJournalTexts(
     try {
       const response = await fetch(url);
       if (!response.ok) continue;
-      rows.push(...collectJournalTexts(await response.json()));
+      rows.push(
+        ...collectJournalTexts(await response.json(), "", {
+          defaultOutgoing: url.includes("lastOutgoingMessages"),
+        }),
+      );
     } catch {
       // browser CORS or transient Green-API errors
     }
