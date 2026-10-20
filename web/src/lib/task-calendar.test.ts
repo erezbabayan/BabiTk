@@ -297,13 +297,14 @@ describe("BabiTk task calendar", () => {
     assert.match(calendarDayDotClass(false, { searchHit: true }), /babitk-calendar-dot--search/);
   });
 
-  it("keeps undated and out-of-month matches in calendar search like list/squares", () => {
+  it("lists every match under the calendar with a date, including created_at fallback", () => {
     const hits = calendarSearchHitsFromItems(
       [
         item({
-          id: "undated",
+          id: "created",
           title: "לקנות חלב",
           due_date: null,
+          created_at: "2026-09-02T08:00:00.000Z",
         }),
         item({
           id: "far",
@@ -320,14 +321,17 @@ describe("BabiTk task calendar", () => {
     );
     assert.deepEqual(
       hits.map((hit) => hit.item.id),
-      ["near", "far", "undated"],
+      ["created", "near", "far"],
     );
-    assert.equal(hits[0]?.ymd, "2026-10-16");
-    assert.equal(hits[1]?.ymd, "2027-03-01");
-    assert.equal(hits[2]?.ymd, "");
+    assert.equal(hits[0]?.ymd, "2026-09-02");
+    assert.ok(hits[0]?.dueIso);
+    assert.equal(hits[1]?.ymd, "2026-10-16");
+    assert.equal(hits[2]?.ymd, "2027-03-01");
     const groups = groupCalendarSearchHitsByDay(hits);
-    assert.equal(groups.at(-1)?.ymd, "");
-    assert.equal(groups.at(-1)?.hits[0]?.item.id, "undated");
+    assert.deepEqual(
+      groups.map((group) => group.ymd),
+      ["2026-09-02", "2026-10-16", "2027-03-01"],
+    );
   });
 
   it("uses a light mint tone for recurring calendar items", () => {

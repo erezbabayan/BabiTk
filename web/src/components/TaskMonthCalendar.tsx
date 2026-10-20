@@ -21,7 +21,6 @@ import {
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
-  CALENDAR_UNDATED_SEARCH_GROUP,
   calendarSearchHitsFromItems,
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
@@ -388,19 +387,15 @@ export function TaskMonthCalendar({
               </p>
               {searchGroups.map((group) => (
                 <div
-                  key={group.ymd || CALENDAR_UNDATED_SEARCH_GROUP}
-                  id={`babitk-calendar-search-${group.ymd || CALENDAR_UNDATED_SEARCH_GROUP}`}
-                  data-babitk-calendar-search-group={
-                    group.ymd || CALENDAR_UNDATED_SEARCH_GROUP
-                  }
+                  key={group.ymd}
+                  id={`babitk-calendar-search-${group.ymd}`}
+                  data-babitk-calendar-search-group={group.ymd}
                   className={`space-y-1 rounded-lg ${
-                    group.ymd && group.ymd === selectedYmd
-                      ? "ring-1 ring-inset ring-red-200"
-                      : ""
+                    group.ymd === selectedYmd ? "ring-1 ring-inset ring-red-200" : ""
                   }`}
                 >
                   <p className="px-1 text-[11px] font-medium text-red-700">
-                    {group.ymd ? isoDateToDdMmYyyy(group.ymd) : "ללא תאריך"}
+                    {isoDateToDdMmYyyy(group.ymd)}
                   </p>
                   {group.hits.map((hit) => (
                     <CalendarDayTaskRow

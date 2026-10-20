@@ -576,11 +576,7 @@ export function uniqueCalendarSearchHits(
     .sort(compareCalendarSearchHits);
 }
 
-export const CALENDAR_UNDATED_SEARCH_GROUP = "undated";
-
 function compareCalendarSearchHits(left: CalendarSearchHit, right: CalendarSearchHit): number {
-  if (!left.ymd && right.ymd) return 1;
-  if (left.ymd && !right.ymd) return -1;
   const byDay = left.ymd.localeCompare(right.ymd);
   if (byDay !== 0) return byDay;
   const leftMs = Date.parse(left.dueIso);
@@ -591,9 +587,23 @@ function compareCalendarSearchHits(left: CalendarSearchHit, right: CalendarSearc
   return (left.item.title ?? "").localeCompare(right.item.title ?? "", "he");
 }
 
+function calendarSearchFallbackStamp(
+  item: MindtaskerItem,
+  preferYmd: string,
+): { dueIso: string; ymd: string } {
+  for (const source of [item.created_at, item.updated_at, item.last_interacted_at]) {
+    if (typeof source !== "string" || source.length === 0) continue;
+    if (Number.isNaN(Date.parse(source))) continue;
+    const ymd = taskCalendarDayKey(source);
+    if (ymd) return { dueIso: source, ymd };
+  }
+  const ymd = preferYmd;
+  return { dueIso: ymd ? `${ymd}T09:00:00+03:00` : "", ymd };
+}
+
 /**
- * Search hits for every matching board item — dated or not, any month.
- * List/squares search must not lose items just because the calendar has no day cell.
+ * Search hits for every matching board item, any month.
+ * Every row under the calendar has a date (due, else created/updated).
  */
 export function calendarSearchHitsFromItems(
   items: MindtaskerItem[],
@@ -602,21 +612,13 @@ export function calendarSearchHitsFromItems(
   const hits: CalendarSearchHit[] = [];
   for (const item of items) {
     const due = calendarItemDueIso(item);
-    if (!due) {
+    const seedYmd = due ? taskCalendarDayKey(due) : null;
+    if (!due || !seedYmd) {
+      const fallback = calendarSearchFallbackStamp(item, preferYmd);
       hits.push({
         item,
-        dueIso: "",
-        ymd: "",
-        extraDayCount: 0,
-      });
-      continue;
-    }
-    const seedYmd = taskCalendarDayKey(due);
-    if (!seedYmd) {
-      hits.push({
-        item,
-        dueIso: due,
-        ymd: "",
+        dueIso: fallback.dueIso,
+        ymd: fallback.ymd,
         extraDayCount: 0,
       });
       continue;

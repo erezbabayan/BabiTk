@@ -42,7 +42,8 @@ describe("task board view", () => {
     assert.match(calendar, /data-babitk-calendar-search-results/);
     assert.match(calendar, /calendarSearchHitsFromItems\(items/);
     assert.match(calendar, /searchHit: searching/);
-    assert.match(calendar, /ללא תאריך/);
+    assert.match(calendar, /isoDateToDdMmYyyy\(group\.ymd\)/);
+    assert.doesNotMatch(calendar, /ללא תאריך/);
   });
 
   it("paints recurring calendar items in a light color", () => {
