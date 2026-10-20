@@ -75,7 +75,6 @@ async function deliver(
   if (destination.kind === "group" && !gateway) return false;
   await sendWhatsAppOutbound(
     { to, body, quickReplies },
-    gateway ? "green-api" : env.whatsappProvider,
     gateway
       ? { instanceId: gateway.instance_id, token: gateway.api_token, baseUrl: gateway.api_url }
       : null,

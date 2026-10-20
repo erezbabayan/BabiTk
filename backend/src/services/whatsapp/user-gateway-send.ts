@@ -13,7 +13,6 @@ export async function sendViaUserGreenApi(
 ): Promise<void> {
   await sendWhatsAppOutbound(
     { to: toPhoneOrChatId, body: message },
-    "green-api",
     {
       instanceId: gateway.instance_id,
       token: gateway.api_token,

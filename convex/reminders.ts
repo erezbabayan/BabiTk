@@ -2178,7 +2178,8 @@ export const dispatchProactiveWhatsApp = internalAction({
           toPhone: candidate.phone,
           message: body,
           chatId: candidate.captureGroupChatId ?? undefined,
-          sameChat: Boolean(candidate.captureGroupChatId),
+          // Green-API only. sameChat skips the Meta fallback inside sendReply.
+          sameChat: true,
         });
         if (!wa.sent) continue;
         await ctx.runMutation(internal.reminders.markProactiveSlot, {
