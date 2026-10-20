@@ -146,7 +146,7 @@ function AppShellWithNotifications({
           notifications.notifyInApp ? (
             <button
               type="button"
-              className="app-header-bell relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-stone-300/80 bg-white/70 text-stone-800 shadow-sm transition hover:bg-stone-100 hover:text-stone-950 lg:w-auto lg:gap-1.5 lg:px-2.5"
+              className="app-header-bell relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-stone-300/80 bg-white/70 text-stone-800 shadow-sm transition hover:bg-stone-100 hover:text-stone-950 sm:h-9 sm:w-9 lg:w-auto lg:gap-1.5 lg:px-2.5"
               onClick={openNotificationsPanel}
               aria-label="מרכז התראות"
               title="מרכז התראות — תזכורות"
