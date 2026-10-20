@@ -45,6 +45,10 @@ import { NotebookIcon, type NotebookIconName } from "./NotebookIcons";
 
 import { isDemoMode } from "../lib/supabase";
 import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
+import {
+  loadHebrewCalendarEnabled,
+  setHebrewCalendarEnabled,
+} from "../lib/hebrew-calendar-pref";
 
 const OVERDUE_HOUR_OPTIONS = [1, 3, 6, 12, 24, 36, 48, 72, 96, 120, 168] as const;
 
@@ -145,6 +149,7 @@ export function SettingsScreen({
   const [boardsVisible, setBoardsVisible] = useState(false);
   const [testDataVisible, setTestDataVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [hebrewOn, setHebrewOn] = useState(true);
   const convexAuth = shouldUseConvexAuthLogin();
   const viewer = useQuery(api.users.viewer, convexAuth ? {} : "skip");
   const updateNotificationPrefs = useMutation(api.users.updateNotificationPrefs);
@@ -159,6 +164,11 @@ export function SettingsScreen({
 
       .catch(() => setCalendarLinked(false));
 
+  }, [visible]);
+
+  useEffect(() => {
+    if (!visible) return;
+    void loadHebrewCalendarEnabled().then(setHebrewOn);
   }, [visible]);
 
 
@@ -239,6 +249,17 @@ export function SettingsScreen({
               contentContainerStyle={styles.sheetScroll}
             >
             <Text style={styles.title}>הגדרות</Text>
+            <View style={styles.hebrewRow}>
+              <Text style={styles.rowText}>תאריך עברי</Text>
+              <Switch
+                value={hebrewOn}
+                onValueChange={(next) => {
+                  setHebrewOn(next);
+                  void setHebrewCalendarEnabled(next);
+                }}
+                accessibilityLabel="הצג תאריך עברי"
+              />
+            </View>
 
             <SettingsMenuRow icon="keyboard" label="משתמש" onPress={() => setUserVisible(true)} />
             {convexAuth ? (
@@ -683,6 +704,15 @@ const styles = StyleSheet.create({
   },
 
   title: { fontSize: 18, fontWeight: "800", textAlign: "right", marginBottom: 16 },
+  hebrewRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingBottom: 12,
+    marginBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
 
   row: {
 
