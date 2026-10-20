@@ -36,7 +36,7 @@ export function TagFilterBar({
         <View style={styles.toggleLeft}>
           <NotebookIcon name="filter" size={13} tone="orange" />
           <Text style={styles.toggleText} numberOfLines={1} ellipsizeMode="tail">
-            {selected ? formatTagLabel(selected) : "סינון תגיות"}
+            {selected ? formatTagLabel(selected) : "סינון"}
           </Text>
         </View>
         <NotebookIcon name={open ? "chevronUp" : "chevronDown"} size={13} tone="muted" />
