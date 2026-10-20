@@ -18,6 +18,7 @@ import {
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
   uniqueCalendarSearchHits,
+  calendarSearchHitsFromItems,
   hebrewMonthTitle,
   isCalendarRecurringItem,
   monthGrid,
@@ -294,6 +295,39 @@ describe("BabiTk task calendar", () => {
     assert.equal(groups[1]?.ymd, "2026-10-16");
     assert.match(calendarDayDotClass(false, { searchHit: true }), /bg-red-500/);
     assert.match(calendarDayDotClass(false, { searchHit: true }), /babitk-calendar-dot--search/);
+  });
+
+  it("keeps undated and out-of-month matches in calendar search like list/squares", () => {
+    const hits = calendarSearchHitsFromItems(
+      [
+        item({
+          id: "undated",
+          title: "לקנות חלב",
+          due_date: null,
+        }),
+        item({
+          id: "far",
+          title: "רופא",
+          due_date: "2027-03-01T07:00:00.000Z",
+        }),
+        item({
+          id: "near",
+          title: "פגישה",
+          due_date: "2026-10-16T07:00:00.000Z",
+        }),
+      ],
+      "2026-10-15",
+    );
+    assert.deepEqual(
+      hits.map((hit) => hit.item.id),
+      ["near", "far", "undated"],
+    );
+    assert.equal(hits[0]?.ymd, "2026-10-16");
+    assert.equal(hits[1]?.ymd, "2027-03-01");
+    assert.equal(hits[2]?.ymd, "");
+    const groups = groupCalendarSearchHitsByDay(hits);
+    assert.equal(groups.at(-1)?.ymd, "");
+    assert.equal(groups.at(-1)?.hits[0]?.item.id, "undated");
   });
 
   it("uses a light mint tone for recurring calendar items", () => {

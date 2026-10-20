@@ -34,13 +34,15 @@ describe("task board view", () => {
     const dashboard = readFileSync(join(here, "../components/Dashboard.tsx"), "utf8");
     const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
     assert.match(dashboard, /const calendarBoardItems[\s\S]*mergeSearchResults\(/);
+    assert.match(dashboard, /todaySearchOpen \? "all"/);
     assert.match(dashboard, /searchQuery=\{todaySearch\.activeQuery\}/);
     assert.match(dashboard, /firstBusyCalendarYmd/);
     assert.match(calendar, /searchQuery/);
     assert.match(calendar, /data-babitk-calendar-search/);
     assert.match(calendar, /data-babitk-calendar-search-results/);
-    assert.match(calendar, /uniqueCalendarSearchHits/);
+    assert.match(calendar, /calendarSearchHitsFromItems\(items/);
     assert.match(calendar, /searchHit: searching/);
+    assert.match(calendar, /ללא תאריך/);
   });
 
   it("paints recurring calendar items in a light color", () => {

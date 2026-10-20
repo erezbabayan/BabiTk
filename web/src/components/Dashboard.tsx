@@ -273,6 +273,14 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       ),
     [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
   );
+  const todaySearchOpen = todaySearch.activeQuery.trim().length > 0;
+  const todayListDateFilter = todaySearchOpen ? "all" : dateFilterByBoard.today;
+  const calendarDateFilter =
+    todaySearchOpen ||
+    dateFilterByBoard.today === "today" ||
+    dateFilterByBoard.today === "tomorrow"
+      ? "all"
+      : dateFilterByBoard.today;
   const filteredTodayTasks = useMemo(
     () =>
       applyBoardDateSort(
@@ -280,7 +288,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
+          todayListDateFilter,
         ),
         todayDateSort,
       ),
@@ -290,7 +298,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      todayListDateFilter,
       todayDateSort,
     ],
   );
@@ -304,9 +312,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         ),
         tagByBoard.today,
         priorityOnlyByBoard.today,
-        dateFilterByBoard.today === "today" || dateFilterByBoard.today === "tomorrow"
-          ? "all"
-          : dateFilterByBoard.today,
+        calendarDateFilter,
       ),
     [
       inbox,
@@ -316,7 +322,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      calendarDateFilter,
     ],
   );
   const calendarSearchFocusYmd = useMemo(() => {
@@ -332,7 +338,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
+          todayListDateFilter,
         ),
         todayDateSort,
       ),
@@ -342,7 +348,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      todayListDateFilter,
       todayDateSort,
     ],
   );
@@ -353,7 +359,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
+          todayListDateFilter,
         ),
         todayDateSort,
       ),
@@ -363,7 +369,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      todayListDateFilter,
       todayDateSort,
     ],
   );

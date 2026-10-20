@@ -573,10 +573,66 @@ export function uniqueCalendarSearchHits(
       ...hit,
       extraDayCount: Math.max(0, (dayCount.get(hit.item.id) ?? 1) - 1),
     }))
-    .sort(
-      (left, right) =>
-        left.ymd.localeCompare(right.ymd) || Date.parse(left.dueIso) - Date.parse(right.dueIso),
-    );
+    .sort(compareCalendarSearchHits);
+}
+
+export const CALENDAR_UNDATED_SEARCH_GROUP = "undated";
+
+function compareCalendarSearchHits(left: CalendarSearchHit, right: CalendarSearchHit): number {
+  if (!left.ymd && right.ymd) return 1;
+  if (left.ymd && !right.ymd) return -1;
+  const byDay = left.ymd.localeCompare(right.ymd);
+  if (byDay !== 0) return byDay;
+  const leftMs = Date.parse(left.dueIso);
+  const rightMs = Date.parse(right.dueIso);
+  const leftTime = Number.isFinite(leftMs) ? leftMs : 0;
+  const rightTime = Number.isFinite(rightMs) ? rightMs : 0;
+  if (leftTime !== rightTime) return leftTime - rightTime;
+  return (left.item.title ?? "").localeCompare(right.item.title ?? "", "he");
+}
+
+/**
+ * Search hits for every matching board item — dated or not, any month.
+ * List/squares search must not lose items just because the calendar has no day cell.
+ */
+export function calendarSearchHitsFromItems(
+  items: MindtaskerItem[],
+  preferYmd: string,
+): CalendarSearchHit[] {
+  const hits: CalendarSearchHit[] = [];
+  for (const item of items) {
+    const due = calendarItemDueIso(item);
+    if (!due) {
+      hits.push({
+        item,
+        dueIso: "",
+        ymd: "",
+        extraDayCount: 0,
+      });
+      continue;
+    }
+    const seedYmd = taskCalendarDayKey(due);
+    if (!seedYmd) {
+      hits.push({
+        item,
+        dueIso: due,
+        ymd: "",
+        extraDayCount: 0,
+      });
+      continue;
+    }
+    const recurrence = calendarItemRecurrence(item.metadata);
+    const ymd = recurrence
+      ? firstOccurrenceOnOrAfter(seedYmd, recurrence, preferYmd || seedYmd)
+      : seedYmd;
+    hits.push({
+      item,
+      dueIso: dueIsoOnYmd(due, ymd),
+      ymd,
+      extraDayCount: recurrence ? 1 : 0,
+    });
+  }
+  return hits.sort(compareCalendarSearchHits);
 }
 
 export function groupCalendarSearchHitsByDay(
