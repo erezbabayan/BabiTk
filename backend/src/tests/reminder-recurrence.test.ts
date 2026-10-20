@@ -8,11 +8,13 @@ import {
   buildInferredReminderPatch,
   buildManualReminderPatch,
   defaultTomorrowReminderIso,
+  snoozePresetIsos,
   getReminderRecurrence,
   listReminderOccurrencesInRange,
   nextActiveDueDate,
   previousReminderDueDate,
 } from "../../../convex/lib/resolveItemReminder.js";
+import { getZonedParts } from "../../../convex/lib/ingest/timezone.js";
 import * as backendCopy from "../lib/reminderRecurrence.js";
 
 const TZ = "Asia/Jerusalem";
@@ -277,6 +279,20 @@ describe("alert snooze from reminder popup", () => {
       alertSnoozeDueAt("tomorrow", now, TZ),
       defaultTomorrowReminderIso(TZ, now),
     );
+  });
+
+  it("board chips use 09:00 Asia/Jerusalem, not the device clock", () => {
+    const now = new Date("2026-06-18T22:30:00.000Z");
+    const presets = snoozePresetIsos(now, TZ);
+    const morning = getZonedParts(new Date(presets.tomorrowMorning), TZ);
+    assert.equal(morning.year, 2026);
+    assert.equal(morning.month, 6);
+    assert.equal(morning.day, 20);
+    assert.equal(morning.hour, 9);
+    assert.equal(morning.minute, 0);
+    const week = getZonedParts(new Date(presets.nextWeek), TZ);
+    assert.equal(week.day, 26);
+    assert.equal(week.hour, 9);
   });
 
   it("clears reminder_sent so the snoozed time can fire again", () => {

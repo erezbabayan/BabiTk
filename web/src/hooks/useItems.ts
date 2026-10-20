@@ -16,6 +16,7 @@ import {
   buildClearReminderPatch,
   buildManualReminderPatch,
   buildTaskReminderUpdate,
+  snoozePresetIsos,
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
 import { dispatchWhatsAppItemReminder } from "../lib/whatsapp-reminders";
@@ -1007,41 +1008,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 export function snoozePresets() {
-
-  const now = new Date();
-
-  return {
-
-    in1Minute: new Date(now.getTime() + 60_000).toISOString(),
-
-    in3Hours: new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString(),
-
-    tomorrowMorning: (() => {
-
-      const d = new Date(now);
-
-      d.setDate(d.getDate() + 1);
-
-      d.setHours(9, 0, 0, 0);
-
-      return d.toISOString();
-
-    })(),
-
-    nextWeek: (() => {
-
-      const d = new Date(now);
-
-      d.setDate(d.getDate() + 7);
-
-      d.setHours(9, 0, 0, 0);
-
-      return d.toISOString();
-
-    })(),
-
-  };
-
+  return snoozePresetIsos();
 }
 
 
