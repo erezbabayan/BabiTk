@@ -13,10 +13,12 @@ import {
 import {
   isPersonalCaptureLabel,
   listCaptureGroups,
+  parseGroupChatId,
   resolveCaptureGroup,
   type GreenApiGroup,
 } from "../lib/whatsapp-capture-groups";
 import { catchUpWhatsAppGroupInbox } from "../lib/whatsapp-group-catchup";
+import { SEND_GROUP_MESSAGE_HINT } from "../lib/whatsapp-live-capture-gate";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 import { WhatsAppWebhookDeployBanner } from "./WhatsAppWebhookDeployBanner";
 
@@ -183,20 +185,39 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     setError(null);
     setMessage(null);
     try {
-      const matched = await resolveCaptureGroup(name);
-      const next = await updateCloudUserProfile({
-        whatsapp_capture_group_name: matched.name,
-        whatsapp_capture_group_chat_id: matched.chatId,
-        notify_whatsapp_group: true,
-      });
-      setProfile(next);
-      setGroupName(matched.name);
+      let matched: GreenApiGroup | null = null;
+      try {
+        matched = await resolveCaptureGroup(name);
+      } catch {
+        const pasted = parseGroupChatId(name);
+        matched = pasted ? { chatId: pasted, name } : null;
+      }
+      if (matched?.chatId.toLowerCase().endsWith("@g.us")) {
+        const next = await updateCloudUserProfile({
+          whatsapp_capture_group_name: matched.name,
+          whatsapp_capture_group_chat_id: matched.chatId,
+          notify_whatsapp_group: true,
+        });
+        setProfile(next);
+        setGroupName(matched.name);
+        const pulled = await catchUpWhatsAppGroupInbox();
+        setMessage(
+          pulled.inserted > 0
+            ? `הקבוצה «${matched.name}» נשמרה. נקלטו ${pulled.inserted} משימות למחברת.`
+            : `הקבוצה «${matched.name}» נשמרה וקליטה פעילה.`,
+        );
+        return;
+      }
       const pulled = await catchUpWhatsAppGroupInbox();
-      setMessage(
-        pulled.inserted > 0
-          ? `הקבוצה «${matched.name}» נשמרה. נקלטו ${pulled.inserted} משימות למחברת.`
-          : `הקבוצה «${matched.name}» נשמרה וקליטה פעילה.`,
-      );
+      const next = await refresh();
+      setGroupName(name);
+      if (pulled.inserted > 0) {
+        setMessage(`נקלטו ${pulled.inserted} משימות מקבוצת הוואטסאפ למחברת.`);
+      } else if (next.whatsapp_capture_group_chat_id?.toLowerCase().endsWith("@g.us")) {
+        setMessage(`הקבוצה נקשרה. ${SEND_GROUP_MESSAGE_HINT}`);
+      } else {
+        setMessage(SEND_GROUP_MESSAGE_HINT);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת הקבוצה");
     } finally {
@@ -213,7 +234,9 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
       setMessage(
         pulled.inserted > 0
           ? `נקלטו ${pulled.inserted} משימות מקבוצת הוואטסאפ למחברת.`
-          : "לא מצאתי משימות חדשות מהקבוצה בשבוע האחרון.",
+          : pulled.needsGroupPost
+            ? SEND_GROUP_MESSAGE_HINT
+            : "לא מצאתי משימות חדשות מהקבוצה בשבוע האחרון.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "משיכת המשימות מהקבוצה נכשלה");
@@ -494,7 +517,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
           <p className="text-[11px] text-sky-800">נמצאו {groupOptions.length} קבוצות בחיבור הוואטסאפ</p>
         ) : (
           <p className="text-[11px] text-sky-800">
-            אם הרשימה ריקה אפשר להדביק מזהה קבוצה שמסתיים ב-@g.us
+            אם הרשימה ריקה שלחו הודעה בקבוצה מהוואטסאפ שמחובר, או הדביקו מזהה שמסתיים ב-@g.us
           </p>
         )}
         <button

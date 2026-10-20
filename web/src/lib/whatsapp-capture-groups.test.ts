@@ -14,6 +14,11 @@ import {
   selectCatchupMessages,
   shouldCatchupCaptureText,
 } from "../../../supabase/functions/_shared/green-api-chats.ts";
+import {
+  liveCaptureGateBlocksGroup,
+  personalCaptureRepairPatch,
+  PERSONAL_CAPTURE_NAME,
+} from "./whatsapp-live-capture-gate.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -163,6 +168,7 @@ describe("settings persist the group chat id", () => {
     assert.match(source, /whatsapp_capture_group_chat_id: matched.chatId/);
     assert.match(source, /autoBindAttempted/);
     assert.match(source, /catchUpWhatsAppGroupInbox/);
+    assert.match(source, /SEND_GROUP_MESSAGE_HINT/);
     assert.equal(
       source.includes("whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null"),
       false,
@@ -170,11 +176,49 @@ describe("settings persist the group chat id", () => {
   });
 });
 
+describe("live capture gate repair", () => {
+  it("blocks group posts when a custom name is saved on a personal chat id", () => {
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "972501234567@c.us",
+        whatsapp_capture_group_name: "משימות ארז",
+      }),
+      true,
+    );
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "972501234567@c.us",
+        whatsapp_capture_group_name: PERSONAL_CAPTURE_NAME,
+      }),
+      false,
+    );
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "120363aaa@g.us",
+        whatsapp_capture_group_name: "משימות ארז",
+      }),
+      false,
+    );
+  });
+
+  it("keeps the personal chat id and restores the default name", () => {
+    const patch = personalCaptureRepairPatch({
+      phone: "+972501234567",
+      whatsapp_capture_group_chat_id: "972501234567@c.us",
+      whatsapp_capture_group_name: "משימות ארז",
+    });
+    assert.equal(patch.whatsapp_capture_group_chat_id, "972501234567@c.us");
+    assert.equal(patch.whatsapp_capture_group_name, PERSONAL_CAPTURE_NAME);
+  });
+});
+
 describe("server-side group inbox catch-up", () => {
-  it("tries the connect function before Green-API in the browser", () => {
+  it("repairs the live gate and backfills via connect status, not browser Green-API", () => {
     const source = readFileSync(join(here, "whatsapp-group-catchup.ts"), "utf8");
     assert.match(source, /action: "catchupInbox"/);
-    assert.match(source, /row\.catchup !== true/);
+    assert.match(source, /invokeGreenConnect\("status"\)/);
+    assert.match(source, /repairLiveCaptureGateIfNeeded/);
+    assert.equal(source.includes("fetchGreenApiJournalTexts"), false);
   });
 
   it("exposes catchupInbox on the connect function", () => {

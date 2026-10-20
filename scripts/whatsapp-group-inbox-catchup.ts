@@ -233,7 +233,7 @@ async function catchUpUser(
 async function main(): Promise<void> {
   if (!SERVICE_ROLE) {
     console.log(
-      "Skipping — add GitHub secret SUPABASE_SERVICE_ROLE_KEY to pull WhatsApp group tasks into inbox.",
+      "::warning::SUPABASE_SERVICE_ROLE_KEY is empty — scheduled catch-up cannot read gateways. Group inbox uses the live connect backfill instead.",
     );
     return;
   }
