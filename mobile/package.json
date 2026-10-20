@@ -8,7 +8,7 @@
     "start:lan": "node ../scripts/start-expo-lan.mjs",
     "android": "expo start --android --clear",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit && node --experimental-strip-types --test src/lib/item-columns.test.ts"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.94",

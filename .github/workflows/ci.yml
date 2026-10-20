@@ -41,11 +41,11 @@ jobs:
           npm test
           npm run build
 
-      - name: Mobile typecheck
+      - name: Mobile typecheck and unit tests
         working-directory: mobile
         run: |
           npm ci
-          npm run typecheck
+          npm test
 
       - name: Stack smoke checks
         run: node scripts/verify-stack.mjs

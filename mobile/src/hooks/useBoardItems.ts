@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildColumnMovePatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, type DashboardColumn } from "../lib/item-columns";
+import { buildColumnMovePatch, buildPlaceColumnPatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, type DashboardColumn } from "../lib/item-columns";
 import {
   buildArchivePatch,
   buildSoftDeletePatch,
@@ -270,19 +270,24 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   }, [enabled, isOnline, userId]);
 
   const patchItem = useCallback(
-    async (item: MindtaskerItem, patch: Partial<MindtaskerItem>) => {
+    async (
+      item: MindtaskerItem,
+      patch: Partial<MindtaskerItem>,
+      options?: { refresh?: boolean },
+    ) => {
       if (!enabled) return;
+      const shouldRefresh = options?.refresh !== false;
       if (isDemoMode) {
         const showSync = isSyncEnabled();
         if (showSync) setIsSyncing(true);
         try {
           await updateDemoItem(item.id, patch);
           syncVersionRef.current = null;
-          await refresh();
+          if (shouldRefresh) await refresh();
         } catch (error) {
           setSyncError(error instanceof Error ? error.message : "סנכרון נכשל");
           syncVersionRef.current = null;
-          await refresh();
+          if (shouldRefresh) await refresh();
         } finally {
           if (showSync) setIsSyncing(false);
         }
@@ -295,7 +300,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
         .update(patch)
         .eq("id", item.id);
       if (error) throw error;
-      await refresh();
+      if (shouldRefresh) await refresh();
     },
     [enabled, refresh, setIsSyncing],
   );
@@ -549,18 +554,27 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
         }
       }
 
-      const columnPatch =
-        sourceColumn !== targetColumn ? buildColumnMovePatch(targetColumn) : {};
+      const columnPatch = buildPlaceColumnPatch(
+        sourceColumn,
+        targetColumn,
+        item.metadata,
+      );
 
-      for (const [index, entry] of targetList.entries()) {
-        const nextOrder = (index + 1) * 10;
-        const patch: Partial<MindtaskerItem> = { sort_order: nextOrder };
-        if (entry.id === itemId) {
-          Object.assign(patch, columnPatch);
+      let changed = false;
+      try {
+        for (const [index, entry] of targetList.entries()) {
+          const nextOrder = (index + 1) * 10;
+          const patch: Partial<MindtaskerItem> = { sort_order: nextOrder };
+          if (entry.id === itemId) {
+            Object.assign(patch, columnPatch);
+          }
+          if ((entry.sort_order ?? 0) !== nextOrder || entry.id === itemId) {
+            await patchItem(entry, patch, { refresh: false });
+            changed = true;
+          }
         }
-        if ((entry.sort_order ?? 0) !== nextOrder || entry.id === itemId) {
-          await patchItem(entry, patch);
-        }
+      } finally {
+        if (changed) await refresh();
       }
     },
     updateTags: (item: MindtaskerItem, tags: string[]) =>
