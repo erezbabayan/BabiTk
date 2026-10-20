@@ -246,6 +246,28 @@ body {
   color: #1c1917;
 }
 
+.system-activity-filters {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.system-activity-dates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.system-activity-export {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .board-view-toggle {
   @apply inline-flex items-center gap-1.5 border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:text-sm;
 }

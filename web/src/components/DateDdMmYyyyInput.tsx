@@ -46,7 +46,7 @@ export function DateDdMmYyyyInput({
   }
 
   return (
-    <div className="relative">
+    <div className="relative w-full min-w-0">
       <input
         type="text"
         inputMode="numeric"

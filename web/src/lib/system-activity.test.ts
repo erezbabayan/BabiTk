@@ -207,5 +207,11 @@ describe("system activity board placement", () => {
     assert.match(panel, /ייצוא לאקסל/);
     assert.match(panel, /מתאריך/);
     assert.match(panel, /עד תאריך/);
+    assert.match(panel, /data-babitk-activity="dates"/);
+    assert.match(panel, /system-activity-dates/);
+    assert.match(panel, /system-activity-filters/);
+    const css = readFileSync(join(here, "../index.css"), "utf8");
+    assert.match(css, /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/);
+    assert.match(css, /\.system-activity-dates \{[\s\S]*grid-template-columns/);
   });
 });
