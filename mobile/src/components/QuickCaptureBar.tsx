@@ -76,7 +76,8 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
     const trimmed = text.trim();
     if (trimmed.length < 3) return;
 
-    setLoading(true);
+    setText("");
+    const startedAt = Date.now();
     try {
       if (isDemoMode && !isSyncEnabled()) {
         const parsed = parseCaptureText(trimmed);
@@ -87,11 +88,15 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
         await ingestText(trimmed, userId);
         await onAfterCapture?.();
       }
-      setText("");
+      console.info(
+        `[ingest-timing] ${JSON.stringify({
+          path: "mobile-text",
+          totalMs: Date.now() - startedAt,
+        })}`,
+      );
     } catch (err) {
+      setText((current) => (current.trim() ? current : trimmed));
       Alert.alert("שגיאה", formatCaptureError(err, "קליטה נכשלה"));
-    } finally {
-      setLoading(false);
     }
   }
 

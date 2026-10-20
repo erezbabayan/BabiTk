@@ -20,6 +20,7 @@ import {
   type UserTag,
 } from "../lib/tags";
 import { isSyncEnabled } from "../lib/sync-client";
+import { publishAllowedTagNames } from "../lib/allowed-tags-cache";
 import { isDemoMode } from "../lib/supabase";
 import {
   demoTagsLocal,
@@ -41,7 +42,13 @@ interface UserTagsContextValue {
 
 const UserTagsContext = createContext<UserTagsContextValue | null>(null);
 
-function LegacyUserTagsProvider({ children }: { children: ReactNode }) {
+function LegacyUserTagsProvider({
+  children,
+  userId,
+}: {
+  children: ReactNode;
+  userId?: string | null;
+}) {
   const syncedDemoTags = isDemoMode && isSyncEnabled();
   const [tags, setTags] = useState<UserTag[]>(() => demoTagsLocal());
   const [loading, setLoading] = useState(true);
@@ -161,6 +168,14 @@ function LegacyUserTagsProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   useEffect(() => {
+    if (!userId) return;
+    publishAllowedTagNames(
+      userId,
+      tags.map((tag) => tag.name),
+    );
+  }, [userId, tags]);
+
+  useEffect(() => {
     if (!ready) return;
     if (isSyncEnabled()) return;
     let cancelled = false;
@@ -199,12 +214,13 @@ function LegacyUserTagsProvider({ children }: { children: ReactNode }) {
 
 export function UserTagsProvider({
   children,
+  userId,
 }: {
   children: ReactNode;
   userId?: string | null;
   userEmail?: string;
 }) {
-  return <LegacyUserTagsProvider>{children}</LegacyUserTagsProvider>;
+  return <LegacyUserTagsProvider userId={userId}>{children}</LegacyUserTagsProvider>;
 }
 
 export function useUserTags(): UserTagsContextValue {
