@@ -257,6 +257,11 @@ describe("normalizePhone", () => {
   it("preserves international format", () => {
     assert.equal(normalizePhone("+14155552671"), "+14155552671");
   });
+
+  it("strips WhatsApp multi-device suffix before E.164", () => {
+    assert.equal(normalizePhone("972501234567:31@c.us"), "+972501234567");
+    assert.equal(normalizePhone("+972501234567:12@s.whatsapp.net"), "+972501234567");
+  });
 });
 
 describe("parseInputLocally", () => {
