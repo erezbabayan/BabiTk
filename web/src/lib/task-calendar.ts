@@ -637,6 +637,14 @@ export function calendarSearchHitsFromItems(
   return hits.sort(compareCalendarSearchHits);
 }
 
+/** Month/day to open in tag or search match mode — first row under the calendar. */
+export function firstCalendarMatchYmd(
+  items: MindtaskerItem[],
+  preferYmd: string,
+): string | null {
+  return calendarSearchHitsFromItems(items, preferYmd)[0]?.ymd ?? null;
+}
+
 export function groupCalendarSearchHitsByDay(
   hits: CalendarSearchHit[],
 ): Array<{ ymd: string; hits: CalendarSearchHit[] }> {

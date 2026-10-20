@@ -40,12 +40,23 @@ export function filterItemsByQuery(
   );
 }
 
+export function itemHasTag(
+  item: { tags?: string[] | null },
+  tag: string,
+): boolean {
+  const wanted = normalizeTagName(tag).toLowerCase();
+  if (!wanted) return false;
+  return (item.tags ?? []).some(
+    (entry) => normalizeTagName(entry).toLowerCase() === wanted,
+  );
+}
+
 export function filterItemsByTag(
   items: MindtaskerItem[],
   tag: string | null,
 ): MindtaskerItem[] {
   if (!tag) return items;
-  return items.filter((item) => item.tags.includes(tag));
+  return items.filter((item) => itemHasTag(item, tag));
 }
 
 export function itemDueTimestamp(

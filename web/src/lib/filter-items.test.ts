@@ -181,5 +181,15 @@ describe("isUnboundedBoardMatch", () => {
       applyBoardItemFilters(items, "בית", false, "overdue", now).map((entry) => entry.id),
       ["tagged-overdue"],
     );
+    assert.deepEqual(
+      applyBoardItemFilters(
+        [item({ id: "hash", tags: ["#בית"], due_date: null })],
+        "בית",
+        false,
+        "all",
+        now,
+      ).map((entry) => entry.id),
+      ["hash"],
+    );
   });
 });

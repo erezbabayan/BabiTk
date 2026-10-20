@@ -266,7 +266,9 @@ export function TaskMonthCalendar({
       dir="rtl"
       data-babitk-calendar="month"
       data-babitk-calendar-focus={selectedYmd || undefined}
-      data-babitk-calendar-search={searching ? searchQuery.trim() : undefined}
+      data-babitk-calendar-search={
+        searching ? searchQuery.trim() || "match" : undefined
+      }
     >
       <div className="flex items-center justify-between gap-2" dir="ltr">
         <button

@@ -15,6 +15,7 @@ import {
   calendarTasks,
   calendarOccurrenceYmds,
   firstBusyCalendarYmd,
+  firstCalendarMatchYmd,
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
   uniqueCalendarSearchHits,
@@ -295,6 +296,28 @@ describe("BabiTk task calendar", () => {
     assert.equal(groups[1]?.ymd, "2026-10-16");
     assert.match(calendarDayDotClass(false, { searchHit: true }), /bg-red-500/);
     assert.match(calendarDayDotClass(false, { searchHit: true }), /babitk-calendar-dot--search/);
+  });
+
+  it("opens tag/search match mode on the first listed result, even when it is in the past", () => {
+    const ymd = firstCalendarMatchYmd(
+      [
+        item({
+          id: "old",
+          title: "סגירת פרויקט",
+          tags: ["עבודה"],
+          due_date: "2026-07-21T09:00:00+03:00",
+        }),
+        item({
+          id: "daily",
+          title: "תזכורת יומית",
+          tags: ["עבודה"],
+          due_date: "2026-07-20T09:00:00+03:00",
+          metadata: { reminder_recurrence: "daily" },
+        }),
+      ],
+      "2026-10-20",
+    );
+    assert.equal(ymd, "2026-07-21");
   });
 
   it("lists every match under the calendar with a date, including created_at fallback", () => {

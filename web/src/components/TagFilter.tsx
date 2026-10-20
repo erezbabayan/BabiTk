@@ -145,7 +145,10 @@ export function TagFilter({ tags, selected, onSelect, userTags = [] }: TagFilter
             <TagFilterPanel
               tags={tags}
               selected={selected}
-              onSelect={onSelect}
+              onSelect={(tag) => {
+                onSelect(tag);
+                setOpen(false);
+              }}
               userTags={userTags}
               panelRef={panelRef}
               style={panelStyle}

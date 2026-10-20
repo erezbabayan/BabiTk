@@ -42,7 +42,8 @@ describe("task board view", () => {
     assert.match(dashboard, /query: todaySearch\.activeQuery/);
     assert.match(dashboard, /inboxWideMatch/);
     assert.match(dashboard, /notesWideMatch/);
-    assert.match(dashboard, /firstBusyCalendarYmd/);
+    assert.match(dashboard, /firstCalendarMatchYmd/);
+    assert.match(dashboard, /todayWideMatch[\s\S]*calendarSearchFocusYmd/);
     assert.match(calendar, /searching = listAllMatches \|\| searchQuery\.trim\(\)\.length > 0/);
     assert.match(calendar, /searchQuery/);
     assert.match(calendar, /listAllMatches/);

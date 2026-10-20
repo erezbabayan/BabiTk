@@ -69,7 +69,7 @@ import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
 import {
   calendarChipFocusYmd,
-  firstBusyCalendarYmd,
+  firstCalendarMatchYmd,
   OPEN_TASK_CALENDAR_EVENT,
   taskCalendarDayKey,
 } from "../lib/task-calendar";
@@ -335,7 +335,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     if (!todayWideMatch) return null;
     const today = taskCalendarDayKey(new Date());
     if (!today) return null;
-    return firstBusyCalendarYmd(calendarBoardItems, today);
+    return firstCalendarMatchYmd(calendarBoardItems, today);
   }, [calendarBoardItems, todayWideMatch]);
   const taskArchiveItems = useMemo(
     () => mergeTaskArchiveItems(inboxArchive, completedTasks),
@@ -1288,7 +1288,9 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                   <TaskMonthCalendar
                     items={calendarBoardItems}
                     focusYmd={
-                      calendarChipFocusYmd(dateFilterByBoard.today) ?? calendarSearchFocusYmd
+                      todayWideMatch
+                        ? calendarSearchFocusYmd
+                        : calendarChipFocusYmd(dateFilterByBoard.today)
                     }
                     searchQuery={todaySearch.activeQuery}
                     listAllMatches={todayWideMatch}
