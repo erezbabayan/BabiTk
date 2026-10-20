@@ -139,6 +139,14 @@ export function boardFiltersActive(options: {
   );
 }
 
+/** Search or tag filter lists every match across views, ignoring date chips. */
+export function isUnboundedBoardMatch(options: {
+  query?: string;
+  tag?: string | null;
+}): boolean {
+  return Boolean(options.query?.trim() || options.tag);
+}
+
 export function collectTags(items: MindtaskerItem[]): string[] {
   const set = new Set<string>();
   items.forEach((item) => (item.tags ?? []).forEach((tag) => set.add(tag)));

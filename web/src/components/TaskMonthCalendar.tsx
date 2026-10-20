@@ -37,6 +37,8 @@ interface TaskMonthCalendarProps {
   items: MindtaskerItem[];
   focusYmd?: string | null;
   searchQuery?: string;
+  /** Tag (or other) filter: list every match under the calendar, like search. */
+  listAllMatches?: boolean;
   onSelectItem?: (item: MindtaskerItem) => void;
   onArchive?: (item: MindtaskerItem) => void;
   onDelete?: (item: MindtaskerItem) => void;
@@ -145,6 +147,7 @@ export function TaskMonthCalendar({
   items,
   focusYmd = null,
   searchQuery = "",
+  listAllMatches = false,
   onSelectItem,
   onArchive,
   onDelete,
@@ -152,7 +155,7 @@ export function TaskMonthCalendar({
   swipeDisabled = false,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
-  const searching = searchQuery.trim().length > 0;
+  const searching = listAllMatches || searchQuery.trim().length > 0;
   const [{ year, month }, setCursor] = useState(initialMonth);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
 
@@ -378,7 +381,7 @@ export function TaskMonthCalendar({
         {searching ? (
           searchHits.length === 0 ? (
             <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-              אין משימות מתאימות לחיפוש.
+              אין משימות מתאימות.
             </p>
           ) : (
             <div className="space-y-3" data-babitk-calendar-search-results="true">

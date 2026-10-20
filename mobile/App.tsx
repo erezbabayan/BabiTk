@@ -70,7 +70,7 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
-import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
+import { applyBoardItemFilters, boardFiltersActive, isUnboundedBoardMatch, type BoardDateFilter } from "./src/lib/filter-items";
 import { parseChecklist, toggleChecklistEntry } from "./src/lib/checklist";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
@@ -286,11 +286,15 @@ function MainAppInner({
 
   const displayItems = useMemo(() => {
     const merged = mergeSearchResults(rawItems, boardSearch.activeQuery, boardSearch.semanticHits);
+    const unbounded = isUnboundedBoardMatch({
+      query: boardSearch.activeQuery,
+      tag: selectedTag,
+    });
     const filtered = applyBoardItemFilters(
       merged,
       selectedTag,
       priorityOnly,
-      dateFilter,
+      unbounded ? "all" : dateFilter,
     );
     return applyBoardDateSort(filtered, dateSortByTab[tab]);
   }, [

@@ -30,6 +30,7 @@ import {
 import {
   applyBoardItemFilters,
   boardFiltersActive,
+  isUnboundedBoardMatch,
   type BoardDateFilter,
 } from "../lib/filter-items";
 import { isPriorityItem } from "../lib/item-priority";
@@ -244,6 +245,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const lastDragXRef = useRef(0);
   const boardItemsByIdRef = useRef(new Map<string, MindtaskerItem>());
 
+  const inboxWideMatch = isUnboundedBoardMatch({
+    query: inboxSearch.activeQuery,
+    tag: tagByBoard.inbox,
+  });
+  const inboxListDateFilter = inboxWideMatch ? "all" : dateFilterByBoard.inbox;
   const filteredInbox = useMemo(
     () =>
       applyBoardDateSort(
@@ -251,11 +257,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inbox, inboxSearch.activeQuery, inboxSearch.semanticHits),
           tagByBoard.inbox,
           priorityOnlyByBoard.inbox,
-          dateFilterByBoard.inbox,
+          inboxListDateFilter,
         ),
         inboxDateSort,
       ),
-    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
+    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, inboxListDateFilter, inboxDateSort],
   );
   const filteredInboxArchive = useMemo(
     () =>
@@ -264,16 +270,19 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits),
           tagByBoard.inbox,
           priorityOnlyByBoard.inbox,
-          dateFilterByBoard.inbox,
+          inboxListDateFilter,
         ),
         inboxDateSort,
       ),
-    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
+    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, inboxListDateFilter, inboxDateSort],
   );
-  const todaySearchOpen = todaySearch.activeQuery.trim().length > 0;
-  const todayListDateFilter = todaySearchOpen ? "all" : dateFilterByBoard.today;
+  const todayWideMatch = isUnboundedBoardMatch({
+    query: todaySearch.activeQuery,
+    tag: tagByBoard.today,
+  });
+  const todayListDateFilter = todayWideMatch ? "all" : dateFilterByBoard.today;
   const calendarDateFilter =
-    todaySearchOpen ||
+    todayWideMatch ||
     dateFilterByBoard.today === "today" ||
     dateFilterByBoard.today === "tomorrow"
       ? "all"
@@ -323,11 +332,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     ],
   );
   const calendarSearchFocusYmd = useMemo(() => {
-    if (!todaySearch.activeQuery.trim()) return null;
+    if (!todayWideMatch) return null;
     const today = taskCalendarDayKey(new Date());
     if (!today) return null;
     return firstBusyCalendarYmd(calendarBoardItems, today);
-  }, [calendarBoardItems, todaySearch.activeQuery]);
+  }, [calendarBoardItems, todayWideMatch]);
   const taskArchiveItems = useMemo(
     () => mergeTaskArchiveItems(inboxArchive, completedTasks),
     [inboxArchive, completedTasks],
@@ -353,6 +362,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todayDateSort,
     ],
   );
+  const notesWideMatch = isUnboundedBoardMatch({
+    query: notesSearch.activeQuery,
+    tag: tagByBoard.notes,
+  });
+  const notesListDateFilter = notesWideMatch ? "all" : dateFilterByBoard.notes;
   const filteredNotes = useMemo(
     () =>
       applyBoardDateSort(
@@ -360,11 +374,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notes, notesSearch.activeQuery, notesSearch.semanticHits),
           tagByBoard.notes,
           priorityOnlyByBoard.notes,
-          dateFilterByBoard.notes,
+          notesListDateFilter,
         ),
         notesDateSort,
       ),
-    [notes, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
+    [notes, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, notesListDateFilter, notesDateSort],
   );
   const filteredNotesArchive = useMemo(
     () =>
@@ -373,11 +387,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notesArchive, notesSearch.activeQuery, notesSearch.semanticHits),
           tagByBoard.notes,
           priorityOnlyByBoard.notes,
-          dateFilterByBoard.notes,
+          notesListDateFilter,
         ),
         notesDateSort,
       ),
-    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
+    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, notesListDateFilter, notesDateSort],
   );
 
   const filterTags = useBoardFilterTags();
@@ -1277,6 +1291,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                       calendarChipFocusYmd(dateFilterByBoard.today) ?? calendarSearchFocusYmd
                     }
                     searchQuery={todaySearch.activeQuery}
+                    listAllMatches={todayWideMatch}
                     onSelectItem={(item) => setFocusEditItem(item)}
                     onArchive={(item) => void archiveItem(item)}
                     onDelete={confirmDelete}
