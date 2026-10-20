@@ -107,6 +107,84 @@ describe("resolveDueDateFromText", () => {
       null,
     );
   });
+
+  it("keeps bare היום on the Jerusalem calendar day at 09:00", () => {
+    const due = resolveDueDateFromText("לקנות חלב היום", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-18T09:00:00\+03:00/);
+  });
+
+  it("parses מחר and מחרתיים from noon Jerusalem", () => {
+    assert.match(
+      resolveDueDateFromText("מחר", { timezone: TZ, referenceDate: REF })!,
+      /2025-06-19T09:00:00\+03:00/,
+    );
+    assert.match(
+      resolveDueDateFromText("מחרתיים", { timezone: TZ, referenceDate: REF })!,
+      /2025-06-20T09:00:00\+03:00/,
+    );
+  });
+
+  it("parses ביום רביעי as the next Wednesday once 09:00 has passed", () => {
+    const due = resolveDueDateFromText("פגישה ביום רביעי", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-25T09:00:00\+03:00/);
+    const morning = resolveDueDateFromText("פגישה ביום רביעי", {
+      timezone: TZ,
+      referenceDate: new Date("2025-06-18T06:30:00+03:00"),
+    });
+    assert.match(morning!, /2025-06-18T09:00:00\+03:00/);
+  });
+
+  it("parses ב-8 as the next 08:00 in Asia/Jerusalem", () => {
+    const due = resolveDueDateFromText("לקנות חלב ב-8", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-19T08:00:00\+03:00/);
+    assert.equal(extractTimeOfDay("ב-8")?.hour, 8);
+  });
+
+  it("keeps היום ב-8 on today even after that hour passed", () => {
+    const due = resolveDueDateFromText("היום ב-8", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-18T08:00:00\+03:00/);
+  });
+
+  it("parses בעוד שעה from noon as 13:00 Jerusalem", () => {
+    const due = resolveDueDateFromText("להתקשר בעוד שעה", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-18T13:00:00\+03:00/);
+  });
+
+  it("parses שבוע הבא as +7 days at 09:00", () => {
+    const due = resolveDueDateFromText("שבוע הבא", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-25T09:00:00\+03:00/);
+  });
+
+  it("parses an explicit date in Asia/Jerusalem", () => {
+    const due = resolveDueDateFromText("לשלם ב-20/06/2025", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(due!, /2025-06-20T09:00:00\+03:00/);
+    const withTime = resolveDueDateFromText("לשלם 20.6.2025 ב-8", {
+      timezone: TZ,
+      referenceDate: REF,
+    });
+    assert.match(withTime!, /2025-06-20T08:00:00\+03:00/);
+  });
 });
 
 describe("enforceEntityRules", () => {
