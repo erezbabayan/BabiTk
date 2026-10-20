@@ -10,7 +10,7 @@ import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 
 interface ArchivePanelProps {
   items: MindtaskerItem[];
-  variant: "inbox" | "notes";
+  variant: "inbox" | "notes" | "today";
   onRestore: (item: MindtaskerItem) => void;
   onDelete: (item: MindtaskerItem) => void;
   onEdit?: (item: MindtaskerItem, patch: ItemEditInput) => void;
@@ -28,6 +28,8 @@ const EMPTY_MESSAGES: Record<ArchivePanelProps["variant"], string> = {
   inbox:
     "אין פריטים בארכיון. פריטים במחברת שלא נוגעו בהם 48 שעות עוברים לכאן אוטומטית.",
   notes: "אין הערות בארכיון. החלק ימינה למחיקה, שמאלה לשחזור.",
+  today:
+    "אין משימות בארכיון. משימות שהושלמו ומשימות שהועברו לארכיון מופיעות כאן.",
 };
 
 export function ArchivePanel({

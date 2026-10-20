@@ -34,6 +34,7 @@ import {
   buildTaskReminderUpdate,
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
+import { withEditedItemType } from "../lib/item-board-actions";
 import { buildPriorityTogglePatch } from "../lib/item-priority";
 import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 
@@ -350,13 +351,18 @@ function useItemsConvexOnline(
       const title = input.title.trim();
       if (!title) throw new Error("כותרת חובה");
 
+      const typed = withEditedItemType(item, input.is_actionable);
       const patch: Record<string, unknown> = {
         title,
         content: input.content.trim(),
         tags: input.tags,
+        is_actionable: typed.is_actionable,
+        status: typed.status,
+        completed_at: typed.completed_at,
         last_interacted_at: new Date().toISOString(),
+        metadata: typed.metadata,
       };
-      const reminder = buildTaskReminderUpdate(item, {
+      const reminder = buildTaskReminderUpdate(typed, {
         title,
         content: input.content.trim(),
         due_date: input.due_date,
@@ -371,8 +377,8 @@ function useItemsConvexOnline(
       if (reminder.dueDate) {
         try {
           await ensureSoonReminder({
-            kind: item.is_actionable ? "task" : "notebook",
-            ...(item.is_actionable
+            kind: typed.is_actionable ? "task" : "notebook",
+            ...(typed.is_actionable
               ? { taskId: asConvexItemId(item.id) as Id<"tasks"> }
               : { notebookId: asConvexItemId(item.id) as Id<"notebooks"> }),
             title,

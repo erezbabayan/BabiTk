@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   isActiveBoardItem,
+  isTaskArchiveItem,
   itemsInColumn,
+  mergeTaskArchiveItems,
 } from "./item-columns.ts";
 import type { MindtaskerItem } from "../types.ts";
 
@@ -51,6 +53,41 @@ describe("board columns hide deleted items", () => {
     assert.deepEqual(
       itemsInColumn(rows, "inbox").map((row) => row.id),
       ["alive"],
+    );
+  });
+});
+
+describe("task archive unifies completed and snoozed items", () => {
+  it("includes completed and archived tasks, not notes or active tasks", () => {
+    assert.equal(
+      isTaskArchiveItem(item({ is_actionable: true, status: "completed" })),
+      true,
+    );
+    assert.equal(
+      isTaskArchiveItem(item({ is_actionable: true, status: "snoozed_archive" })),
+      true,
+    );
+    assert.equal(
+      isTaskArchiveItem(item({ is_actionable: true, status: "pending" })),
+      false,
+    );
+    assert.equal(
+      isTaskArchiveItem(item({ is_actionable: false, status: "snoozed_archive" })),
+      false,
+    );
+  });
+
+  it("merges completed tasks into the archive without duplicate ids", () => {
+    const archived = [
+      item({ id: "a", is_actionable: true, status: "snoozed_archive" }),
+    ];
+    const completed = [
+      item({ id: "a", is_actionable: true, status: "completed" }),
+      item({ id: "b", is_actionable: true, status: "completed" }),
+    ];
+    assert.deepEqual(
+      mergeTaskArchiveItems(archived, completed).map((row) => row.id),
+      ["a", "b"],
     );
   });
 });

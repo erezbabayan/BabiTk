@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent } from "react";
 import { ArchivePanel } from "./ArchivePanel";
-import { CompletedPanel } from "./CompletedPanel";
 import { ColumnSearch } from "./ColumnSearch";
 import { ColumnBoardHeader } from "./ColumnBoardHeader";
 import { ColumnDropZone } from "./ColumnDropZone";
@@ -52,7 +51,7 @@ import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-la
 import { BoardDateSortButton } from "./BoardDateSortButton";
 import { BoardMobileTabs } from "./BoardMobileTabs";
 import { MAX_ITEM_TAGS, alignItemTagsWithDefinitions } from "../lib/tags";
-import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
+import { getItemColumn, mergeTaskArchiveItems, type DashboardColumn } from "../lib/item-columns";
 import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
@@ -86,7 +85,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const isDesktop = useIsDesktopBoard();
   const [showArchive, setShowArchive] = useState(false);
   const [showTasksArchive, setShowTasksArchive] = useState(false);
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [showNotesArchive, setShowNotesArchive] = useState(false);
   const [showTaskLists, setShowTaskLists] = useState(false);
   const {
@@ -118,7 +116,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   } = useItems(userId, undefined, {
     inboxArchive: showArchive || showTasksArchive || showTaskLists,
     notesArchive: showNotesArchive,
-    completed: showCompletedTasks || showTaskLists,
+    completed: showTasksArchive || showTaskLists,
   });
   const { tags: userTags, addTag } = useUserTags();
   const taskLists = useTaskLists(userId);
@@ -222,7 +220,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     function onOpenCalendar() {
       setShowTaskCalendar(true);
       setShowTasksArchive(false);
-      setShowCompletedTasks(false);
       setMobileTab("today");
     }
     window.addEventListener(OPEN_TASK_CALENDAR_EVENT, onOpenCalendar);
@@ -331,11 +328,15 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     if (!today) return null;
     return firstBusyCalendarYmd(calendarBoardItems, today);
   }, [calendarBoardItems, todaySearch.activeQuery]);
+  const taskArchiveItems = useMemo(
+    () => mergeTaskArchiveItems(inboxArchive, completedTasks),
+    [inboxArchive, completedTasks],
+  );
   const filteredTasksArchive = useMemo(
     () =>
       applyBoardDateSort(
         applyBoardItemFilters(
-          mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
+          mergeSearchResults(taskArchiveItems, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
           todayListDateFilter,
@@ -343,28 +344,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         todayDateSort,
       ),
     [
-      inboxArchive,
-      todaySearch.activeQuery,
-      todaySearch.semanticHits,
-      tagByBoard.today,
-      priorityOnlyByBoard.today,
-      todayListDateFilter,
-      todayDateSort,
-    ],
-  );
-  const filteredCompletedTasks = useMemo(
-    () =>
-      applyBoardDateSort(
-        applyBoardItemFilters(
-          mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
-          tagByBoard.today,
-          priorityOnlyByBoard.today,
-          todayListDateFilter,
-        ),
-        todayDateSort,
-      ),
-    [
-      completedTasks,
+      taskArchiveItems,
       todaySearch.activeQuery,
       todaySearch.semanticHits,
       tagByBoard.today,
@@ -533,7 +513,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const resetHomeView = useCallback(() => {
     setShowArchive(false);
     setShowTasksArchive(false);
-    setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
     setShowTaskCalendar(true);
@@ -916,15 +895,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const dragging = draggingId !== null;
   const todayListView: "active" | "archive" | "completed" = showTasksArchive
     ? "archive"
-    : showCompletedTasks
-      ? "completed"
-      : "active";
+    : "active";
+  const taskArchiveCount = taskArchiveItems.length;
   const todayItemCount =
-    todayListView === "archive"
-      ? inboxArchive.length
-      : todayListView === "completed"
-        ? completedTasks.length
-        : todayTasks.length;
+    todayListView === "archive" ? taskArchiveCount : todayTasks.length;
   const inboxItemCount = showArchive ? inboxArchive.length : inbox.length;
   const notesItemCount = showNotesArchive ? notesArchive.length : notes.length;
 
@@ -1212,62 +1186,28 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 />
               }
               toolbarExtra={selectToggleButton(
-                todayListView === "archive"
-                  ? "today-archive"
-                  : todayListView === "completed"
-                    ? "today-completed"
-                    : "today-active",
+                todayListView === "archive" ? "today-archive" : "today-active",
                 "blue",
               )}
               action={
-                <>
-                  {showCompletedTasks ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        exitSelect();
-                        setShowCompletedTasks(false);
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      חזור
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (showTasksArchive) {
-                          setShowTasksArchive(false);
-                          exitSelect();
-                        } else {
-                          setShowTasksArchive(true);
-                          setShowTaskCalendar(false);
-                          setShowArchive(false);
-                          setShowNotesArchive(false);
-                          setShowCompletedTasks(false);
-                          exitSelect();
-                        }
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      {showTasksArchive ? "חזור" : `ארכיון (${inboxArchive.length})`}
-                    </button>
-                  )}
-                  {todayListView === "active" && completedTasks.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCompletedTasks(true);
-                        setShowTaskCalendar(false);
-                        setShowTasksArchive(false);
-                        exitSelect();
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      הושלמו ({completedTasks.length})
-                    </button>
-                  ) : null}
-                </>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showTasksArchive) {
+                      setShowTasksArchive(false);
+                      exitSelect();
+                    } else {
+                      setShowTasksArchive(true);
+                      setShowTaskCalendar(false);
+                      setShowArchive(false);
+                      setShowNotesArchive(false);
+                      exitSelect();
+                    }
+                  }}
+                  className={boardToolbarButtonClass("blue")}
+                >
+                  {showTasksArchive ? "חזור" : `ארכיון (${taskArchiveCount})`}
+                </button>
               }
               toolbarLeading={
                 todayListView === "active" && taskLists.enabled ? (
@@ -1290,16 +1230,8 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             />
             {renderBoardFilters("today")}
             {showTaskCalendar && todayListView === "active" ? null : renderBulkBar(
-              todayListView === "archive"
-                ? "today-archive"
-                : todayListView === "completed"
-                  ? "today-completed"
-                  : "today-active",
-              todayListView === "archive"
-                ? filteredTasksArchive
-                : todayListView === "completed"
-                  ? filteredCompletedTasks
-                  : filteredTodayTasks,
+              todayListView === "archive" ? "today-archive" : "today-active",
+              todayListView === "archive" ? filteredTasksArchive : filteredTodayTasks,
               "blue",
             )}
             <ColumnDropZone
@@ -1315,8 +1247,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 <MouseDragScroll>
                   <ArchivePanel
                     items={filteredTasksArchive}
-                    variant="inbox"
-                    onRestore={(item) => void restoreArchiveItem(item)}
+                    variant="today"
+                    onRestore={(item) => {
+                      void (item.status === "completed"
+                        ? restoreCompletedTask(item)
+                        : restoreArchiveItem(item));
+                    }}
                     onDelete={confirmDelete}
                     onEdit={(item, patch) => editItem(item, patch)}
                     onTagPress={openTagPicker}
@@ -1329,18 +1265,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     }
                     userTags={userTags}
                     selecting={isSelecting("today-archive")}
-                    selectedIds={selectedIds}
-                    onToggleSelect={(item) => toggleSelect(item.id)}
-                  />
-                </MouseDragScroll>
-              ) : showCompletedTasks ? (
-                <MouseDragScroll>
-                  <CompletedPanel
-                    items={filteredCompletedTasks}
-                    onRestore={(item) => void restoreCompletedTask(item)}
-                    onDelete={confirmDelete}
-                    onEdit={(item, patch) => editItem(item, patch)}
-                    selecting={isSelecting("today-completed")}
                     selectedIds={selectedIds}
                     onToggleSelect={(item) => toggleSelect(item.id)}
                   />

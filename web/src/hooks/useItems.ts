@@ -4,6 +4,7 @@ import {
   buildApproveInboxPatch,
   buildCompleteTaskPatch,
   buildToggleActionablePatch,
+  withEditedItemType,
 } from "../lib/item-board-actions";
 import {
   buildArchivePatch,
@@ -623,21 +624,19 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
+      const typed = withEditedItemType(item, input.is_actionable);
       const patch: Record<string, unknown> = {
-
         title,
-
         content: input.content.trim(),
-
         tags: input.tags,
-
+        is_actionable: typed.is_actionable,
+        status: typed.status,
+        completed_at: typed.completed_at,
         last_interacted_at: new Date().toISOString(),
-
+        metadata: typed.metadata,
       };
 
-
-
-      const reminder = buildTaskReminderUpdate(item, {
+      const reminder = buildTaskReminderUpdate(typed, {
         title,
         content: input.content.trim(),
         due_date: input.due_date,
@@ -645,13 +644,10 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       });
 
       patch.due_date = reminder.dueDate;
-
       patch.metadata = reminder.metadata;
       if (input.checklist) {
         patch.metadata = withChecklist(patch.metadata, input.checklist);
       }
-
-
 
       await updateItem(item.id, patch);
 

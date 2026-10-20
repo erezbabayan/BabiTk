@@ -45,10 +45,18 @@ export function buildArchivePatch(item: ItemSnapshot): {
 
 export function resolveRestoreFromArchivePatch(item: ItemSnapshot): {
   status: ItemStatus;
-  metadata: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   completed_at: null;
   last_interacted_at: string;
 } {
+  if (item.status === "completed") {
+    return {
+      status: "pending",
+      completed_at: null,
+      last_interacted_at: new Date().toISOString(),
+    };
+  }
+
   const rawMeta = item.metadata ?? {};
   const saved = rawMeta[PRE_ARCHIVE_STATUS] as ItemStatus | undefined;
   const metadata = withoutKeys(rawMeta, [PRE_ARCHIVE_STATUS]);
