@@ -420,31 +420,27 @@ export function TaskMonthCalendar({
               aria-pressed={selected}
               aria-label={`${cell.day}${hebrewTip ? `, ${hebrewTip}` : ""}${count ? `, ${count} משימות` : ""}`}
             >
-              <span className="flex items-start justify-between gap-0.5 px-0.5 leading-none">
-                <span>{cell.day}</span>
-                {hebrew ? (
-                  <span className="flex flex-col items-center">
-                    <span
-                      className={`text-[9px] font-normal sm:text-[10px] ${
-                        cell.inMonth ? "text-slate-400" : "text-slate-300"
-                      }`}
-                      data-babitk-hebrew-day={hebrew.dayLabel}
-                    >
-                      {hebrew.dayLabel}
-                    </span>
-                    {hebrew.marker ? (
-                      <span
-                        className={`mt-0.5 h-1 w-1 rounded-full ${
-                          hebrew.marker === "holiday" ? "bg-amber-500" : "bg-indigo-300"
-                        }`}
-                        data-babitk-hebrew-marker={hebrew.marker}
-                      />
-                    ) : null}
+              <span className="block px-0.5 leading-none">{cell.day}</span>
+              {hebrew ? (
+                <span className="mt-0.5 flex items-center justify-start gap-0.5 px-0.5">
+                  <span
+                    className={`min-w-0 truncate text-[9px] font-normal leading-none sm:text-[10px] ${
+                      cell.inMonth ? "text-slate-400" : "text-slate-300"
+                    }`}
+                    data-babitk-hebrew-day={hebrew.cellLabel}
+                  >
+                    {hebrew.cellLabel}
                   </span>
-                ) : (
-                  <span />
-                )}
-              </span>
+                  {hebrew.marker ? (
+                    <span
+                      className={`h-1 w-1 shrink-0 rounded-full ${
+                        hebrew.marker === "holiday" ? "bg-amber-500" : "bg-indigo-300"
+                      }`}
+                      data-babitk-hebrew-marker={hebrew.marker}
+                    />
+                  ) : null}
+                </span>
+              ) : null}
               {count > 0 ? (
                 <span className="mt-0.5 flex justify-center gap-0.5">
                   {dayTasks.slice(0, 3).map((entry, index) => {

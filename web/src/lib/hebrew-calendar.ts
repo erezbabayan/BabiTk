@@ -6,8 +6,11 @@ export type HebrewDayMark = {
   ymd: string;
   /** Gematria day only, e.g. ט״ו. */
   dayLabel: string;
+  /** Everyday month name, including אדר א׳ / אדר ב׳ in a leap year. */
   monthLabel: string;
   yearLabel: string;
+  /** Compact cell text: day and month, e.g. ט׳ חשון or א׳ אדר ב׳. */
+  cellLabel: string;
   /** Full date, e.g. ט״ו בתשרי תשפ״ז. */
   full: string;
   /** One holiday name, without vowel marks. */
@@ -38,7 +41,6 @@ function plainHebrew(text: string): string {
     .trim()
     .replaceAll("סכות", "סוכות")
     .replaceAll("כפור", "כיפור")
-    .replaceAll("חשון", "חשוון")
     .replaceAll("הזכרון", "הזיכרון")
     .replace(/\s+\d{4}$/, "");
 }
@@ -88,6 +90,7 @@ export function hebrewDayMark(ymd: string): HebrewDayMark | null {
     dayLabel,
     monthLabel,
     yearLabel,
+    cellLabel: `${dayLabel} ${monthLabel}`,
     full: `${dayLabel} ב${monthLabel} ${yearLabel}`,
     holiday,
     shabbat,

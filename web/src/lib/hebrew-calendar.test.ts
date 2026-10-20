@@ -14,6 +14,7 @@ describe("Hebrew calendar marks", () => {
     const sukkot = hebrewDayMark("2026-09-26");
     assert.ok(sukkot);
     assert.equal(sukkot.dayLabel, "ט״ו");
+    assert.equal(sukkot.cellLabel, "ט״ו תשרי");
     assert.equal(sukkot.monthLabel, "תשרי");
     assert.equal(sukkot.yearLabel, "תשפ״ז");
     assert.equal(sukkot.full, "ט״ו בתשרי תשפ״ז");
@@ -62,7 +63,26 @@ describe("Hebrew calendar marks", () => {
       "אלול תשפ״ו – תשרי תשפ״ז",
     );
     const october = hebrewMonthHeading(2026, 10);
-    assert.equal(october, "תשרי–חשוון תשפ״ז");
+    assert.equal(october, "תשרי–חשון תשפ״ז");
+  });
+
+  it("keeps Adar I and Adar II distinct in a leap year", () => {
+    const plain = hebrewDayMark("2026-02-18");
+    const adar1 = hebrewDayMark("2027-02-08");
+    const adar2 = hebrewDayMark("2027-03-10");
+    const purim = hebrewDayMark("2027-03-23");
+    assert.equal(plain?.monthLabel, "אדר");
+    assert.equal(plain?.cellLabel, "א׳ אדר");
+    assert.equal(adar1?.monthLabel, "אדר א׳");
+    assert.equal(adar1?.cellLabel, "א׳ אדר א׳");
+    assert.equal(adar2?.monthLabel, "אדר ב׳");
+    assert.equal(adar2?.cellLabel, "א׳ אדר ב׳");
+    assert.equal(purim?.cellLabel, "י״ד אדר ב׳");
+    assert.equal(purim?.full, "י״ד באדר ב׳ תשפ״ז");
+    assert.notEqual(adar1?.monthLabel, adar2?.monthLabel);
+    const march = hebrewMonthHeading(2027, 3);
+    assert.match(march, /אדר א׳/);
+    assert.match(march, /אדר ב׳/);
   });
 
   it("returns the same object for the same day", () => {
