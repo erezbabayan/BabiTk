@@ -31,6 +31,14 @@ crons.interval(
   {},
 );
 
+/** Morning briefing and follow-up. No-ops unless WHATSAPP_PROACTIVE_DISPATCHER=convex. */
+crons.interval(
+  "whatsapp proactive briefing",
+  { minutes: 15 },
+  internal.reminders.dispatchProactiveWhatsApp,
+  {},
+);
+
 /**
  * Catch WhatsApp voice/photo/text the webhook may have missed.
  * Poll getChatHistory for the capture group often — yellowCard may drop

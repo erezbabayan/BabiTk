@@ -18,6 +18,24 @@ import {
   CALLMEBOT_ACTIVATE_URL,
 } from "./lib/callMeBot";
 import { normalizePhone } from "./lib/phone";
+import {
+  appendProactiveSlot,
+  buildFollowUpMessage,
+  buildMorningBriefingMessage,
+  clampHour,
+  clampMinute,
+  countProactiveSlots,
+  DEFAULT_BRIEFING_HOUR,
+  DEFAULT_BRIEFING_MINUTE,
+  DEFAULT_FOLLOWUP_HOUR,
+  isProactiveDue,
+  localDateKey as proactiveDateKey,
+  MAX_PROACTIVE_PER_DAY,
+  partitionOpenTasks,
+  proactiveSlotKey,
+  slotAlreadySent,
+  type ProactiveTask,
+} from "./lib/proactive-whatsapp";
 
 const DIGEST_TIMEZONE = "Asia/Jerusalem";
 /** Indexed due-scan page size. A single .take(200) dropped later reminders. */
@@ -2034,5 +2052,149 @@ export const collectTodayDigestForEmail = internalQuery({
       digestDate,
       items,
     };
+  },
+});
+
+const proactiveCandidateValidator = v.object({
+  userId: v.id("users"),
+  phone: v.string(),
+  captureGroupChatId: v.union(v.string(), v.null()),
+  kind: v.union(v.literal("briefing"), v.literal("followup")),
+  hour: v.number(),
+  slotKey: v.string(),
+  slots: v.array(v.string()),
+  tasks: v.array(
+    v.object({
+      id: v.string(),
+      title: v.string(),
+      dueAt: v.union(v.string(), v.null()),
+    }),
+  ),
+});
+
+export const collectProactiveCandidates = internalQuery({
+  args: { nowIso: v.string() },
+  returns: v.array(proactiveCandidateValidator),
+  handler: async (ctx, { nowIso }) => {
+    if ((process.env.WHATSAPP_PROACTIVE_DISPATCHER ?? "").trim() !== "convex") return [];
+    const briefingOn = (process.env.WHATSAPP_MORNING_BRIEFING ?? "").toLowerCase() === "true";
+    const followOn = (process.env.WHATSAPP_FOLLOWUP ?? "").toLowerCase() === "true";
+    if (!briefingOn && !followOn) return [];
+    const now = new Date(nowIso);
+    if (Number.isNaN(now.getTime())) return [];
+    const dateKey = proactiveDateKey(now);
+    const users = await ctx.db.query("users").take(500);
+    const out: Array<{
+      userId: Id<"users">;
+      phone: string;
+      captureGroupChatId: string | null;
+      kind: "briefing" | "followup";
+      hour: number;
+      slotKey: string;
+      slots: string[];
+      tasks: ProactiveTask[];
+    }> = [];
+
+    for (const user of users) {
+      if (!user.phone || user.phoneVerified !== true) continue;
+      if (user.notifyWhatsApp === false) continue;
+      const slots = user.proactiveSlots ?? [];
+      if (countProactiveSlots(slots, dateKey) >= MAX_PROACTIVE_PER_DAY) continue;
+      const tasks: ProactiveTask[] = [];
+      for (const status of ["inbox", "pending"] as const) {
+        const rows = await ctx.db
+          .query("tasks")
+          .withIndex("by_user_status", (q) => q.eq("userId", user._id).eq("status", status))
+          .take(200);
+        for (const task of rows) {
+          if (task.deletedAt) continue;
+          tasks.push({ id: task._id, title: task.title, dueAt: task.dueDate });
+        }
+      }
+      const consider = (kind: "briefing" | "followup", hour: number) => {
+        const slotKey = proactiveSlotKey(kind, dateKey, hour);
+        if (slotAlreadySent(slots, slotKey)) return;
+        out.push({
+          userId: user._id,
+          phone: user.phone!,
+          captureGroupChatId: user.whatsappCaptureGroupChatId?.trim() || null,
+          kind,
+          hour,
+          slotKey,
+          slots,
+          tasks,
+        });
+      };
+      if (briefingOn && user.morningBriefingEnabled === true) {
+        const hour = clampHour(user.morningBriefingHour, DEFAULT_BRIEFING_HOUR);
+        const minute = clampMinute(user.morningBriefingMinute, DEFAULT_BRIEFING_MINUTE);
+        if (isProactiveDue(now, hour, minute)) consider("briefing", hour);
+      }
+      if (followOn && user.followUpEnabled === true) {
+        const hour = clampHour(user.followUpHour, DEFAULT_FOLLOWUP_HOUR);
+        if (isProactiveDue(now, hour, 0)) consider("followup", hour);
+      }
+    }
+    return out;
+  },
+});
+
+export const markProactiveSlot = internalMutation({
+  args: {
+    userId: v.id("users"),
+    slotKey: v.string(),
+    dateKey: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+    await ctx.db.patch(args.userId, {
+      proactiveSlots: appendProactiveSlot(user.proactiveSlots, args.slotKey, args.dateKey),
+    });
+    return null;
+  },
+});
+
+/** Convex dispatcher. Off unless WHATSAPP_PROACTIVE_DISPATCHER=convex. */
+export const dispatchProactiveWhatsApp = internalAction({
+  args: {},
+  returns: v.object({ scanned: v.number(), sent: v.number() }),
+  handler: async (ctx): Promise<{ scanned: number; sent: number }> => {
+    const nowIso = new Date().toISOString();
+    const candidates = await ctx.runQuery(internal.reminders.collectProactiveCandidates, { nowIso });
+    const dateKey = proactiveDateKey(new Date(nowIso));
+    let sent = 0;
+    for (const candidate of candidates) {
+      const groups = partitionOpenTasks(candidate.tasks, new Date(nowIso));
+      const body =
+        candidate.kind === "briefing"
+          ? buildMorningBriefingMessage(groups, dateKey)
+          : buildFollowUpMessage([...groups.overdue, ...groups.today]);
+      if (!body) continue;
+      if (candidate.kind === "followup" && groups.overdue.length + groups.today.length === 0) continue;
+      try {
+        const wa = await ctx.runAction(internal.whatsappSend.sendReply, {
+          toPhone: candidate.phone,
+          message: body,
+          chatId: candidate.captureGroupChatId ?? undefined,
+          sameChat: Boolean(candidate.captureGroupChatId),
+        });
+        if (!wa.sent) continue;
+        await ctx.runMutation(internal.reminders.markProactiveSlot, {
+          userId: candidate.userId,
+          slotKey: candidate.slotKey,
+          dateKey,
+        });
+        sent += 1;
+      } catch (error) {
+        console.warn(
+          `[reminders] proactive ${candidate.kind} failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+    return { scanned: candidates.length, sent };
   },
 });

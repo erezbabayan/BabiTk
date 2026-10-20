@@ -1,5 +1,67 @@
 import { newUserProfileRow } from "./auth-account";
 import { isMissingSchemaError } from "./schema-compat";
+
+export type ProactiveWhatsAppPrefs = {
+  morningEnabled: boolean;
+  morningHour: number;
+  morningMinute: number;
+  followUpEnabled: boolean;
+  followUpHour: number;
+};
+
+const PROACTIVE_DEFAULTS: ProactiveWhatsAppPrefs = {
+  morningEnabled: false,
+  morningHour: 7,
+  morningMinute: 30,
+  followUpEnabled: false,
+  followUpHour: 20,
+};
+
+function clampInt(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+}
+
+export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPrefs | null> {
+  const supabase = requireSupabase();
+  const auth = await requireAuthUser();
+  const { data, error } = await supabase
+    .from("users")
+    .select(
+      "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_morning_briefing_minute, whatsapp_followup_enabled, whatsapp_followup_hour",
+    )
+    .eq("id", auth.id)
+    .maybeSingle();
+  if (error) {
+    if (isMissingSchemaError(error)) return null;
+    throw error;
+  }
+  const row = (data ?? {}) as Record<string, unknown>;
+  return {
+    morningEnabled: row.whatsapp_morning_briefing_enabled === true,
+    morningHour: clampInt(row.whatsapp_morning_briefing_hour, 0, 23, 7),
+    morningMinute: clampInt(row.whatsapp_morning_briefing_minute, 0, 59, 30),
+    followUpEnabled: row.whatsapp_followup_enabled === true,
+    followUpHour: clampInt(row.whatsapp_followup_hour, 0, 23, 20),
+  };
+}
+
+export async function saveProactiveWhatsAppPrefs(
+  patch: Partial<ProactiveWhatsAppPrefs>,
+): Promise<ProactiveWhatsAppPrefs> {
+  const supabase = requireSupabase();
+  const auth = await requireAuthUser();
+  const row: Record<string, unknown> = {};
+  if (patch.morningEnabled !== undefined) row.whatsapp_morning_briefing_enabled = patch.morningEnabled;
+  if (patch.morningHour !== undefined) row.whatsapp_morning_briefing_hour = patch.morningHour;
+  if (patch.morningMinute !== undefined) row.whatsapp_morning_briefing_minute = patch.morningMinute;
+  if (patch.followUpEnabled !== undefined) row.whatsapp_followup_enabled = patch.followUpEnabled;
+  if (patch.followUpHour !== undefined) row.whatsapp_followup_hour = patch.followUpHour;
+  const { error } = await supabase.from("users").update(row).eq("id", auth.id);
+  if (error) throw error;
+  const loaded = await loadProactiveWhatsAppPrefs();
+  return { ...PROACTIVE_DEFAULTS, ...(loaded ?? {}) };
+}
 import { requireSupabase } from "./supabase";
 import { formatUserHeaderName, resolveUserNameParts } from "./user-display-name";
 

@@ -28,7 +28,8 @@ describe("WhatsApp commands", () => {
     });
     assert.equal(parseWhatsAppCommand("דחה שעתיים")?.type, "snooze");
     assert.equal(parseWhatsAppCommand("מחר")?.type, "tomorrow");
-    assert.equal(parseWhatsAppCommand("done:abc-1")?.itemId, "abc-1");
+    const done = parseWhatsAppCommand("done:abc-1");
+    assert.equal(done?.type === "complete" ? done.itemId : null, "abc-1");
   });
 
   it("resolves numbered item from last capture", () => {

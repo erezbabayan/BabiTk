@@ -20,7 +20,8 @@ export type MenuQuestion = {
 export type WhatsAppCommandAction =
   | { type: "complete"; index: number | null; itemId?: string }
   | { type: "snooze"; index: number | null; itemId?: string; hours: number }
-  | { type: "tomorrow"; index: number | null; itemId?: string; hour: number };
+  | { type: "tomorrow"; index: number | null; itemId?: string; hour: number }
+  | { type: "undo" };
 
 const QUERY_HINT =
   /(?:מה|משימ|יש לי|יש לנו|רשימ|תיב(?:ה|ת)|inbox|תזכור|agenda|today|tomorrow)/iu;
@@ -37,11 +38,14 @@ const DONE_RE = /^(?:בוצע|סיימתי|סיום|done|complete)(?:\s+(\d+))?$
 const SNOOZE_HOURS_RE = /^(?:דחה|snooze)\s+(?:ל-?)?(\d+)\s*שע(?:ות|ה)?$/iu;
 const SNOOZE_RE =
   /^(?:דחה|דחייה|snooze)(?:\s+(\d+))?(?:\s+(?:שעתיים|2h|2 שעות))?$/iu;
+const SNOOZE_ONE_HOUR_RE = /^(?:עוד\s+שעה|דחה\s+שעה)(?:\s+(\d+))?$/iu;
+const UNDO_RE = /^(?:בטל(?:\s+אחרון|\s+פעולה)?|undo|ביטול)$/iu;
+const TOMORROW_MORNING_RE = /^(?:מחר\s+בבוקר)(?:\s+(\d+))?$/iu;
 const TOMORROW_RE =
   /^(?:מחר)(?:\s+(\d+))?(?:\s*(?:ב-?)?(\d{1,2})(?::(\d{2}))?)?$/iu;
 const NUMBERED_DONE_RE = /^(\d+)\s*(?:בוצע|סיימתי|done)$/iu;
 const NUMBERED_SNOOZE_RE = /^(\d+)\s*(?:דחה|snooze)(?:\s+שעתיים)?$/iu;
-const PAYLOAD_RE = /^(done|snooze2h|tomorrow)(?::([0-9a-fA-F-]{4,}))?$/i;
+const PAYLOAD_RE = /^(done|snooze1h|snooze2h|tomorrow|undo)(?::([0-9a-fA-F-]{4,}))?$/i;
 
 const TIMEZONE = "Asia/Jerusalem";
 
@@ -170,9 +174,16 @@ export function parseWhatsAppCommand(raw: string): WhatsAppCommandAction | null 
   if (payload) {
     const kind = payload[1]!.toLowerCase();
     const itemId = payload[2];
+    if (kind === "undo") return { type: "undo" };
     if (kind === "done") return { type: "complete", index: null, itemId };
+    if (kind === "snooze1h") return { type: "snooze", index: null, itemId, hours: 1 };
     if (kind === "snooze2h") return { type: "snooze", index: null, itemId, hours: 2 };
     return { type: "tomorrow", index: null, itemId, hour: 9 };
+  }
+  if (UNDO_RE.test(text)) return { type: "undo" };
+  const oneHour = text.match(SNOOZE_ONE_HOUR_RE);
+  if (oneHour) {
+    return { type: "snooze", index: oneHour[1] ? Number(oneHour[1]) : null, hours: 1 };
   }
   const numberedDone = text.match(NUMBERED_DONE_RE);
   if (numberedDone) return { type: "complete", index: Number(numberedDone[1]) };
@@ -187,6 +198,14 @@ export function parseWhatsAppCommand(raw: string): WhatsAppCommandAction | null 
   const snooze = text.match(SNOOZE_RE);
   if (snooze) {
     return { type: "snooze", index: snooze[1] ? Number(snooze[1]) : null, hours: 2 };
+  }
+  const tomorrowMorning = text.match(TOMORROW_MORNING_RE);
+  if (tomorrowMorning) {
+    return {
+      type: "tomorrow",
+      index: tomorrowMorning[1] ? Number(tomorrowMorning[1]) : null,
+      hour: 9,
+    };
   }
   const tomorrow = text.match(TOMORROW_RE);
   if (tomorrow) {
@@ -204,6 +223,7 @@ export function resolveCommandItemId(
   command: WhatsAppCommandAction,
   lastItemIds: string[],
 ): string | null {
+  if (command.type === "undo") return null;
   if (command.itemId) return command.itemId;
   if (lastItemIds.length === 0) return null;
   if (command.index === null) return lastItemIds[0] ?? null;
@@ -222,7 +242,9 @@ export function buildCaptureConfirmation(items: Array<{ title: string }>): strin
     `השב:\n` +
     `• בוצע / בוצע 1\n` +
     `• דחה שעתיים\n` +
+    `• עוד שעה\n` +
     `• מחר\n` +
+    `• בטל — מבטל את הפעולה האחרונה\n` +
     `• תפריט — שאלות מובנות (מה יש היום / מחר / עבודה)`
   );
 }

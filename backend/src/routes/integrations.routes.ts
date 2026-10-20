@@ -13,6 +13,7 @@ import {
   DEFAULT_WEB_APP_URL,
 } from "../lib/google-calendar.js";
 import { env } from "../config/env.js";
+import { describeCalendarSyncReadiness } from "../lib/google-calendar-sync-plan.js";
 
 export const integrationsRoutes: FastifyPluginAsync = async (app) => {
   app.get("/google/connect", { preHandler: requireAuth }, async (request, reply) => {
@@ -71,6 +72,18 @@ export const integrationsRoutes: FastifyPluginAsync = async (app) => {
         }),
       );
     }
+  });
+
+  app.get("/google/sync-plan", { preHandler: requireAuth }, async (request, reply) => {
+    if (!request.user) {
+      return reply.status(401).send({ error: "unauthorized" });
+    }
+    return reply.send(
+      describeCalendarSyncReadiness({
+        clientId: env.googleClientId,
+        clientSecret: env.googleClientSecret,
+      }),
+    );
   });
 
   app.get("/google/status", { preHandler: requireAuth }, async (request, reply) => {

@@ -23,7 +23,19 @@ import {
 } from "./items.service.js";
 import { getUserTagNames } from "./user-tags.service.js";
 import { sendWhatsAppText } from "./whatsapp/send.js";
+import { sendWhatsAppOutbound } from "./whatsapp/outbound.js";
 import type { DbMindtaskerItem } from "../types/database.js";
+import { featureFlags } from "../lib/feature-flags.js";
+import {
+  buildSearchReply,
+  nextWeekdayIso,
+  parseMoveCommand,
+  parseNoteSearch,
+  rankByOverlap,
+  weekdayLabel,
+} from "../lib/proactive-whatsapp.js";
+import { rememberWhatsAppUndo, undoLastWhatsAppAction } from "./whatsapp-undo.service.js";
+import { searchItems } from "./search.service.js";
 
 const TIMEZONE = "Asia/Jerusalem";
 
@@ -102,12 +114,79 @@ export async function handleWhatsAppTextIntent(options: {
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw) return false;
+
+  if (featureFlags.nlCommands) {
+    const move = parseMoveCommand(raw);
+    if (move) {
+      const tasks = await listOpenTasks(options.user.id);
+      const item = move.title
+        ? rankByOverlap(move.title, tasks.map((task) => ({
+            id: task.id,
+            title: task.title,
+            content: task.content,
+          })))[0]
+        : null;
+      const lastIds = await loadLastWhatsAppItemIds(options.user.id);
+      const itemId = item?.id ?? lastIds[0] ?? null;
+      if (!itemId) {
+        await sendWhatsAppText(options.replyTo, "לא מצאתי משימה להזזה. כתבו «תפריט».");
+        return true;
+      }
+      const current = await getItemById(itemId, options.user.id);
+      const due = nextWeekdayIso(new Date(), move.weekday, 9, 0, TIMEZONE);
+      await rememberWhatsAppUndo(options.user.id, "snooze", [
+        {
+          id: current.id,
+          title: current.title,
+          status: current.status,
+          due_date: current.due_date,
+          deleted_at: null,
+        },
+      ]);
+      const updated = await snoozeItem(options.user.id, itemId, due);
+      await sendWhatsAppText(
+        options.replyTo,
+        `הועבר ליום ${weekdayLabel(move.weekday)} ב-09:00: ${updated.title}`,
+      );
+      return true;
+    }
+  }
+
+  if (featureFlags.semanticSearch) {
+    const query = parseNoteSearch(raw);
+    if (query) {
+      let hits: Array<{ id: string; title: string }> = [];
+      try {
+        const semantic = await searchItems(options.user.id, query, { matchCount: 5 });
+        hits = semantic.map((row) => ({ id: row.id, title: row.title }));
+      } catch {
+        hits = [];
+      }
+      if (hits.length === 0) {
+        const tasks = await listOpenTasks(options.user.id);
+        hits = rankByOverlap(
+          query,
+          tasks.map((task) => ({ id: task.id, title: task.title, content: task.content })),
+        );
+      }
+      await sendWhatsAppText(options.replyTo, buildSearchReply(query, hits));
+      return true;
+    }
+  }
+
   const route = classifyWhatsAppInbound(raw);
   if (route.lane === "capture") return false;
 
   if (route.lane === "command") {
     const command = parseWhatsAppCommand(raw);
     if (!command) return false;
+    if (command.type === "undo") {
+      const message = featureFlags.undo
+        ? await undoLastWhatsAppAction(options.user.id)
+        : "ביטול כבוי. הפעילו WHATSAPP_UNDO.";
+      await sendWhatsAppText(options.replyTo, message);
+      return true;
+    }
     const lastIds = await loadLastWhatsAppItemIds(options.user.id);
     const itemId = resolveCommandItemId(command, lastIds);
     if (!itemId) {
@@ -119,19 +198,34 @@ export async function handleWhatsAppTextIntent(options: {
     }
 
     const now = new Date();
+    const current = await getItemById(itemId, options.user.id);
+    const snapshot = {
+      id: current.id,
+      title: current.title,
+      status: current.status,
+      due_date: current.due_date,
+      deleted_at: null,
+    };
     if (command.type === "complete") {
+      await rememberWhatsAppUndo(options.user.id, "complete", [snapshot]);
       const item = await completeItem(options.user.id, itemId);
-      await sendWhatsAppText(options.replyTo, `סומן כבוצע: ${item.title}`);
+      await sendWhatsAppOutbound({
+        to: options.replyTo,
+        body: `סומן כבוצע: ${item.title}\nאפשר לכתוב «בטל».`,
+        quickReplies: [{ id: "undo", title: "בטל" }],
+      });
       return true;
     }
 
     if (command.type === "snooze") {
+      await rememberWhatsAppUndo(options.user.id, "snooze", [snapshot]);
       const due = addZonedMinutes(TIMEZONE, now, command.hours * 60);
       const item = await snoozeItem(options.user.id, itemId, due);
       await sendWhatsAppText(options.replyTo, `נדחה ל-${formatClock(due)}: ${item.title}`);
       return true;
     }
 
+    await rememberWhatsAppUndo(options.user.id, "snooze", [snapshot]);
     const due = addZonedDays(TIMEZONE, now, 1, command.hour, 0);
     const item = await snoozeItem(options.user.id, itemId, due);
     await sendWhatsAppText(

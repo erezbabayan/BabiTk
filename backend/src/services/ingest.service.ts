@@ -18,6 +18,8 @@ import { applySplitMergeLessons, listIngestLessons } from "./ingest-lessons.serv
 import { filterDuplicateParsedItems } from "../lib/duplicate-detect.js";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import { featureFlags } from "../lib/feature-flags.js";
+import { enrichWhatsAppCapture, type CaptureRow } from "../lib/proactive-whatsapp.js";
 
 export interface IngestTextParams {
   userId: string;
@@ -98,6 +100,12 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     timezone: params.timezone,
     referenceDate,
   });
+  const itemsForSave = applyWhatsAppCaptureEnrichment(
+    params.sourceType,
+    params.text,
+    enrichedItems,
+    allowedTags,
+  );
 
   const result = await saveIngestionResult({
     userId: params.userId,
@@ -108,7 +116,7 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
       storageUrl: params.storageUrl,
       metadata: params.metadata,
     },
-    items: enrichedItems,
+    items: itemsForSave,
   });
 
   const itemIds = result.items.map((item) => item.id);
@@ -123,6 +131,55 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   });
 
   return result;
+}
+
+function applyWhatsAppCaptureEnrichment(
+  sourceType: SourceType,
+  text: string,
+  items: ParsedItem[],
+  allowedTags: string[],
+): ParsedItem[] {
+  if (!sourceType.startsWith("whatsapp")) return items;
+  if (!featureFlags.multiCard && !featureFlags.recurrence && !featureFlags.autoCategory) {
+    return items;
+  }
+  const rows: CaptureRow[] = items.map((item) => ({
+    title: item.title,
+    content: item.content,
+    is_actionable: item.is_actionable,
+    tags: item.tags,
+    due_date: item.due_date,
+    analysis: item.analysis,
+    reminder_recurrence: item.reminder_recurrence ?? null,
+    checklist: item.checklist,
+    priority: item.priority,
+  }));
+  const enriched = enrichWhatsAppCapture(text, rows, {
+    multiCard: featureFlags.multiCard,
+    recurrence: featureFlags.recurrence,
+    autoCategory: featureFlags.autoCategory,
+    allowedTags,
+  });
+  return enriched.map((row) => {
+    const template = items[0];
+    return {
+      title: row.title,
+      content: row.content,
+      is_actionable: row.is_actionable,
+      tags: row.tags.length > 0 ? row.tags : template?.tags ?? row.tags,
+      due_date: row.due_date,
+      analysis: (row.analysis as ParsedItem["analysis"]) ?? template?.analysis ?? items[0]!.analysis,
+      reminder_recurrence:
+        row.reminder_recurrence === "daily" ||
+        row.reminder_recurrence === "weekly" ||
+        row.reminder_recurrence === "monthly" ||
+        row.reminder_recurrence === "weekdays"
+          ? row.reminder_recurrence
+          : null,
+      checklist: row.checklist,
+      priority: row.priority,
+    };
+  });
 }
 
 async function listRecentInboxKeys(

@@ -6,9 +6,12 @@ import type { UsageSummary } from "../lib/api";
 import { normalizePhone, personalCaptureChatId } from "../lib/phone";
 import {
   getCloudUserProfile,
+  loadProactiveWhatsAppPrefs,
+  saveProactiveWhatsAppPrefs,
   updateCloudUserProfile,
   type CloudUserProfile,
   type DigestDays,
+  type ProactiveWhatsAppPrefs,
 } from "../lib/user-profile";
 import {
   isPersonalCaptureLabel,
@@ -45,6 +48,8 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const [savingNotifyGroup, setSavingNotifyGroup] = useState(false);
   const [savingDigestHours, setSavingDigestHours] = useState(false);
   const [savingDigestDays, setSavingDigestDays] = useState(false);
+  const [proactive, setProactive] = useState<ProactiveWhatsAppPrefs | null>(null);
+  const [savingProactive, setSavingProactive] = useState(false);
   const [testingReminder, setTestingReminder] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +60,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   async function refresh() {
     const next = await getCloudUserProfile();
     setProfile(next);
+    setProactive(await loadProactiveWhatsAppPrefs().catch(() => null));
     setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
     return next;
   }
@@ -553,6 +559,105 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
 
       {groupBlock}
       {digestBlock}
+      {proactive ? (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" dir="rtl">
+          <p className="font-medium text-slate-900">בריפינג ומעקב</p>
+          <p className="mt-1 text-xs text-slate-600">
+            שעון ישראל. נשלח רק אחרי שמפעילים גם את דגלי הסביבה WHATSAPP_MORNING_BRIEFING ו־WHATSAPP_FOLLOWUP. עד 3 הודעות יזומות ביום.
+          </p>
+          <label className="mt-3 flex items-center justify-end gap-2">
+            <span>בריפינג בוקר</span>
+            <input
+              type="checkbox"
+              checked={proactive.morningEnabled}
+              disabled={savingProactive}
+              onChange={(event) => {
+                const morningEnabled = event.target.checked;
+                setSavingProactive(true);
+                void saveProactiveWhatsAppPrefs({ morningEnabled })
+                  .then(setProactive)
+                  .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                  .finally(() => setSavingProactive(false));
+              }}
+            />
+          </label>
+          <div className="mt-2 flex justify-end gap-2">
+            <select
+              className="rounded border px-2 py-1"
+              value={proactive.morningHour}
+              disabled={savingProactive}
+              onChange={(event) => {
+                const morningHour = Number(event.target.value);
+                setSavingProactive(true);
+                void saveProactiveWhatsAppPrefs({ morningHour })
+                  .then(setProactive)
+                  .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                  .finally(() => setSavingProactive(false));
+              }}
+            >
+              {DIGEST_HOURS.map((hour) => (
+                <option key={hour} value={hour}>
+                  {formatDigestHour(hour).slice(0, 2)}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded border px-2 py-1"
+              value={proactive.morningMinute}
+              disabled={savingProactive}
+              onChange={(event) => {
+                const morningMinute = Number(event.target.value);
+                setSavingProactive(true);
+                void saveProactiveWhatsAppPrefs({ morningMinute })
+                  .then(setProactive)
+                  .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                  .finally(() => setSavingProactive(false));
+              }}
+            >
+              {[0, 15, 30, 45].map((minute) => (
+                <option key={minute} value={minute}>
+                  :{String(minute).padStart(2, "0")}
+                </option>
+              ))}
+            </select>
+          </div>
+          <label className="mt-3 flex items-center justify-end gap-2">
+            <span>מעקב על משימות פתוחות</span>
+            <input
+              type="checkbox"
+              checked={proactive.followUpEnabled}
+              disabled={savingProactive}
+              onChange={(event) => {
+                const followUpEnabled = event.target.checked;
+                setSavingProactive(true);
+                void saveProactiveWhatsAppPrefs({ followUpEnabled })
+                  .then(setProactive)
+                  .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                  .finally(() => setSavingProactive(false));
+              }}
+            />
+          </label>
+          <select
+            className="mt-2 rounded border px-2 py-1"
+            value={proactive.followUpHour}
+            disabled={savingProactive}
+            onChange={(event) => {
+              const followUpHour = Number(event.target.value);
+              setSavingProactive(true);
+              void saveProactiveWhatsAppPrefs({ followUpHour })
+                .then(setProactive)
+                .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                .finally(() => setSavingProactive(false));
+            }}
+          >
+            {DIGEST_HOURS.map((hour) => (
+              <option key={hour} value={hour}>
+                {formatDigestHour(hour)}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </ChannelInfoPanel>

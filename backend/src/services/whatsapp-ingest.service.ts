@@ -35,6 +35,7 @@ import {
   rememberLastWhatsAppItems,
   replyDestination,
 } from "./whatsapp-actions.service.js";
+import { rememberWhatsAppUndo } from "./whatsapp-undo.service.js";
 
 async function resolveInboxOwner(message: WhatsAppInboundMessage) {
   const byPhone = await findInboxUserByPhone(message.from);
@@ -53,6 +54,17 @@ async function confirmCapture(
   const ids = result.items.map((item) => item.id);
   if (ids.length > 0) {
     await rememberLastWhatsAppItems(userId, ids);
+    await rememberWhatsAppUndo(
+      userId,
+      "capture",
+      result.items.map((item) => ({
+        id: item.id,
+        title: item.title,
+        status: item.status,
+        due_date: item.due_date,
+        deleted_at: null,
+      })),
+    );
   }
   await sendWhatsAppText(replyTo, buildCaptureConfirmation(result.items));
 }

@@ -215,6 +215,56 @@ export async function saveWhatsAppDigestHours(hours: number[]): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export type ProactiveWhatsAppPrefs = {
+  morningEnabled: boolean;
+  morningHour: number;
+  followUpEnabled: boolean;
+  followUpHour: number;
+};
+
+export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPrefs | null> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select(
+      "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_followup_enabled, whatsapp_followup_hour",
+    )
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) {
+    if (/does not exist|Could not find the column|PGRST204/i.test(error.message)) return null;
+    throw new Error(error.message);
+  }
+  const row = (data ?? {}) as Record<string, unknown>;
+  const hour = (value: unknown, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 && parsed <= 23 ? parsed : fallback;
+  };
+  return {
+    morningEnabled: row.whatsapp_morning_briefing_enabled === true,
+    morningHour: hour(row.whatsapp_morning_briefing_hour, 7),
+    followUpEnabled: row.whatsapp_followup_enabled === true,
+    followUpHour: hour(row.whatsapp_followup_hour, 20),
+  };
+}
+
+export async function saveProactiveWhatsAppPrefs(
+  patch: Partial<ProactiveWhatsAppPrefs>,
+): Promise<void> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) throw new Error("Not authenticated");
+  const row: Record<string, unknown> = {};
+  if (patch.morningEnabled !== undefined) row.whatsapp_morning_briefing_enabled = patch.morningEnabled;
+  if (patch.morningHour !== undefined) row.whatsapp_morning_briefing_hour = patch.morningHour;
+  if (patch.followUpEnabled !== undefined) row.whatsapp_followup_enabled = patch.followUpEnabled;
+  if (patch.followUpHour !== undefined) row.whatsapp_followup_hour = patch.followUpHour;
+  const { error } = await supabase.from("users").update(row).eq("id", userId);
+  if (error) throw new Error(error.message);
+}
+
 export async function saveWhatsAppDigestDays(days: "weekdays" | "everyday"): Promise<void> {
   const supabase = requireSupabase();
   const userId = await currentUserId();

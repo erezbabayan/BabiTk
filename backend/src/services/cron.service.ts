@@ -33,6 +33,7 @@ import { sendViaUserGreenApi } from "./whatsapp/user-gateway-send.js";
 import { normalizePhone } from "./items.service.js";
 import { resetUsagePeriodIfNeeded } from "./usage.service.js";
 import { insertUserNotification, sendExpoPushes } from "./notifications.service.js";
+import { sendProactiveWhatsApp } from "./proactive-dispatch.service.js";
 
 const TRASH_RETENTION_DAYS = 30;
 
@@ -197,6 +198,8 @@ export async function sendDailyDigests(): Promise<number> {
 
   return sent;
 }
+
+export { sendProactiveWhatsApp };
 
 export async function resetMonthlyUsageForAllUsers(): Promise<number> {
   if (!env.isSupabaseConfigured) return 0;

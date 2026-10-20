@@ -63,6 +63,17 @@ import {
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
 import { classifyWhatsAppInbound } from "../_shared/whatsapp-inbound-route.ts";
+import { enrichInboundRows } from "../_shared/whatsapp-enrich.ts";
+import {
+  buildSearchReply,
+  nextWeekdayIso,
+  parseMoveCommand,
+  parseNoteSearch,
+  rankByOverlap,
+  weekdayLabel,
+  type CaptureRow,
+} from "../_shared/proactive-whatsapp.ts";
+import { rememberWhatsAppUndo, undoLastWhatsAppAction } from "../_shared/whatsapp-undo.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -254,14 +265,85 @@ async function handleGroupTextIntent(options: {
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw || isSystemWhatsAppReply(raw)) return true;
+  const replyTo = replyChatId(options.message);
+
+  const nlOn = (Deno.env.get("WHATSAPP_NL_COMMANDS") ?? "").toLowerCase() === "true";
+  if (nlOn) {
+    const move = parseMoveCommand(raw);
+    if (move) {
+      const { data: openItems } = await options.supabase
+        .from("mindtasker_items")
+        .select("id, title, content, status, due_date")
+        .eq("user_id", options.user.id)
+        .eq("is_actionable", true)
+        .in("status", ["inbox", "pending"])
+        .is("deleted_at", null)
+        .limit(80);
+      const ranked = move.title
+        ? rankByOverlap(move.title, openItems ?? [])
+        : [];
+      const lastIds = Array.isArray(options.user.whatsapp_last_item_ids)
+        ? options.user.whatsapp_last_item_ids.map(String)
+        : [];
+      const itemId = ranked[0]?.id ?? lastIds[0] ?? null;
+      const current = (openItems ?? []).find((item: { id: string }) => item.id === itemId);
+      if (!itemId || !current) {
+        await sendGreenApiText(options.gateway, replyTo, "לא מצאתי משימה להזזה. כתבו «תפריט».");
+        return true;
+      }
+      const due = nextWeekdayIso(new Date(), move.weekday, 9, 0);
+      await rememberWhatsAppUndo(options.supabase, options.user.id, "snooze", [
+        {
+          id: current.id,
+          title: current.title ?? "",
+          status: current.status ?? "inbox",
+          due_date: current.due_date ?? null,
+          deleted_at: null,
+        },
+      ]);
+      await options.supabase
+        .from("mindtasker_items")
+        .update({ due_date: due, last_interacted_at: new Date().toISOString() })
+        .eq("id", itemId)
+        .eq("user_id", options.user.id);
+      await sendGreenApiText(
+        options.gateway,
+        replyTo,
+        `הועבר ליום ${weekdayLabel(move.weekday)} ב-09:00: ${current.title}`,
+      );
+      return true;
+    }
+  }
+
+  if ((Deno.env.get("WHATSAPP_SEMANTIC_SEARCH") ?? "").toLowerCase() === "true") {
+    const query = parseNoteSearch(raw);
+    if (query) {
+      const { data: openItems } = await options.supabase
+        .from("mindtasker_items")
+        .select("id, title, content")
+        .eq("user_id", options.user.id)
+        .is("deleted_at", null)
+        .limit(80);
+      const hits = rankByOverlap(query, openItems ?? []);
+      await sendGreenApiText(options.gateway, replyTo, buildSearchReply(query, hits));
+      return true;
+    }
+  }
+
   const route = classifyWhatsAppInbound(raw);
   if (route.lane === "capture") return false;
-
-  const replyTo = replyChatId(options.message);
 
   if (route.lane === "command") {
     const command = parseWhatsAppCommand(raw);
     if (!command) return false;
+    if (command.type === "undo") {
+      await sendGreenApiText(
+        options.gateway,
+        replyTo,
+        await undoLastWhatsAppAction(options.supabase, options.user.id),
+      );
+      return true;
+    }
     const { data: fresh, error: lastIdsError } = await options.supabase
       .from("users")
       .select("whatsapp_last_item_ids")
@@ -285,7 +367,7 @@ async function handleGroupTextIntent(options: {
 
     const { data: item } = await options.supabase
       .from("mindtasker_items")
-      .select("id, title, due_date, metadata")
+      .select("id, title, status, due_date, metadata")
       .eq("id", itemId)
       .eq("user_id", options.user.id)
       .maybeSingle();
@@ -295,6 +377,15 @@ async function handleGroupTextIntent(options: {
     }
 
     if (command.type === "complete") {
+      await rememberWhatsAppUndo(options.supabase, options.user.id, "complete", [
+        {
+          id: item.id,
+          title: item.title ?? "",
+          status: item.status ?? "inbox",
+          due_date: item.due_date ?? null,
+          deleted_at: null,
+        },
+      ]);
       await options.supabase
         .from("mindtasker_items")
         .update({
@@ -304,10 +395,19 @@ async function handleGroupTextIntent(options: {
         })
         .eq("id", itemId)
         .eq("user_id", options.user.id);
-      await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}`);
+      await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}\nאפשר לכתוב «בטל».`);
       return true;
     }
 
+    await rememberWhatsAppUndo(options.supabase, options.user.id, "snooze", [
+      {
+        id: item.id,
+        title: item.title ?? "",
+        status: item.status ?? "inbox",
+        due_date: item.due_date ?? null,
+        deleted_at: null,
+      },
+    ]);
     const due =
       command.type === "snooze"
         ? addHoursIso(command.hours)
@@ -633,7 +733,7 @@ async function insertCapturedItem(
     rawText?: string;
     audioUrl?: string | null;
   },
-): Promise<{ id: string; title: string } | null> {
+): Promise<{ id: string; title: string; content?: string; items: Array<{ id: string; title: string }> } | null> {
   if (!isInsertableInboundText(item.title, item.content)) {
     throw new Error("inbound_text_required");
   }
@@ -694,9 +794,18 @@ async function insertCapturedItem(
       checklist: undefined as ReturnType<typeof parseInboundText>[number]["checklist"],
     }));
   }
-  const rows =
+  const baseRows: CaptureRow[] =
     parsedRows.length > 0
-      ? parsedRows
+      ? parsedRows.map((row) => ({
+          title: row.title,
+          content: row.content,
+          is_actionable: row.is_actionable,
+          tags: row.tags ?? [],
+          due_date: row.due_date,
+          analysis: row.analysis,
+          reminder_recurrence: row.reminder_recurrence ?? null,
+          checklist: row.checklist,
+        }))
       : [
           {
             title: item.title,
@@ -709,6 +818,8 @@ async function insertCapturedItem(
             checklist: undefined,
           },
         ];
+  const allowedTags = await loadAllowedTagNames(supabase, user.id);
+  const rows = enrichInboundRows(item.content, baseRows, allowedTags);
 
   const voiceMeta =
     message.type === "audio"
@@ -736,6 +847,7 @@ async function insertCapturedItem(
           whatsapp_message_id: message.messageId,
           chat_id: message.chatId,
           ...layoutMetadataFromParsed(row),
+          ...(row.priority ? { priority: row.priority } : {}),
           ...voiceMeta,
         },
         sort_order: now + index,
@@ -750,7 +862,20 @@ async function insertCapturedItem(
     queueCalendarSync(supabase, user.id, String(row.id));
   }
   const inserted = insertedRows[0];
-  return { id: inserted.id as string, title: inserted.title as string };
+  const items = insertedRows.map((row) => ({ id: String(row.id), title: String(row.title ?? "") }));
+  await rememberWhatsAppUndo(
+    supabase,
+    user.id,
+    "capture",
+    items.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: "inbox",
+      due_date: null,
+      deleted_at: null,
+    })),
+  );
+  return { id: inserted.id as string, title: inserted.title as string, items };
 }
 
 Deno.serve(async (req) => {
@@ -1054,11 +1179,18 @@ Deno.serve(async (req) => {
         !needsVoiceTranscription(inserted.title, inserted.content) &&
         !needsOcrTranscription(inserted.title, inserted.content)
       ) {
-        await rememberLastItemIds(supabase, user.id, [inserted.id]);
+        const captured = inserted.items?.length
+          ? inserted.items
+          : [{ id: inserted.id, title: inserted.title }];
+        await rememberLastItemIds(
+          supabase,
+          user.id,
+          captured.map((row) => row.id),
+        );
         await sendGreenApiText(
           gateway,
           replyChatId(message),
-          buildCaptureConfirmation([{ title: inserted.title }]),
+          buildCaptureConfirmation(captured),
         );
         await maybeSendGroupMenu({
           supabase,

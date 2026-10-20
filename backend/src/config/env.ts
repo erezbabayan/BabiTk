@@ -218,4 +218,14 @@ export const env = {
   get demoSyncToken() {
     return process.env.DEMO_SYNC_TOKEN ?? "mindtasker-local-sync";
   },
+  /** Morning briefing, follow-up, multi-card, and NL commands. See docs/ROADMAP.md. */
+  get whatsappMorningBriefing() {
+    return (process.env.WHATSAPP_MORNING_BRIEFING ?? "false").toLowerCase() === "true";
+  },
+  get whatsappFollowUp() {
+    return (process.env.WHATSAPP_FOLLOWUP ?? "false").toLowerCase() === "true";
+  },
+  get whatsappMultiCard() {
+    return (process.env.WHATSAPP_MULTI_CARD ?? "false").toLowerCase() === "true";
+  },
 } as const;

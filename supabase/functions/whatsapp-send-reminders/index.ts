@@ -30,6 +30,7 @@ import {
   reminderDueQueryCutoffIso,
   reminderDueQueryFloorIso,
 } from "../_shared/task-reminder-due.ts";
+import { dispatchProactiveWhatsApp } from "../_shared/whatsapp-proactive-dispatch.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -395,5 +396,16 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, sent, digests });
+  let proactive = { briefings: 0, followups: 0 };
+  try {
+    proactive = await dispatchProactiveWhatsApp(admin, async (userId, message) => {
+      const context = await contextFor(userId);
+      if (!context) return false;
+      return deliver(context, message);
+    }, now);
+  } catch (error) {
+    console.error("proactive dispatch failed", error);
+  }
+
+  return json({ ok: true, sent, digests, ...proactive });
 });

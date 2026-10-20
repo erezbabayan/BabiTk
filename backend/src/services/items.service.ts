@@ -88,6 +88,22 @@ export async function saveParsedItems(
       },
     );
     const parsed = finalizedToParsedItem(item, finalized);
+    const metadata: Record<string, unknown> = {
+      ...(extractAnalysisMetadata(parsed) ?? {}),
+    };
+    if (
+      parsed.reminder_recurrence === "daily" ||
+      parsed.reminder_recurrence === "weekly" ||
+      parsed.reminder_recurrence === "monthly" ||
+      parsed.reminder_recurrence === "weekdays"
+    ) {
+      metadata.reminder_recurrence = parsed.reminder_recurrence;
+      metadata.reminder_manual = true;
+    }
+    if (parsed.checklist && parsed.checklist.length > 0) {
+      metadata.checklist = parsed.checklist;
+    }
+    if (parsed.priority) metadata.priority = parsed.priority;
 
     return {
       user_id: userId,
@@ -98,7 +114,7 @@ export async function saveParsedItems(
       status: resolveIngestItemStatus(parsed),
       due_date: parsed.is_actionable ? parsed.due_date : null,
       tags: parsed.tags,
-      metadata: extractAnalysisMetadata(parsed) ?? {},
+      metadata,
     };
   });
 
