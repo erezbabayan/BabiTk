@@ -414,7 +414,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             setPriorityOnlyByBoard((current) => ({ ...current, [board]: active }))
           }
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[6.5rem] flex-1">
           <TagFilter
             tags={filterTags}
             selected={tagByBoard[board]}
