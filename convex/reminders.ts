@@ -20,6 +20,27 @@ import {
 import { normalizePhone } from "./lib/phone";
 
 const DIGEST_TIMEZONE = "Asia/Jerusalem";
+/** Indexed due-scan page size. A single .take(200) dropped later reminders. */
+const DUE_SCAN_PAGE = 200;
+const DUE_SCAN_MAX_PAGES = 5;
+
+async function collectIndexedPages<T>(
+  load: (cursor: string | null) => Promise<{
+    page: T[];
+    isDone: boolean;
+    continueCursor: string;
+  }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  let cursor: string | null = null;
+  for (let pageIndex = 0; pageIndex < DUE_SCAN_MAX_PAGES; pageIndex += 1) {
+    const page = await load(cursor);
+    rows.push(...page.page);
+    if (page.isDone) break;
+    cursor = page.continueCursor;
+  }
+  return rows;
+}
 
 /** Personal chat id for Message Yourself / self-chat digests. */
 function digestPersonalChatId(phone: string): string {
@@ -407,12 +428,14 @@ export const collectDueCandidates = internalQuery({
       );
     }
 
-    const dueTasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_notify_at", (q) =>
-        q.gt("notifyAt", "").lte("notifyAt", nowIso),
-      )
-      .take(200);
+    const dueTasks = await collectIndexedPages((cursor) =>
+      ctx.db
+        .query("tasks")
+        .withIndex("by_notify_at", (q) =>
+          q.gt("notifyAt", "").lte("notifyAt", nowIso),
+        )
+        .paginate({ numItems: DUE_SCAN_PAGE, cursor }),
+    );
 
     for (const task of dueTasks) {
       if (task.deletedAt) continue;
@@ -439,12 +462,14 @@ export const collectDueCandidates = internalQuery({
       });
     }
 
-    const dueNotebooks = await ctx.db
-      .query("notebooks")
-      .withIndex("by_notify_at", (q) =>
-        q.gt("notifyAt", "").lte("notifyAt", nowIso),
-      )
-      .take(200);
+    const dueNotebooks = await collectIndexedPages((cursor) =>
+      ctx.db
+        .query("notebooks")
+        .withIndex("by_notify_at", (q) =>
+          q.gt("notifyAt", "").lte("notifyAt", nowIso),
+        )
+        .paginate({ numItems: DUE_SCAN_PAGE, cursor }),
+    );
 
     for (const notebook of dueNotebooks) {
       if (notebook.deletedAt) continue;
@@ -471,12 +496,14 @@ export const collectDueCandidates = internalQuery({
       });
     }
 
-    const dueLists = await ctx.db
-      .query("taskLists")
-      .withIndex("by_reminder_at", (q) =>
-        q.gt("reminderAt", "").lte("reminderAt", nowIso),
-      )
-      .take(100);
+    const dueLists = await collectIndexedPages((cursor) =>
+      ctx.db
+        .query("taskLists")
+        .withIndex("by_reminder_at", (q) =>
+          q.gt("reminderAt", "").lte("reminderAt", nowIso),
+        )
+        .paginate({ numItems: DUE_SCAN_PAGE, cursor }),
+    );
 
     for (const list of dueLists) {
       if (list.deletedAt) continue;
@@ -781,46 +808,72 @@ export const dispatchDue = internalAction({
             if (push.sent > 0) delivered = true;
           }
         } else if (userCtx.notifyWhatsApp || userCtx.notifyWhatsAppGroup) {
-          // No in-app channel — this scan is the first attempt for this fireAt
-          // until we mark it fired below.
+          // No in-app row to claim this fireAt. Do not mark it fired until a
+          // WhatsApp send actually succeeds — otherwise the reminder is dropped.
           firstDelivery = true;
-          delivered = true;
         }
 
-        if (
+        const shouldSendWhatsApp =
           firstDelivery &&
-          userCtx.notifyWhatsAppGroup &&
           userCtx.phoneVerified &&
-          userCtx.phone &&
-          userCtx.captureGroupChatId
-        ) {
-          try {
-            const waMessage = buildWhatsAppReminderMessage(
-              candidate.title,
-              dueDate,
-              candidate.kind,
-            );
-            const wa = await ctx.runAction(internal.whatsappSend.sendReply, {
-              toPhone: userCtx.phone,
-              message: waMessage,
-              chatId: userCtx.captureGroupChatId,
-              sameChat: true,
-            });
-            if (wa.sent) {
-              delivered = true;
-            } else {
+          Boolean(userCtx.phone) &&
+          (userCtx.notifyWhatsApp || userCtx.notifyWhatsAppGroup);
+
+        if (shouldSendWhatsApp && userCtx.phone) {
+          const waMessage = buildWhatsAppReminderMessage(
+            candidate.title,
+            dueDate,
+            candidate.kind,
+          );
+          if (userCtx.notifyWhatsAppGroup && userCtx.captureGroupChatId) {
+            try {
+              const wa = await ctx.runAction(internal.whatsappSend.sendReply, {
+                toPhone: userCtx.phone,
+                message: waMessage,
+                chatId: userCtx.captureGroupChatId,
+                sameChat: true,
+              });
+              if (wa.sent) {
+                delivered = true;
+              } else {
+                console.warn(
+                  `[reminders] WhatsApp group reminder not sent for ${candidate.kind}: ${
+                    wa.reason ?? "unknown"
+                  }`,
+                );
+              }
+            } catch (error) {
               console.warn(
-                `[reminders] WhatsApp group reminder not sent for ${candidate.kind}: ${
-                  wa.reason ?? "unknown"
+                `[reminders] WhatsApp group reminder failed: ${
+                  error instanceof Error ? error.message : String(error)
                 }`,
               );
             }
-          } catch (error) {
-            console.warn(
-              `[reminders] WhatsApp group reminder failed: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            );
+          }
+
+          if (!delivered && userCtx.notifyWhatsApp) {
+            try {
+              const wa = await ctx.runAction(internal.whatsappSend.sendReply, {
+                toPhone: userCtx.phone,
+                message: waMessage,
+                sameChat: false,
+              });
+              if (wa.sent) {
+                delivered = true;
+              } else {
+                console.warn(
+                  `[reminders] WhatsApp reminder not sent for ${candidate.kind}: ${
+                    wa.reason ?? "unknown"
+                  }`,
+                );
+              }
+            } catch (error) {
+              console.warn(
+                `[reminders] WhatsApp reminder failed: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            }
           }
         }
 
