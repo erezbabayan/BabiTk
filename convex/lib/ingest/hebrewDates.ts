@@ -136,6 +136,14 @@ function findLastExplicitDateMatch(text: string): RegExpMatchArray | null {
   return last;
 }
 
+/** «ב-1.7» is a date, not 01:00. Drop those tokens before looking for a separate clock. */
+function textWithoutExplicitDates(text: string): string {
+  return text.replace(
+    /(?:^|[\s,(])ב?[-\s]?\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?/giu,
+    " ",
+  );
+}
+
 function explicitMatchToIso(
   match: RegExpMatchArray,
   timezone: string,
@@ -152,7 +160,7 @@ function explicitMatchToIso(
     match[4] !== undefined && match[4] !== "" ? Number(match[4]) : null;
   const suffixMinute =
     match[5] !== undefined && match[5] !== "" ? Number(match[5]) : null;
-  const clock = resolveClockTime(match.input ?? "", 9, 0);
+  const clock = resolveClockTime(textWithoutExplicitDates(match.input ?? ""), 9, 0);
   const hour = suffixHour ?? clock.hour;
   const minute = suffixHour !== null ? (suffixMinute ?? 0) : clock.minute;
 
@@ -165,7 +173,7 @@ export function applyTextClockToIso(
   text: string,
   timezone = "Asia/Jerusalem",
 ): string {
-  const clock = extractTimeOfDay(text);
+  const clock = extractTimeOfDay(textWithoutExplicitDates(text));
   if (!isConcreteClockMention(clock) || !clock) return storedIso;
   const stored = new Date(storedIso);
   if (Number.isNaN(stored.getTime())) return storedIso;
