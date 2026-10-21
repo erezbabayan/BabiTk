@@ -3,7 +3,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { ChannelInfoPanel } from "./ChannelInfoPanel";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import type { UsageSummary } from "../lib/api";
-import { normalizePhone, personalCaptureChatId } from "../lib/phone";
+import { normalizePhone } from "../lib/phone";
+import { confirmWhatsAppPhoneOtp, requestWhatsAppPhoneOtp } from "../lib/phone-otp-client";
 import {
   getCloudUserProfile,
   loadProactiveWhatsAppPrefs,
@@ -42,6 +43,7 @@ interface SupabasePhoneLinkSettingsProps {
 export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettingsProps) {
   const [profile, setProfile] = useState<CloudUserProfile | null>(null);
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [groupName, setGroupName] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingPhone, setSavingPhone] = useState(false);
@@ -146,29 +148,37 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
     };
   }, [profile, captureIsGroup, notifyWhatsAppGroup]);
 
-  async function handleLinkPhone(event: FormEvent) {
+  async function handleRequestCode(event: FormEvent) {
     event.preventDefault();
     setSavingPhone(true);
     setError(null);
     setMessage(null);
     try {
       const normalized = normalizePhone(phone);
-      const personalChat = personalCaptureChatId(normalized);
-      const next = await updateCloudUserProfile({
-        phone: normalized,
-        phone_verified: true,
-        whatsapp_capture_group_chat_id:
-          profile?.whatsapp_capture_group_chat_id ?? personalChat,
-        whatsapp_capture_group_name:
-          profile?.whatsapp_capture_group_name ??
-          (personalChat ? "הודעה לעצמי (BabiTk)" : null),
-      });
-      setProfile(next);
-      setPhone("");
-      setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
-      setMessage(`מספר מחובר: ${normalized}`);
+      const result = await requestWhatsAppPhoneOtp(normalized);
+      setPhone(normalized);
+      setMessage(result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה בחיבור המספר");
+      setError(err instanceof Error ? err.message : "שגיאה בשליחת הקוד");
+    } finally {
+      setSavingPhone(false);
+    }
+  }
+
+  async function handleVerifyCode(event: FormEvent) {
+    event.preventDefault();
+    setSavingPhone(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await confirmWhatsAppPhoneOtp(code.trim());
+      const next = await refresh();
+      setPhone("");
+      setCode("");
+      setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
+      setMessage(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "הקוד לא אומת");
     } finally {
       setSavingPhone(false);
     }
@@ -551,9 +561,12 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
           </p>
         </div>
       ) : (
-        <details className="rounded-xl border border-slate-200 bg-white p-4 text-sm" dir="rtl">
-          <summary className="cursor-pointer text-xs text-slate-500">שמירת מספר בלי חיבור וואטסאפ</summary>
-          <form onSubmit={(event) => void handleLinkPhone(event)} className="mt-3 space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm" dir="rtl">
+          <p className="font-medium text-slate-900">אימות מספר בוואטסאפ</p>
+          <p className="mt-1 text-xs text-slate-600">
+            חברו קודם את וואטסאפ למעלה. נשלח קוד בן 6 ספרות למספר, והוא תקף ל-10 דקות. בלי הקוד הנכון המספר לא נקלט.
+          </p>
+          <form onSubmit={(event) => void handleRequestCode(event)} className="mt-3 space-y-3">
             <input
               type="tel"
               placeholder="0501234567"
@@ -565,13 +578,33 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
             />
             <button
               type="submit"
-              disabled={savingPhone}
+              disabled={savingPhone || !phone.trim()}
               className="w-full rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {savingPhone ? "שומר..." : "שמור מספר"}
+              {savingPhone ? "שולח..." : "שלחו קוד"}
             </button>
           </form>
-        </details>
+          <form onSubmit={(event) => void handleVerifyCode(event)} className="mt-3 space-y-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="קוד בן 6 ספרות"
+              value={code}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 tracking-widest"
+              dir="ltr"
+              required
+            />
+            <button
+              type="submit"
+              disabled={savingPhone || code.length !== 6}
+              className="w-full rounded-lg bg-emerald-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {savingPhone ? "בודק..." : "אשרו את המספר"}
+            </button>
+          </form>
+        </div>
       )}
 
       {groupBlock}

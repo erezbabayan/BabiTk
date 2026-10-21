@@ -13,9 +13,10 @@ import {
 import { useAction, useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
 import {
   getProfile,
+  requestPhoneVerification,
+  verifyPhoneCode,
   type UsageSummary,
   type UserProfile,
 } from "../lib/api";
@@ -34,6 +35,7 @@ import {
   type ProactiveWhatsAppPrefs,
 } from "../lib/whatsapp-gateway";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
+import { confirmWhatsAppPhoneOtp, requestWhatsAppPhoneOtp } from "../lib/phone-otp";
 
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
@@ -70,7 +72,8 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     api.users.viewer,
     visible && useConvexPhone ? {} : "skip",
   );
-  const linkVerifiedPhone = useMutation(api.users.linkVerifiedPhone);
+  const requestPhoneOtp = useAction(api.phoneOtpActions.requestPhoneOtp);
+  const confirmPhoneOtp = useMutation(api.phoneOtp.confirmPhoneOtp);
   const updateNotificationPrefs = useMutation(api.users.updateNotificationPrefs);
   const bindExistingGroup = useAction(api.whatsappCaptureGroupActions.bindExistingCaptureGroup);
   const listCaptureGroups = useAction(api.whatsappCaptureGroupActions.listCaptureGroups);
@@ -79,6 +82,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -257,22 +261,69 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     }
   }
 
-  async function handleConvexLink() {
+  async function handleRequestCode() {
     setLoading(true);
     setError(null);
     setMessage(null);
     try {
-      if (!viewer?.userId) {
-        throw new Error("המשתמש עדיין נטען. נסה שוב בעוד רגע.");
+      if (useConvexPhone) {
+        if (!viewer?.userId) {
+          throw new Error("המשתמש עדיין נטען. נסו שוב בעוד רגע.");
+        }
+        const result = await requestPhoneOtp({ phone });
+        setMessage(result.message);
+        return;
       }
-      const linked = await linkVerifiedPhone({
-        userId: viewer.userId as Id<"users">,
-        phone,
-      });
-      setPhone("");
-      setMessage(`מחובר: ${linked}`);
+      if (isSupabaseConfigured) {
+        const result = await requestWhatsAppPhoneOtp(phone);
+        setMessage(result.message);
+        return;
+      }
+      const result = await requestPhoneVerification(phone);
+      setMessage(result.devCode ? `${result.message}: ${result.devCode}` : result.message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
+      setError(err instanceof Error ? err.message : "שגיאה בשליחת הקוד");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleConfirmCode() {
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (useConvexPhone) {
+        const linked = await confirmPhoneOtp({ code: code.trim() });
+        setPhone("");
+        setCode("");
+        setMessage(`מחובר: ${linked}`);
+        return;
+      }
+      if (isSupabaseConfigured) {
+        const result = await confirmWhatsAppPhoneOtp(code.trim());
+        const next = await getProfile().catch(() => null);
+        setProfile(
+          next ?? {
+            id: "",
+            email: "",
+            phone: result.phone ?? phone,
+            phone_verified: true,
+            phone_pending: null,
+          },
+        );
+        setPhone("");
+        setCode("");
+        setMessage(result.message);
+        return;
+      }
+      const result = await verifyPhoneCode(code.trim());
+      setProfile(result.profile);
+      setPhone("");
+      setCode("");
+      setMessage(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "הקוד לא אומת");
     } finally {
       setLoading(false);
     }
@@ -456,8 +507,12 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
               ) : null}
               {linkedPhone ? (
                 <Text style={styles.ok}>מחובר: {linkedPhone}</Text>
-              ) : useConvexPhone ? (
+              ) : (
                 <>
+                  <Text style={styles.captureTitle}>אימות מספר בוואטסאפ</Text>
+                  <Text style={styles.hint}>
+                    חברו קודם את וואטסאפ. נשלח קוד בן 6 ספרות, והוא תקף ל-10 דקות. בלי הקוד הנכון המספר לא נקלט.
+                  </Text>
                   <TextInput
                     style={styles.input}
                     placeholder="+972501234567"
@@ -467,20 +522,36 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     keyboardType="phone-pad"
                   />
                   <Pressable
-                    style={[styles.button, (loading || !convexReady) && styles.buttonDisabled]}
-                    onPress={() => void handleConvexLink()}
-                    disabled={loading || !convexReady}
+                    style={[styles.button, (loading || (useConvexPhone && !convexReady) || !phone.trim()) && styles.buttonDisabled]}
+                    onPress={() => void handleRequestCode()}
+                    disabled={loading || (useConvexPhone && !convexReady) || !phone.trim()}
                   >
                     {loading ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.buttonText}>
-                        {convexReady ? "חבר מספר" : "מכין חיבור..."}
+                        {useConvexPhone && !convexReady ? "מכין חיבור..." : "שלחו קוד"}
                       </Text>
                     )}
                   </Pressable>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="קוד בן 6 ספרות"
+                    placeholderTextColor="#94a3b8"
+                    value={code}
+                    onChangeText={(value) => setCode(value.replace(/\D/g, "").slice(0, 6))}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                  />
+                  <Pressable
+                    style={[styles.button, (loading || code.length !== 6) && styles.buttonDisabled]}
+                    onPress={() => void handleConfirmCode()}
+                    disabled={loading || code.length !== 6}
+                  >
+                    <Text style={styles.buttonText}>אשרו את המספר</Text>
+                  </Pressable>
                 </>
-              ) : null}
+              )}
 
               {linkedPhone && useConvexPhone ? (
                 <View style={styles.captureBox}>

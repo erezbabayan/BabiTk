@@ -11,6 +11,7 @@ import {
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
 } from "../_shared/green-api.ts";
+import { captureAllowedForPhone } from "../_shared/phone-otp.ts";
 import {
   titleFromInboundText,
   isInsertableInboundText,
@@ -1235,6 +1236,10 @@ Deno.serve(async (req) => {
       (gateway?.user_id ? await findUserById(supabase, gateway.user_id) : null);
     if (!user) {
       skipped.push({ messageId: message.messageId, reason: "not_linked" });
+      continue;
+    }
+    if (!captureAllowedForPhone(user.phone_verified)) {
+      skipped.push({ messageId: message.messageId, reason: "phone_not_verified" });
       continue;
     }
     if (!gateway) {

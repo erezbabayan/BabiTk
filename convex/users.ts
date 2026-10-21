@@ -925,49 +925,19 @@ export const prepareRealUserAccount = internalMutation({
   },
 });
 
-/** Link a verified WhatsApp phone to a user (settings / onboarding). */
+/**
+ * Direct linking without a code is closed. Use phoneOtp.requestPhoneOtp
+ * and phoneOtp.confirmPhoneOtp so the number is verified first.
+ */
 export const linkVerifiedPhone = mutation({
   args: {
     userId: v.id("users"),
     phone: v.string(),
   },
   returns: v.string(),
-  handler: async (ctx, { userId: requestedUserId, phone }) => {
-    const userId = await requireScopedUserId(ctx, requestedUserId);
-    const normalized = normalizePhone(phone);
-    const digits = normalized.replace(/\D/g, "");
-    if (digits.length < 9 || digits.length > 15) {
-      throw new Error("מספר טלפון לא תקין");
-    }
-    const now = Date.now();
-
-    const conflict = await ctx.db
-      .query("users")
-      .withIndex("phone", (q) => q.eq("phone", normalized))
-      .unique();
-
-    if (conflict && conflict._id !== userId) {
-      throw new Error("מספר הטלפון כבר מקושר לחשבון אחר");
-    }
-
-    await ctx.db.patch(userId, {
-      phone: normalized,
-      phoneVerified: true,
-      updatedAt: now,
-    });
-
-    // Free-tier stable path: default capture to Message Yourself when unset.
-    const after = await ctx.db.get("users", userId);
-    if (after && !after.whatsappCaptureGroupChatId?.trim()) {
-      const digits = normalized.replace(/\D/g, "");
-      await ctx.db.patch(userId, {
-        whatsappCaptureGroupChatId: `${digits}@c.us`,
-        whatsappCaptureGroupName: "הודעה לעצמי (BabiTk)",
-        updatedAt: Date.now(),
-      });
-    }
-
-    return normalized;
+  handler: async (ctx, { userId: requestedUserId }) => {
+    await requireScopedUserId(ctx, requestedUserId);
+    throw new Error("נדרש קוד אימות בן 6 ספרות. שלחו קוד למספר ואז הזינו אותו.");
   },
 });
 

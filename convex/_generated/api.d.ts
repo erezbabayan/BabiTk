@@ -74,6 +74,8 @@ import type * as lib_whatsappSystemQuestionReply from "../lib/whatsappSystemQues
 import type * as notebooks from "../notebooks.js";
 import type * as notifications from "../notifications.js";
 import type * as openaiPipeline from "../openaiPipeline.js";
+import type * as phoneOtp from "../phoneOtp.js";
+import type * as phoneOtpActions from "../phoneOtpActions.js";
 import type * as pushTokens from "../pushTokens.js";
 import type * as reminders from "../reminders.js";
 import type * as search from "../search.js";
@@ -171,6 +173,8 @@ declare const fullApi: ApiFromModules<{
   notebooks: typeof notebooks;
   notifications: typeof notifications;
   openaiPipeline: typeof openaiPipeline;
+  phoneOtp: typeof phoneOtp;
+  phoneOtpActions: typeof phoneOtpActions;
   pushTokens: typeof pushTokens;
   reminders: typeof reminders;
   search: typeof search;
