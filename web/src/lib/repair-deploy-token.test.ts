@@ -18,10 +18,10 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 describe("isSupabasePat", () => {
   it("accepts a full sbp_ token and rejects empty or short values", () => {
-    const sample = "sbp_2816a344676c05014d43e0a9f29aea047a5123c2";
+    const sample = "sbp_" + "0".repeat(40);
     assert.equal(isSupabasePat(sample), true);
     assert.equal(isSharedSupabasePat(sample), true);
-    assert.equal(isSupabasePat("  sbp_2816a344676c05014d43e0a9f29aea047a5123c2  "), true);
+    assert.equal(isSupabasePat(`  ${sample}  `), true);
     assert.equal(isSupabasePat(""), false);
     assert.equal(isSupabasePat("sbp_short"), false);
     assert.equal(isSupabasePat("GOCSPX-not-a-supabase-token"), false);

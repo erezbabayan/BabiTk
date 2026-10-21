@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { configuredDemoSyncToken } from "../lib/demo-sync-token.js";
 import { envFlagEnabled } from "../lib/proactive-whatsapp.js";
 
 config();
@@ -217,7 +218,7 @@ export const env = {
     return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";
   },
   get demoSyncToken() {
-    return process.env.DEMO_SYNC_TOKEN ?? "mindtasker-local-sync";
+    return configuredDemoSyncToken();
   },
   /** Morning briefing, follow-up, and multi-card. Default on. See docs/ROADMAP.md. */
   get whatsappMorningBriefing() {
