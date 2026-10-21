@@ -51,7 +51,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/phone/verify", async (request, reply) => {
-    const body = z.object({ code: z.string().trim().min(4).max(8) }).safeParse(request.body);
+    const body = z.object({ code: z.string().trim().regex(/^\d{6}$/) }).safeParse(request.body);
     if (!body.success || !request.user) {
       return reply.status(400).send({ error: "validation_error" });
     }

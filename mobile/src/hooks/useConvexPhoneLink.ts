@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -35,23 +35,29 @@ export function useConvexPhoneLink(legacyUserId: string | undefined) {
     api.users.getByLegacyId,
     enabled && legacyUserId ? { legacyId: legacyUserId } : "skip",
   );
-  const linkVerifiedPhone = useMutation(api.users.linkVerifiedPhone);
+  const requestPhoneOtp = useAction(api.phoneOtpActions.requestPhoneOtp);
+  const confirmPhoneOtp = useMutation(api.phoneOtp.confirmPhoneOtp);
 
-  async function linkPhone(rawPhone: string): Promise<string> {
+  async function requestCode(rawPhone: string): Promise<string> {
     if (!convexUserId) {
       throw new Error("Convex user is not ready yet. Try again in a moment.");
     }
+    const result = await requestPhoneOtp({ phone: rawPhone });
+    return result.message;
+  }
 
-    return await linkVerifiedPhone({
-      userId: convexUserId,
-      phone: rawPhone,
-    });
+  async function confirmCode(code: string): Promise<string> {
+    if (!convexUserId) {
+      throw new Error("Convex user is not ready yet. Try again in a moment.");
+    }
+    return await confirmPhoneOtp({ code });
   }
 
   return {
     ready: Boolean(convexUserId),
     linkedPhone:
       convexUser?.phoneVerified && convexUser.phone ? convexUser.phone : null,
-    linkPhone,
+    requestCode,
+    confirmCode,
   };
 }

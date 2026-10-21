@@ -332,7 +332,7 @@ async function sendWelcomeMessage(gateway: GatewayRow, digits: string): Promise<
 async function linkUserPhone(
   supabase: ReturnType<typeof createClient>,
   userId: string,
-  linkedPhone: string,
+  _linkedPhone: string,
 ): Promise<void> {
   const { data } = await supabase
     .from("users")
@@ -345,19 +345,14 @@ async function linkUserPhone(
     whatsapp_capture_group_chat_id?: string | null;
     whatsapp_capture_group_name?: string | null;
   } | null;
-  const patch: Record<string, unknown> = {};
-  if (!row?.phone_verified || !row.phone) {
-    patch.phone = linkedPhone;
-    patch.phone_verified = true;
-  }
-  if (!row?.whatsapp_capture_group_chat_id) {
-    const digits = linkedPhone.replace(/\D/g, "");
-    if (digits.length >= 10) {
-      patch.whatsapp_capture_group_chat_id = `${digits}@c.us`;
-      patch.whatsapp_capture_group_name = row?.whatsapp_capture_group_name ?? "הודעה לעצמי (BabiTk)";
-    }
-  }
-  if (Object.keys(patch).length === 0) return;
+  if (!row?.phone_verified || !row.phone) return;
+  if (row.whatsapp_capture_group_chat_id) return;
+  const digits = row.phone.replace(/\D/g, "");
+  if (digits.length < 10) return;
+  const patch: Record<string, unknown> = {
+    whatsapp_capture_group_chat_id: `${digits}@c.us`,
+    whatsapp_capture_group_name: row.whatsapp_capture_group_name ?? "הודעה לעצמי (BabiTk)",
+  };
   const { error } = await supabase.from("users").update(patch).eq("id", userId);
   if (error) {
     console.error("whatsapp phone link failed", error.message);

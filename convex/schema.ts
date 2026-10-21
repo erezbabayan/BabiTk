@@ -31,6 +31,13 @@ export default defineSchema({
     legacyId: v.optional(v.string()),
     phone: v.optional(v.string()),
     phoneVerified: v.optional(v.boolean()),
+    /** E.164 waiting for a 6-digit OTP. The code itself is never stored. */
+    phonePending: v.optional(v.string()),
+    phoneOtpHash: v.optional(v.string()),
+    phoneOtpExpiresAt: v.optional(v.number()),
+    phoneOtpAttempts: v.optional(v.number()),
+    /** Epoch ms of OTP sends. At most 3 in the last hour. */
+    phoneOtpSentAt: v.optional(v.array(v.number())),
     tier: v.optional(userTier),
     role: v.optional(v.union(v.literal("admin"), v.literal("user"))),
     allocatedAudioSeconds: v.optional(v.number()),
