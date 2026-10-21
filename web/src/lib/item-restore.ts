@@ -36,6 +36,14 @@ export function buildArchivePatch(item: ItemSnapshot): Partial<MindtaskerItem> {
 }
 
 export function resolveRestoreFromArchivePatch(item: ItemSnapshot): Partial<MindtaskerItem> {
+  if (item.status === "completed") {
+    return {
+      status: "pending",
+      completed_at: null,
+      last_interacted_at: new Date().toISOString(),
+    };
+  }
+
   const rawMeta = item.metadata ?? {};
   const saved = rawMeta[PRE_ARCHIVE_STATUS] as ItemStatus | undefined;
   const metadata = withoutKeys(rawMeta, [PRE_ARCHIVE_STATUS]);

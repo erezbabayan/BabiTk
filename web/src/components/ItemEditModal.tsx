@@ -28,6 +28,7 @@ export interface ItemEditInput {
   content: string;
   tags: string[];
   due_date: string | null;
+  is_actionable: boolean;
   recurrence?: ReminderRecurrence | null;
   checklist?: ChecklistEntry[];
 }
@@ -83,6 +84,7 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
   const [title, setTitle] = useState(resolved.transcribing ? "" : resolved.title);
   const [content, setContent] = useState(resolved.transcribing ? "" : resolved.content);
   const [selectedTags, setSelectedTags] = useState<string[]>(item.tags);
+  const [isActionable, setIsActionable] = useState(item.is_actionable);
   const [dueParts, setDueParts] = useState<DueDateParts>(() => {
     if (getReminderFlags(item.metadata).disabled) {
       return splitDueDate(null);
@@ -112,6 +114,10 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
         : current,
     );
   }, [item]);
+
+  useEffect(() => {
+    setIsActionable(item.is_actionable);
+  }, [item.id, item.is_actionable]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -153,6 +159,7 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
         content: content.trim(),
         tags: nextTags,
         due_date: dueDate,
+        is_actionable: isActionable,
         recurrence: dueDate ? recurrence : null,
         checklist: checklist
           .map((entry) => ({ ...entry, text: entry.text.trim() }))
@@ -201,7 +208,7 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
       >
         <div className="relative shrink-0 border-b border-slate-100 px-3 py-1.5">
           <h2 id="item-edit-title" className="text-center text-xs font-bold text-slate-900">
-            עריכת {item.is_actionable ? "משימה" : "הערה"}
+            עריכת {isActionable ? "משימה" : "הערה"}
           </h2>
           <button
             type="button"
@@ -222,6 +229,35 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
           <div
             className={`min-h-0 space-y-1 ${expanded ? "flex-1 overflow-y-auto pe-0.5" : ""}`}
           >
+            <div>
+              <label className="mb-px block text-[10px] font-medium text-slate-500">סוג</label>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setIsActionable(true)}
+                  aria-pressed={isActionable}
+                  className={`flex-1 !rounded-md border !px-2 !py-1 !text-[11px] !font-semibold ${
+                    isActionable
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  משימה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsActionable(false)}
+                  aria-pressed={!isActionable}
+                  className={`flex-1 !rounded-md border !px-2 !py-1 !text-[11px] !font-semibold ${
+                    !isActionable
+                      ? "border-amber-500 bg-amber-50 text-amber-800"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  הערה
+                </button>
+              </div>
+            </div>
             <div>
               <label className="mb-px block text-[10px] font-medium text-slate-500">כותרת</label>
               {resolved.transcribing ? (

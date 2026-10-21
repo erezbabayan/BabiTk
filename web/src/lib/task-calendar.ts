@@ -1,3 +1,4 @@
+import { applyTextClockToIso } from "../../../convex/lib/ingest/hebrewDates.ts";
 import type { MindtaskerItem } from "../types";
 
 export const TASK_CALENDAR_TZ = "Asia/Jerusalem";
@@ -156,7 +157,7 @@ export function calendarItemDueIso(
     (typeof item.due_date === "string" && item.due_date.length > 0 ? item.due_date : null) ||
     analysisScheduleIso(item.metadata);
   if (!source || Number.isNaN(Date.parse(source))) return null;
-  return source;
+  return applyTextClockToIso(source, `${item.title} ${item.content}`.trim());
 }
 
 export function isCalendarTask(
@@ -572,10 +573,76 @@ export function uniqueCalendarSearchHits(
       ...hit,
       extraDayCount: Math.max(0, (dayCount.get(hit.item.id) ?? 1) - 1),
     }))
-    .sort(
-      (left, right) =>
-        left.ymd.localeCompare(right.ymd) || Date.parse(left.dueIso) - Date.parse(right.dueIso),
-    );
+    .sort(compareCalendarSearchHits);
+}
+
+function compareCalendarSearchHits(left: CalendarSearchHit, right: CalendarSearchHit): number {
+  const byDay = left.ymd.localeCompare(right.ymd);
+  if (byDay !== 0) return byDay;
+  const leftMs = Date.parse(left.dueIso);
+  const rightMs = Date.parse(right.dueIso);
+  const leftTime = Number.isFinite(leftMs) ? leftMs : 0;
+  const rightTime = Number.isFinite(rightMs) ? rightMs : 0;
+  if (leftTime !== rightTime) return leftTime - rightTime;
+  return (left.item.title ?? "").localeCompare(right.item.title ?? "", "he");
+}
+
+function calendarSearchFallbackStamp(
+  item: MindtaskerItem,
+  preferYmd: string,
+): { dueIso: string; ymd: string } {
+  for (const source of [item.created_at, item.updated_at, item.last_interacted_at]) {
+    if (typeof source !== "string" || source.length === 0) continue;
+    if (Number.isNaN(Date.parse(source))) continue;
+    const ymd = taskCalendarDayKey(source);
+    if (ymd) return { dueIso: source, ymd };
+  }
+  const ymd = preferYmd;
+  return { dueIso: ymd ? `${ymd}T09:00:00+03:00` : "", ymd };
+}
+
+/**
+ * Search hits for every matching board item, any month.
+ * Every row under the calendar has a date (due, else created/updated).
+ */
+export function calendarSearchHitsFromItems(
+  items: MindtaskerItem[],
+  preferYmd: string,
+): CalendarSearchHit[] {
+  const hits: CalendarSearchHit[] = [];
+  for (const item of items) {
+    const due = calendarItemDueIso(item);
+    const seedYmd = due ? taskCalendarDayKey(due) : null;
+    if (!due || !seedYmd) {
+      const fallback = calendarSearchFallbackStamp(item, preferYmd);
+      hits.push({
+        item,
+        dueIso: fallback.dueIso,
+        ymd: fallback.ymd,
+        extraDayCount: 0,
+      });
+      continue;
+    }
+    const recurrence = calendarItemRecurrence(item.metadata);
+    const ymd = recurrence
+      ? firstOccurrenceOnOrAfter(seedYmd, recurrence, preferYmd || seedYmd)
+      : seedYmd;
+    hits.push({
+      item,
+      dueIso: dueIsoOnYmd(due, ymd),
+      ymd,
+      extraDayCount: recurrence ? 1 : 0,
+    });
+  }
+  return hits.sort(compareCalendarSearchHits);
+}
+
+/** Month/day to open in tag or search match mode — first row under the calendar. */
+export function firstCalendarMatchYmd(
+  items: MindtaskerItem[],
+  preferYmd: string,
+): string | null {
+  return calendarSearchHitsFromItems(items, preferYmd)[0]?.ymd ?? null;
 }
 
 export function groupCalendarSearchHitsByDay(

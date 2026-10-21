@@ -38,6 +38,21 @@ export function isActiveBoardItem(
   return !item.deleted_at;
 }
 
+/** Tasks board archive: snoozed + completed, without duplicate ids. */
+export function mergeTaskArchiveItems<T extends { id: string }>(
+  archived: T[],
+  completed: T[],
+): T[] {
+  const merged = [...archived];
+  const seen = new Set(merged.map((item) => item.id));
+  for (const item of completed) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+  }
+  return merged;
+}
+
 export function itemsInColumn(
   items: MindtaskerItem[],
   column: DashboardColumn,
@@ -100,4 +115,22 @@ export function buildToggleStayMetadata(
   item: Pick<MindtaskerItem, "status" | "is_actionable" | "metadata">,
 ): Record<string, unknown> {
   return withPinnedBoardColumn(item.metadata, null);
+}
+
+/** Apply a note↔task flip from the edit form onto the current item. */
+export function withEditedItemType(
+  item: MindtaskerItem,
+  isActionable: boolean,
+): MindtaskerItem {
+  if (item.is_actionable === isActionable) return item;
+  const next: MindtaskerItem = {
+    ...item,
+    is_actionable: isActionable,
+    metadata: buildToggleStayMetadata(item),
+  };
+  if (!isActionable) {
+    next.completed_at = null;
+    if (item.status === "completed") next.status = "pending";
+  }
+  return next;
 }

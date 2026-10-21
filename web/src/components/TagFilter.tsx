@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NotebookIcon } from "./NotebookIcons";
 import { TagChip } from "./TagChip";
-import { colorForTag, formatTagLabel, type UserTag } from "../lib/tags";
+import { colorForTag, type UserTag } from "../lib/tags";
+import { tagFilterAriaLabel, tagFilterTriggerLabel } from "../lib/tag-filter";
 
 interface TagFilterProps {
   tags: string[];
@@ -81,10 +82,12 @@ export function TagFilter({ tags, selected, onSelect, userTags = [] }: TagFilter
       const anchor = anchorRef.current;
       if (!anchor) return;
       const rect = anchor.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 240), Math.max(160, window.innerWidth - 16));
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
       setPanelStyle({
         top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
+        left,
+        width,
       });
     }
 
@@ -117,7 +120,7 @@ export function TagFilter({ tags, selected, onSelect, userTags = [] }: TagFilter
 
   return (
     <div
-      className="relative z-[1] h-8 shrink-0"
+      className="relative z-[1] h-8 min-w-0"
       data-no-drag-scroll
       onWheel={(e) => e.stopPropagation()}
     >
@@ -125,17 +128,24 @@ export function TagFilter({ tags, selected, onSelect, userTags = [] }: TagFilter
         ref={anchorRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="flex h-8 w-full items-center justify-between gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-2 text-xs text-slate-600 shadow-sm hover:bg-white"
+        className={`flex h-8 w-full min-w-0 items-center justify-between gap-1 overflow-hidden rounded-lg border px-2 text-xs shadow-sm transition hover:bg-white ${
+          selected
+            ? "border-orange-300/90 bg-orange-50 text-orange-900"
+            : "border-slate-200/80 bg-white/80 text-slate-600"
+        }`}
         aria-expanded={open}
+        aria-label={tagFilterAriaLabel(selected)}
+        title={tagFilterAriaLabel(selected)}
       >
-        <span className="flex items-center gap-1.5 font-medium">
-          <NotebookIcon name="filter" size={14} tone="orange" />
-          סינון תגיות
-          {selected ? (
-            <span className="font-normal text-slate-500"> · {formatTagLabel(selected)}</span>
-          ) : null}
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden font-medium">
+          <span className="shrink-0">
+            <NotebookIcon name="filter" size={14} tone="orange" />
+          </span>
+          <span className="min-w-0 truncate whitespace-nowrap">
+            {tagFilterTriggerLabel(selected)}
+          </span>
         </span>
-        <span className="text-slate-400" aria-hidden>
+        <span className="shrink-0 text-slate-400" aria-hidden>
           <NotebookIcon name={open ? "chevronUp" : "chevronDown"} size={14} tone="muted" />
         </span>
       </button>
@@ -145,7 +155,10 @@ export function TagFilter({ tags, selected, onSelect, userTags = [] }: TagFilter
             <TagFilterPanel
               tags={tags}
               selected={selected}
-              onSelect={onSelect}
+              onSelect={(tag) => {
+                onSelect(tag);
+                setOpen(false);
+              }}
               userTags={userTags}
               panelRef={panelRef}
               style={panelStyle}

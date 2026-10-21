@@ -11,9 +11,15 @@ import {
   isPersonalCaptureLabel,
   parseGroupChatId,
   pickMatchingGroup,
+  preferredCaptureGroupFromItems,
   selectCatchupMessages,
   shouldCatchupCaptureText,
 } from "../../../supabase/functions/_shared/green-api-chats.ts";
+import {
+  liveCaptureGateBlocksGroup,
+  personalCaptureRepairPatch,
+  PERSONAL_CAPTURE_NAME,
+} from "./whatsapp-live-capture-gate.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +80,16 @@ describe("collectGroupsFromItemMetadata", () => {
     assert.equal(groups.length, 1);
     assert.equal(groups[0]?.chatId, "120363zzz@g.us");
   });
+
+  it("picks the most frequent group chat, not the task title", () => {
+    const preferred = preferredCaptureGroupFromItems([
+      { title: "לקבלן", metadata: { chat_id: "120363aaa@g.us" } },
+      { title: "חשבונית", metadata: { chat_id: "120363aaa@g.us" } },
+      { title: "משפחה", metadata: { chat_id: "120363bbb@g.us", chat_name: "משפחה" } },
+    ]);
+    assert.equal(preferred?.chatId, "120363aaa@g.us");
+    assert.equal(preferred?.name, "120363aaa@g.us");
+  });
 });
 
 describe("isPersonalCaptureLabel", () => {
@@ -115,6 +131,42 @@ describe("catch-up journal texts", () => {
     const selected = selectCatchupMessages(rows, null, 1_700_000_200);
     assert.equal(selected.length, 1);
   });
+
+  it("treats lastOutgoingMessages rows as outgoing even when type is outgoingMessage", () => {
+    const rows = collectJournalTexts(
+      [
+        {
+          id: "hist-1",
+          type: "outgoingMessage",
+          chatId: "120363aaa@g.us",
+          textMessage: "לקבלן מאליקים לבדוק מולו עוד יומיים",
+          timestamp: 1_700_000_000,
+        },
+      ],
+      "",
+      { defaultOutgoing: true },
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.messageId, "hist-1");
+    assert.equal(rows[0]?.outgoing, true);
+  });
+
+  it("keeps incoming contractor texts once the capture group id is bound", () => {
+    const rows = collectJournalTexts([
+      {
+        idMessage: "in-1",
+        type: "incoming",
+        chatId: "120363aaa@g.us",
+        textMessage: "שלחתי הצעת מחיר",
+        timestamp: 1_700_000_050,
+      },
+    ]);
+    assert.equal(rows.length, 1);
+    const unbound = selectCatchupMessages(rows, null, 1_700_000_200);
+    assert.equal(unbound.length, 0);
+    const bound = selectCatchupMessages(rows, "120363aaa@g.us", 1_700_000_200);
+    assert.equal(bound.length, 1);
+  });
 });
 
 describe("settings persist the group chat id", () => {
@@ -127,9 +179,77 @@ describe("settings persist the group chat id", () => {
     assert.match(source, /whatsapp_capture_group_chat_id: matched.chatId/);
     assert.match(source, /autoBindAttempted/);
     assert.match(source, /catchUpWhatsAppGroupInbox/);
+    assert.match(source, /SEND_GROUP_MESSAGE_HINT/);
     assert.equal(
       source.includes("whatsapp_capture_group_chat_id: profile?.whatsapp_capture_group_chat_id ?? null"),
       false,
     );
+  });
+});
+
+describe("live capture gate repair", () => {
+  it("blocks group posts when a custom name is saved on a personal chat id", () => {
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "972501234567@c.us",
+        whatsapp_capture_group_name: "משימות ארז",
+      }),
+      true,
+    );
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "972501234567@c.us",
+        whatsapp_capture_group_name: PERSONAL_CAPTURE_NAME,
+      }),
+      false,
+    );
+    assert.equal(
+      liveCaptureGateBlocksGroup({
+        whatsapp_capture_group_chat_id: "120363aaa@g.us",
+        whatsapp_capture_group_name: "משימות ארז",
+      }),
+      false,
+    );
+  });
+
+  it("keeps the personal chat id and restores the default name", () => {
+    const patch = personalCaptureRepairPatch({
+      phone: "+972501234567",
+      whatsapp_capture_group_chat_id: "972501234567@c.us",
+      whatsapp_capture_group_name: "משימות ארז",
+    });
+    assert.equal(patch.whatsapp_capture_group_chat_id, "972501234567@c.us");
+    assert.equal(patch.whatsapp_capture_group_name, PERSONAL_CAPTURE_NAME);
+  });
+});
+
+describe("server-side group inbox catch-up", () => {
+  it("restores @g.us from existing items and backfills via connect status, without wiping the group name", () => {
+    const source = readFileSync(join(here, "whatsapp-group-catchup.ts"), "utf8");
+    assert.match(source, /action: "catchupInbox"/);
+    assert.match(source, /invokeGreenConnect\("status"\)/);
+    assert.match(source, /recoverCaptureGroupFromItems/);
+    assert.match(source, /bindCaptureGroupIfNeeded/);
+    assert.equal(source.includes("repairLiveCaptureGateIfNeeded"), false);
+    assert.equal(source.includes("personalCaptureRepairPatch"), false);
+    assert.equal(source.includes("fetchGreenApiJournalTexts"), false);
+  });
+
+  it("exposes catchupInbox on the connect function", () => {
+    const source = readFileSync(
+      join(here, "../../../supabase/functions/whatsapp-green-connect/index.ts"),
+      "utf8",
+    );
+    assert.match(source, /action === "catchupInbox"/);
+    assert.match(source, /runWhatsAppGroupInboxCatchup/);
+  });
+
+  it("ships a service-role GitHub Action that does not need Edge Function deploy", () => {
+    const source = readFileSync(
+      join(here, "../../../.github/workflows/whatsapp-group-catchup.yml"),
+      "utf8",
+    );
+    assert.match(source, /whatsapp-group-inbox-catchup.ts/);
+    assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
   });
 });

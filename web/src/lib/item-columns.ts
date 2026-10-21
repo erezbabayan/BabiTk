@@ -38,6 +38,29 @@ export function isActiveBoardItem(
   return !item.deleted_at;
 }
 
+/** Completed tasks live in the same archive as snoozed tasks. */
+export function isTaskArchiveItem(
+  item: Pick<MindtaskerItem, "deleted_at" | "is_actionable" | "status">,
+): boolean {
+  if (!isActiveBoardItem(item) || !item.is_actionable) return false;
+  return item.status === "snoozed_archive" || item.status === "completed";
+}
+
+/** Tasks board archive: snoozed + completed, without duplicate ids. */
+export function mergeTaskArchiveItems<T extends { id: string }>(
+  archived: T[],
+  completed: T[],
+): T[] {
+  const merged = [...archived];
+  const seen = new Set(merged.map((item) => item.id));
+  for (const item of completed) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+  }
+  return merged;
+}
+
 export function itemsInColumn(
   items: MindtaskerItem[],
   column: DashboardColumn,

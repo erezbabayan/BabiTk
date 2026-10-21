@@ -204,41 +204,83 @@ body {
 
 /* App header — cream paper, matches dashboard background */
 .app-header {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   border-bottom: 1px solid rgb(214 211 209 / 0.55);
   background-color: rgb(253 250 243 / 0.94);
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.55) 0%, transparent 100%);
   box-shadow: 0 1px 3px rgb(120 113 108 / 0.06);
   backdrop-filter: blur(8px);
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
 
 @media (max-width: 1023px) {
-  /* Match native top bar */
+  /* Match native top bar — keep actions inside the phone frame on the right. */
   .app-header {
     border-bottom: 1px solid #e2e8f0;
     background-color: rgb(255 255 255 / 0.95);
     background-image: none;
     box-shadow: none;
     backdrop-filter: none;
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
   }
 }
 
 .app-header-nav-link {
-  @apply border-0 bg-transparent px-2 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:text-sm;
+  @apply shrink-0 whitespace-nowrap border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:px-2 sm:text-sm;
+}
+
+.system-activity-btn {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0;
+  color: #57534e;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.system-activity-btn:hover,
+.system-activity-btn[aria-pressed="true"] {
+  background: rgb(231 229 228 / 0.7);
+  color: #1c1917;
+}
+
+.system-activity-filters {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.system-activity-dates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.system-activity-export {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .board-view-toggle {
-  @apply inline-flex items-center gap-1.5 border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:text-sm;
+  @apply inline-flex shrink-0 items-center gap-1.5 border-0 bg-transparent px-0.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:px-1.5 sm:text-sm;
 }
 
 .board-view-toggle__label {
-  @apply hidden whitespace-nowrap sm:inline;
-}
-
-@media (max-width: 1023px) {
-  /* App always shows the view-toggle label */
-  .board-view-toggle__label {
-    display: inline;
-  }
+  @apply hidden whitespace-nowrap lg:inline;
 }
 
 .board-view-toggle__track {

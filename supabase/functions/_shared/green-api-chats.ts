@@ -71,6 +71,7 @@ type RawChatRow = {
   chatName?: unknown;
   senderName?: unknown;
   type?: unknown;
+  typeWebhook?: unknown;
   senderData?: unknown;
   textMessage?: unknown;
   caption?: unknown;
@@ -144,13 +145,51 @@ export function collectGroupsFromItemMetadata(
       : "";
     const chatId = parseGroupChatId(rawId);
     if (!chatId) continue;
-    const title = stringField(row.title);
-    out.push({
-      chatId,
-      name: title && !title.startsWith("…") ? title : chatId,
-    });
+    const named =
+      (metadata
+        ? stringField(metadata.chat_name) ||
+          stringField(metadata.chatName) ||
+          stringField(metadata.group_name)
+        : "") || chatId;
+    out.push({ chatId, name: named });
   }
   return mergeGreenApiGroups(out);
+}
+
+/** Most common @g.us in previously ingested WhatsApp items. */
+export function preferredCaptureGroupFromItems(
+  rows: Array<{ title?: unknown; metadata?: unknown }>,
+): GreenApiGroup | null {
+  const counts = new Map<string, { n: number; name: string }>();
+  for (const row of rows) {
+    const metadata =
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null;
+    const rawId = metadata
+      ? stringField(metadata.chat_id) || stringField(metadata.chatId)
+      : "";
+    const chatId = parseGroupChatId(rawId);
+    if (!chatId) continue;
+    const named =
+      (metadata
+        ? stringField(metadata.chat_name) ||
+          stringField(metadata.chatName) ||
+          stringField(metadata.group_name)
+        : "") || "";
+    const prev = counts.get(chatId);
+    if (!prev) counts.set(chatId, { n: 1, name: named || chatId });
+    else counts.set(chatId, { n: prev.n + 1, name: named || prev.name });
+  }
+  let best: GreenApiGroup | null = null;
+  let bestN = -1;
+  for (const [chatId, info] of counts) {
+    if (info.n > bestN) {
+      bestN = info.n;
+      best = { chatId, name: info.name };
+    }
+  }
+  return best;
 }
 
 export type GreenApiCreds = {
@@ -238,11 +277,31 @@ export function selectCatchupMessages(
   return out;
 }
 
+export type CollectJournalOptions = {
+  defaultOutgoing?: boolean;
+};
+
+function messageIdFromRow(row: RawChatRow): string {
+  const fromField = stringField(row.idMessage);
+  if (fromField) return fromField;
+  const id = stringField(row.id);
+  if (id && !id.includes("@")) return id;
+  return "";
+}
+
+function rowIsOutgoing(row: RawChatRow, defaultOutgoing: boolean): boolean {
+  if (defaultOutgoing) return true;
+  const type = `${stringField(row.type)} ${stringField(row.typeWebhook)}`.toLowerCase();
+  return type.includes("outgoing");
+}
+
 export function collectJournalTexts(
   data: unknown,
   fallbackChatId = "",
+  options: CollectJournalOptions = {},
 ): GreenApiJournalText[] {
   const fallback = parseGroupChatId(fallbackChatId) ?? "";
+  const defaultOutgoing = options.defaultOutgoing === true;
   const out: GreenApiJournalText[] = [];
   const seen = new Set<string>();
   for (const row of asRows(data)) {
@@ -256,7 +315,7 @@ export function collectJournalTexts(
     if (!chatId) continue;
     const text = journalTextFromRow(row);
     if (!shouldCatchupCaptureText(text)) continue;
-    const messageId = stringField(row.idMessage);
+    const messageId = messageIdFromRow(row);
     if (!messageId || seen.has(messageId)) continue;
     seen.add(messageId);
     const timestampRaw = row.timestamp;
@@ -276,7 +335,7 @@ export function collectJournalTexts(
         nestedString(sender, "chatName") ||
         stringField(row.name) ||
         "",
-      outgoing: stringField(row.type).toLowerCase() === "outgoing",
+      outgoing: rowIsOutgoing(row, defaultOutgoing),
     });
   }
   return out;
@@ -296,7 +355,11 @@ export async function fetchGreenApiJournalTexts(
     try {
       const response = await fetch(url);
       if (!response.ok) continue;
-      rows.push(...collectJournalTexts(await response.json()));
+      rows.push(
+        ...collectJournalTexts(await response.json(), "", {
+          defaultOutgoing: url.includes("lastOutgoingMessages"),
+        }),
+      );
     } catch {
       // browser CORS or transient Green-API errors
     }

@@ -128,7 +128,7 @@ function matchExplicitDate(
 
 function findLastExplicitDateMatch(text: string): RegExpMatchArray | null {
   const pattern =
-    /(?:^|[\s,(])ב?[-\s]?(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?(?:\s+ב[-\s]?(\d{1,2})(?:[:\.](\d{2}))?)?/giu;
+    /(?:^|[\s,(])ב?[-\s]?(\d{1,2})[\./](\d{1,2})(?:[\./](\d{2,4}))?(?:\s+(?:בשעה\s+|ב[-\s]?)(\d{1,2})(?:[:\.](\d{2}))?)?/giu;
   let last: RegExpMatchArray | null = null;
   for (const match of text.matchAll(pattern)) {
     last = match;
@@ -148,10 +148,41 @@ function explicitMatchToIso(
   if (year < 100) {
     year += 2000;
   }
-  const hour = match[4] ? Number(match[4]) : 9;
-  const minute = match[5] ? Number(match[5]) : 0;
+  const suffixHour =
+    match[4] !== undefined && match[4] !== "" ? Number(match[4]) : null;
+  const suffixMinute =
+    match[5] !== undefined && match[5] !== "" ? Number(match[5]) : null;
+  const clock = resolveClockTime(match.input ?? "", 9, 0);
+  const hour = suffixHour ?? clock.hour;
+  const minute = suffixHour !== null ? (suffixMinute ?? 0) : clock.minute;
 
   return zonedLocalToIso({ year, month, day, hour, minute, second: 0 }, timezone);
+}
+
+/** If stored due is the default 09:00 but the text has a real clock, use that clock. */
+export function applyTextClockToIso(
+  storedIso: string,
+  text: string,
+  timezone = "Asia/Jerusalem",
+): string {
+  const clock = extractTimeOfDay(text);
+  if (!isConcreteClockMention(clock) || !clock) return storedIso;
+  const stored = new Date(storedIso);
+  if (Number.isNaN(stored.getTime())) return storedIso;
+  const storedParts = getZonedParts(stored, timezone);
+  if (storedParts.hour !== 9 || storedParts.minute !== 0) return storedIso;
+  if (clock.hour === 9 && clock.minute === 0) return storedIso;
+  return zonedLocalToIso(
+    {
+      year: storedParts.year,
+      month: storedParts.month,
+      day: storedParts.day,
+      hour: clock.hour,
+      minute: clock.minute,
+      second: 0,
+    },
+    timezone,
+  );
 }
 
 function matchRelativeDuration(
