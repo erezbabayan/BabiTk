@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { configuredDemoSyncToken } from "../lib/demo-sync-token.js";
 
 config();
 
@@ -216,6 +217,6 @@ export const env = {
     return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";
   },
   get demoSyncToken() {
-    return process.env.DEMO_SYNC_TOKEN ?? "mindtasker-local-sync";
+    return configuredDemoSyncToken();
   },
 } as const;
