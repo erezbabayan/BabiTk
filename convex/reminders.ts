@@ -41,8 +41,8 @@ import {
   jerusalemWeekStartIso,
   DEFAULT_WEEKLY_HOUR,
   type ProactiveTask,
-} from "./lib/proactive-whatsapp";
-import { isInsideShabbatQuiet } from "./lib/jewish-calendar";
+} from "./lib/proactive_whatsapp";
+import { isInsideShabbatQuiet } from "./lib/jewish_calendar";
 
 const DIGEST_TIMEZONE = "Asia/Jerusalem";
 /** Indexed due-scan page size. A single .take(200) dropped later reminders. */

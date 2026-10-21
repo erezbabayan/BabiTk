@@ -193,7 +193,7 @@ describe("copies stay in sync", () => {
       path.resolve(here, "../../../supabase/functions/_shared/proactive-whatsapp.ts"),
       "utf8",
     );
-    const convex = readFileSync(path.resolve(here, "../../../convex/lib/proactive-whatsapp.ts"), "utf8");
+    const convex = readFileSync(path.resolve(here, "../../../convex/lib/proactive_whatsapp.ts"), "utf8");
     assert.equal(edge, source);
     assert.equal(convex, source);
   });
