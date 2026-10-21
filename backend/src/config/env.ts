@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { envFlagEnabled } from "../lib/proactive-whatsapp.js";
 
 config();
 
@@ -218,14 +219,14 @@ export const env = {
   get demoSyncToken() {
     return process.env.DEMO_SYNC_TOKEN ?? "mindtasker-local-sync";
   },
-  /** Morning briefing, follow-up, multi-card, and NL commands. See docs/ROADMAP.md. */
+  /** Morning briefing, follow-up, and multi-card. Default on. See docs/ROADMAP.md. */
   get whatsappMorningBriefing() {
-    return (process.env.WHATSAPP_MORNING_BRIEFING ?? "false").toLowerCase() === "true";
+    return envFlagEnabled(process.env.WHATSAPP_MORNING_BRIEFING, true);
   },
   get whatsappFollowUp() {
-    return (process.env.WHATSAPP_FOLLOWUP ?? "false").toLowerCase() === "true";
+    return envFlagEnabled(process.env.WHATSAPP_FOLLOWUP, true);
   },
   get whatsappMultiCard() {
-    return (process.env.WHATSAPP_MULTI_CARD ?? "false").toLowerCase() === "true";
+    return envFlagEnabled(process.env.WHATSAPP_MULTI_CARD, true);
   },
 } as const;

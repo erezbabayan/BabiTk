@@ -20,6 +20,9 @@ import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { featureFlags } from "../lib/feature-flags.js";
 import { enrichWhatsAppCapture, type CaptureRow } from "../lib/proactive-whatsapp.js";
+import { fillEmptyJewishDue } from "../lib/jewish-calendar.js";
+import { applyForwardedCapture, isGratitudeOnly } from "../lib/forwarded-task.js";
+import { applyHabitDefaults, habitTrigger, learnFromCapture, readHabitMemory } from "../lib/habit-memory.js";
 
 export interface IngestTextParams {
   userId: string;
@@ -71,6 +74,13 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   if (await alreadyCapturedWhatsAppMessage(params.userId, whatsappMessageId)) {
     return emptyIngestionResult(params);
   }
+  if (
+    params.sourceType.startsWith("whatsapp") &&
+    params.metadata?.forwarded === true &&
+    isGratitudeOnly(params.text)
+  ) {
+    return emptyIngestionResult(params);
+  }
 
   const units = estimateTextParseUnits(params.text);
   await assertAiParseQuota(params.userId, units);
@@ -100,11 +110,12 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     timezone: params.timezone,
     referenceDate,
   });
-  const itemsForSave = applyWhatsAppCaptureEnrichment(
+  const itemsForSave = await applyLocalWhatsAppDefaults(
     params.sourceType,
     params.text,
-    enrichedItems,
-    allowedTags,
+    applyWhatsAppCaptureEnrichment(params.sourceType, params.text, enrichedItems, allowedTags),
+    params.userId,
+    params.metadata,
   );
 
   const result = await saveIngestionResult({
@@ -131,6 +142,40 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   });
 
   return result;
+}
+
+async function applyLocalWhatsAppDefaults(
+  sourceType: SourceType,
+  text: string,
+  items: ParsedItem[],
+  userId: string,
+  metadata?: Record<string, unknown>,
+): Promise<ParsedItem[]> {
+  if (!sourceType.startsWith("whatsapp")) return items;
+  let next = items;
+  if (featureFlags.jewishDates) next = fillEmptyJewishDue(text, next);
+  if (metadata?.forwarded === true) {
+    next = applyForwardedCapture(text, next);
+  }
+  if (!featureFlags.habits || !habitTrigger(text) || !env.isSupabaseConfigured) return next;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("users")
+      .select("whatsapp_habits")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return next;
+    const memory = readHabitMemory(data?.whatsapp_habits);
+    next = applyHabitDefaults(text, next, memory);
+    const learned = learnFromCapture(memory, text, next[0]?.due_date ?? null, next[0]?.tags ?? []);
+    if (learned !== memory) {
+      void supabase.from("users").update({ whatsapp_habits: learned }).eq("id", userId);
+    }
+  } catch {
+    // A missing column or a slow read must not block the capture.
+  }
+  return next;
 }
 
 function applyWhatsAppCaptureEnrichment(

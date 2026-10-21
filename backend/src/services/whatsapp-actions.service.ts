@@ -36,6 +36,8 @@ import {
 } from "../lib/proactive-whatsapp.js";
 import { rememberWhatsAppUndo, undoLastWhatsAppAction } from "./whatsapp-undo.service.js";
 import { searchItems } from "./search.service.js";
+import { isGratitudeOnly } from "../lib/forwarded-task.js";
+import { handleTaskBreakdown, rememberMorningHabit } from "./whatsapp-breakdown.service.js";
 
 const TIMEZONE = "Asia/Jerusalem";
 
@@ -111,9 +113,21 @@ export async function handleWhatsAppTextIntent(options: {
   user: LinkedWhatsAppUser;
   text: string;
   replyTo: string;
+  forwarded?: boolean;
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw) return false;
+
+  if (options.forwarded && isGratitudeOnly(raw)) {
+    await sendWhatsAppText(options.replyTo, "לא שמרתי את ההודעה שהועברה. אין בה משימה.");
+    return true;
+  }
+
+  const breakdown = await handleTaskBreakdown(options.user.id, raw);
+  if (breakdown) {
+    await sendWhatsAppText(options.replyTo, breakdown);
+    return true;
+  }
 
   if (featureFlags.nlCommands) {
     const move = parseMoveCommand(raw);
@@ -144,6 +158,7 @@ export async function handleWhatsAppTextIntent(options: {
         },
       ]);
       const updated = await snoozeItem(options.user.id, itemId, due);
+      rememberMorningHabit(options.user.id, current.title, current.content, due);
       await sendWhatsAppText(
         options.replyTo,
         `הועבר ליום ${weekdayLabel(move.weekday)} ב-09:00: ${updated.title}`,

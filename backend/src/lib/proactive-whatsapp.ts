@@ -10,6 +10,27 @@ export const MAX_PROACTIVE_PER_DAY = 3;
 export const DEFAULT_BRIEFING_HOUR = 7;
 export const DEFAULT_BRIEFING_MINUTE = 30;
 export const DEFAULT_FOLLOWUP_HOUR = 20;
+export const DEFAULT_WEEKLY_HOUR = 13;
+
+export function envFlagEnabled(raw: string | undefined | null, defaultOn = true): boolean {
+  if (raw == null || raw.trim() === "") return defaultOn;
+  const value = raw.trim().toLowerCase();
+  if (value === "1" || value === "true" || value === "yes" || value === "on") return true;
+  if (value === "0" || value === "false" || value === "no" || value === "off") return false;
+  return defaultOn;
+}
+
+/**
+ * unset / true / edge: the Supabase Edge cron and the API cron send.
+ * convex: only the Convex cron sends, so the two stores are not both used.
+ * false / off / 0: no proactive send.
+ */
+export function proactiveDispatcherMode(raw: string | undefined | null): "edge" | "convex" | "off" {
+  const value = (raw ?? "").trim().toLowerCase();
+  if (value === "convex") return "convex";
+  if (value === "0" || value === "false" || value === "no" || value === "off") return "off";
+  return "edge";
+}
 
 export type RecurrenceKind = "daily" | "weekly" | "monthly" | "weekdays";
 
@@ -182,12 +203,61 @@ export function isProactiveDue(
   return parts.minute >= minute;
 }
 
-export function proactiveSlotKey(
-  kind: "briefing" | "followup",
-  dateKey: string,
-  hour: number,
-): string {
+export type ProactiveKind = "briefing" | "followup" | "weekly";
+
+export function proactiveSlotKey(kind: ProactiveKind, dateKey: string, hour: number): string {
   return `${dateKey}:${kind}:${hour}`;
+}
+
+/** Friday 13:00 Jerusalem, before candle-lighting even in winter. */
+export function isWeeklySummaryDue(
+  now: Date,
+  hour = DEFAULT_WEEKLY_HOUR,
+  minute = 0,
+  timeZone = PROACTIVE_TIMEZONE,
+): boolean {
+  if (zonedParts(now, timeZone).weekday !== 5) return false;
+  return isProactiveDue(now, hour, minute, timeZone);
+}
+
+export function jerusalemDayStartIso(now: Date, timeZone = PROACTIVE_TIMEZONE): string {
+  const parts = zonedParts(now, timeZone);
+  return zonedLocalToIso(
+    { year: parts.year, month: parts.month, day: parts.day, hour: 0, minute: 0 },
+    timeZone,
+  );
+}
+
+export function jerusalemWeekStartIso(now: Date, timeZone = PROACTIVE_TIMEZONE): string {
+  const parts = zonedParts(now, timeZone);
+  const start = addCalendarDays(parts.year, parts.month, parts.day, -parts.weekday);
+  return zonedLocalToIso(
+    { year: start.year, month: start.month, day: start.day, hour: 0, minute: 0 },
+    timeZone,
+  );
+}
+
+export function buildWeeklySummaryMessage(input: { completed: string[]; stuck: string[] }): string {
+  const completed = input.completed.map((title) => title.trim()).filter(Boolean);
+  const stuck = input.stuck.map((title) => title.trim()).filter(Boolean);
+  if (completed.length === 0 && stuck.length === 0) {
+    return "סיכום השבוע מ-BabiTk: לא הייתה תנועה השבוע. שבוע טוב.";
+  }
+  const lines = ["סיכום השבוע מ-BabiTk", ""];
+  if (completed.length > 0) {
+    lines.push(`הושלמו (${completed.length}):`);
+    completed.slice(0, 8).forEach((title, index) => lines.push(`${index + 1}. ${title}`));
+  } else {
+    lines.push("השבוע לא סומנה משימה כבוצעת.");
+  }
+  lines.push("");
+  if (stuck.length > 0) {
+    lines.push(`עדיין פתוח אחרי התאריך (${stuck.length}):`);
+    stuck.slice(0, 8).forEach((title, index) => lines.push(`${index + 1}. ${title}`));
+    lines.push("");
+  }
+  lines.push("שבוע טוב. כתבו «תפריט» לרשימה.");
+  return lines.join("\n").trim();
 }
 
 export function countProactiveSlots(slots: unknown, dateKey: string): number {

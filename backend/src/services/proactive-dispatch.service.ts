@@ -3,22 +3,29 @@ import {
   appendProactiveSlot,
   buildFollowUpMessage,
   buildMorningBriefingMessage,
+  buildWeeklySummaryMessage,
   clampHour,
   clampMinute,
   countProactiveSlots,
   DEFAULT_BRIEFING_HOUR,
   DEFAULT_BRIEFING_MINUTE,
   DEFAULT_FOLLOWUP_HOUR,
+  DEFAULT_WEEKLY_HOUR,
   followUpQuickReplies,
   isProactiveDue,
+  isWeeklySummaryDue,
+  jerusalemDayStartIso,
+  jerusalemWeekStartIso,
   localDateKey,
   MAX_PROACTIVE_PER_DAY,
   partitionOpenTasks,
   proactiveSlotKey,
   slotAlreadySent,
   PROACTIVE_TIMEZONE,
+  type ProactiveKind,
   type ProactiveTask,
 } from "../lib/proactive-whatsapp.js";
+import { isInsideShabbatQuiet } from "../lib/jewish-calendar.js";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
 import { sendWhatsAppOutbound } from "./whatsapp/outbound.js";
@@ -37,6 +44,8 @@ type UserRow = {
   whatsapp_followup_enabled?: boolean | null;
   whatsapp_followup_hour?: number | null;
   whatsapp_proactive_slots?: string[] | null;
+  whatsapp_weekly_summary_enabled?: boolean | null;
+  whatsapp_shabbat_mode_enabled?: boolean | null;
 };
 
 type GatewayRow = { instance_id: string; api_token: string; api_url: string };
@@ -90,29 +99,44 @@ async function deliver(
 export async function sendProactiveWhatsApp(now = new Date()): Promise<{
   briefings: number;
   followups: number;
+  weekly: number;
 }> {
-  if (!env.isSupabaseConfigured) return { briefings: 0, followups: 0 };
-  if (!featureFlags.morningBriefing && !featureFlags.followUp) {
-    return { briefings: 0, followups: 0 };
+  if (!env.isSupabaseConfigured) return { briefings: 0, followups: 0, weekly: 0 };
+  if (featureFlags.proactiveDispatcher !== "edge") return { briefings: 0, followups: 0, weekly: 0 };
+  if (!featureFlags.morningBriefing && !featureFlags.followUp && !featureFlags.weeklySummary) {
+    return { briefings: 0, followups: 0, weekly: 0 };
   }
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  const base =
+    "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_morning_briefing_minute, whatsapp_followup_enabled, whatsapp_followup_hour, whatsapp_proactive_slots";
+  let extended = true;
+  const first = await supabase
     .from("users")
-    .select(
-      "id, phone, phone_verified, notify_whatsapp_group, whatsapp_capture_group_chat_id, whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_morning_briefing_minute, whatsapp_followup_enabled, whatsapp_followup_hour, whatsapp_proactive_slots",
-    )
+    .select(`${base}, whatsapp_weekly_summary_enabled, whatsapp_shabbat_mode_enabled`)
     .eq("phone_verified", true);
+  let loaded = first.data as UserRow[] | null;
+  let error = first.error;
+  if (error && missingColumn(error)) {
+    extended = false;
+    const second = await supabase.from("users").select(base).eq("phone_verified", true);
+    loaded = (second.data ?? null) as UserRow[] | null;
+    error = second.error;
+  }
   if (error) {
-    if (missingColumn(error)) return { briefings: 0, followups: 0 };
+    if (missingColumn(error)) return { briefings: 0, followups: 0, weekly: 0 };
     throw new Error(error.message);
   }
 
   const dateKey = localDateKey(now, PROACTIVE_TIMEZONE);
+  const quiet = featureFlags.shabbatMode && isInsideShabbatQuiet(now);
+  const weekStart = jerusalemWeekStartIso(now);
   let briefings = 0;
   let followups = 0;
+  let weekly = 0;
 
-  for (const row of (data ?? []) as UserRow[]) {
+  for (const row of loaded ?? []) {
+    if (quiet && row.whatsapp_shabbat_mode_enabled !== false) continue;
     const { data: gateway } = await supabase
       .from("whatsapp_gateways")
       .select("instance_id, api_token, api_url")
@@ -121,7 +145,7 @@ export async function sendProactiveWhatsApp(now = new Date()): Promise<{
     let slots = row.whatsapp_proactive_slots ?? [];
 
     const sendSlot = async (
-      kind: "briefing" | "followup",
+      kind: ProactiveKind,
       hour: number,
       body: string,
       quickReplies?: { id: string; title: string }[],
@@ -166,10 +190,41 @@ export async function sendProactiveWhatsApp(now = new Date()): Promise<{
           }
         }
       }
+
+      if (
+        extended &&
+        featureFlags.weeklySummary &&
+        row.whatsapp_weekly_summary_enabled === true &&
+        isWeeklySummaryDue(now)
+      ) {
+        const [{ data: done }, { data: stuck }] = await Promise.all([
+          supabase
+            .from("mindtasker_items")
+            .select("title")
+            .eq("user_id", row.id)
+            .eq("status", "completed")
+            .gte("completed_at", weekStart)
+            .limit(12),
+          supabase
+            .from("mindtasker_items")
+            .select("title")
+            .eq("user_id", row.id)
+            .eq("is_actionable", true)
+            .in("status", ["inbox", "pending"])
+            .is("deleted_at", null)
+            .lt("due_date", jerusalemDayStartIso(now))
+            .limit(12),
+        ]);
+        const body = buildWeeklySummaryMessage({
+          completed: (done ?? []).map((item) => String(item.title ?? "")),
+          stuck: (stuck ?? []).map((item) => String(item.title ?? "")),
+        });
+        if (await sendSlot("weekly", DEFAULT_WEEKLY_HOUR, body)) weekly += 1;
+      }
     } catch {
       // Next 15-minute tick retries until the slot is stored.
     }
   }
 
-  return { briefings, followups };
+  return { briefings, followups, weekly };
 }

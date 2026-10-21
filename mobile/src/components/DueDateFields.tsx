@@ -40,7 +40,7 @@ function isPresetActive(value: DueDateParts, preset: (typeof TIME_PRESETS)[numbe
 
 export function DueDateFields({ value, onChange }: DueDateFieldsProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [hebrewOn, setHebrewOn] = useState(true);
+  const [hebrewOn, setHebrewOn] = useState(false);
   const hasDate = value.date.length > 0;
   const hebrew = hebrewOn && hasDate ? hebrewDayMark(value.date) : null;
 

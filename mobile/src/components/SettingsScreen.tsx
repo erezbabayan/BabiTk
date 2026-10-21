@@ -149,7 +149,7 @@ export function SettingsScreen({
   const [boardsVisible, setBoardsVisible] = useState(false);
   const [testDataVisible, setTestDataVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
-  const [hebrewOn, setHebrewOn] = useState(true);
+  const [hebrewOn, setHebrewOn] = useState(false);
   const convexAuth = shouldUseConvexAuthLogin();
   const viewer = useQuery(api.users.viewer, convexAuth ? {} : "skip");
   const updateNotificationPrefs = useMutation(api.users.updateNotificationPrefs);

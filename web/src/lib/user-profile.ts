@@ -7,6 +7,9 @@ export type ProactiveWhatsAppPrefs = {
   morningMinute: number;
   followUpEnabled: boolean;
   followUpHour: number;
+  /** Absent until the weekly/shabbat migration is applied. */
+  weeklyEnabled?: boolean;
+  shabbatModeEnabled?: boolean;
 };
 
 const PROACTIVE_DEFAULTS: ProactiveWhatsAppPrefs = {
@@ -25,13 +28,18 @@ function clampInt(value: unknown, min: number, max: number, fallback: number): n
 export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPrefs | null> {
   const supabase = requireSupabase();
   const auth = await requireAuthUser();
-  const { data, error } = await supabase
+  const base =
+    "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_morning_briefing_minute, whatsapp_followup_enabled, whatsapp_followup_hour";
+  let extended = true;
+  let { data, error } = await supabase
     .from("users")
-    .select(
-      "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_morning_briefing_minute, whatsapp_followup_enabled, whatsapp_followup_hour",
-    )
+    .select(`${base}, whatsapp_weekly_summary_enabled, whatsapp_shabbat_mode_enabled`)
     .eq("id", auth.id)
     .maybeSingle();
+  if (error && isMissingSchemaError(error)) {
+    extended = false;
+    ({ data, error } = await supabase.from("users").select(base).eq("id", auth.id).maybeSingle());
+  }
   if (error) {
     if (isMissingSchemaError(error)) return null;
     throw error;
@@ -43,6 +51,12 @@ export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPre
     morningMinute: clampInt(row.whatsapp_morning_briefing_minute, 0, 59, 30),
     followUpEnabled: row.whatsapp_followup_enabled === true,
     followUpHour: clampInt(row.whatsapp_followup_hour, 0, 23, 20),
+    ...(extended
+      ? {
+          weeklyEnabled: row.whatsapp_weekly_summary_enabled === true,
+          shabbatModeEnabled: row.whatsapp_shabbat_mode_enabled !== false,
+        }
+      : {}),
   };
 }
 
@@ -57,6 +71,8 @@ export async function saveProactiveWhatsAppPrefs(
   if (patch.morningMinute !== undefined) row.whatsapp_morning_briefing_minute = patch.morningMinute;
   if (patch.followUpEnabled !== undefined) row.whatsapp_followup_enabled = patch.followUpEnabled;
   if (patch.followUpHour !== undefined) row.whatsapp_followup_hour = patch.followUpHour;
+  if (patch.weeklyEnabled !== undefined) row.whatsapp_weekly_summary_enabled = patch.weeklyEnabled;
+  if (patch.shabbatModeEnabled !== undefined) row.whatsapp_shabbat_mode_enabled = patch.shabbatModeEnabled;
   const { error } = await supabase.from("users").update(row).eq("id", auth.id);
   if (error) throw error;
   const loaded = await loadProactiveWhatsAppPrefs();

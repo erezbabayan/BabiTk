@@ -119,6 +119,7 @@ export async function processWhatsAppMessage(
       user,
       text: inbound,
       replyTo,
+      forwarded: message.forwarded === true,
     });
     if (handled) {
       await maybeSendWhatsAppMenuOnboarding({

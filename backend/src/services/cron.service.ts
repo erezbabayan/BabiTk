@@ -34,8 +34,28 @@ import { normalizePhone } from "./items.service.js";
 import { resetUsagePeriodIfNeeded } from "./usage.service.js";
 import { insertUserNotification, sendExpoPushes } from "./notifications.service.js";
 import { sendProactiveWhatsApp } from "./proactive-dispatch.service.js";
+import { featureFlags } from "../lib/feature-flags.js";
+import { isInsideShabbatQuiet } from "../lib/jewish-calendar.js";
 
 const TRASH_RETENTION_DAYS = 30;
+
+async function shabbatOptOutIds(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  now: Date,
+): Promise<Set<string> | null> {
+  if (!featureFlags.shabbatMode || !isInsideShabbatQuiet(now)) return null;
+  const { data, error } = await supabase.from("users").select("id").eq("whatsapp_shabbat_mode_enabled", false);
+  if (error) {
+    const message = error.message ?? "";
+    if (error.code === "42703" || /does not exist|Could not find the column/i.test(message)) return new Set();
+    return null;
+  }
+  return new Set((data ?? []).map((row) => String(row.id)));
+}
+
+function shabbatHolds(optOut: Set<string> | null, userId: string): boolean {
+  return optOut != null && !optOut.has(userId);
+}
 
 export { TRASH_RETENTION_DAYS };
 
@@ -107,9 +127,11 @@ export async function sendDailyDigests(): Promise<number> {
   }
 
   const dueWindow = digestDueWindowIso(now.getTime());
+  const shabbatOptOut = await shabbatOptOutIds(supabase, now);
   let sent = 0;
 
   for (const row of users ?? []) {
+    if (shabbatHolds(shabbatOptOut, row.id)) continue;
     const hours = resolveDigestHours(row.whatsapp_digest_hours);
     if (!hours.includes(hour)) continue;
     if (!isDigestDayAllowed(weekdayNum, resolveDigestDays(row.whatsapp_digest_days))) {
@@ -308,6 +330,7 @@ export async function sendTaskReminders(): Promise<number> {
     throw new Error(`Failed to load items for reminders: ${error.message}`);
   }
 
+  const shabbatOptOut = await shabbatOptOutIds(supabase, new Date(nowMs));
   const userCache = new Map<string, { user: ReminderUserRow; gateway: GatewayRow | null } | null>();
 
   async function contextFor(userId: string) {
@@ -326,7 +349,7 @@ export async function sendTaskReminders(): Promise<number> {
     const fireAt = resolveCronReminderFireAt(item);
 
     const context = await contextFor(item.user_id);
-    if (!context) continue;
+    if (!context || shabbatHolds(shabbatOptOut, item.user_id)) continue;
 
     const message = buildWhatsAppReminderMessage(
       item.title,
@@ -378,7 +401,7 @@ export async function sendTaskReminders(): Promise<number> {
 
   for (const list of lists ?? []) {
     const context = await contextFor(list.user_id);
-    if (!context) continue;
+    if (!context || shabbatHolds(shabbatOptOut, list.user_id)) continue;
     const message = buildWhatsAppReminderMessage(list.name, list.reminder_at, "list");
     try {
       const delivered = await deliverWhatsAppReminder(context, message);

@@ -703,7 +703,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 <View style={styles.digestBox}>
                   <Text style={styles.digestTitle}>בריפינג ומעקב</Text>
                   <Text style={styles.hint}>
-                    שעון ישראל. דורש גם דגל סביבה בשרת. עד 3 הודעות יזומות ביום.
+                    שעון ישראל. דלוק בשרת כברירת מחדל, ואפשר לכבות בדגל. נשלח רק אחרי הסימון כאן, עד 3 ביום.
                   </Text>
                   <View style={styles.hourGrid}>
                     <Text style={styles.digestLabel}>בריפינג בוקר {proactive.morningHour}:30</Text>
@@ -729,6 +729,34 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                       }}
                     />
                   </View>
+                  {proactive.weeklyEnabled !== undefined ? (
+                    <View style={styles.hourGrid}>
+                      <Text style={styles.digestLabel}>סיכום שבועי ביום שישי ב-13:00</Text>
+                      <Switch
+                        value={proactive.weeklyEnabled}
+                        onValueChange={(weeklyEnabled) => {
+                          setProactive({ ...proactive, weeklyEnabled });
+                          void saveProactiveWhatsAppPrefs({ weeklyEnabled }).catch((err) =>
+                            setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                          );
+                        }}
+                      />
+                    </View>
+                  ) : null}
+                  {proactive.shabbatModeEnabled !== undefined ? (
+                    <View style={styles.hourGrid}>
+                      <Text style={styles.digestLabel}>מצב שבת: בלי הודעות מהדלקת נרות עד להבדלה</Text>
+                      <Switch
+                        value={proactive.shabbatModeEnabled}
+                        onValueChange={(shabbatModeEnabled) => {
+                          setProactive({ ...proactive, shabbatModeEnabled });
+                          void saveProactiveWhatsAppPrefs({ shabbatModeEnabled }).catch((err) =>
+                            setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                          );
+                        }}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
 

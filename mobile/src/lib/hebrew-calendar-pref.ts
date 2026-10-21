@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEY = "babitk:hebrew-calendar";
 
-let current = true;
+let current = false;
 const listeners = new Set<(enabled: boolean) => void>();
 
 function publish(enabled: boolean): void {
@@ -17,9 +17,9 @@ export function hebrewCalendarEnabled(): boolean {
 export async function loadHebrewCalendarEnabled(): Promise<boolean> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    publish(raw !== "0");
+    publish(raw === "1");
   } catch {
-    publish(true);
+    publish(false);
   }
   return current;
 }

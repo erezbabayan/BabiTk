@@ -2,6 +2,7 @@ import cron, { type ScheduledTask } from "node-cron";
 import { beginBackgroundJob } from "../lib/background-jobs.js";
 import { env } from "../config/env.js";
 import { archiveStaleInboxItems, purgeExpiredDeletedItems, resetMonthlyUsageForAllUsers, sendDailyDigests, sendProactiveWhatsApp, sendTaskReminders } from "../services/cron.service.js";
+import { syncCalendarFromGoogle } from "../services/calendar.service.js";
 import { purgeExpiredSyncItems } from "../services/sync-store.service.js";
 let jobs: ScheduledTask[] = [];
 
@@ -112,7 +113,7 @@ export function startMindtaskerScheduler(logger: {
         const release = beginBackgroundJob("whatsapp-proactive");
         try {
           const result = await sendProactiveWhatsApp();
-          if (result.briefings > 0 || result.followups > 0) {
+          if (result.briefings > 0 || result.followups > 0 || result.weekly > 0) {
             logger.info(result, "WhatsApp proactive messages sent");
           }
         } catch (error) {
@@ -125,7 +126,27 @@ export function startMindtaskerScheduler(logger: {
     { timezone: env.cronTimezone },
   );
 
-  jobs.push(archiveJob, digestJob, usageResetJob, trashPurgeJob, reminderJob, proactiveJob);
+  const calendarPullJob = cron.schedule(
+    "*/15 * * * *",
+    () => {
+      void (async () => {
+        const release = beginBackgroundJob("google-calendar-pull");
+        try {
+          const result = await syncCalendarFromGoogle();
+          if (result.updated > 0) {
+            logger.info(result, "Google Calendar pull applied");
+          }
+        } catch (error) {
+          logger.error({ err: error }, "Google Calendar pull failed");
+        } finally {
+          release();
+        }
+      })();
+    },
+    { timezone: env.cronTimezone },
+  );
+
+  jobs.push(archiveJob, digestJob, usageResetJob, trashPurgeJob, reminderJob, proactiveJob, calendarPullJob);
 
   logger.info(
     { timezone: env.cronTimezone, archive: "02:00", digest: "*/15 user hours", trashPurge: "03:00", reminders: "*/15" },

@@ -15,9 +15,9 @@ export function enrichInboundRows(
   allowedTags: string[] = [],
 ): CaptureRow[] {
   return enrichWhatsAppCapture(text, rows, {
-    multiCard: flag("WHATSAPP_MULTI_CARD", false),
+    multiCard: flag("WHATSAPP_MULTI_CARD", true),
     recurrence: flag("WHATSAPP_RECURRENCE", true),
-    autoCategory: flag("WHATSAPP_AUTO_CATEGORY", false),
+    autoCategory: flag("WHATSAPP_AUTO_CATEGORY", true),
     allowedTags,
   });
 }

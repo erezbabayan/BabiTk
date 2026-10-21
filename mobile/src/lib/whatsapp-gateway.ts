@@ -220,21 +220,29 @@ export type ProactiveWhatsAppPrefs = {
   morningHour: number;
   followUpEnabled: boolean;
   followUpHour: number;
+  weeklyEnabled?: boolean;
+  shabbatModeEnabled?: boolean;
 };
 
 export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPrefs | null> {
   const supabase = requireSupabase();
   const userId = await currentUserId();
   if (!userId) return null;
-  const { data, error } = await supabase
+  const base =
+    "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_followup_enabled, whatsapp_followup_hour";
+  const missing = (message: string) => /does not exist|Could not find the column|PGRST204/i.test(message);
+  let extended = true;
+  let { data, error } = await supabase
     .from("users")
-    .select(
-      "whatsapp_morning_briefing_enabled, whatsapp_morning_briefing_hour, whatsapp_followup_enabled, whatsapp_followup_hour",
-    )
+    .select(`${base}, whatsapp_weekly_summary_enabled, whatsapp_shabbat_mode_enabled`)
     .eq("id", userId)
     .maybeSingle();
+  if (error && missing(error.message)) {
+    extended = false;
+    ({ data, error } = await supabase.from("users").select(base).eq("id", userId).maybeSingle());
+  }
   if (error) {
-    if (/does not exist|Could not find the column|PGRST204/i.test(error.message)) return null;
+    if (missing(error.message)) return null;
     throw new Error(error.message);
   }
   const row = (data ?? {}) as Record<string, unknown>;
@@ -247,6 +255,12 @@ export async function loadProactiveWhatsAppPrefs(): Promise<ProactiveWhatsAppPre
     morningHour: hour(row.whatsapp_morning_briefing_hour, 7),
     followUpEnabled: row.whatsapp_followup_enabled === true,
     followUpHour: hour(row.whatsapp_followup_hour, 20),
+    ...(extended
+      ? {
+          weeklyEnabled: row.whatsapp_weekly_summary_enabled === true,
+          shabbatModeEnabled: row.whatsapp_shabbat_mode_enabled !== false,
+        }
+      : {}),
   };
 }
 
@@ -261,6 +275,8 @@ export async function saveProactiveWhatsAppPrefs(
   if (patch.morningHour !== undefined) row.whatsapp_morning_briefing_hour = patch.morningHour;
   if (patch.followUpEnabled !== undefined) row.whatsapp_followup_enabled = patch.followUpEnabled;
   if (patch.followUpHour !== undefined) row.whatsapp_followup_hour = patch.followUpHour;
+  if (patch.weeklyEnabled !== undefined) row.whatsapp_weekly_summary_enabled = patch.weeklyEnabled;
+  if (patch.shabbatModeEnabled !== undefined) row.whatsapp_shabbat_mode_enabled = patch.shabbatModeEnabled;
   const { error } = await supabase.from("users").update(row).eq("id", userId);
   if (error) throw new Error(error.message);
 }

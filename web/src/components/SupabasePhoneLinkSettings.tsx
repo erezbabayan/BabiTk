@@ -563,7 +563,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm" dir="rtl">
           <p className="font-medium text-slate-900">בריפינג ומעקב</p>
           <p className="mt-1 text-xs text-slate-600">
-            שעון ישראל. נשלח רק אחרי שמפעילים גם את דגלי הסביבה WHATSAPP_MORNING_BRIEFING ו־WHATSAPP_FOLLOWUP. עד 3 הודעות יזומות ביום.
+            שעון ישראל. ההודעות היזומות דלוקות בשרת כברירת מחדל, ואפשר לכבות כל אחת בדגל סביבה. הן נשלחות רק אחרי הסימון כאן, עד 3 ביום.
           </p>
           <label className="mt-3 flex items-center justify-end gap-2">
             <span>בריפינג בוקר</span>
@@ -656,6 +656,42 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
               </option>
             ))}
           </select>
+          {proactive.weeklyEnabled !== undefined ? (
+            <label className="mt-3 flex items-center justify-end gap-2">
+              <span>סיכום שבועי ביום שישי ב-13:00</span>
+              <input
+                type="checkbox"
+                checked={proactive.weeklyEnabled}
+                disabled={savingProactive}
+                onChange={(event) => {
+                  const weeklyEnabled = event.target.checked;
+                  setSavingProactive(true);
+                  void saveProactiveWhatsAppPrefs({ weeklyEnabled })
+                    .then(setProactive)
+                    .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                    .finally(() => setSavingProactive(false));
+                }}
+              />
+            </label>
+          ) : null}
+          {proactive.shabbatModeEnabled !== undefined ? (
+            <label className="mt-3 flex items-center justify-end gap-2">
+              <span>מצב שבת: בלי הודעות מהדלקת נרות עד להבדלה</span>
+              <input
+                type="checkbox"
+                checked={proactive.shabbatModeEnabled}
+                disabled={savingProactive}
+                onChange={(event) => {
+                  const shabbatModeEnabled = event.target.checked;
+                  setSavingProactive(true);
+                  void saveProactiveWhatsAppPrefs({ shabbatModeEnabled })
+                    .then(setProactive)
+                    .catch((err) => setError(err instanceof Error ? err.message : "שמירה נכשלה"))
+                    .finally(() => setSavingProactive(false));
+                }}
+              />
+            </label>
+          ) : null}
         </div>
       ) : null}
       {message ? <p className="text-sm text-emerald-700">{message}</p> : null}

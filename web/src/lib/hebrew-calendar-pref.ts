@@ -3,9 +3,9 @@ export const HEBREW_CALENDAR_EVENT = "babitk-hebrew-calendar";
 
 export function readHebrewCalendarEnabled(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) !== "0";
+    return localStorage.getItem(STORAGE_KEY) === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 
