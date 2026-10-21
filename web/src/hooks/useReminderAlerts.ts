@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  claimLocalReminderPopup,
+  wasLocalReminderItemClaimed,
+} from "../lib/reminder-popup-dedupe";
+import {
   listUserNotifications,
   markNotificationRead,
   subscribeUserNotifications,
@@ -52,10 +56,14 @@ export function useReminderAlerts(userId: string | null | undefined, enabled: bo
   function enqueue(items: ReminderAlertItem[]) {
     for (const item of items) {
       if (seenIds.current.has(item._id)) continue;
-      if (wasLocallyPresentedNotification(item._id)) {
+      if (
+        wasLocallyPresentedNotification(item._id) ||
+        wasLocalReminderItemClaimed(item.itemId)
+      ) {
         seenIds.current.add(item._id);
         continue;
       }
+      claimLocalReminderPopup(item.itemId);
       seenIds.current.add(item._id);
       queueRef.current.push(item);
     }

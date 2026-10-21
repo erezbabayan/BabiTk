@@ -511,6 +511,7 @@ async function ingestVoiceViaEdge(params: {
   mimeType: string;
   fileName: string;
   durationSeconds?: number;
+  jsonOnly?: boolean;
 }): Promise<boolean> {
   const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
@@ -518,6 +519,32 @@ async function ingestVoiceViaEdge(params: {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {
+    if (params.jsonOnly && params.audioBase64) {
+      const jsonResponse = await fetch(
+        `${supabaseUrl.replace(/\/$/, "")}/functions/v1/ingest-voice`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${params.token}`,
+            apikey: anonKey || params.token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            audioBase64: params.audioBase64,
+            mimeType: params.mimeType,
+            fileName: params.fileName,
+            durationSeconds: params.durationSeconds,
+          }),
+          signal: controller.signal,
+        },
+      );
+      if (!jsonResponse.ok) return false;
+      const jsonData = (await jsonResponse.json().catch(() => null)) as
+        | { ok?: unknown; title?: unknown; answered?: unknown; error?: unknown }
+        | null;
+      if (!jsonData || jsonData.error) return false;
+      return jsonData.ok === true || jsonData.answered === true || typeof jsonData.title === "string";
+    }
     const form = new FormData();
     form.append("file", {
       uri: params.fileUri,
@@ -666,6 +693,7 @@ export async function uploadVoiceNote(
         mimeType: audio.mimeType,
         fileName: "recording.m4a",
         durationSeconds: options?.durationSeconds,
+        jsonOnly: true,
       });
       if (ingested) return;
     } catch {

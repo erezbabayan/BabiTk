@@ -79,6 +79,19 @@ export const checkNotificationSound = action({
         qrPageUrl: null,
       };
     }
+    const role = await ctx.runQuery(internal.users.getRoleInternal, { userId });
+    if (role !== "admin") {
+      return {
+        configured: false,
+        stateInstance: null,
+        senderPhone: null,
+        recipientPhone: null,
+        willRingOnWhatsApp: false,
+        reason: "admin_required",
+        fixHint: "רק מנהל יכול לבדוק את מופע הוואטסאפ המשותף",
+        qrPageUrl: null,
+      };
+    }
 
     const profile: { phone: string; phoneVerified: boolean; name: string | null } | null =
       await ctx.runQuery(internal.users.getPhoneInternal, { userId });
@@ -143,6 +156,10 @@ export const logoutForNewSender = action({
     const userId: Id<"users"> | null = await getAuthUserId(ctx);
     if (!userId) {
       return { ok: false, reason: "not_authenticated", qrPageUrl: null };
+    }
+    const role = await ctx.runQuery(internal.users.getRoleInternal, { userId });
+    if (role !== "admin") {
+      return { ok: false, reason: "admin_required", qrPageUrl: null };
     }
     const creds: GreenApiCredentials | null = await ctx.runQuery(
       internal.whatsappConfig.getGreenApiCredentialsInternal,

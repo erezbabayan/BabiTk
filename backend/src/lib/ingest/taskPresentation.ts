@@ -149,6 +149,12 @@ function tryAlShelTopic(text: string): string | null {
   );
   if (al?.[1]) return clampTitle(normalizeTopicSpelling(al[1].trim()));
 
+  const shel = text.match(
+    new RegExp(
+      `(?:^|[\\s,])של\\s+(${HEB}+(?:\\s+${HEB}+){0,2})(?=\\s|$|,|;)`,
+      "u",
+    ),
+  );
   const headed = text.match(
     new RegExp(
       `(${HEB}+)\\s+של\\s+(${HEB}+(?:\\s+${HEB}+)?)(?=\\s|$|,|;)`,
@@ -157,6 +163,9 @@ function tryAlShelTopic(text: string): string | null {
   );
   if (headed?.[1] && headed[2]) {
     return clampTitle(normalizeTopicSpelling(`${headed[1]} של ${headed[2]}`.trim()));
+  }
+  if (shel?.[1] && TOPIC_FIRST_VERB.test(text)) {
+    return clampTitle(normalizeTopicSpelling(shel[1].trim()));
   }
   return null;
 }

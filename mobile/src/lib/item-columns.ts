@@ -100,6 +100,16 @@ export function buildColumnMovePatch(
   return patch;
 }
 
+/** Column patch for a drag. Same-column reorders must not replace metadata. */
+export function buildPlaceColumnPatch(
+  source: DashboardColumn | null,
+  target: DashboardColumn,
+  metadata: Record<string, unknown> | null | undefined,
+): Partial<MindtaskerItem> {
+  if (source === target) return {};
+  return buildColumnMovePatch(target, metadata);
+}
+
 /** Clear board pin so type flip can move pending items between today/notes. */
 export function buildToggleStayMetadata(
   item: Pick<MindtaskerItem, "status" | "is_actionable" | "metadata">,

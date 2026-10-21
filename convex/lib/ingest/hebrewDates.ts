@@ -43,7 +43,7 @@ const WEEKDAY_PHRASE = `(?:עד\\s+)?(?:${WEEKDAY_LEAD})(?:${WEEKDAY_NAME})(?:\\
 const WEEKEND_RE = /(?:בסוף\s+השבוע|ב?סופ["״']?ש|ב?סופש)/u;
 
 const TIME_HINT = new RegExp(
-  `(?:מחרתיים|ממחרתיים|מחר|היום|הערב|בבוקר|בערב|בצהריים|בצהרים|בלילה|אחר\\s*הצהריים|אחה["״']?צ|אחהצ|חצות|${WEEKDAY_PHRASE}|ביום\\s+[א-וש]|יום\\s+[א-וש]|בעוד|עוד\\s+(?:\\d+|שעה|שעתיים|חצי|רבע|שבוע|חודש|מעט|רגע)|שבוע|חודש|סוף\\s+השבוע|סופ["״']?ש|סופש|עד\\s+יום|ב(?:שעה\\s+)?(?:עשר|אחת|שתיים|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע)|\\d{1,2}[:\\.]\\d{2}|\\d{1,2}[./]\\d{1,2})`,
+  `(?:מחרתיים|ממחרתיים|מחר|היום|הערב|בבוקר|בערב|בצהריים|בצהרים|בלילה|אחר\\s*הצהריים|אחה["״']?צ|אחהצ|חצות|${WEEKDAY_PHRASE}|ביום\\s+[א-וש]|יום\\s+[א-וש]|בעוד|עוד\\s+(?:\\d+|שעה|שעתיים|חצי|רבע|שבוע|חודש|מעט|רגע)|שבוע|חודש|סוף\\s+השבוע|סופ["״']?ש|סופש|עד\\s+יום|ב(?:שעה\\s+)?(?:עשר|אחת|שתיים|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע)|ב(?:שעה\\s+|[-\\s])\\d{1,2}(?:[:\\.]\\d{2})?|\\d{1,2}[:\\.]\\d{2}|\\d{1,2}[./]\\d{1,2})`,
   "u",
 );
 
@@ -98,6 +98,7 @@ export function resolveDueDateFromText(
     matchTomorrow(normalized, timezone, referenceDate) ??
     matchDayAfterTomorrow(normalized, timezone, referenceDate) ??
     matchTodayWithTime(normalized, timezone, referenceDate) ??
+    matchBareToday(normalized, timezone, referenceDate) ??
     matchWeekday(normalized, timezone, referenceDate) ??
     matchWeekdayLetter(normalized, timezone, referenceDate) ??
     matchInDays(normalized, timezone, referenceDate) ??
@@ -135,6 +136,14 @@ function findLastExplicitDateMatch(text: string): RegExpMatchArray | null {
   return last;
 }
 
+/** «ב-1.7» is a date, not 01:00. Drop those tokens before looking for a separate clock. */
+function textWithoutExplicitDates(text: string): string {
+  return text.replace(
+    /(?:^|[\s,(])ב?[-\s]?\d{1,2}[./]\d{1,2}(?:[./]\d{2,4})?/giu,
+    " ",
+  );
+}
+
 function explicitMatchToIso(
   match: RegExpMatchArray,
   timezone: string,
@@ -151,7 +160,7 @@ function explicitMatchToIso(
     match[4] !== undefined && match[4] !== "" ? Number(match[4]) : null;
   const suffixMinute =
     match[5] !== undefined && match[5] !== "" ? Number(match[5]) : null;
-  const clock = resolveClockTime(match.input ?? "", 9, 0);
+  const clock = resolveClockTime(textWithoutExplicitDates(match.input ?? ""), 9, 0);
   const hour = suffixHour ?? clock.hour;
   const minute = suffixHour !== null ? (suffixMinute ?? 0) : clock.minute;
 
@@ -164,7 +173,7 @@ export function applyTextClockToIso(
   text: string,
   timezone = "Asia/Jerusalem",
 ): string {
-  const clock = extractTimeOfDay(text);
+  const clock = extractTimeOfDay(textWithoutExplicitDates(text));
   if (!isConcreteClockMention(clock) || !clock) return storedIso;
   const stored = new Date(storedIso);
   if (Number.isNaN(stored.getTime())) return storedIso;
@@ -371,7 +380,19 @@ function matchTodayWithTime(
   if (!/היום/u.test(text) || !extractTimeOfDay(text)) return null;
 
   const { hour, minute } = resolveClockTime(text, 9, 0);
-  return todayOrTomorrowAt(timezone, referenceDate, hour, minute);
+  return todayAt(timezone, referenceDate, hour, minute);
+}
+
+/** «היום» without a clock stays on today's calendar date at 09:00. */
+function matchBareToday(
+  text: string,
+  timezone: string,
+  referenceDate: Date,
+): string | null {
+  if (!/(?:^|[\s,])היום(?=[\s,.]|$)/u.test(text)) return null;
+  if (extractTimeOfDay(text)) return null;
+  if (STRONGER_DATE_ANCHOR.test(text)) return null;
+  return todayAt(timezone, referenceDate, 9, 0);
 }
 
 function matchWeekday(text: string, timezone: string, referenceDate: Date): string | null {
@@ -515,7 +536,9 @@ export function stripTemporalPhrases(text: string): string {
       .replace(/\s*היום\s+בבוקר\s*/giu, " ")
       .replace(/\s*היום\s+ב[-\s]?\d{1,2}(?:[:\.]\d{2})?\s*/giu, " ")
       .replace(/\s*הערב\s*/giu, " ")
+      .replace(/\s*היום\s*/giu, " ")
       .replace(/\s*הבוקר\s*/giu, " ")
+      .replace(/\s*ב(?:שעה\s+|[-\\s])\d{1,2}(?![:./\d])/giu, " ")
       .replace(/\s*בערב\s*/giu, " ")
       .replace(/\s*בבוקר\s*/giu, " ")
       .replace(new RegExp(`\\s*${WEEKDAY_PHRASE}\\s*`, "giu"), " ")

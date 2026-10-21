@@ -18,6 +18,7 @@ import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { getSessionUserId, subscribeUserItems } from "../lib/realtime-items";
 import { getDemoItems, updateDemoItem, removeDemoItem } from "../lib/demo-store";
 import { itemsInColumn } from "../lib/item-columns";
+import { snoozePresetIsos } from "../lib/resolve-item-reminder";
 import { useNetworkStatus } from "./useNetworkStatus";
 
 type ListKind = "inbox" | "today" | "notes";
@@ -183,29 +184,13 @@ export function useOfflineItems(kind: ListKind) {
   };
 }
 
-export function snoozePresets() {
-  const now = new Date();
+export function snoozePresets(now = new Date()) {
+  const isos = snoozePresetIsos(now);
   return [
-    { label: "בעוד דקה", iso: new Date(now.getTime() + 60_000).toISOString() },
-    { label: "עוד 3 שעות", iso: new Date(now.getTime() + 3 * 3600000).toISOString() },
-    {
-      label: "מחר בבוקר",
-      iso: (() => {
-        const d = new Date(now);
-        d.setDate(d.getDate() + 1);
-        d.setHours(9, 0, 0, 0);
-        return d.toISOString();
-      })(),
-    },
-    {
-      label: "שבוע הבא",
-      iso: (() => {
-        const d = new Date(now);
-        d.setDate(d.getDate() + 7);
-        d.setHours(9, 0, 0, 0);
-        return d.toISOString();
-      })(),
-    },
+    { label: "בעוד דקה", iso: isos.in1Minute },
+    { label: "עוד 3 שעות", iso: isos.in3Hours },
+    { label: "מחר בבוקר", iso: isos.tomorrowMorning },
+    { label: "שבוע הבא", iso: isos.nextWeek },
   ];
 }
 

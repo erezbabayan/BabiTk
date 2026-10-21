@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
-import { internalMutation, mutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { notifyAtPatchValue } from "./lib/notifyAt";
 import { sourceType, taskStatus, type SourceType } from "./validators";
 
@@ -281,13 +281,6 @@ const importSyncReturns = v.object({
 });
 
 export const importSync = internalMutation({
-  args: importSyncArgs,
-  returns: importSyncReturns,
-  handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),
-});
-
-/** Dev seeding from sync JSON (public for local scripts). */
-export const importSyncDev = mutation({
   args: importSyncArgs,
   returns: importSyncReturns,
   handler: async (ctx, args) => importSyncHandler(ctx, args.legacyUserId, args.items),

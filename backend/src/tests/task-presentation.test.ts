@@ -209,4 +209,8 @@ describe("summarizeTopicTitle — topic method", () => {
       "רעיון לסרטון",
     );
   });
+
+  it("uses של-object after a topic-first verb when there is no head noun", () => {
+    assert.equal(summarizeTopicTitle("לראות — של חנוכה"), "חנוכה");
+  });
 });

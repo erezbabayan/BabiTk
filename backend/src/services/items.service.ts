@@ -516,9 +516,23 @@ export async function uploadSourceMedia(
   return path;
 }
 
+/** Strip WhatsApp multi-device suffix (`972…:31`) and domain (`@c.us` / `@lid`). */
+function bareWhatsAppLocalId(raw: string): string {
+  const local = raw.split("@")[0]?.trim() ?? raw.trim();
+  return (local.split(":")[0] ?? local).trim();
+}
+
+/**
+ * Normalize to E.164. Keep in sync with convex/lib/phone.ts and
+ * supabase/functions/_shared/green-api.ts — the device suffix must not
+ * become extra digits (`972…:31@c.us` → `+972…`, not `+972…31`).
+ */
 export function normalizePhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (phone.startsWith("+")) {
+  const trimmed = phone.trim();
+  const bare = bareWhatsAppLocalId(trimmed);
+  const digits = bare.replace(/\D/g, "");
+  if (!digits) return "+";
+  if (trimmed.startsWith("+") || bare.startsWith("+")) {
     return `+${digits}`;
   }
   if (digits.startsWith("0") && digits.length === 10) {

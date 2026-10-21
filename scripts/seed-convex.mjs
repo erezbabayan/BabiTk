@@ -1,37 +1,48 @@
+/**
+ * Seed Convex from backend/data/sync-items.json.
+ * Uses the admin CLI (`seed:importSync` is internal) so the public API
+ * cannot import or overwrite another user's board.
+ */
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-import { ConvexHttpClient } from "convex/browser";
+import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 const CHUNK_SIZE = 5;
-
-function loadConvexUrl() {
-  const envLocal = readFileSync(join(root, ".env.local"), "utf8");
-  const match = envLocal.match(/^CONVEX_URL=(.+)$/m);
-  if (!match) throw new Error("CONVEX_URL missing from .env.local");
-  return match[1].trim();
-}
-
-const { api } = await import(pathToFileURL(join(root, "convex/_generated/api.js")).href);
+const convexMain = join(root, "node_modules", "convex", "bin", "main.js");
 
 const syncPath = join(root, "backend/data/sync-items.json");
 const payload = JSON.parse(readFileSync(syncPath, "utf8"));
 const activeItems = payload.items.filter((item) => !item.deleted_at);
 const legacyUserId = "00000000-0000-4000-8000-000000000001";
 
-const client = new ConvexHttpClient(loadConvexUrl());
+function importChunk(items) {
+  const args = JSON.stringify({ legacyUserId, items });
+  const result = spawnSync(
+    process.execPath,
+    [convexMain, "run", "seed:importSync", args, "--typecheck", "disable"],
+    { cwd: root, encoding: "utf8", env: process.env },
+  );
+  if (result.status !== 0) {
+    process.stderr.write(result.stderr || result.stdout || "convex run failed\n");
+    process.exit(result.status ?? 1);
+  }
+  const text = (result.stdout ?? "").trim();
+  const start = text.lastIndexOf("{");
+  if (start < 0) {
+    throw new Error(`convex run did not return JSON:\n${text}`);
+  }
+  return JSON.parse(text.slice(start));
+}
+
 let tasks = 0;
 let notebooks = 0;
 
 for (let index = 0; index < activeItems.length; index += CHUNK_SIZE) {
   const chunk = activeItems.slice(index, index + CHUNK_SIZE);
-  const result = await client.mutation(api.seed.importSyncDev, {
-    legacyUserId,
-    items: chunk,
-  });
+  const result = importChunk(chunk);
   tasks += result.tasks;
   notebooks += result.notebooks;
   console.log(

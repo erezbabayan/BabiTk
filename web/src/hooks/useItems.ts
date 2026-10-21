@@ -17,6 +17,7 @@ import {
   buildClearReminderPatch,
   buildManualReminderPatch,
   buildTaskReminderUpdate,
+  snoozePresetIsos,
   type ReminderRecurrence,
 } from "../lib/resolve-item-reminder";
 import { dispatchWhatsAppItemReminder } from "../lib/whatsapp-reminders";
@@ -47,6 +48,12 @@ import {
 import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { collectPagedRows } from "../lib/supabase-paginate";
 import { applyItemRealtimeChange } from "../lib/realtime-items";
+import {
+  clientCaptureId,
+  mergeOptimisticRows,
+  OPTIMISTIC_ITEMS_EVENT,
+  OPTIMISTIC_ROLLBACK_EVENT,
+} from "../lib/optimistic-capture";
 import { completeItemApi } from "../lib/api";
 import { queueGoogleCalendarItemSync } from "../lib/google-calendar-client";
 
@@ -99,6 +106,28 @@ export function useItems(
 function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   const [items, setItems] = useState<MindtaskerItem[]>([]);
+  const optimisticRef = useRef<MindtaskerItem[]>([]);
+
+  useEffect(() => {
+    function onOptimistic(event: Event) {
+      const next = (event as CustomEvent<{ items?: MindtaskerItem[] }>).detail?.items ?? [];
+      if (next.length === 0) return;
+      optimisticRef.current = mergeOptimisticRows(optimisticRef.current, next);
+      setItems((prev) => mergeOptimisticRows(prev, next));
+    }
+    function onRollback(event: Event) {
+      const ids = new Set((event as CustomEvent<{ ids?: string[] }>).detail?.ids ?? []);
+      if (ids.size === 0) return;
+      optimisticRef.current = optimisticRef.current.filter((item) => !ids.has(item.id));
+      setItems((prev) => prev.filter((item) => !ids.has(item.id)));
+    }
+    window.addEventListener(OPTIMISTIC_ITEMS_EVENT, onOptimistic);
+    window.addEventListener(OPTIMISTIC_ROLLBACK_EVENT, onRollback);
+    return () => {
+      window.removeEventListener(OPTIMISTIC_ITEMS_EVENT, onOptimistic);
+      window.removeEventListener(OPTIMISTIC_ROLLBACK_EVENT, onRollback);
+    };
+  }, []);
 
   const [loading, setLoading] = useState(true);
 
@@ -146,6 +175,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       const snapshot = await getDemoItemsSnapshot(syncVersionRef.current);
       if (generation !== refreshGenerationRef.current) return;
       syncVersionRef.current = snapshot.version;
+      optimisticRef.current = [];
       setItems(snapshot.items);
       return;
     }
@@ -165,7 +195,14 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     );
 
     if (generation !== refreshGenerationRef.current) return;
-    setItems(data as unknown as MindtaskerItem[]);
+    const server = data as unknown as MindtaskerItem[];
+    const seen = new Set(server.map((row) => row.id));
+    for (const row of server) {
+      const capture = clientCaptureId(row);
+      if (capture) seen.add(capture);
+    }
+    optimisticRef.current = optimisticRef.current.filter((item) => !seen.has(item.id));
+    setItems(mergeOptimisticRows(server, optimisticRef.current));
 
     } catch (error) {
       console.error(error);
@@ -1003,41 +1040,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 export function snoozePresets() {
-
-  const now = new Date();
-
-  return {
-
-    in1Minute: new Date(now.getTime() + 60_000).toISOString(),
-
-    in3Hours: new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString(),
-
-    tomorrowMorning: (() => {
-
-      const d = new Date(now);
-
-      d.setDate(d.getDate() + 1);
-
-      d.setHours(9, 0, 0, 0);
-
-      return d.toISOString();
-
-    })(),
-
-    nextWeek: (() => {
-
-      const d = new Date(now);
-
-      d.setDate(d.getDate() + 7);
-
-      d.setHours(9, 0, 0, 0);
-
-      return d.toISOString();
-
-    })(),
-
-  };
-
+  return snoozePresetIsos();
 }
 
 

@@ -116,6 +116,29 @@ export function defaultTomorrowReminderIso(
   return addZonedDays(timezone, referenceDate, 1, 9, 0);
 }
 
+export interface SnoozePresetIsos {
+  in1Minute: string;
+  in3Hours: string;
+  tomorrowMorning: string;
+  nextWeek: string;
+}
+
+/**
+ * Board snooze chips. Morning presets are 09:00 Asia/Jerusalem, not the
+ * device timezone (a UTC or US clock would otherwise land at the wrong hour).
+ */
+export function snoozePresetIsos(
+  now = new Date(),
+  timezone = DEFAULT_TIMEZONE,
+): SnoozePresetIsos {
+  return {
+    in1Minute: new Date(now.getTime() + 60_000).toISOString(),
+    in3Hours: new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString(),
+    tomorrowMorning: addZonedDays(timezone, now, 1, 9, 0),
+    nextWeek: addZonedDays(timezone, now, 7, 9, 0),
+  };
+}
+
 export type AlertSnoozeKind = "hour" | "tomorrow";
 
 /** When the in-app reminder popup snoozes: +1 hour, or tomorrow 09:00 local. */

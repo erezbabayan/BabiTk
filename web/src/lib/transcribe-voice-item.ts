@@ -25,6 +25,10 @@ import {
   parseEdgeVoicePayload,
 } from "./fast-voice-asr";
 import {
+  peekAllowedTagNames,
+  publishAllowedTagNames,
+} from "./allowed-tags-cache";
+import {
   titleFromInboundText,
   needsVoiceTranscription,
   isInsertableInboundText,
@@ -184,6 +188,8 @@ function isHttpUrl(value: string): boolean {
 }
 
 async function loadAllowedTagNamesForUser(userId: string): Promise<string[]> {
+  const cached = peekAllowedTagNames(userId);
+  if (cached?.fresh) return cached.names;
   try {
     const supabase = requireSupabase();
     const { data } = await supabase
@@ -191,10 +197,13 @@ async function loadAllowedTagNamesForUser(userId: string): Promise<string[]> {
       .select("name")
       .eq("user_id", userId)
       .order("sort_order", { ascending: true });
-    return resolveAllowedTagNames(
+    const names = resolveAllowedTagNames(
       (data ?? []).map((row) => (typeof row.name === "string" ? row.name : "")),
     );
+    publishAllowedTagNames(userId, names);
+    return names;
   } catch {
+    if (cached) return cached.names;
     return resolveAllowedTagNames([]);
   }
 }
@@ -442,22 +451,8 @@ async function persistClientRecording(
   const supabase = requireSupabase();
   const shouldParse =
     !options?.skipParse && Boolean(transcribed.correctedText.trim());
-  const parsed = shouldParse
-    ? parseIncomingMessage(transcribed.correctedText, {
-        allowedTags: await loadAllowedTagNamesForUser(userId),
-      })[0]
-    : undefined;
-  const fields = parsed
-    ? parsedItemInsertFields(parsed, {
-        source: "app_voice",
-        whisper_transcription: transcribed.rawText,
-        corrected_transcription: transcribed.correctedText,
-        asr_engine: transcribed.engine,
-        duration_seconds: durationSeconds ?? null,
-      })
-    : null;
-  const now = Date.now();
-  const { data: source, error: sourceError } = await supabase
+  const saveStarted = performance.now();
+  const sourcePromise = supabase
     .from("source_materials")
     .insert({
       user_id: userId,
@@ -474,6 +469,25 @@ async function persistClientRecording(
     })
     .select("id")
     .single();
+  const tagsPromise = shouldParse
+    ? loadAllowedTagNamesForUser(userId)
+    : Promise.resolve<string[]>([]);
+  const [sourceResult, allowedTags] = await Promise.all([sourcePromise, tagsPromise]);
+  const parsed = shouldParse
+    ? parseIncomingMessage(transcribed.correctedText, { allowedTags })[0]
+    : undefined;
+  const fields = parsed
+    ? parsedItemInsertFields(parsed, {
+        source: "app_voice",
+        whisper_transcription: transcribed.rawText,
+        corrected_transcription: transcribed.correctedText,
+        asr_engine: transcribed.engine,
+        duration_seconds: durationSeconds ?? null,
+      })
+    : null;
+  const now = Date.now();
+  const source = sourceResult.data;
+  const sourceError = sourceResult.error;
   if (sourceError) {
     throw new Error(sourceError.message);
   }
@@ -504,6 +518,12 @@ async function persistClientRecording(
   if (itemError || !inserted) {
     throw new Error(itemError?.message ?? "item_insert_failed");
   }
+  console.info(
+    `[ingest-timing] ${JSON.stringify({
+      path: "web-voice-save",
+      saveMs: Math.round(performance.now() - saveStarted),
+    })}`,
+  );
   return {
     ok: true,
     itemId: inserted.id as string,

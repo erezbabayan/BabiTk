@@ -710,13 +710,14 @@ export const getByLegacyId = query({
   },
 });
 
-export const getByToken = query({
-  args: { tokenIdentifier: v.string() },
-  handler: async (ctx, { tokenIdentifier }) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_token", (q) => q.eq("tokenIdentifier", tokenIdentifier))
-      .unique();
+/** Role lookup for actions that must not expose deployment-wide secrets. */
+export const getRoleInternal = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.union(v.literal("admin"), v.literal("user"), v.null()),
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user?.role) return null;
+    return user.role;
   },
 });
 
@@ -934,6 +935,10 @@ export const linkVerifiedPhone = mutation({
   handler: async (ctx, { userId: requestedUserId, phone }) => {
     const userId = await requireScopedUserId(ctx, requestedUserId);
     const normalized = normalizePhone(phone);
+    const digits = normalized.replace(/\D/g, "");
+    if (digits.length < 9 || digits.length > 15) {
+      throw new Error("מספר טלפון לא תקין");
+    }
     const now = Date.now();
 
     const conflict = await ctx.db

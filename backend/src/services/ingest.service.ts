@@ -66,16 +66,26 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     typeof params.metadata?.whatsapp_message_id === "string"
       ? params.metadata.whatsapp_message_id
       : "";
-  if (await alreadyCapturedWhatsAppMessage(params.userId, whatsappMessageId)) {
+
+  const startedAt = performance.now();
+  const units = estimateTextParseUnits(params.text);
+  const [alreadyCaptured] = await Promise.all([
+    alreadyCapturedWhatsAppMessage(params.userId, whatsappMessageId),
+    assertAiParseQuota(params.userId, units),
+  ]);
+  if (alreadyCaptured) {
     return emptyIngestionResult(params);
   }
 
-  const units = estimateTextParseUnits(params.text);
-  await assertAiParseQuota(params.userId, units);
+  const prepStarted = performance.now();
+  const [allowedTags, lessons, existing] = await Promise.all([
+    getUserTagNames(params.userId),
+    listIngestLessons(params.userId),
+    listRecentInboxKeys(params.userId),
+  ]);
+  const prepMs = performance.now() - prepStarted;
 
-  const allowedTags = await getUserTagNames(params.userId);
-  const lessons = await listIngestLessons(params.userId);
-
+  const parseStarted = performance.now();
   const parsed = await parseInputForIngest({
     text: params.text,
     timezone: params.timezone,
@@ -83,9 +93,9 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     allowedTags,
     lessons,
   });
+  const parseMs = performance.now() - parseStarted;
 
   const merged = applySplitMergeLessons(parsed, params.text, lessons);
-  const existing = await listRecentInboxKeys(params.userId);
   const uniqueItems = filterDuplicateParsedItems(merged.items, existing);
   if (uniqueItems.length === 0) {
     return emptyIngestionResult(params);
@@ -99,6 +109,7 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     referenceDate,
   });
 
+  const saveStarted = performance.now();
   const result = await saveIngestionResult({
     userId: params.userId,
     source: {
@@ -110,10 +121,13 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     },
     items: enrichedItems,
   });
+  const saveMs = performance.now() - saveStarted;
 
   const itemIds = result.items.map((item) => item.id);
   if (itemIds.length > 0) {
-    await syncEmbeddingsForItems(itemIds);
+    void syncEmbeddingsForItems(itemIds).catch((error) => {
+      console.error("embedding sync failed", error);
+    });
   }
 
   const eventType = params.sourceType === "notebook_ocr" ? "ocr" : "ai_parse";
@@ -121,6 +135,17 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     text_length: params.text.length,
     estimated_tokens: units,
   });
+
+  console.info(
+    `[ingest-timing] ${JSON.stringify({
+      path: "backend-text",
+      prepMs: Math.round(prepMs),
+      parseMs: Math.round(parseMs),
+      saveMs: Math.round(saveMs),
+      totalMs: Math.round(performance.now() - startedAt),
+      items: result.items.length,
+    })}`,
+  );
 
   return result;
 }
@@ -148,7 +173,9 @@ export async function ingestParsedItems(params: {
   const result = await saveIngestionResult(params);
   const itemIds = result.items.map((item) => item.id);
   if (itemIds.length > 0) {
-    await syncEmbeddingsForItems(itemIds);
+    void syncEmbeddingsForItems(itemIds).catch((error) => {
+      console.error("embedding sync failed", error);
+    });
   }
   return result;
 }

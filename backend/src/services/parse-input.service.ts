@@ -16,6 +16,19 @@ const PLACEHOLDER_KEY_MARKERS = [
   "sk-...",
 ];
 
+/**
+ * Short captures already covered by the local rule parser.
+ * Multi-line notes still go to the model when a key is configured.
+ */
+export function shouldUseLocalParseFastPath(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 2 || trimmed.length > 400) return false;
+  const lineBreaks = trimmed.match(/\n/g)?.length ?? 0;
+  if (lineBreaks > 2) return false;
+  if (/[?？]/.test(trimmed)) return false;
+  return true;
+}
+
 export function isOpenAiUsable(): boolean {
   const key = process.env.OPENAI_API_KEY?.trim() ?? "";
   if (key.length < 20) return false;
@@ -31,9 +44,11 @@ export async function parseInputForIngest(
   const referenceDate = options.referenceDate ?? new Date();
   const keyboardFixed = correctEnglishKeyboardHebrew(options.text.trim());
   const lexiconFixed = applyHebrewAsrSpellingFixes(keyboardFixed);
-  const correctedText = isOpenAiUsable()
-    ? applyHebrewAsrSpellingFixes(await proofreadHebrewInboundText(lexiconFixed))
-    : lexiconFixed;
+  const fastPath = shouldUseLocalParseFastPath(lexiconFixed);
+  const correctedText =
+    isOpenAiUsable() && !fastPath
+      ? applyHebrewAsrSpellingFixes(await proofreadHebrewInboundText(lexiconFixed))
+      : lexiconFixed;
   const normalizedOptions: ParseInputOptions = {
     ...options,
     text: correctedText,
@@ -46,7 +61,7 @@ export async function parseInputForIngest(
     sourceText,
   };
 
-  if (!isOpenAiUsable()) {
+  if (!isOpenAiUsable() || fastPath) {
     return enforceIngestionRules(parseInputLocally(normalizedOptions), ruleOptions);
   }
 
