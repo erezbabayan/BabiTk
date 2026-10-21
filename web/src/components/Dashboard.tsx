@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent } from "react";
 import { ArchivePanel } from "./ArchivePanel";
-import { CompletedPanel } from "./CompletedPanel";
 import { ColumnSearch } from "./ColumnSearch";
 import { ColumnBoardHeader } from "./ColumnBoardHeader";
 import { ColumnDropZone } from "./ColumnDropZone";
@@ -31,6 +30,7 @@ import {
 import {
   applyBoardItemFilters,
   boardFiltersActive,
+  isUnboundedBoardMatch,
   type BoardDateFilter,
 } from "../lib/filter-items";
 import { isPriorityItem } from "../lib/item-priority";
@@ -52,7 +52,7 @@ import { listViewTitle, searchPlaceholder, type BoardTab } from "../lib/board-la
 import { BoardDateSortButton } from "./BoardDateSortButton";
 import { BoardMobileTabs } from "./BoardMobileTabs";
 import { MAX_ITEM_TAGS, alignItemTagsWithDefinitions } from "../lib/tags";
-import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
+import { getItemColumn, mergeTaskArchiveItems, type DashboardColumn } from "../lib/item-columns";
 import { resolveInboxDragTransfer } from "../lib/item-board-actions";
 import { useIsDesktopBoard } from "../hooks/useMediaQuery";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
@@ -69,7 +69,7 @@ import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
 import {
   calendarChipFocusYmd,
-  firstBusyCalendarYmd,
+  firstCalendarMatchYmd,
   OPEN_TASK_CALENDAR_EVENT,
   taskCalendarDayKey,
 } from "../lib/task-calendar";
@@ -86,7 +86,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const isDesktop = useIsDesktopBoard();
   const [showArchive, setShowArchive] = useState(false);
   const [showTasksArchive, setShowTasksArchive] = useState(false);
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [showNotesArchive, setShowNotesArchive] = useState(false);
   const [showTaskLists, setShowTaskLists] = useState(false);
   const {
@@ -118,7 +117,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   } = useItems(userId, undefined, {
     inboxArchive: showArchive || showTasksArchive || showTaskLists,
     notesArchive: showNotesArchive,
-    completed: showCompletedTasks || showTaskLists,
+    completed: showTasksArchive || showTaskLists,
   });
   const { tags: userTags, addTag } = useUserTags();
   const taskLists = useTaskLists(userId);
@@ -222,7 +221,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
     function onOpenCalendar() {
       setShowTaskCalendar(true);
       setShowTasksArchive(false);
-      setShowCompletedTasks(false);
       setMobileTab("today");
     }
     window.addEventListener(OPEN_TASK_CALENDAR_EVENT, onOpenCalendar);
@@ -247,6 +245,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const lastDragXRef = useRef(0);
   const boardItemsByIdRef = useRef(new Map<string, MindtaskerItem>());
 
+  const inboxWideMatch = isUnboundedBoardMatch({
+    query: inboxSearch.activeQuery,
+    tag: tagByBoard.inbox,
+  });
+  const inboxListDateFilter = inboxWideMatch ? "all" : dateFilterByBoard.inbox;
   const filteredInbox = useMemo(
     () =>
       applyBoardDateSort(
@@ -254,11 +257,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inbox, inboxSearch.activeQuery, inboxSearch.semanticHits),
           tagByBoard.inbox,
           priorityOnlyByBoard.inbox,
-          dateFilterByBoard.inbox,
+          inboxListDateFilter,
         ),
         inboxDateSort,
       ),
-    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
+    [inbox, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, inboxListDateFilter, inboxDateSort],
   );
   const filteredInboxArchive = useMemo(
     () =>
@@ -267,12 +270,23 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits),
           tagByBoard.inbox,
           priorityOnlyByBoard.inbox,
-          dateFilterByBoard.inbox,
+          inboxListDateFilter,
         ),
         inboxDateSort,
       ),
-    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, dateFilterByBoard.inbox, inboxDateSort],
+    [inboxArchive, inboxSearch.activeQuery, inboxSearch.semanticHits, tagByBoard.inbox, priorityOnlyByBoard.inbox, inboxListDateFilter, inboxDateSort],
   );
+  const todayWideMatch = isUnboundedBoardMatch({
+    query: todaySearch.activeQuery,
+    tag: tagByBoard.today,
+  });
+  const todayListDateFilter = todayWideMatch ? "all" : dateFilterByBoard.today;
+  const calendarDateFilter =
+    todayWideMatch ||
+    dateFilterByBoard.today === "today" ||
+    dateFilterByBoard.today === "tomorrow"
+      ? "all"
+      : dateFilterByBoard.today;
   const filteredTodayTasks = useMemo(
     () =>
       applyBoardDateSort(
@@ -280,7 +294,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(todayTasks, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
+          todayListDateFilter,
         ),
         todayDateSort,
       ),
@@ -290,7 +304,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      todayListDateFilter,
       todayDateSort,
     ],
   );
@@ -304,9 +318,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
         ),
         tagByBoard.today,
         priorityOnlyByBoard.today,
-        dateFilterByBoard.today === "today" || dateFilterByBoard.today === "tomorrow"
-          ? "all"
-          : dateFilterByBoard.today,
+        calendarDateFilter,
       ),
     [
       inbox,
@@ -316,57 +328,45 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      calendarDateFilter,
     ],
   );
   const calendarSearchFocusYmd = useMemo(() => {
-    if (!todaySearch.activeQuery.trim()) return null;
+    if (!todayWideMatch) return null;
     const today = taskCalendarDayKey(new Date());
     if (!today) return null;
-    return firstBusyCalendarYmd(calendarBoardItems, today);
-  }, [calendarBoardItems, todaySearch.activeQuery]);
+    return firstCalendarMatchYmd(calendarBoardItems, today);
+  }, [calendarBoardItems, todayWideMatch]);
+  const taskArchiveItems = useMemo(
+    () => mergeTaskArchiveItems(inboxArchive, completedTasks),
+    [inboxArchive, completedTasks],
+  );
   const filteredTasksArchive = useMemo(
     () =>
       applyBoardDateSort(
         applyBoardItemFilters(
-          mergeSearchResults(inboxArchive, todaySearch.activeQuery, todaySearch.semanticHits),
+          mergeSearchResults(taskArchiveItems, todaySearch.activeQuery, todaySearch.semanticHits),
           tagByBoard.today,
           priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
+          todayListDateFilter,
         ),
         todayDateSort,
       ),
     [
-      inboxArchive,
+      taskArchiveItems,
       todaySearch.activeQuery,
       todaySearch.semanticHits,
       tagByBoard.today,
       priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
+      todayListDateFilter,
       todayDateSort,
     ],
   );
-  const filteredCompletedTasks = useMemo(
-    () =>
-      applyBoardDateSort(
-        applyBoardItemFilters(
-          mergeSearchResults(completedTasks, todaySearch.activeQuery, todaySearch.semanticHits),
-          tagByBoard.today,
-          priorityOnlyByBoard.today,
-          dateFilterByBoard.today,
-        ),
-        todayDateSort,
-      ),
-    [
-      completedTasks,
-      todaySearch.activeQuery,
-      todaySearch.semanticHits,
-      tagByBoard.today,
-      priorityOnlyByBoard.today,
-      dateFilterByBoard.today,
-      todayDateSort,
-    ],
-  );
+  const notesWideMatch = isUnboundedBoardMatch({
+    query: notesSearch.activeQuery,
+    tag: tagByBoard.notes,
+  });
+  const notesListDateFilter = notesWideMatch ? "all" : dateFilterByBoard.notes;
   const filteredNotes = useMemo(
     () =>
       applyBoardDateSort(
@@ -374,11 +374,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notes, notesSearch.activeQuery, notesSearch.semanticHits),
           tagByBoard.notes,
           priorityOnlyByBoard.notes,
-          dateFilterByBoard.notes,
+          notesListDateFilter,
         ),
         notesDateSort,
       ),
-    [notes, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
+    [notes, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, notesListDateFilter, notesDateSort],
   );
   const filteredNotesArchive = useMemo(
     () =>
@@ -387,11 +387,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
           mergeSearchResults(notesArchive, notesSearch.activeQuery, notesSearch.semanticHits),
           tagByBoard.notes,
           priorityOnlyByBoard.notes,
-          dateFilterByBoard.notes,
+          notesListDateFilter,
         ),
         notesDateSort,
       ),
-    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, dateFilterByBoard.notes, notesDateSort],
+    [notesArchive, notesSearch.activeQuery, notesSearch.semanticHits, tagByBoard.notes, priorityOnlyByBoard.notes, notesListDateFilter, notesDateSort],
   );
 
   const filterTags = useBoardFilterTags();
@@ -414,7 +414,7 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             setPriorityOnlyByBoard((current) => ({ ...current, [board]: active }))
           }
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[6.5rem] flex-1">
           <TagFilter
             tags={filterTags}
             selected={tagByBoard[board]}
@@ -527,7 +527,6 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const resetHomeView = useCallback(() => {
     setShowArchive(false);
     setShowTasksArchive(false);
-    setShowCompletedTasks(false);
     setShowNotesArchive(false);
     setShowTaskLists(false);
     setShowTaskCalendar(true);
@@ -910,15 +909,10 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   const dragging = draggingId !== null;
   const todayListView: "active" | "archive" | "completed" = showTasksArchive
     ? "archive"
-    : showCompletedTasks
-      ? "completed"
-      : "active";
+    : "active";
+  const taskArchiveCount = taskArchiveItems.length;
   const todayItemCount =
-    todayListView === "archive"
-      ? inboxArchive.length
-      : todayListView === "completed"
-        ? completedTasks.length
-        : todayTasks.length;
+    todayListView === "archive" ? taskArchiveCount : todayTasks.length;
   const inboxItemCount = showArchive ? inboxArchive.length : inbox.length;
   const notesItemCount = showNotesArchive ? notesArchive.length : notes.length;
 
@@ -1206,62 +1200,28 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 />
               }
               toolbarExtra={selectToggleButton(
-                todayListView === "archive"
-                  ? "today-archive"
-                  : todayListView === "completed"
-                    ? "today-completed"
-                    : "today-active",
+                todayListView === "archive" ? "today-archive" : "today-active",
                 "blue",
               )}
               action={
-                <>
-                  {showCompletedTasks ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        exitSelect();
-                        setShowCompletedTasks(false);
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      חזור
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (showTasksArchive) {
-                          setShowTasksArchive(false);
-                          exitSelect();
-                        } else {
-                          setShowTasksArchive(true);
-                          setShowTaskCalendar(false);
-                          setShowArchive(false);
-                          setShowNotesArchive(false);
-                          setShowCompletedTasks(false);
-                          exitSelect();
-                        }
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      {showTasksArchive ? "חזור" : `ארכיון (${inboxArchive.length})`}
-                    </button>
-                  )}
-                  {todayListView === "active" && completedTasks.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowCompletedTasks(true);
-                        setShowTaskCalendar(false);
-                        setShowTasksArchive(false);
-                        exitSelect();
-                      }}
-                      className={boardToolbarButtonClass("blue")}
-                    >
-                      הושלמו ({completedTasks.length})
-                    </button>
-                  ) : null}
-                </>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showTasksArchive) {
+                      setShowTasksArchive(false);
+                      exitSelect();
+                    } else {
+                      setShowTasksArchive(true);
+                      setShowTaskCalendar(false);
+                      setShowArchive(false);
+                      setShowNotesArchive(false);
+                      exitSelect();
+                    }
+                  }}
+                  className={boardToolbarButtonClass("blue")}
+                >
+                  {showTasksArchive ? "חזור" : `ארכיון (${taskArchiveCount})`}
+                </button>
               }
               toolbarLeading={
                 todayListView === "active" && taskLists.enabled ? (
@@ -1284,16 +1244,8 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
             />
             {renderBoardFilters("today")}
             {showTaskCalendar && todayListView === "active" ? null : renderBulkBar(
-              todayListView === "archive"
-                ? "today-archive"
-                : todayListView === "completed"
-                  ? "today-completed"
-                  : "today-active",
-              todayListView === "archive"
-                ? filteredTasksArchive
-                : todayListView === "completed"
-                  ? filteredCompletedTasks
-                  : filteredTodayTasks,
+              todayListView === "archive" ? "today-archive" : "today-active",
+              todayListView === "archive" ? filteredTasksArchive : filteredTodayTasks,
               "blue",
             )}
             <ColumnDropZone
@@ -1309,8 +1261,12 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                 <MouseDragScroll>
                   <ArchivePanel
                     items={filteredTasksArchive}
-                    variant="inbox"
-                    onRestore={(item) => void restoreArchiveItem(item)}
+                    variant="today"
+                    onRestore={(item) => {
+                      void (item.status === "completed"
+                        ? restoreCompletedTask(item)
+                        : restoreArchiveItem(item));
+                    }}
                     onDelete={confirmDelete}
                     onEdit={(item, patch) => editItem(item, patch)}
                     onTagPress={openTagPicker}
@@ -1327,26 +1283,17 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
                     onToggleSelect={(item) => toggleSelect(item.id)}
                   />
                 </MouseDragScroll>
-              ) : showCompletedTasks ? (
-                <MouseDragScroll>
-                  <CompletedPanel
-                    items={filteredCompletedTasks}
-                    onRestore={(item) => void restoreCompletedTask(item)}
-                    onDelete={confirmDelete}
-                    onEdit={(item, patch) => editItem(item, patch)}
-                    selecting={isSelecting("today-completed")}
-                    selectedIds={selectedIds}
-                    onToggleSelect={(item) => toggleSelect(item.id)}
-                  />
-                </MouseDragScroll>
               ) : showTaskCalendar ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2">
                   <TaskMonthCalendar
                     items={calendarBoardItems}
                     focusYmd={
-                      calendarChipFocusYmd(dateFilterByBoard.today) ?? calendarSearchFocusYmd
+                      todayWideMatch
+                        ? calendarSearchFocusYmd
+                        : calendarChipFocusYmd(dateFilterByBoard.today)
                     }
                     searchQuery={todaySearch.activeQuery}
+                    listAllMatches={todayWideMatch}
                     onSelectItem={(item) => setFocusEditItem(item)}
                     onArchive={(item) => void archiveItem(item)}
                     onDelete={confirmDelete}

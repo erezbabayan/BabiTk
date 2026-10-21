@@ -41,6 +41,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isActionable, setIsActionable] = useState(true);
   const [dueParts, setDueParts] = useState<DueDateParts>({ date: "", hour: "09", minute: "00" });
   const [checklist, setChecklist] = useState<ChecklistEntry[]>([]);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
     if (!item || !visible) return;
     setTitle(item.title);
     setContent(item.content ?? "");
+    setIsActionable(item.is_actionable);
     setSelectedTags(alignItemTagsWithDefinitions(item.tags ?? [], userTags));
     setDueParts(
       !getReminderFlags(item.metadata).disabled
@@ -71,6 +73,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
     setTitle("");
     setContent("");
     setSelectedTags([]);
+    setIsActionable(true);
     setDueParts({ date: "", hour: "09", minute: "00" });
     setError(null);
     onClose();
@@ -97,6 +100,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
         content: content.trim(),
         tags: alignItemTagsWithDefinitions(selectedTags, userTags),
         due_date: combineDueDate(dueParts),
+        is_actionable: isActionable,
         checklist: checklist
           .map((entry) => ({ ...entry, text: entry.text.trim() }))
           .filter((entry) => entry.text.length > 0),
@@ -118,13 +122,32 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
         <Pressable style={styles.backdropTap} onPress={resetAndClose} />
         <View style={styles.sheet}>
           <View style={styles.handle} />
-          <Text style={styles.heading}>עריכת {item.is_actionable ? "משימה" : "הערה"}</Text>
+          <Text style={styles.heading}>עריכת {isActionable ? "משימה" : "הערה"}</Text>
           <ScrollView
             style={styles.formScroll}
             contentContainerStyle={styles.formContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            <Text style={styles.label}>סוג</Text>
+            <View style={styles.typeRow}>
+              <Pressable
+                onPress={() => setIsActionable(true)}
+                style={[styles.typeChip, isActionable && styles.typeChipTask]}
+              >
+                <Text style={[styles.typeChipText, isActionable && styles.typeChipTextTask]}>
+                  משימה
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setIsActionable(false)}
+                style={[styles.typeChip, !isActionable && styles.typeChipNote]}
+              >
+                <Text style={[styles.typeChipText, !isActionable && styles.typeChipTextNote]}>
+                  הערה
+                </Text>
+              </Pressable>
+            </View>
             <Text style={styles.label}>כותרת</Text>
             <TextInput
               style={styles.input}
@@ -318,6 +341,34 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     marginBottom: 8,
   },
+  typeRow: {
+    flexDirection: "row-reverse",
+    gap: 8,
+  },
+  typeChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+  },
+  typeChipTask: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#eff6ff",
+  },
+  typeChipNote: {
+    borderColor: "#f59e0b",
+    backgroundColor: "#fffbeb",
+  },
+  typeChipText: {
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#475569",
+  },
+  typeChipTextTask: { color: "#1d4ed8" },
+  typeChipTextNote: { color: "#92400e" },
   label: {
     fontSize: 12,
     fontWeight: "600",

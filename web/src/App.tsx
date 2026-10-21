@@ -288,7 +288,9 @@ function ConfiguredApp() {
           setCaptureTick((tick) => tick + 1);
           setBillingNotice(`נקלטו ${result.inserted} משימות מקבוצת הוואטסאפ.`);
         })
-        .catch(() => undefined);
+        .catch((error) => {
+          console.warn("whatsapp group catchup", error);
+        });
     };
     run();
     const timer = window.setInterval(run, 45_000);

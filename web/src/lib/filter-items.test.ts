@@ -4,13 +4,14 @@ import { describe, it } from "node:test";
 import {
   applyBoardItemFilters,
   boardFiltersActive,
+  isUnboundedBoardMatch,
   isItemDueToday,
   isItemDueTomorrow,
   isItemOverdue,
   isItemUndated,
   type BoardDateFilter,
-} from "./filter-items.js";
-import type { MindtaskerItem } from "../types.js";
+} from "./filter-items.ts";
+import type { MindtaskerItem } from "../types.ts";
 
 function item(overrides: Partial<MindtaskerItem> = {}): MindtaskerItem {
   return {
@@ -133,5 +134,62 @@ describe("boardFiltersActive", () => {
     assert.equal(boardFiltersActive({ tag: "בית" }), true);
     assert.equal(boardFiltersActive({ priorityOnly: true }), true);
     assert.equal(boardFiltersActive({ query: "  " }), false);
+  });
+});
+
+describe("isUnboundedBoardMatch", () => {
+  it("treats search and tag filter like an unbounded match across views", () => {
+    assert.equal(isUnboundedBoardMatch({}), false);
+    assert.equal(isUnboundedBoardMatch({ query: "   " }), false);
+    assert.equal(isUnboundedBoardMatch({ query: "חלב" }), true);
+    assert.equal(isUnboundedBoardMatch({ tag: "בית" }), true);
+    assert.equal(isUnboundedBoardMatch({ query: "חלב", tag: "בית" }), true);
+  });
+
+  it("lists every tagged item when date chips are skipped, like search", () => {
+    const now = Date.parse("2026-09-17T12:00:00.000Z");
+    const items = [
+      item({
+        id: "tagged-overdue",
+        tags: ["בית"],
+        due_date: "2026-09-10T09:00:00.000Z",
+      }),
+      item({
+        id: "tagged-undated",
+        tags: ["בית"],
+        due_date: null,
+      }),
+      item({
+        id: "tagged-future",
+        tags: ["בית"],
+        due_date: "2026-10-01T09:00:00.000Z",
+      }),
+      item({
+        id: "other-tag",
+        tags: ["עבודה"],
+        due_date: null,
+      }),
+    ];
+    const dateFilter: BoardDateFilter = isUnboundedBoardMatch({ tag: "בית" })
+      ? "all"
+      : "overdue";
+    assert.deepEqual(
+      applyBoardItemFilters(items, "בית", false, dateFilter, now).map((entry) => entry.id),
+      ["tagged-overdue", "tagged-undated", "tagged-future"],
+    );
+    assert.deepEqual(
+      applyBoardItemFilters(items, "בית", false, "overdue", now).map((entry) => entry.id),
+      ["tagged-overdue"],
+    );
+    assert.deepEqual(
+      applyBoardItemFilters(
+        [item({ id: "hash", tags: ["#בית"], due_date: null })],
+        "בית",
+        false,
+        "all",
+        now,
+      ).map((entry) => entry.id),
+      ["hash"],
+    );
   });
 });

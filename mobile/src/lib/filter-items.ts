@@ -40,12 +40,23 @@ export function filterItemsByQuery(
   );
 }
 
+export function itemHasTag(
+  item: { tags?: string[] | null },
+  tag: string,
+): boolean {
+  const wanted = normalizeTagName(tag).toLowerCase();
+  if (!wanted) return false;
+  return (item.tags ?? []).some(
+    (entry) => normalizeTagName(entry).toLowerCase() === wanted,
+  );
+}
+
 export function filterItemsByTag(
   items: MindtaskerItem[],
   tag: string | null,
 ): MindtaskerItem[] {
   if (!tag) return items;
-  return items.filter((item) => item.tags.includes(tag));
+  return items.filter((item) => itemHasTag(item, tag));
 }
 
 export function itemDueTimestamp(
@@ -137,6 +148,14 @@ export function boardFiltersActive(options: {
       options.priorityOnly ||
       (options.dateFilter && options.dateFilter !== "all"),
   );
+}
+
+/** Search or tag filter lists every match across views, ignoring date chips. */
+export function isUnboundedBoardMatch(options: {
+  query?: string;
+  tag?: string | null;
+}): boolean {
+  return Boolean(options.query?.trim() || options.tag);
 }
 
 export function collectTags(items: MindtaskerItem[]): string[] {

@@ -70,7 +70,7 @@ import { useAuth } from "./src/hooks/useAuth";
 import { isDemoMode, isSupabaseConfigured } from "./src/lib/supabase";
 import { BOARD_TAB_LABELS, listViewTitle, emptyListMessage, searchPlaceholder, withItemCount } from "./src/lib/item-actions";
 import { boardToolbarBtn, boardToolbarText } from "./src/lib/board-toolbar";
-import { applyBoardItemFilters, boardFiltersActive, type BoardDateFilter } from "./src/lib/filter-items";
+import { applyBoardItemFilters, boardFiltersActive, isUnboundedBoardMatch, type BoardDateFilter } from "./src/lib/filter-items";
 import { parseChecklist, toggleChecklistEntry } from "./src/lib/checklist";
 import { isPriorityItem } from "./src/lib/item-priority";
 import { mergeSearchResults } from "./src/lib/unified-search";
@@ -82,6 +82,7 @@ import { isSyncEnabled } from "./src/lib/sync-client";
 import { resyncAllItemsToConvex } from "./src/lib/convex-mirror";
 import { useDemoHybridSync } from "./src/lib/data-backend";
 import { useBoardItems } from "./src/hooks/useBoardItems";
+import { mergeTaskArchiveItems } from "./src/lib/item-columns";
 import { useTaskLists } from "./src/hooks/useTaskLists";
 import { BOARD_TAB_FONT, BOARD_TITLE_FONT } from "./src/lib/board-font";
 import { BOARD_SQUARE_GAP_PX, BOARD_SQUARE_HALF_GAP_PX, BOARD_SQUARE_RADIUS_PX, BOARD_SQUARE_TILE_HEIGHT_PX, BOARD_CHROME_INSET_PX } from "./src/lib/board-item-layout";
@@ -147,7 +148,10 @@ function MainAppInner({
     inboxArchive:
       showTaskLists || (listView === "archive" && tab !== "notes"),
     notesArchive: listView === "archive" && tab === "notes",
-    completed: showTaskLists || listView === "completed",
+    completed:
+      showTaskLists ||
+      listView === "completed" ||
+      (listView === "archive" && tab === "today"),
   });
   const demoHybrid = useDemoHybridSync();
   const taskLists = useTaskLists(userId);
@@ -262,10 +266,14 @@ function MainAppInner({
 
   const rawItems = useMemo(() => {
     if (listView === "archive") {
-      return tab === "notes" ? board.notesArchive : board.inboxArchive;
+      if (tab === "notes") return board.notesArchive;
+      if (tab === "today") {
+        return mergeTaskArchiveItems(board.inboxArchive, board.completedTasks);
+      }
+      return board.inboxArchive;
     }
     if (listView === "completed") {
-      return board.completedTasks;
+      return mergeTaskArchiveItems(board.inboxArchive, board.completedTasks);
     }
     if (tab === "inbox") {
       return board.inbox;
@@ -278,11 +286,15 @@ function MainAppInner({
 
   const displayItems = useMemo(() => {
     const merged = mergeSearchResults(rawItems, boardSearch.activeQuery, boardSearch.semanticHits);
+    const unbounded = isUnboundedBoardMatch({
+      query: boardSearch.activeQuery,
+      tag: selectedTag,
+    });
     const filtered = applyBoardItemFilters(
       merged,
       selectedTag,
       priorityOnly,
-      dateFilter,
+      unbounded ? "all" : dateFilter,
     );
     return applyBoardDateSort(filtered, dateSortByTab[tab]);
   }, [
@@ -431,18 +443,25 @@ function MainAppInner({
     [addTag],
   );
 
-  const columnTitle = listViewTitle(tab, listView, rawItems.length);
+  const columnTitle = listViewTitle(
+    tab,
+    listView === "completed" ? "archive" : listView,
+    rawItems.length,
+  );
   const boardMarkTone: BoardMarkTone =
     tab === "inbox" ? "slate" : tab === "today" ? "blue" : "orange";
 
-  const archiveCount = tab === "notes" ? board.notesArchive.length : board.inboxArchive.length;
+  const archiveCount =
+    tab === "notes"
+      ? board.notesArchive.length
+      : tab === "today"
+        ? mergeTaskArchiveItems(board.inboxArchive, board.completedTasks).length
+        : board.inboxArchive.length;
 
   const activeTaskListsCount = useMemo(
     () => taskLists.lists.filter((list) => list.status === "active").length,
     [taskLists.lists],
   );
-
-  const completedCount = board.completedTasks.length;
 
   const renderAltViewControls = () => {
     const textStyle = boardToolbarText(
@@ -473,17 +492,6 @@ function MainAppInner({
 
     return (
       <View style={styles.tabHeaderActionsRow}>
-        {tab === "today" && completedCount > 0 ? (
-          <TouchableOpacity
-            style={boardToolbarBtn}
-            onPress={() => {
-              exitSelect();
-              setListView("completed");
-            }}
-          >
-            <Text style={textStyle}>הושלמו ({completedCount})</Text>
-          </TouchableOpacity>
-        ) : null}
         <TouchableOpacity
           style={boardToolbarBtn}
           onPress={() => {
@@ -906,7 +914,7 @@ function MainAppInner({
               dateFilter,
             })
               ? "אין תוצאות לסינון"
-              : emptyListMessage(tab, listView)}
+              : emptyListMessage(tab, listView === "completed" ? "archive" : listView)}
           </Text>
         }
         renderItem={renderBoardItem}

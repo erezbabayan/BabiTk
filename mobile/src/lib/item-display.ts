@@ -1,4 +1,5 @@
 import { parseChecklist } from "./checklist";
+import { resolveVoiceDisplayText } from "./voice-text";
 import { getItemAnalysis, type StoredItemAnalysis } from "./item-analysis";
 import {
   effectiveTaskDueDate,
@@ -17,8 +18,14 @@ export interface ItemDisplaySource {
   due_date: string | null;
   metadata?: Record<string, unknown> | null | undefined;
   source_materials?: {
+    storage_url?: string | null;
+    raw_text?: string | null;
     metadata?: { ocr_lines?: { text: string; completed: boolean }[] } | null;
-  } | { metadata?: { ocr_lines?: { text: string; completed: boolean }[] } | null }[] | null;
+  } | {
+    storage_url?: string | null;
+    raw_text?: string | null;
+    metadata?: { ocr_lines?: { text: string; completed: boolean }[] } | null;
+  }[] | null;
 }
 
 export const HEADLINE_MAX_WORDS = 8;
@@ -172,11 +179,17 @@ export function buildItemDisplayFields(
   item: ItemDisplaySource,
   now: Date | number = Date.now(),
 ): ItemDisplayFields {
+  const voiceText = resolveVoiceDisplayText(item);
+  const displayItem = {
+    ...item,
+    title: voiceText.title,
+    content: voiceText.content,
+  };
   const analysis = getItemAnalysis(item.metadata);
-  const body = itemBodyText(item);
+  const body = itemBodyText(displayItem);
   const scheduleIso = resolveScheduleIso(item, analysis, now);
-  const fullHeadline = resolveFullHeadline(item);
-  const headlineTruncated = isHeadlineTruncated(item);
+  const fullHeadline = resolveFullHeadline(displayItem);
+  const headlineTruncated = isHeadlineTruncated(displayItem);
   const bodyExpandable = isBodyExpandable(body);
   const subtaskCount = itemSubtaskCount(item);
 

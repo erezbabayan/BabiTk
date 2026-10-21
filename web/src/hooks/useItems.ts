@@ -4,6 +4,7 @@ import {
   buildApproveInboxPatch,
   buildCompleteTaskPatch,
   buildToggleActionablePatch,
+  withEditedItemType,
 } from "../lib/item-board-actions";
 import {
   buildArchivePatch,
@@ -47,6 +48,12 @@ import {
 import { isDemoMode, requireSupabase } from "../lib/supabase";
 import { collectPagedRows } from "../lib/supabase-paginate";
 import { applyItemRealtimeChange } from "../lib/realtime-items";
+import {
+  clientCaptureId,
+  mergeOptimisticRows,
+  OPTIMISTIC_ITEMS_EVENT,
+  OPTIMISTIC_ROLLBACK_EVENT,
+} from "../lib/optimistic-capture";
 import { completeItemApi } from "../lib/api";
 import { queueGoogleCalendarItemSync } from "../lib/google-calendar-client";
 
@@ -99,6 +106,28 @@ export function useItems(
 function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
   const [items, setItems] = useState<MindtaskerItem[]>([]);
+  const optimisticRef = useRef<MindtaskerItem[]>([]);
+
+  useEffect(() => {
+    function onOptimistic(event: Event) {
+      const next = (event as CustomEvent<{ items?: MindtaskerItem[] }>).detail?.items ?? [];
+      if (next.length === 0) return;
+      optimisticRef.current = mergeOptimisticRows(optimisticRef.current, next);
+      setItems((prev) => mergeOptimisticRows(prev, next));
+    }
+    function onRollback(event: Event) {
+      const ids = new Set((event as CustomEvent<{ ids?: string[] }>).detail?.ids ?? []);
+      if (ids.size === 0) return;
+      optimisticRef.current = optimisticRef.current.filter((item) => !ids.has(item.id));
+      setItems((prev) => prev.filter((item) => !ids.has(item.id)));
+    }
+    window.addEventListener(OPTIMISTIC_ITEMS_EVENT, onOptimistic);
+    window.addEventListener(OPTIMISTIC_ROLLBACK_EVENT, onRollback);
+    return () => {
+      window.removeEventListener(OPTIMISTIC_ITEMS_EVENT, onOptimistic);
+      window.removeEventListener(OPTIMISTIC_ROLLBACK_EVENT, onRollback);
+    };
+  }, []);
 
   const [loading, setLoading] = useState(true);
 
@@ -146,6 +175,7 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       const snapshot = await getDemoItemsSnapshot(syncVersionRef.current);
       if (generation !== refreshGenerationRef.current) return;
       syncVersionRef.current = snapshot.version;
+      optimisticRef.current = [];
       setItems(snapshot.items);
       return;
     }
@@ -165,7 +195,14 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
     );
 
     if (generation !== refreshGenerationRef.current) return;
-    setItems(data as unknown as MindtaskerItem[]);
+    const server = data as unknown as MindtaskerItem[];
+    const seen = new Set(server.map((row) => row.id));
+    for (const row of server) {
+      const capture = clientCaptureId(row);
+      if (capture) seen.add(capture);
+    }
+    optimisticRef.current = optimisticRef.current.filter((item) => !seen.has(item.id));
+    setItems(mergeOptimisticRows(server, optimisticRef.current));
 
     } catch (error) {
       console.error(error);
@@ -624,21 +661,19 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
 
 
+      const typed = withEditedItemType(item, input.is_actionable);
       const patch: Record<string, unknown> = {
-
         title,
-
         content: input.content.trim(),
-
         tags: input.tags,
-
+        is_actionable: typed.is_actionable,
+        status: typed.status,
+        completed_at: typed.completed_at,
         last_interacted_at: new Date().toISOString(),
-
+        metadata: typed.metadata,
       };
 
-
-
-      const reminder = buildTaskReminderUpdate(item, {
+      const reminder = buildTaskReminderUpdate(typed, {
         title,
         content: input.content.trim(),
         due_date: input.due_date,
@@ -646,13 +681,10 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
       });
 
       patch.due_date = reminder.dueDate;
-
       patch.metadata = reminder.metadata;
       if (input.checklist) {
         patch.metadata = withChecklist(patch.metadata, input.checklist);
       }
-
-
 
       await updateItem(item.id, patch);
 

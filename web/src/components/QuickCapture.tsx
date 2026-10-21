@@ -73,17 +73,15 @@ export function QuickCapture({ userId, onCaptured, variant = "compact" }: QuickC
     const trimmed = text.trim();
     if (trimmed.length < 3) return;
 
-    setLoading(true);
     setError(null);
+    setText("");
 
     try {
       await ingestTextForUser(userId, trimmed);
-      setText("");
       onCaptured?.();
     } catch (err) {
+      setText((current) => (current.trim() ? current : trimmed));
       setError(formatIngestError(err));
-    } finally {
-      setLoading(false);
     }
   }
 

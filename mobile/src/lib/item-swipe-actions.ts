@@ -68,18 +68,15 @@ export function buildMobileSwipeActions(
   board: BoardActions,
   onDelete: () => void,
 ): { leftAction?: SwipeSideAction; rightAction?: SwipeSideAction } {
-  if (listView === "archive") {
+  if (listView === "archive" || listView === "completed") {
     const tone = tab === "notes" ? "notes" : boardToneForItem(item);
+    const restore =
+      item.status === "completed"
+        ? () => void board.restoreCompletedTask(item)
+        : () => void board.restoreArchiveItem(item);
     return {
       leftAction: deleteAction(onDelete),
-      rightAction: restoreAction(() => void board.restoreArchiveItem(item), tone),
-    };
-  }
-
-  if (listView === "completed") {
-    return {
-      leftAction: deleteAction(onDelete),
-      rightAction: restoreAction(() => void board.restoreCompletedTask(item), "tasks"),
+      rightAction: restoreAction(restore, tone),
     };
   }
 

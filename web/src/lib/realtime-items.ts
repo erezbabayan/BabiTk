@@ -1,3 +1,5 @@
+import { clientCaptureId } from "./optimistic-capture.ts";
+
 export type RealtimeChangePayload = {
   eventType?: string;
   new?: Record<string, unknown>;
@@ -26,6 +28,11 @@ export function applyItemRealtimeChange<T extends { id: string; deleted_at?: str
   const outgoing = definedFields(payload.old);
   const id = String(incoming.id ?? outgoing.id ?? "");
   if (!id) return prev;
+
+  const capture = clientCaptureId(incoming);
+  if (capture && capture !== id) {
+    prev = prev.filter((item) => item.id !== capture);
+  }
 
   const deletedAt = incoming.deleted_at ?? outgoing.deleted_at;
   if (event === "DELETE" || (typeof deletedAt === "string" && deletedAt)) {

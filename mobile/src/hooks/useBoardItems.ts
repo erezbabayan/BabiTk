@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { buildColumnMovePatch, buildPlaceColumnPatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, type DashboardColumn } from "../lib/item-columns";
+import { buildColumnMovePatch, buildPlaceColumnPatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, withEditedItemType, type DashboardColumn } from "../lib/item-columns";
 import {
   buildArchivePatch,
   buildSoftDeletePatch,
@@ -55,6 +55,7 @@ export interface ItemEditInput {
   content: string;
   tags: string[];
   due_date: string | null;
+  is_actionable: boolean;
   checklist?: ChecklistEntry[];
 }
 
@@ -470,13 +471,18 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       await refresh();
     },
     editItem: (item: MindtaskerItem, input: ItemEditInput) => {
+      const typed = withEditedItemType(item, input.is_actionable);
       const patch: Partial<MindtaskerItem> = {
         title: input.title,
         content: input.content,
         tags: input.tags,
+        is_actionable: typed.is_actionable,
+        status: typed.status,
+        completed_at: typed.completed_at,
         last_interacted_at: new Date().toISOString(),
+        metadata: typed.metadata,
       };
-      const reminder = buildTaskReminderUpdate(item, {
+      const reminder = buildTaskReminderUpdate(typed, {
         title: input.title,
         content: input.content,
         due_date: input.due_date,

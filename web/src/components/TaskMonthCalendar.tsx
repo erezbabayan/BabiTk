@@ -27,6 +27,7 @@ import {
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
+  calendarSearchHitsFromItems,
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
   hebrewMonthTitle,
@@ -34,7 +35,6 @@ import {
   monthGrid,
   shiftMonth,
   taskCalendarDayKey,
-  uniqueCalendarSearchHits,
 } from "../lib/task-calendar";
 import type { MindtaskerItem } from "../types";
 import { SwipeableItemCard } from "./SwipeableItemCard";
@@ -43,6 +43,8 @@ interface TaskMonthCalendarProps {
   items: MindtaskerItem[];
   focusYmd?: string | null;
   searchQuery?: string;
+  /** Tag (or other) filter: list every match under the calendar, like search. */
+  listAllMatches?: boolean;
   onSelectItem?: (item: MindtaskerItem) => void;
   onArchive?: (item: MindtaskerItem) => void;
   onDelete?: (item: MindtaskerItem) => void;
@@ -185,6 +187,7 @@ export function TaskMonthCalendar({
   items,
   focusYmd = null,
   searchQuery = "",
+  listAllMatches = false,
   onSelectItem,
   onArchive,
   onDelete,
@@ -193,7 +196,7 @@ export function TaskMonthCalendar({
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
   const [hebrewOn, setHebrewOn] = useHebrewCalendarEnabled();
-  const searching = searchQuery.trim().length > 0;
+  const searching = listAllMatches || searchQuery.trim().length > 0;
   const [{ year, month }, setCursor] = useState(initialMonth);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
 
@@ -228,8 +231,11 @@ export function TaskMonthCalendar({
   );
   const selectedTasks = byDay.get(selectedYmd) ?? [];
   const searchHits = useMemo(
-    () => (searching ? uniqueCalendarSearchHits(byDay, todayYmd || selectedYmd) : []),
-    [byDay, searching, selectedYmd, todayYmd],
+    () =>
+      searching
+        ? calendarSearchHitsFromItems(items, todayYmd || selectedYmd)
+        : [],
+    [items, searching, selectedYmd, todayYmd],
   );
   const searchGroups = useMemo(
     () => groupCalendarSearchHitsByDay(searchHits),
@@ -314,7 +320,9 @@ export function TaskMonthCalendar({
       dir="rtl"
       data-babitk-calendar="month"
       data-babitk-calendar-focus={selectedYmd || undefined}
-      data-babitk-calendar-search={searching ? searchQuery.trim() : undefined}
+      data-babitk-calendar-search={
+        searching ? searchQuery.trim() || "match" : undefined
+      }
     >
       <div className="flex items-center justify-between gap-2" dir="ltr">
         <button
@@ -466,7 +474,7 @@ export function TaskMonthCalendar({
         {searching ? (
           searchHits.length === 0 ? (
             <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-              אין משימות מתאימות לחיפוש.
+              אין משימות מתאימות.
             </p>
           ) : (
             <div className="space-y-3" data-babitk-calendar-search-results="true">

@@ -28,16 +28,15 @@ export function TagFilterBar({
   return (
     <View style={styles.wrap}>
       <Pressable
-        style={styles.toggle}
+        style={[styles.toggle, selected ? styles.toggleOn : null]}
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
       >
         <View style={styles.toggleLeft}>
           <NotebookIcon name="filter" size={13} tone="orange" />
-          <Text style={styles.toggleText}>
-            סינון תגיות
-            {selected ? <Text style={styles.toggleActive}> · {formatTagLabel(selected)}</Text> : null}
+          <Text style={styles.toggleText} numberOfLines={1} ellipsizeMode="tail">
+            {selected ? formatTagLabel(selected) : "סינון"}
           </Text>
         </View>
         <NotebookIcon name={open ? "chevronUp" : "chevronDown"} size={13} tone="muted" />
@@ -88,13 +87,18 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
+    overflow: "hidden",
+    height: 32,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: "#fff",
     paddingHorizontal: 8,
-    paddingVertical: 5,
     gap: 6,
+  },
+  toggleOn: {
+    borderColor: "#fdba74",
+    backgroundColor: "#fff7ed",
   },
   toggleLeft: {
     flexDirection: "row-reverse",
@@ -104,14 +108,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   toggleText: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 11,
     fontWeight: "600",
     color: "#475569",
     textAlign: "right",
-  },
-  toggleActive: {
-    fontWeight: "500",
-    color: "#64748b",
   },
   dropdown: {
     position: "absolute",

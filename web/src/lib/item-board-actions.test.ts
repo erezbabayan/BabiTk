@@ -5,6 +5,7 @@ import {
   buildApproveInboxPatch,
   buildCompleteTaskPatch,
   buildToggleActionablePatch,
+  withEditedItemType,
   resolveInboxDragTransfer,
   resolveSwipeRelease,
   type BoardActionItem,
@@ -74,6 +75,31 @@ describe("buildToggleActionablePatch", () => {
     assert.equal(patch.is_actionable, true);
     assert.equal(patch.status, undefined);
     assert.equal(getItemColumn(asItem(item, patch)), "inbox");
+  });
+});
+
+describe("withEditedItemType", () => {
+  it("returns the same item when the type did not change", () => {
+    const item = asItem(sampleItem({ is_actionable: true }), {});
+    assert.equal(withEditedItemType(item, true), item);
+  });
+
+  it("flips a task to a note from the edit form", () => {
+    const item = asItem(sampleItem({ status: "pending", is_actionable: true }), {});
+    const next = withEditedItemType(item, false);
+    assert.equal(next.is_actionable, false);
+    assert.equal(getItemColumn(next), "notes");
+  });
+
+  it("restores a completed task to pending when converting it to a note", () => {
+    const item = asItem(
+      sampleItem({ status: "completed", is_actionable: true, completed_at: "2026-10-20T00:00:00.000Z" }),
+      {},
+    );
+    const next = withEditedItemType(item, false);
+    assert.equal(next.is_actionable, false);
+    assert.equal(next.status, "pending");
+    assert.equal(next.completed_at, null);
   });
 });
 

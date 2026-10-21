@@ -47,15 +47,15 @@ export function AppHeader({
   );
 
   const actions = (
-    <div className="flex shrink-0 items-center justify-end gap-2.5 sm:gap-3.5">
+    <div className="flex min-w-0 max-w-full items-center justify-end gap-1 sm:gap-2.5 lg:gap-3.5">
       {children ? (
-        <nav className="app-header-nav flex items-center gap-1">{children}</nav>
+        <nav className="app-header-nav flex min-w-0 items-center gap-0.5 sm:gap-1">{children}</nav>
       ) : null}
       {notifications ? (
-        <div className="mx-1 flex shrink-0 items-center sm:mx-2">{notifications}</div>
+        <div className="flex shrink-0 items-center">{notifications}</div>
       ) : null}
       {trailing ? (
-        <nav className="app-header-nav flex items-center gap-1">{trailing}</nav>
+        <nav className="app-header-nav flex shrink-0 items-center gap-0.5 sm:gap-1">{trailing}</nav>
       ) : null}
       {userName ? (
         <div className="hidden lg:block">
@@ -68,11 +68,11 @@ export function AppHeader({
   return (
     <header
       dir="ltr"
-      className="app-header z-30 shrink-0 px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:px-5"
+      className="app-header z-30 box-border w-full max-w-full shrink-0 py-2 pt-[max(0.5rem,env(safe-area-inset-top))]"
     >
-      <div className="mx-auto grid max-w-[1600px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 lg:gap-x-6 xl:gap-x-10">
-        <div className="col-start-1 row-start-1">{logo}</div>
-        <div className="col-start-3 row-start-1 justify-self-end">{actions}</div>
+      <div className="mx-auto grid w-full min-w-0 max-w-[1600px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 sm:gap-x-3 lg:gap-x-6 xl:gap-x-10">
+        <div className="col-start-1 row-start-1 min-w-0">{logo}</div>
+        <div className="col-start-3 row-start-1 min-w-0 max-w-full justify-self-end">{actions}</div>
         {center ? (
           <div className="col-span-3 row-start-2 min-w-0 lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:justify-self-stretch lg:px-3">
             <div className="w-full lg:mx-auto lg:max-w-xl">{center}</div>

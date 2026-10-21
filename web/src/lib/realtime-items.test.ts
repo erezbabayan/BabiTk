@@ -42,6 +42,17 @@ describe("applyItemRealtimeChange", () => {
     assert.deepEqual(next, []);
   });
 
+  it("replaces the optimistic capture row when the saved row arrives", () => {
+    const next = applyItemRealtimeChange<Row & { metadata?: { client_capture_id?: string } }>(
+      [{ id: "local-1", title: "חלב", metadata: { client_capture_id: "local-1" } }],
+      {
+        eventType: "INSERT",
+        new: { id: "server-9", title: "חלב", metadata: { client_capture_id: "local-1" } },
+      },
+    );
+    assert.deepEqual(next.map((row) => row.id), ["server-9"]);
+  });
+
   it("does not re-insert an unknown row on UPDATE", () => {
     const next = applyItemRealtimeChange<Row>(
       [{ id: "a", title: "ישן" }],

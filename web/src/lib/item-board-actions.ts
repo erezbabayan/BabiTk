@@ -56,6 +56,24 @@ export function buildToggleActionablePatch(
   return patch;
 }
 
+/** Apply a note↔task flip from the edit form onto the current item. */
+export function withEditedItemType(
+  item: MindtaskerItem,
+  isActionable: boolean,
+): MindtaskerItem {
+  if (item.is_actionable === isActionable) return item;
+  const patch = buildToggleActionablePatch({
+    title: item.title,
+    content: item.content,
+    status: item.status,
+    is_actionable: item.is_actionable,
+    due_date: item.due_date,
+    completed_at: item.completed_at,
+    metadata: item.metadata,
+  });
+  return { ...item, ...patch } as MindtaskerItem;
+}
+
 /** Send an inbox item to its tasks/notes board. */
 export function buildApproveInboxPatch(
   item: BoardActionItem,

@@ -11,12 +11,15 @@ import {
   calendarMonthExpandRange,
   calendarMonthFromYmd,
   calendarSwipeMonthDelta,
+  calendarItemDueIso,
   calendarTasks,
   calendarOccurrenceYmds,
   firstBusyCalendarYmd,
+  firstCalendarMatchYmd,
   groupCalendarSearchHitsByDay,
   groupCalendarTasksByDay,
   uniqueCalendarSearchHits,
+  calendarSearchHitsFromItems,
   hebrewMonthTitle,
   isCalendarRecurringItem,
   monthGrid,
@@ -54,6 +57,19 @@ describe("BabiTk task calendar", () => {
     assert.equal(cells[4]?.inMonth, true);
     assert.equal(cells[0]?.inMonth, false);
     assert.equal(hebrewMonthTitle(2026, 10), "אוקטובר 2026");
+  });
+
+  it("uses בשעה from the item text instead of the default 09:00 due", () => {
+    const iso = calendarItemDueIso(
+      item({
+        title: "הגשת עבודה בסימולציה עסקית בלימודים",
+        content: "הגשת עבודה בסימולציה עסקית בלימודים בתאריך 24/10/2026 בשעה 22:00",
+        due_date: "2026-10-24T06:00:00.000Z",
+      }),
+    );
+    assert.ok(iso);
+    assert.equal(taskCalendarDayKey(iso), "2026-10-24");
+    assert.equal(new Date(iso).toISOString(), "2026-10-24T19:00:00.000Z");
   });
 
   it("groups dated tasks by Jerusalem day, including inbox and analysis dates", () => {
@@ -280,6 +296,65 @@ describe("BabiTk task calendar", () => {
     assert.equal(groups[1]?.ymd, "2026-10-16");
     assert.match(calendarDayDotClass(false, { searchHit: true }), /bg-red-500/);
     assert.match(calendarDayDotClass(false, { searchHit: true }), /babitk-calendar-dot--search/);
+  });
+
+  it("opens tag/search match mode on the first listed result, even when it is in the past", () => {
+    const ymd = firstCalendarMatchYmd(
+      [
+        item({
+          id: "old",
+          title: "סגירת פרויקט",
+          tags: ["עבודה"],
+          due_date: "2026-07-21T09:00:00+03:00",
+        }),
+        item({
+          id: "daily",
+          title: "תזכורת יומית",
+          tags: ["עבודה"],
+          due_date: "2026-07-20T09:00:00+03:00",
+          metadata: { reminder_recurrence: "daily" },
+        }),
+      ],
+      "2026-10-20",
+    );
+    assert.equal(ymd, "2026-07-21");
+  });
+
+  it("lists every match under the calendar with a date, including created_at fallback", () => {
+    const hits = calendarSearchHitsFromItems(
+      [
+        item({
+          id: "created",
+          title: "לקנות חלב",
+          due_date: null,
+          created_at: "2026-09-02T08:00:00.000Z",
+        }),
+        item({
+          id: "far",
+          title: "רופא",
+          due_date: "2027-03-01T07:00:00.000Z",
+        }),
+        item({
+          id: "near",
+          title: "פגישה",
+          due_date: "2026-10-16T07:00:00.000Z",
+        }),
+      ],
+      "2026-10-15",
+    );
+    assert.deepEqual(
+      hits.map((hit) => hit.item.id),
+      ["created", "near", "far"],
+    );
+    assert.equal(hits[0]?.ymd, "2026-09-02");
+    assert.ok(hits[0]?.dueIso);
+    assert.equal(hits[1]?.ymd, "2026-10-16");
+    assert.equal(hits[2]?.ymd, "2027-03-01");
+    const groups = groupCalendarSearchHitsByDay(hits);
+    assert.deepEqual(
+      groups.map((group) => group.ymd),
+      ["2026-09-02", "2026-10-16", "2027-03-01"],
+    );
   });
 
   it("uses a light mint tone for recurring calendar items", () => {

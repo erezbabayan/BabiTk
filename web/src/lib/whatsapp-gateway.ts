@@ -15,7 +15,8 @@ export type GreenConnectAction =
   | "pairingCode"
   | "sendWelcome"
   | "ensureInstance"
-  | "listGroups";
+  | "listGroups"
+  | "catchupInbox";
 
 export interface GreenConnectStatus {
   configured: boolean;

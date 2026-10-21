@@ -7,12 +7,18 @@ import {
   mergeGreenApiGroups,
   parseGroupChatId,
   pickMatchingGroup,
+  preferredCaptureGroupFromItems,
   type GreenApiGroup,
 } from "../../../supabase/functions/_shared/green-api-chats.ts";
 import { currentAccessToken, currentUserId } from "./whatsapp-gateway";
 
 export type { GreenApiGroup };
-export { isPersonalCaptureLabel, parseGroupChatId, pickMatchingGroup };
+export {
+  isPersonalCaptureLabel,
+  parseGroupChatId,
+  pickMatchingGroup,
+  preferredCaptureGroupFromItems,
+};
 
 async function listGroupsViaConnect(): Promise<GreenApiGroup[]> {
   const accessToken = await currentAccessToken();
@@ -63,9 +69,23 @@ async function listGroupsViaItems(): Promise<GreenApiGroup[]> {
     .select("title, metadata")
     .eq("user_id", userId)
     .filter("metadata->>chat_id", "like", "%@g.us")
-    .limit(80);
+    .limit(200);
   if (error || !data) return [];
   return collectGroupsFromItemMetadata(data);
+}
+
+export async function recoverCaptureGroupFromItems(): Promise<GreenApiGroup | null> {
+  const supabase = requireSupabase();
+  const userId = await currentUserId();
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from("mindtasker_items")
+    .select("title, metadata")
+    .eq("user_id", userId)
+    .filter("metadata->>chat_id", "like", "%@g.us")
+    .limit(200);
+  if (error || !data) return null;
+  return preferredCaptureGroupFromItems(data);
 }
 
 export async function listCaptureGroups(): Promise<GreenApiGroup[]> {

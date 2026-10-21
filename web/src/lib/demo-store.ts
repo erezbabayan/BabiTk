@@ -242,6 +242,32 @@ function readAllLocalItems(): MindtaskerItem[] {
   }
 }
 
+/** Active + deleted demo items for the system activity board. */
+export async function getDemoActivityItems(): Promise<MindtaskerItem[]> {
+  const byId = new Map<string, MindtaskerItem>();
+  for (const item of readAllLocalItems()) {
+    byId.set(item.id, item);
+  }
+  if (isSyncEnabled()) {
+    try {
+      const result = await fetchSyncItemsIfChanged<MindtaskerItem>(knownSyncVersion);
+      if (result.changed) {
+        for (const item of result.snapshot.items) {
+          byId.set(item.id, item);
+        }
+      }
+      const trash = await fetchSyncTrash<MindtaskerItem & { deleted_at: string }>();
+      for (const item of trash) {
+        const existing = byId.get(item.id);
+        byId.set(item.id, existing ? { ...existing, ...item } : item);
+      }
+    } catch (error) {
+      console.warn("Demo activity fetch failed, using local cache", error);
+    }
+  }
+  return [...byId.values()];
+}
+
 function toTrashItem(item: MindtaskerItem & { deleted_at?: string | null }): TrashItem | null {
   if (!item.deleted_at || item.deleted_at < trashCutoffIso()) return null;
   return {

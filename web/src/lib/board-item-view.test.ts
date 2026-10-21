@@ -34,13 +34,25 @@ describe("task board view", () => {
     const dashboard = readFileSync(join(here, "../components/Dashboard.tsx"), "utf8");
     const calendar = readFileSync(join(here, "../components/TaskMonthCalendar.tsx"), "utf8");
     assert.match(dashboard, /const calendarBoardItems[\s\S]*mergeSearchResults\(/);
+    assert.match(dashboard, /todayWideMatch \? "all"/);
     assert.match(dashboard, /searchQuery=\{todaySearch\.activeQuery\}/);
-    assert.match(dashboard, /firstBusyCalendarYmd/);
+    assert.match(dashboard, /listAllMatches=\{todayWideMatch\}/);
+    assert.match(dashboard, /isUnboundedBoardMatch/);
+    assert.match(dashboard, /tag: tagByBoard\.today/);
+    assert.match(dashboard, /query: todaySearch\.activeQuery/);
+    assert.match(dashboard, /inboxWideMatch/);
+    assert.match(dashboard, /notesWideMatch/);
+    assert.match(dashboard, /firstCalendarMatchYmd/);
+    assert.match(dashboard, /todayWideMatch[\s\S]*calendarSearchFocusYmd/);
+    assert.match(calendar, /searching = listAllMatches \|\| searchQuery\.trim\(\)\.length > 0/);
     assert.match(calendar, /searchQuery/);
+    assert.match(calendar, /listAllMatches/);
     assert.match(calendar, /data-babitk-calendar-search/);
     assert.match(calendar, /data-babitk-calendar-search-results/);
-    assert.match(calendar, /uniqueCalendarSearchHits/);
+    assert.match(calendar, /calendarSearchHitsFromItems\(items/);
     assert.match(calendar, /searchHit: searching/);
+    assert.match(calendar, /isoDateToDdMmYyyy\(group\.ymd\)/);
+    assert.doesNotMatch(calendar, /ללא תאריך/);
   });
 
   it("paints recurring calendar items in a light color", () => {

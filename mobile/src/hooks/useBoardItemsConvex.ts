@@ -8,6 +8,7 @@ import {
   itemsInColumn,
   sortColumnItems,
   withPinnedBoardColumn,
+  withEditedItemType,
   type DashboardColumn,
 } from "../lib/item-columns";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -244,13 +245,18 @@ export function useBoardItemsConvex(
     restoreDeletedItem: (item: MindtaskerItem) =>
       patchItem(item, resolveRestoreFromTrashPatch(item)),
     editItem: async (item: MindtaskerItem, input: ItemEditInput) => {
+      const typed = withEditedItemType(item, input.is_actionable);
       const patch: Record<string, unknown> = {
         title: input.title,
         content: input.content,
         tags: input.tags,
+        is_actionable: typed.is_actionable,
+        status: typed.status,
+        completed_at: typed.completed_at,
         last_interacted_at: new Date().toISOString(),
+        metadata: typed.metadata,
       };
-      const reminder = buildTaskReminderUpdate(item, {
+      const reminder = buildTaskReminderUpdate(typed, {
         title: input.title,
         content: input.content,
         due_date: input.due_date,
@@ -261,7 +267,7 @@ export function useBoardItemsConvex(
         patch.metadata = withChecklist(patch.metadata, input.checklist);
       }
       await patchItem(item, patch);
-      await syncLocalReminder({ ...item, title: input.title }, reminder.dueDate);
+      await syncLocalReminder({ ...typed, title: input.title }, reminder.dueDate);
     },
     toggleActionable: async (item: MindtaskerItem) => {
       if (!userId) return;
