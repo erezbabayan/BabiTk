@@ -64,6 +64,9 @@ describe("functions deploy token resolution", () => {
     assert.notEqual(storedAt, -1);
     assert.equal(dispatchAt < storedAt, true);
     assert.match(yml, /BABITK_MANAGEMENT_TOKEN=\$\{SUPABASE_ACCESS_TOKEN\}/);
+    assert.match(yml, /github-token: \$\{\{ github\.token \}\}/);
+    assert.match(yml, /--import-map "\$IMPORT_MAP"/);
+    assert.match(yml, /IMPORT_MAP="supabase\/functions\/deno\.json"/);
   });
 
   it("mint probes the stored PAT before handing it to CI", () => {

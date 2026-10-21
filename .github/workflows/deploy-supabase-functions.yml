@@ -38,6 +38,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+          github-token: ${{ github.token }}
       - name: Resolve Supabase access token
         id: token
         env:
@@ -52,10 +53,14 @@ jobs:
               echo ""
               return 0
             fi
-            curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${candidate}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true
+            curl -sS -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer ${candidate}" \
+              -H "apikey: ${candidate}" \
+              "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true
           }
           TOKEN=""
           PROBE_CODE=""
+          MINTED=0
           if [ -n "${INPUT_TOKEN:-}" ]; then
             PROBE_CODE="$(probe_token "$INPUT_TOKEN")"
             echo "dispatch token probe HTTP ${PROBE_CODE}"
@@ -86,6 +91,7 @@ jobs:
               LAST_RESP="$(curl -sS -X POST "https://${PROJECT_REF}.supabase.co/functions/v1/github-oidc-mint" -H "Authorization: Bearer ${JWT}" -H "Content-Type: application/json")"
               TOKEN="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("access_token") or "")' <<<"$LAST_RESP")"
               if [ -n "$TOKEN" ]; then
+                MINTED=1
                 break
               fi
               echo "OIDC mint attempt ${attempt} failed; retrying..."
@@ -98,11 +104,15 @@ jobs:
               exit 1
             fi
           fi
-          FINAL_PROBE="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${TOKEN}" "https://api.supabase.com/v1/projects/${PROJECT_REF}" || true)"
+          FINAL_PROBE="$(probe_token "$TOKEN")"
           echo "final token probe HTTP ${FINAL_PROBE}"
           if [ "$FINAL_PROBE" != "200" ]; then
-            echo "::error::Supabase deploy token is invalid (HTTP ${FINAL_PROBE}). Create an sbp_ token at https://supabase.com/dashboard/account/tokens then set GitHub secret SUPABASE_ACCESS_TOKEN or paste it into Actions → Deploy Supabase Functions → Run workflow."
-            exit 1
+            if [ "$MINTED" = "1" ]; then
+              echo "::warning::Minted token did not pass the Management API probe (HTTP ${FINAL_PROBE}). Continuing, because that probe rejects tokens the CLI can still deploy."
+            else
+              echo "::error::Supabase deploy token is invalid (HTTP ${FINAL_PROBE}). Create an sbp_ token at https://supabase.com/dashboard/account/tokens then set GitHub secret SUPABASE_ACCESS_TOKEN or paste it into Actions → Deploy Supabase Functions → Run workflow."
+              exit 1
+            fi
           fi
           echo "::add-mask::$TOKEN"
           echo "value=$TOKEN" >> "$GITHUB_OUTPUT"
@@ -152,15 +162,16 @@ jobs:
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
           sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:-}}"
           sync_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:-}}}"
-          supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF"
-          supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF"
-          supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy ingest-voice --project-ref "$PROJECT_REF"
-          supabase functions deploy ingest-notebook --project-ref "$PROJECT_REF"
-          supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy google-login --project-ref "$PROJECT_REF" --no-verify-jwt
+          IMPORT_MAP="supabase/functions/deno.json"
+          supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
+          supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
+          supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
+          supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
+          supabase functions deploy ingest-voice --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
+          supabase functions deploy ingest-notebook --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
+          supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
+          supabase functions deploy google-calendar --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
+          supabase functions deploy google-login --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase secrets set --project-ref "$PROJECT_REF" \
             "GITHUB_OIDC_DEPLOY_TOKEN=${SUPABASE_ACCESS_TOKEN}" \
             "BABITK_MANAGEMENT_TOKEN=${SUPABASE_ACCESS_TOKEN}" >/dev/null
