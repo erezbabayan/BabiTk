@@ -1,17 +1,10 @@
 import { env } from "../../config/env.js";
 import type { WhatsAppProviderId } from "../../types/whatsapp.js";
+import { createGreenApiProvider } from "./outbound.js";
 import { phoneFromWhatsAppId } from "./phone.js";
 
 function digitsOnly(phone: string): string {
   return phoneFromWhatsAppId(phone).replace(/\D/g, "");
-}
-
-function resolveGreenApiChatId(to: string): string {
-  const raw = to.trim();
-  if (raw.endsWith("@g.us") || raw.endsWith("@c.us") || raw.endsWith("@lid")) {
-    return raw;
-  }
-  return `${digitsOnly(raw)}@c.us`;
 }
 
 async function sendViaMeta(to: string, body: string): Promise<void> {
@@ -39,27 +32,6 @@ async function sendViaMeta(to: string, body: string): Promise<void> {
   if (!response.ok) {
     const errorBody = await response.text();
     throw new Error(`WhatsApp send failed: ${response.status} ${errorBody}`);
-  }
-}
-
-async function sendViaGreenApi(to: string, body: string): Promise<void> {
-  if (!env.greenApiInstanceId || !env.greenApiToken) {
-    throw new Error("Green-API is not configured");
-  }
-
-  const url = `${env.greenApiUrl}/waInstance${env.greenApiInstanceId}/sendMessage/${env.greenApiToken}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chatId: resolveGreenApiChatId(to),
-      message: body,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Green-API send failed: ${response.status} ${errorBody}`);
   }
 }
 
@@ -94,7 +66,7 @@ export async function sendWhatsAppText(
 ): Promise<void> {
   switch (provider) {
     case "green-api":
-      await sendViaGreenApi(to, body);
+      await createGreenApiProvider().send({ to, body });
       return;
     case "whapi":
       await sendViaWhapi(to, body);

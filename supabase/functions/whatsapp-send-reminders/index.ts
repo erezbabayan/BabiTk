@@ -30,6 +30,9 @@ import {
   reminderDueQueryCutoffIso,
   reminderDueQueryFloorIso,
 } from "../_shared/task-reminder-due.ts";
+import { dispatchProactiveWhatsApp } from "../_shared/whatsapp-proactive-dispatch.ts";
+import { isInsideShabbatQuiet } from "../_shared/jewish-calendar.ts";
+import { envFlagEnabled } from "../_shared/proactive-whatsapp.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -116,6 +119,16 @@ Deno.serve(async (req) => {
 
   const now = new Date();
   const nowIso = now.toISOString();
+  let shabbatOptOut: Set<string> | null = null;
+  if (envFlagEnabled(Deno.env.get("WHATSAPP_SHABBAT_MODE"), true) && isInsideShabbatQuiet(now)) {
+    const { data, error } = await admin.from("users").select("id").eq("whatsapp_shabbat_mode_enabled", false);
+    if (!error) {
+      shabbatOptOut = new Set((data ?? []).map((row: { id: string }) => String(row.id)));
+    } else if (error.code === "42703" || /does not exist|Could not find the column/i.test(error.message ?? "")) {
+      shabbatOptOut = new Set();
+    }
+  }
+  const holdShabbat = (userId: string) => shabbatOptOut != null && !shabbatOptOut.has(userId);
   let sent = 0;
   let digests = 0;
   const userCache = new Map<string, { user: ReminderUserRow; gateway: GatewayRow | null } | null>();
@@ -202,6 +215,7 @@ Deno.serve(async (req) => {
     }
     const context = await contextFor(scopedUserId);
     if (!context) return json({ error: "user_not_found", sent: 0 }, 404);
+    if (holdShabbat(scopedUserId)) return json({ ok: true, sent: 0, shabbat: true });
     try {
       const delivered = await deliver(
         context,
@@ -261,7 +275,7 @@ Deno.serve(async (req) => {
     if (isReminderOverdueBeyondWindow(notifyAt, nowMs)) continue;
     if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
     const context = await contextFor(item.user_id);
-    if (!context) continue;
+    if (!context || holdShabbat(item.user_id)) continue;
     try {
       const delivered = await deliver(
         context,
@@ -305,7 +319,7 @@ Deno.serve(async (req) => {
 
   for (const list of lists ?? []) {
     const context = await contextFor(list.user_id);
-    if (!context) continue;
+    if (!context || holdShabbat(list.user_id)) continue;
     try {
       const delivered = await deliver(
         context,
@@ -340,6 +354,7 @@ Deno.serve(async (req) => {
   const dueWindow = digestDueWindowIso(now.getTime());
 
   for (const row of digestUsers ?? []) {
+    if (holdShabbat(row.id)) continue;
     const hours = resolveDigestHours(row.whatsapp_digest_hours);
     if (!hours.includes(hour)) continue;
     if (!isDigestDayAllowed(weekdayNum, resolveDigestDays(row.whatsapp_digest_days))) continue;
@@ -395,5 +410,16 @@ Deno.serve(async (req) => {
     }
   }
 
-  return json({ ok: true, sent, digests });
+  let proactive = { briefings: 0, followups: 0 };
+  try {
+    proactive = await dispatchProactiveWhatsApp(admin, async (userId, message) => {
+      const context = await contextFor(userId);
+      if (!context) return false;
+      return deliver(context, message);
+    }, now);
+  } catch (error) {
+    console.error("proactive dispatch failed", error);
+  }
+
+  return json({ ok: true, sent, digests, ...proactive });
 });

@@ -63,6 +63,33 @@ import {
   tomorrowAtHourIso,
 } from "../_shared/whatsapp-intents.ts";
 import { classifyWhatsAppInbound } from "../_shared/whatsapp-inbound-route.ts";
+import { enrichInboundRows } from "../_shared/whatsapp-enrich.ts";
+import {
+  buildSearchReply,
+  envFlagEnabled,
+  nextWeekdayIso,
+  parseMoveCommand,
+  parseNoteSearch,
+  rankByOverlap,
+  weekdayLabel,
+  type CaptureRow,
+} from "../_shared/proactive-whatsapp.ts";
+import { fillEmptyJewishDue } from "../_shared/jewish-calendar.ts";
+import { applyForwardedCapture, isGratitudeOnly } from "../_shared/forwarded-task.ts";
+import {
+  applyHabitDefaults,
+  habitTrigger,
+  learnFromCapture,
+  readHabitMemory,
+} from "../_shared/habit-memory.ts";
+import {
+  breakdownReply,
+  confirmedStepCards,
+  parseBreakdownAnswer,
+  proposeBreakdown,
+  readPendingBreakdown,
+} from "../_shared/task-breakdown.ts";
+import { rememberWhatsAppUndo, undoLastWhatsAppAction } from "../_shared/whatsapp-undo.ts";
 import {
   findSystemQuestionReceipt,
   replyWhatsAppSystemQuestion,
@@ -230,6 +257,52 @@ function phonesForUserLookup(message: ParsedGreenApiMessage, body: unknown): str
   });
 }
 
+async function answerTaskBreakdown(
+  supabase: ReturnType<typeof adminClient>,
+  userId: string,
+  text: string,
+): Promise<string | null> {
+  const answer = parseBreakdownAnswer(text);
+  const proposal = answer ? null : proposeBreakdown(text);
+  if (!answer && !proposal) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select("whatsapp_pending_breakdown")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) return null;
+  if (proposal) {
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ whatsapp_pending_breakdown: proposal })
+      .eq("id", userId);
+    if (updateError) return null;
+    return breakdownReply(proposal);
+  }
+  const pending = readPendingBreakdown(data?.whatsapp_pending_breakdown);
+  if (!pending) return null;
+  await supabase.from("users").update({ whatsapp_pending_breakdown: null }).eq("id", userId);
+  if (answer === "no") return "לא שמרתי את השלבים.";
+  const cards = confirmedStepCards(pending);
+  const stamp = Date.now();
+  const { error: insertError } = await supabase.from("mindtasker_items").insert(
+    cards.map((card, index) => ({
+      user_id: userId,
+      title: card.title,
+      content: card.content,
+      is_actionable: true,
+      status: "inbox",
+      tags: [],
+      due_date: card.due_date,
+      metadata: { source: "whatsapp_text", breakdown: true },
+      sort_order: stamp + index,
+      last_interacted_at: new Date(stamp).toISOString(),
+    })),
+  );
+  if (insertError) return "לא הצלחתי לשמור את השלבים. נסו שוב.";
+  return `שמרתי ${cards.length} שלבים.`;
+}
+
 async function rememberLastItemIds(
   supabase: ReturnType<typeof adminClient>,
   userId: string,
@@ -254,14 +327,98 @@ async function handleGroupTextIntent(options: {
 }): Promise<boolean> {
   const raw = options.text.trim();
   if (!raw || isSystemWhatsAppReply(raw)) return true;
+  const replyTo = replyChatId(options.message);
+
+  if (options.message.forwarded && isGratitudeOnly(raw)) {
+    await sendGreenApiText(options.gateway, replyTo, "לא שמרתי את ההודעה שהועברה. אין בה משימה.");
+    return true;
+  }
+
+  if (envFlagEnabled(Deno.env.get("WHATSAPP_TASK_BREAKDOWN"), true)) {
+    const breakdown = await answerTaskBreakdown(options.supabase, options.user.id, raw);
+    if (breakdown) {
+      await sendGreenApiText(options.gateway, replyTo, breakdown);
+      return true;
+    }
+  }
+
+  const nlOn = envFlagEnabled(Deno.env.get("WHATSAPP_NL_COMMANDS"), true);
+  if (nlOn) {
+    const move = parseMoveCommand(raw);
+    if (move) {
+      const { data: openItems } = await options.supabase
+        .from("mindtasker_items")
+        .select("id, title, content, status, due_date")
+        .eq("user_id", options.user.id)
+        .eq("is_actionable", true)
+        .in("status", ["inbox", "pending"])
+        .is("deleted_at", null)
+        .limit(80);
+      const ranked = move.title
+        ? rankByOverlap(move.title, openItems ?? [])
+        : [];
+      const lastIds = Array.isArray(options.user.whatsapp_last_item_ids)
+        ? options.user.whatsapp_last_item_ids.map(String)
+        : [];
+      const itemId = ranked[0]?.id ?? lastIds[0] ?? null;
+      const current = (openItems ?? []).find((item: { id: string }) => item.id === itemId);
+      if (!itemId || !current) {
+        await sendGreenApiText(options.gateway, replyTo, "לא מצאתי משימה להזזה. כתבו «תפריט».");
+        return true;
+      }
+      const due = nextWeekdayIso(new Date(), move.weekday, 9, 0);
+      await rememberWhatsAppUndo(options.supabase, options.user.id, "snooze", [
+        {
+          id: current.id,
+          title: current.title ?? "",
+          status: current.status ?? "inbox",
+          due_date: current.due_date ?? null,
+          deleted_at: null,
+        },
+      ]);
+      await options.supabase
+        .from("mindtasker_items")
+        .update({ due_date: due, last_interacted_at: new Date().toISOString() })
+        .eq("id", itemId)
+        .eq("user_id", options.user.id);
+      await sendGreenApiText(
+        options.gateway,
+        replyTo,
+        `הועבר ליום ${weekdayLabel(move.weekday)} ב-09:00: ${current.title}`,
+      );
+      return true;
+    }
+  }
+
+  if (envFlagEnabled(Deno.env.get("WHATSAPP_SEMANTIC_SEARCH"), true)) {
+    const query = parseNoteSearch(raw);
+    if (query) {
+      const { data: openItems } = await options.supabase
+        .from("mindtasker_items")
+        .select("id, title, content")
+        .eq("user_id", options.user.id)
+        .is("deleted_at", null)
+        .limit(80);
+      const hits = rankByOverlap(query, openItems ?? []);
+      await sendGreenApiText(options.gateway, replyTo, buildSearchReply(query, hits));
+      return true;
+    }
+  }
+
   const route = classifyWhatsAppInbound(raw);
   if (route.lane === "capture") return false;
-
-  const replyTo = replyChatId(options.message);
 
   if (route.lane === "command") {
     const command = parseWhatsAppCommand(raw);
     if (!command) return false;
+    if (command.type === "undo") {
+      await sendGreenApiText(
+        options.gateway,
+        replyTo,
+        await undoLastWhatsAppAction(options.supabase, options.user.id),
+      );
+      return true;
+    }
     const { data: fresh, error: lastIdsError } = await options.supabase
       .from("users")
       .select("whatsapp_last_item_ids")
@@ -285,7 +442,7 @@ async function handleGroupTextIntent(options: {
 
     const { data: item } = await options.supabase
       .from("mindtasker_items")
-      .select("id, title, due_date, metadata")
+      .select("id, title, status, due_date, metadata")
       .eq("id", itemId)
       .eq("user_id", options.user.id)
       .maybeSingle();
@@ -295,6 +452,15 @@ async function handleGroupTextIntent(options: {
     }
 
     if (command.type === "complete") {
+      await rememberWhatsAppUndo(options.supabase, options.user.id, "complete", [
+        {
+          id: item.id,
+          title: item.title ?? "",
+          status: item.status ?? "inbox",
+          due_date: item.due_date ?? null,
+          deleted_at: null,
+        },
+      ]);
       await options.supabase
         .from("mindtasker_items")
         .update({
@@ -304,10 +470,19 @@ async function handleGroupTextIntent(options: {
         })
         .eq("id", itemId)
         .eq("user_id", options.user.id);
-      await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}`);
+      await sendGreenApiText(options.gateway, replyTo, `סומן כבוצע: ${item.title}\nאפשר לכתוב «בטל».`);
       return true;
     }
 
+    await rememberWhatsAppUndo(options.supabase, options.user.id, "snooze", [
+      {
+        id: item.id,
+        title: item.title ?? "",
+        status: item.status ?? "inbox",
+        due_date: item.due_date ?? null,
+        deleted_at: null,
+      },
+    ]);
     const due =
       command.type === "snooze"
         ? addHoursIso(command.hours)
@@ -633,7 +808,7 @@ async function insertCapturedItem(
     rawText?: string;
     audioUrl?: string | null;
   },
-): Promise<{ id: string; title: string } | null> {
+): Promise<{ id: string; title: string; content?: string; items: Array<{ id: string; title: string }> } | null> {
   if (!isInsertableInboundText(item.title, item.content)) {
     throw new Error("inbound_text_required");
   }
@@ -694,9 +869,18 @@ async function insertCapturedItem(
       checklist: undefined as ReturnType<typeof parseInboundText>[number]["checklist"],
     }));
   }
-  const rows =
+  const baseRows: CaptureRow[] =
     parsedRows.length > 0
-      ? parsedRows
+      ? parsedRows.map((row) => ({
+          title: row.title,
+          content: row.content,
+          is_actionable: row.is_actionable,
+          tags: row.tags ?? [],
+          due_date: row.due_date,
+          analysis: row.analysis,
+          reminder_recurrence: row.reminder_recurrence ?? null,
+          checklist: row.checklist,
+        }))
       : [
           {
             title: item.title,
@@ -709,6 +893,36 @@ async function insertCapturedItem(
             checklist: undefined,
           },
         ];
+  const allowedTags = await loadAllowedTagNames(supabase, user.id);
+  let rows = enrichInboundRows(item.content, baseRows, allowedTags);
+  if (envFlagEnabled(Deno.env.get("WHATSAPP_JEWISH_DATES"), true)) {
+    rows = fillEmptyJewishDue(item.content, rows);
+  }
+  if (message.forwarded) {
+    rows = applyForwardedCapture(item.content, rows);
+  }
+  if (
+    envFlagEnabled(Deno.env.get("WHATSAPP_HABITS"), true) &&
+    habitTrigger(item.content) &&
+    rows.length > 0
+  ) {
+    const { data: habitRow, error: habitError } = await supabase
+      .from("users")
+      .select("whatsapp_habits")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!habitError) {
+      const memory = readHabitMemory(habitRow?.whatsapp_habits);
+      rows = applyHabitDefaults(item.content, rows, memory);
+      const learned = learnFromCapture(memory, item.content, rows[0]?.due_date ?? null, rows[0]?.tags ?? []);
+      if (learned !== memory) {
+        void supabase.from("users").update({ whatsapp_habits: learned }).eq("id", user.id);
+      }
+    }
+  }
+  if (rows.length === 0) {
+    return null;
+  }
 
   const voiceMeta =
     message.type === "audio"
@@ -736,6 +950,7 @@ async function insertCapturedItem(
           whatsapp_message_id: message.messageId,
           chat_id: message.chatId,
           ...layoutMetadataFromParsed(row),
+          ...(row.priority ? { priority: row.priority } : {}),
           ...voiceMeta,
         },
         sort_order: now + index,
@@ -750,7 +965,20 @@ async function insertCapturedItem(
     queueCalendarSync(supabase, user.id, String(row.id));
   }
   const inserted = insertedRows[0];
-  return { id: inserted.id as string, title: inserted.title as string };
+  const items = insertedRows.map((row) => ({ id: String(row.id), title: String(row.title ?? "") }));
+  await rememberWhatsAppUndo(
+    supabase,
+    user.id,
+    "capture",
+    items.map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: "inbox",
+      due_date: null,
+      deleted_at: null,
+    })),
+  );
+  return { id: inserted.id as string, title: inserted.title as string, items };
 }
 
 Deno.serve(async (req) => {
@@ -1054,11 +1282,18 @@ Deno.serve(async (req) => {
         !needsVoiceTranscription(inserted.title, inserted.content) &&
         !needsOcrTranscription(inserted.title, inserted.content)
       ) {
-        await rememberLastItemIds(supabase, user.id, [inserted.id]);
+        const captured = inserted.items?.length
+          ? inserted.items
+          : [{ id: inserted.id, title: inserted.title }];
+        await rememberLastItemIds(
+          supabase,
+          user.id,
+          captured.map((row) => row.id),
+        );
         await sendGreenApiText(
           gateway,
           replyChatId(message),
-          buildCaptureConfirmation([{ title: inserted.title }]),
+          buildCaptureConfirmation(captured),
         );
         await maybeSendGroupMenu({
           supabase,

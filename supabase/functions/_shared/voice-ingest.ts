@@ -36,6 +36,8 @@ import {
   resolveCaptureChatId,
 } from "./whatsapp-system-question-reply.ts";
 import { parseInboundText, layoutMetadataFromParsed } from "./inbound-item.ts";
+import { enrichInboundRows } from "./whatsapp-enrich.ts";
+import type { CaptureRow } from "./proactive-whatsapp.ts";
 import {
   ensureWhatsAppMessageId,
   isSoftDeletedCapturedItem,
@@ -436,6 +438,34 @@ export async function applyVoiceTranscription(
     if (fallback) {
       parsed = { ...fallback, analysis: undefined };
     }
+  }
+  const voiceCards = parsed
+    ? enrichInboundRows(transcribed.content, [parsed as CaptureRow])
+    : [];
+  if (voiceCards.length > 1 && row.user_id) {
+    parsed = voiceCards[0];
+    const extras = voiceCards.slice(1);
+    await supabase.from("mindtasker_items").insert(
+      extras.map((card, index) => ({
+        user_id: row.user_id,
+        source_material_id: source?.id ?? null,
+        title: card.title,
+        content: card.content,
+        is_actionable: true,
+        status: "inbox",
+        tags: card.tags,
+        due_date: card.due_date,
+        metadata: {
+          source: "whatsapp_voice",
+          ...layoutMetadataFromParsed(card),
+          priority: card.priority ?? undefined,
+        },
+        sort_order: Date.now() + index + 1,
+        last_interacted_at: new Date().toISOString(),
+      })),
+    );
+  } else if (voiceCards[0]) {
+    parsed = voiceCards[0];
   }
   const { error: itemError } = await supabase
     .from("mindtasker_items")
@@ -948,6 +978,11 @@ export async function ingestRecordedAudio(
       parsed = { ...fallback, analysis: undefined };
     }
   }
+  const recordedCards = parsed
+    ? enrichInboundRows(transcribed.correctedText, [parsed as CaptureRow])
+    : [];
+  const extraRecordedCards = recordedCards.slice(1);
+  if (recordedCards[0]) parsed = recordedCards[0];
   const now = Date.now();
   const { data: source, error: sourceError } = await supabase
     .from("source_materials")
@@ -1000,10 +1035,30 @@ export async function ingestRecordedAudio(
   }
 
   queueCalendarSync(supabase, userId, inserted.id as string);
+  if (extraRecordedCards.length > 0) {
+    await supabase.from("mindtasker_items").insert(
+      extraRecordedCards.map((card, index) => ({
+        user_id: userId,
+        source_material_id: source?.id ?? null,
+        title: card.title,
+        content: card.content,
+        is_actionable: true,
+        status: "inbox",
+        due_date: card.due_date,
+        tags: card.tags,
+        metadata: {
+          source: "app_voice",
+          ...layoutMetadataFromParsed(card),
+        },
+        sort_order: now + index + 1,
+        last_interacted_at: new Date(now).toISOString(),
+      })),
+    );
+  }
 
   return {
     itemId: inserted.id as string,
-    title: transcribed.title,
+    title: parsed?.title || transcribed.title,
     content: transcribed.correctedText,
     rawText: transcribed.rawText,
   };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import DateTimePicker, {
   type DateTimePickerEvent,
@@ -11,6 +11,11 @@ import {
   type DueDateParts,
 } from "../lib/due-date-fields";
 import { ClockTimePicker } from "./ClockTimePicker";
+import { hebrewDayMark, hebrewDayTooltip } from "../lib/hebrew-calendar";
+import {
+  loadHebrewCalendarEnabled,
+  subscribeHebrewCalendar,
+} from "../lib/hebrew-calendar-pref";
 
 interface DueDateFieldsProps {
   value: DueDateParts;
@@ -35,7 +40,14 @@ function isPresetActive(value: DueDateParts, preset: (typeof TIME_PRESETS)[numbe
 
 export function DueDateFields({ value, onChange }: DueDateFieldsProps) {
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [hebrewOn, setHebrewOn] = useState(false);
   const hasDate = value.date.length > 0;
+  const hebrew = hebrewOn && hasDate ? hebrewDayMark(value.date) : null;
+
+  useEffect(() => {
+    void loadHebrewCalendarEnabled().then(setHebrewOn);
+    return subscribeHebrewCalendar(setHebrewOn);
+  }, []);
 
   function handleDateChange(event: DateTimePickerEvent, selected?: Date) {
     if (Platform.OS === "android") setShowDatePicker(false);
@@ -66,6 +78,11 @@ export function DueDateFields({ value, onChange }: DueDateFieldsProps) {
         </Text>
         <Text style={styles.fieldBtnIcon}>📅</Text>
       </Pressable>
+      {hebrew ? (
+        <Text style={styles.hebrewCaption} numberOfLines={2}>
+          {hebrewDayTooltip(hebrew)}
+        </Text>
+      ) : null}
 
       {showDatePicker ? (
         <DateTimePicker
@@ -179,6 +196,13 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
   },
   fieldBtnIcon: { fontSize: 16, marginLeft: 8 },
+  hebrewCaption: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: "#94a3b8",
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
   timeLabel: { marginTop: 2 },
   timeBox: {
     borderWidth: 1,

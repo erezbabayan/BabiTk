@@ -8,6 +8,8 @@ import {
   shouldUpsertCalendarEvent,
   type CalendarItemSnapshot,
 } from "../lib/google-calendar.js";
+import { featureFlags } from "../lib/feature-flags.js";
+import { decideCalendarMerge } from "../lib/calendar-merge.js";
 
 const CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"];
 
@@ -169,4 +171,67 @@ export async function reconcileItemCalendar(params: {
   }
   await deleteCalendarEvent(params.userId, params.item.calendar_event_id);
   return null;
+}
+
+/**
+ * Pull start-time edits for events already linked to a card.
+ * No-ops unless GOOGLE_CALENDAR_BIDIRECTIONAL is on and OAuth credentials exist.
+ */
+export async function syncCalendarFromGoogle(now = new Date()): Promise<{ updated: number }> {
+  if (!featureFlags.calendarBidirectional || !env.isSupabaseConfigured) return { updated: 0 };
+  const supabase = getSupabaseAdmin();
+  const { data: users, error } = await supabase
+    .from("users")
+    .select("id")
+    .eq("google_calendar_enabled", true)
+    .not("google_refresh_token", "is", null)
+    .limit(40);
+  if (error || !users) return { updated: 0 };
+
+  let updated = 0;
+  for (const user of users) {
+    try {
+      const calendar = await getCalendarClientForUser(user.id);
+      if (!calendar) continue;
+      const listed = await calendar.events.list({
+        calendarId: "primary",
+        singleEvents: true,
+        maxResults: 40,
+        orderBy: "updated",
+        timeMin: new Date(now.getTime() - 86_400_000).toISOString(),
+        timeMax: new Date(now.getTime() + 60 * 86_400_000).toISOString(),
+        updatedMin: new Date(now.getTime() - 2 * 86_400_000).toISOString(),
+      });
+      for (const event of listed.data.items ?? []) {
+        if (!event.id || !event.start?.dateTime || !event.updated) continue;
+        const { data: item } = await supabase
+          .from("mindtasker_items")
+          .select("id, due_date, updated_at")
+          .eq("user_id", user.id)
+          .eq("calendar_event_id", event.id)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (!item) continue;
+        if (
+          decideCalendarMerge({
+            localDue: item.due_date,
+            localUpdatedAt: item.updated_at,
+            remoteStart: event.start.dateTime,
+            remoteUpdatedAt: event.updated,
+          }) !== "apply-remote"
+        ) {
+          continue;
+        }
+        const { error: updateError } = await supabase
+          .from("mindtasker_items")
+          .update({ due_date: event.start.dateTime, last_interacted_at: now.toISOString() })
+          .eq("id", item.id)
+          .eq("user_id", user.id);
+        if (!updateError) updated += 1;
+      }
+    } catch {
+      // A Google error for one user does not stop the rest.
+    }
+  }
+  return { updated };
 }

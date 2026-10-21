@@ -32,6 +32,7 @@ export const parsedItemSchema = z.object({
 
 export type ParsedItem = Omit<z.infer<typeof parsedItemSchema>, "analysis"> & {
   analysis: ParsedItemAnalysis | StoredItemAnalysis;
+  priority?: "high" | "normal";
 };
 
 export const parseInputResponseSchema = z.object({

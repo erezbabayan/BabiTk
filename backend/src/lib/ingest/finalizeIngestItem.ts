@@ -210,6 +210,12 @@ export function finalizedToParsedItem(
 
     analysis,
 
+    reminder_recurrence: original.reminder_recurrence,
+
+    checklist: original.checklist,
+
+    priority: original.priority,
+
   };
 
 }

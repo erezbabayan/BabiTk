@@ -18,6 +18,11 @@ import { applySplitMergeLessons, listIngestLessons } from "./ingest-lessons.serv
 import { filterDuplicateParsedItems } from "../lib/duplicate-detect.js";
 import { env } from "../config/env.js";
 import { getSupabaseAdmin } from "../lib/supabase.js";
+import { featureFlags } from "../lib/feature-flags.js";
+import { enrichWhatsAppCapture, type CaptureRow } from "../lib/proactive-whatsapp.js";
+import { fillEmptyJewishDue } from "../lib/jewish-calendar.js";
+import { applyForwardedCapture, isGratitudeOnly } from "../lib/forwarded-task.js";
+import { applyHabitDefaults, habitTrigger, learnFromCapture, readHabitMemory } from "../lib/habit-memory.js";
 
 export interface IngestTextParams {
   userId: string;
@@ -76,6 +81,13 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   if (alreadyCaptured) {
     return emptyIngestionResult(params);
   }
+  if (
+    params.sourceType.startsWith("whatsapp") &&
+    params.metadata?.forwarded === true &&
+    isGratitudeOnly(params.text)
+  ) {
+    return emptyIngestionResult(params);
+  }
 
   const prepStarted = performance.now();
   const [allowedTags, lessons, existing] = await Promise.all([
@@ -108,6 +120,13 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
     timezone: params.timezone,
     referenceDate,
   });
+  const itemsForSave = await applyLocalWhatsAppDefaults(
+    params.sourceType,
+    params.text,
+    applyWhatsAppCaptureEnrichment(params.sourceType, params.text, enrichedItems, allowedTags),
+    params.userId,
+    params.metadata,
+  );
 
   const saveStarted = performance.now();
   const result = await saveIngestionResult({
@@ -119,7 +138,7 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
       storageUrl: params.storageUrl,
       metadata: params.metadata,
     },
-    items: enrichedItems,
+    items: itemsForSave,
   });
   const saveMs = performance.now() - saveStarted;
 
@@ -148,6 +167,89 @@ export async function ingestText(params: IngestTextParams): Promise<SaveIngestio
   );
 
   return result;
+}
+
+async function applyLocalWhatsAppDefaults(
+  sourceType: SourceType,
+  text: string,
+  items: ParsedItem[],
+  userId: string,
+  metadata?: Record<string, unknown>,
+): Promise<ParsedItem[]> {
+  if (!sourceType.startsWith("whatsapp")) return items;
+  let next = items;
+  if (featureFlags.jewishDates) next = fillEmptyJewishDue(text, next);
+  if (metadata?.forwarded === true) {
+    next = applyForwardedCapture(text, next);
+  }
+  if (!featureFlags.habits || !habitTrigger(text) || !env.isSupabaseConfigured) return next;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("users")
+      .select("whatsapp_habits")
+      .eq("id", userId)
+      .maybeSingle();
+    if (error) return next;
+    const memory = readHabitMemory(data?.whatsapp_habits);
+    next = applyHabitDefaults(text, next, memory);
+    const learned = learnFromCapture(memory, text, next[0]?.due_date ?? null, next[0]?.tags ?? []);
+    if (learned !== memory) {
+      void supabase.from("users").update({ whatsapp_habits: learned }).eq("id", userId);
+    }
+  } catch {
+    // A missing column or a slow read must not block the capture.
+  }
+  return next;
+}
+
+function applyWhatsAppCaptureEnrichment(
+  sourceType: SourceType,
+  text: string,
+  items: ParsedItem[],
+  allowedTags: string[],
+): ParsedItem[] {
+  if (!sourceType.startsWith("whatsapp")) return items;
+  if (!featureFlags.multiCard && !featureFlags.recurrence && !featureFlags.autoCategory) {
+    return items;
+  }
+  const rows: CaptureRow[] = items.map((item) => ({
+    title: item.title,
+    content: item.content,
+    is_actionable: item.is_actionable,
+    tags: item.tags,
+    due_date: item.due_date,
+    analysis: item.analysis,
+    reminder_recurrence: item.reminder_recurrence ?? null,
+    checklist: item.checklist,
+    priority: item.priority,
+  }));
+  const enriched = enrichWhatsAppCapture(text, rows, {
+    multiCard: featureFlags.multiCard,
+    recurrence: featureFlags.recurrence,
+    autoCategory: featureFlags.autoCategory,
+    allowedTags,
+  });
+  return enriched.map((row) => {
+    const template = items[0];
+    return {
+      title: row.title,
+      content: row.content,
+      is_actionable: row.is_actionable,
+      tags: row.tags.length > 0 ? row.tags : template?.tags ?? row.tags,
+      due_date: row.due_date,
+      analysis: (row.analysis as ParsedItem["analysis"]) ?? template?.analysis ?? items[0]!.analysis,
+      reminder_recurrence:
+        row.reminder_recurrence === "daily" ||
+        row.reminder_recurrence === "weekly" ||
+        row.reminder_recurrence === "monthly" ||
+        row.reminder_recurrence === "weekdays"
+          ? row.reminder_recurrence
+          : null,
+      checklist: row.checklist,
+      priority: row.priority,
+    };
+  });
 }
 
 async function listRecentInboxKeys(

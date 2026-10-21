@@ -76,6 +76,18 @@ export default defineSchema({
     whatsappDigestDays: v.optional(
       v.union(v.literal("weekdays"), v.literal("everyday")),
     ),
+    /** Opt-in morning briefing. Sends only when WHATSAPP_PROACTIVE_DISPATCHER=convex. */
+    morningBriefingEnabled: v.optional(v.boolean()),
+    morningBriefingHour: v.optional(v.number()),
+    morningBriefingMinute: v.optional(v.number()),
+    followUpEnabled: v.optional(v.boolean()),
+    followUpHour: v.optional(v.number()),
+    /** Friday summary. Opt-in. Sends only when the Convex dispatcher is selected. */
+    weeklySummaryEnabled: v.optional(v.boolean()),
+    /** Quiet from Friday candles to Saturday havdalah. On when unset. */
+    shabbatModeEnabled: v.optional(v.boolean()),
+    /** Slot keys YYYY-MM-DD:briefing:H / YYYY-MM-DD:followup:H */
+    proactiveSlots: v.optional(v.array(v.string())),
     /** @deprecated Prefer whatsappDigestHours. Kept for existing users. */
     whatsappDigestHour: v.optional(v.number()),
     /**

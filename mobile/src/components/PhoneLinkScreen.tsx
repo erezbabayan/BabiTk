@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -24,10 +25,13 @@ import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoView } from "./ChannelInfoView";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import {
+  loadProactiveWhatsAppPrefs,
   loadWhatsAppNotifyPrefs,
   saveNotifyWhatsAppGroup,
+  saveProactiveWhatsAppPrefs,
   saveWhatsAppDigestDays,
   saveWhatsAppDigestHours,
+  type ProactiveWhatsAppPrefs,
 } from "../lib/whatsapp-gateway";
 import { sendWhatsAppReminderTest } from "../lib/whatsapp-reminders";
 
@@ -95,6 +99,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   const [testingReminder, setTestingReminder] = useState(false);
   const [cloudDigestHours, setCloudDigestHours] = useState<number[]>([9]);
   const [cloudDigestDays, setCloudDigestDays] = useState<"weekdays" | "everyday">("everyday");
+  const [proactive, setProactive] = useState<ProactiveWhatsAppPrefs | null>(null);
 
   useEffect(() => {
     if (!visible || !useConvexPhone || !viewer) return;
@@ -125,6 +130,9 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
         setCloudDigestDays(prefs.digestDays);
       })
       .catch(() => undefined);
+    void loadProactiveWhatsAppPrefs()
+      .then(setProactive)
+      .catch(() => setProactive(null));
   }, [visible, useConvexPhone]);
 
   useEffect(() => {
@@ -688,6 +696,67 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     עד {MAX_DIGEST_HOURS} שעות ביום
                     {savingDigestHours || savingDigestDays ? " · שומר…" : ""}
                   </Text>
+                </View>
+              ) : null}
+
+              {!useConvexPhone && proactive ? (
+                <View style={styles.digestBox}>
+                  <Text style={styles.digestTitle}>בריפינג ומעקב</Text>
+                  <Text style={styles.hint}>
+                    שעון ישראל. דלוק בשרת כברירת מחדל, ואפשר לכבות בדגל. נשלח רק אחרי הסימון כאן, עד 3 ביום.
+                  </Text>
+                  <View style={styles.hourGrid}>
+                    <Text style={styles.digestLabel}>בריפינג בוקר {proactive.morningHour}:30</Text>
+                    <Switch
+                      value={proactive.morningEnabled}
+                      onValueChange={(morningEnabled) => {
+                        setProactive({ ...proactive, morningEnabled });
+                        void saveProactiveWhatsAppPrefs({ morningEnabled }).catch((err) =>
+                          setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                        );
+                      }}
+                    />
+                  </View>
+                  <View style={styles.hourGrid}>
+                    <Text style={styles.digestLabel}>מעקב פתוחות {proactive.followUpHour}:00</Text>
+                    <Switch
+                      value={proactive.followUpEnabled}
+                      onValueChange={(followUpEnabled) => {
+                        setProactive({ ...proactive, followUpEnabled });
+                        void saveProactiveWhatsAppPrefs({ followUpEnabled }).catch((err) =>
+                          setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                        );
+                      }}
+                    />
+                  </View>
+                  {proactive.weeklyEnabled !== undefined ? (
+                    <View style={styles.hourGrid}>
+                      <Text style={styles.digestLabel}>סיכום שבועי ביום שישי ב-13:00</Text>
+                      <Switch
+                        value={proactive.weeklyEnabled}
+                        onValueChange={(weeklyEnabled) => {
+                          setProactive({ ...proactive, weeklyEnabled });
+                          void saveProactiveWhatsAppPrefs({ weeklyEnabled }).catch((err) =>
+                            setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                          );
+                        }}
+                      />
+                    </View>
+                  ) : null}
+                  {proactive.shabbatModeEnabled !== undefined ? (
+                    <View style={styles.hourGrid}>
+                      <Text style={styles.digestLabel}>מצב שבת: בלי הודעות מהדלקת נרות עד להבדלה</Text>
+                      <Switch
+                        value={proactive.shabbatModeEnabled}
+                        onValueChange={(shabbatModeEnabled) => {
+                          setProactive({ ...proactive, shabbatModeEnabled });
+                          void saveProactiveWhatsAppPrefs({ shabbatModeEnabled }).catch((err) =>
+                            setError(err instanceof Error ? err.message : "שמירה נכשלה"),
+                          );
+                        }}
+                      />
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
 

@@ -9,6 +9,12 @@ import {
 } from "react";
 
 import { isoDateToDdMmYyyy } from "../lib/date-display";
+import { hebrewDayMark, hebrewDayTooltip, hebrewMonthHeading } from "../lib/hebrew-calendar";
+import {
+  HEBREW_CALENDAR_EVENT,
+  readHebrewCalendarEnabled,
+  writeHebrewCalendarEnabled,
+} from "../lib/hebrew-calendar-pref";
 import { formatItemTime } from "../lib/item-display";
 import { boardSwipeActions } from "../lib/item-swipe-actions";
 import { formatReminderRecurrenceLabel } from "../lib/resolve-item-reminder";
@@ -44,6 +50,40 @@ interface TaskMonthCalendarProps {
   onDelete?: (item: MindtaskerItem) => void;
   compact?: boolean;
   swipeDisabled?: boolean;
+}
+
+function useHebrewCalendarEnabled(): [boolean, (next: boolean) => void] {
+  const [enabled, setEnabled] = useState(readHebrewCalendarEnabled);
+  useEffect(() => {
+    const sync = () => setEnabled(readHebrewCalendarEnabled());
+    window.addEventListener(HEBREW_CALENDAR_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(HEBREW_CALENDAR_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  const update = useCallback((next: boolean) => {
+    writeHebrewCalendarEnabled(next);
+    setEnabled(next);
+  }, []);
+  return [enabled, update];
+}
+
+function HebrewDayDetail({
+  ymd,
+  mark,
+}: {
+  ymd: string;
+  mark: ReturnType<typeof hebrewDayMark>;
+}) {
+  if (!mark) return null;
+  return (
+    <p className="px-1 text-[11px] text-slate-500" data-babitk-hebrew-detail={ymd}>
+      <span>{isoDateToDdMmYyyy(ymd)}</span>
+      <span className="mr-1 text-slate-400">{hebrewDayTooltip(mark)}</span>
+    </p>
+  );
 }
 
 function initialMonth(now = new Date()): { year: number; month: number } {
@@ -155,6 +195,7 @@ export function TaskMonthCalendar({
   swipeDisabled = false,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
+  const [hebrewOn, setHebrewOn] = useHebrewCalendarEnabled();
   const searching = listAllMatches || searchQuery.trim().length > 0;
   const [{ year, month }, setCursor] = useState(initialMonth);
   const [selectedYmd, setSelectedYmd] = useState(todayYmd);
@@ -167,6 +208,19 @@ export function TaskMonthCalendar({
     setSelectedYmd(focusYmd);
   }, [focusYmd]);
   const cells = useMemo(() => monthGrid(year, month), [year, month]);
+  const hebrewHeading = useMemo(
+    () => (hebrewOn ? hebrewMonthHeading(year, month) : ""),
+    [hebrewOn, year, month],
+  );
+  const hebrewByDay = useMemo(() => {
+    if (!hebrewOn) return null;
+    const marks = new Map<string, NonNullable<ReturnType<typeof hebrewDayMark>>>();
+    for (const cell of cells) {
+      const mark = hebrewDayMark(cell.ymd);
+      if (mark) marks.set(cell.ymd, mark);
+    }
+    return marks;
+  }, [cells, hebrewOn]);
   const expandRange = useMemo(
     () => calendarMonthExpandRange(year, month),
     [year, month],
@@ -282,6 +336,20 @@ export function TaskMonthCalendar({
         </button>
         <div className="text-center" dir="rtl">
           <p className="font-semibold text-slate-800">{hebrewMonthTitle(year, month)}</p>
+          <p className="flex flex-wrap items-center justify-center gap-1 text-[11px] text-slate-400">
+            {hebrewHeading ? <span data-babitk-hebrew-heading={hebrewHeading}>{hebrewHeading}</span> : null}
+            <button
+              type="button"
+              aria-pressed={hebrewOn}
+              data-babitk-hebrew-calendar={hebrewOn ? "on" : "off"}
+              className={`rounded-full border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-normal text-slate-500 shadow-none ${
+                hebrewOn ? "" : "underline"
+              }`}
+              onClick={() => setHebrewOn(!hebrewOn)}
+            >
+              {hebrewOn ? "עברי" : "הצג עברי"}
+            </button>
+          </p>
           <p className="text-[11px] text-slate-500">
             {searching
               ? monthTaskCount > 0
@@ -326,6 +394,8 @@ export function TaskMonthCalendar({
           const selected = cell.ymd === selectedYmd;
           const today = cell.ymd === todayYmd;
           const searchHit = searching && count > 0;
+          const hebrew = hebrewByDay?.get(cell.ymd) ?? null;
+          const hebrewTip = hebrew ? hebrewDayTooltip(hebrew) : "";
           return (
             <button
               key={cell.ymd}
@@ -333,6 +403,7 @@ export function TaskMonthCalendar({
               data-babitk-calendar-day={cell.ymd}
               data-babitk-calendar-selected={selected ? "true" : undefined}
               data-babitk-calendar-search-day={searchHit ? "true" : undefined}
+              title={hebrewTip || undefined}
               onClick={() => {
                 setSelectedYmd(cell.ymd);
                 if (!searching) return;
@@ -349,15 +420,35 @@ export function TaskMonthCalendar({
                     ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
                 });
               }}
-              className={`relative min-h-[2.75rem] bg-white px-0.5 py-1 text-xs ${
+              className={`relative min-h-[3rem] bg-white px-0.5 py-1 text-xs ${
                 cell.inMonth ? "text-slate-800" : "text-slate-300"
               } ${selected ? "bg-blue-50 ring-1 ring-inset ring-blue-400" : ""} ${
                 today && !selected ? "font-bold text-blue-700" : ""
               }`}
               aria-pressed={selected}
-              aria-label={`${cell.ymd}${count ? `, ${count} משימות` : ""}`}
+              aria-label={`${cell.day}${hebrewTip ? `, ${hebrewTip}` : ""}${count ? `, ${count} משימות` : ""}`}
             >
-              {cell.day}
+              <span className="block px-0.5 leading-none">{cell.day}</span>
+              {hebrew ? (
+                <span className="mt-0.5 flex items-center justify-start gap-0.5 px-0.5">
+                  <span
+                    className={`min-w-0 truncate text-[9px] font-normal leading-none sm:text-[10px] ${
+                      cell.inMonth ? "text-slate-400" : "text-slate-300"
+                    }`}
+                    data-babitk-hebrew-day={hebrew.cellLabel}
+                  >
+                    {hebrew.cellLabel}
+                  </span>
+                  {hebrew.marker ? (
+                    <span
+                      className={`h-1 w-1 shrink-0 rounded-full ${
+                        hebrew.marker === "holiday" ? "bg-amber-500" : "bg-indigo-300"
+                      }`}
+                      data-babitk-hebrew-marker={hebrew.marker}
+                    />
+                  ) : null}
+                </span>
+              ) : null}
               {count > 0 ? (
                 <span className="mt-0.5 flex justify-center gap-0.5">
                   {dayTasks.slice(0, 3).map((entry, index) => {
@@ -401,6 +492,11 @@ export function TaskMonthCalendar({
                 >
                   <p className="px-1 text-[11px] font-medium text-red-700">
                     {isoDateToDdMmYyyy(group.ymd)}
+                    {hebrewByDay?.get(group.ymd) ? (
+                      <span className="mr-1 font-normal text-slate-400">
+                        {hebrewDayTooltip(hebrewByDay.get(group.ymd)!)}
+                      </span>
+                    ) : null}
                   </p>
                   {group.hits.map((hit) => (
                     <CalendarDayTaskRow
@@ -419,22 +515,27 @@ export function TaskMonthCalendar({
               ))}
             </div>
           )
-        ) : selectedTasks.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
-            אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
-          </p>
         ) : (
-          selectedTasks.map(({ item, dueIso }) => (
-            <CalendarDayTaskRow
-              key={`${item.id}:${dueIso}`}
-              item={item}
-              dueIso={dueIso}
-              onSelectItem={onSelectItem}
-              onArchive={onArchive}
-              onDelete={onDelete}
-              swipeDisabled={swipeDisabled}
-            />
-          ))
+          <>
+            <HebrewDayDetail ymd={selectedYmd} mark={hebrewByDay?.get(selectedYmd) ?? null} />
+            {selectedTasks.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-500">
+                אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
+              </p>
+            ) : (
+              selectedTasks.map(({ item, dueIso }) => (
+                <CalendarDayTaskRow
+                  key={`${item.id}:${dueIso}`}
+                  item={item}
+                  dueIso={dueIso}
+                  onSelectItem={onSelectItem}
+                  onArchive={onArchive}
+                  onDelete={onDelete}
+                  swipeDisabled={swipeDisabled}
+                />
+              ))
+            )}
+          </>
         )}
       </div>
     </div>

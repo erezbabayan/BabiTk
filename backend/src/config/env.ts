@@ -2,6 +2,7 @@ import { config } from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { configuredDemoSyncToken } from "../lib/demo-sync-token.js";
+import { envFlagEnabled } from "../lib/proactive-whatsapp.js";
 
 config();
 
@@ -218,5 +219,15 @@ export const env = {
   },
   get demoSyncToken() {
     return configuredDemoSyncToken();
+  },
+  /** Morning briefing, follow-up, and multi-card. Default on. See docs/ROADMAP.md. */
+  get whatsappMorningBriefing() {
+    return envFlagEnabled(process.env.WHATSAPP_MORNING_BRIEFING, true);
+  },
+  get whatsappFollowUp() {
+    return envFlagEnabled(process.env.WHATSAPP_FOLLOWUP, true);
+  },
+  get whatsappMultiCard() {
+    return envFlagEnabled(process.env.WHATSAPP_MULTI_CARD, true);
   },
 } as const;

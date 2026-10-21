@@ -3,6 +3,7 @@ import { requireCronSecret } from "../middleware/cron-auth.js";
 import {
   archiveStaleInboxItems,
   sendDailyDigests,
+  sendProactiveWhatsApp,
   sendTaskReminders,
 } from "../services/cron.service.js";
 
@@ -39,6 +40,20 @@ export const cronRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(500).send({
         error: "digest_failed",
         message: error instanceof Error ? error.message : "Digest failed",
+      });
+    }
+  });
+
+  app.post("/whatsapp-proactive", async (request, reply) => {
+    if (!requireCronSecret(request, reply)) return;
+    try {
+      const result = await sendProactiveWhatsApp();
+      return reply.send({ ok: true, ...result });
+    } catch (error) {
+      request.log.error({ err: error }, "HTTP cron proactive WhatsApp failed");
+      return reply.status(500).send({
+        error: "proactive_failed",
+        message: error instanceof Error ? error.message : "Proactive WhatsApp failed",
       });
     }
   });
