@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { Audio } from "expo-av";
 import { HighlightedNotebook } from "./HighlightedNotebook";
 import type { MindtaskerItem } from "../lib/supabase";
@@ -119,7 +119,7 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
   const isImage = sourceType === "notebook_ocr" || sourceType === "image";
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Pressable onPress={onClose} accessibilityLabel="חזור ללוח">
@@ -167,7 +167,7 @@ export function SourceModal({ item, visible, onClose }: SourceModalProps) {
           )}
         </ScrollView>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

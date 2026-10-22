@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MindtaskerItem } from "../lib/supabase";
 
 interface UndoToastProps {
@@ -7,10 +8,11 @@ interface UndoToastProps {
 }
 
 export function UndoToast({ item, onUndo }: UndoToastProps) {
+  const insets = useSafeAreaInsets();
   if (!item) return null;
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { bottom: 24 + insets.bottom }]}>
       <Text style={styles.text} numberOfLines={1}>
         נמחק: {item.title}
       </Text>

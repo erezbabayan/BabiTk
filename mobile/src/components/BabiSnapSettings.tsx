@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 import * as Clipboard from "expo-clipboard";
 
 import {
@@ -109,7 +110,7 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.scroll}>
@@ -155,7 +156,7 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

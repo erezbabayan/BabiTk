@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import type { MindtaskerItem } from "../lib/supabase";
 import type { ItemEditInput } from "../hooks/useBoardItems";
 import { getItemAnalysis, urgencyColor, formatAnalysisTime, showTimeMention } from "../lib/item-analysis";
@@ -116,10 +116,10 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={resetAndClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={resetAndClose}>
       <KeyboardAvoidingView
         style={styles.backdrop}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={undefined}
       >
         <Pressable style={styles.backdropTap} onPress={resetAndClose} />
         <View style={styles.sheet}>
@@ -310,7 +310,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
           </View>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </SafeModal>
   );
 }
 

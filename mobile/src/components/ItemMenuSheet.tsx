@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { archiveRestoreLabel, inboxTransferLabel } from "../lib/item-actions";
 import type { MindtaskerItem } from "../lib/supabase";
 
@@ -81,7 +82,7 @@ export function ItemMenuSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <View style={styles.sheet}>
           <Text style={styles.title}>{current.title}</Text>
@@ -152,7 +153,7 @@ export function ItemMenuSheet({
           </Pressable>
         </View>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 

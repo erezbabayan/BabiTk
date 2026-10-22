@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { useTagSettingsDraft } from "../hooks/useTagSettingsDraft";
 import { DEFAULT_USER_TAGS, MAX_USER_TAGS, TAG_PALETTE } from "../lib/tags";
 
@@ -33,7 +33,7 @@ export function TagSettingsScreen({ visible, onClose }: TagSettingsScreenProps) 
   } = useTagSettingsDraft(visible);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>תגיות מותאמות</Text>
@@ -131,7 +131,7 @@ export function TagSettingsScreen({ visible, onClose }: TagSettingsScreenProps) 
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

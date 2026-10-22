@@ -1,4 +1,5 @@
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 
 import type { UserNotification } from "../lib/user-notifications";
 
@@ -33,7 +34,7 @@ export function NotificationsPanel({
   onOpenItem,
 }: NotificationsPanelProps) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <SafeModal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
@@ -73,7 +74,7 @@ export function NotificationsPanel({
           </ScrollView>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

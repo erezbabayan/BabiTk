@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { snoozePresets } from "../hooks/useInboxItems";
 import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
 import type { MindtaskerItem } from "../lib/supabase";
@@ -53,7 +53,7 @@ export function ListReminderSheet({
   const hasReminder = isListReminderActive(reminderAt);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <ScrollView
@@ -119,7 +119,7 @@ export function ListReminderSheet({
           </ScrollView>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 
@@ -166,7 +166,7 @@ export function SnoozeSheet({ item, visible, onSelect, onClear, onClose }: Snooz
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <ScrollView
@@ -273,7 +273,7 @@ export function SnoozeSheet({ item, visible, onSelect, onClear, onClose }: Snooz
           </ScrollView>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 
@@ -308,7 +308,7 @@ export function MoveBoardSheet({ item, visible, onSelect, onClose }: MoveBoardSh
   const current = getItemColumn(item);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <Text style={styles.title}>העברה לבורד</Text>
@@ -344,7 +344,7 @@ export function MoveBoardSheet({ item, visible, onSelect, onClose }: MoveBoardSh
           </Pressable>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 
@@ -358,7 +358,7 @@ export function TagsSheet({
   if (!item) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <Text style={styles.title}>תגיות — {item.title}</Text>
@@ -392,7 +392,7 @@ export function TagsSheet({
           </Pressable>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 

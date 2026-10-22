@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 import type { UsageSummary } from "../lib/api";
 import { CHANNELS } from "../lib/channel-info";
 import { ChannelInfoView } from "./ChannelInfoView";
@@ -19,7 +20,7 @@ export function ChannelSettingsModal({
   const channel = CHANNELS[channelId];
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
@@ -31,7 +32,7 @@ export function ChannelSettingsModal({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

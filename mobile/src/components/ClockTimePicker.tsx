@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
 import {
   type GestureResponderEvent,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import Svg, { Circle, Line } from "react-native-svg";
 
 interface ClockTimePickerProps {
@@ -175,7 +175,7 @@ export function ClockTimePicker({ hour, minute, onChange, disabled = false }: Cl
         <Text style={styles.triggerHint}>לחץ לבחירה</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <SafeModal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.dialog} onPress={() => undefined}>
             <Text style={styles.dialogTitle}>{mode === "hour" ? "בחר שעה" : "בחר דקות"}</Text>
@@ -297,7 +297,7 @@ export function ClockTimePicker({ hour, minute, onChange, disabled = false }: Cl
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
+      </SafeModal>
     </>
   );
 }

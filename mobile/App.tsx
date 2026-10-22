@@ -707,7 +707,7 @@ function MainAppInner({
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
           onPress={goHome}
@@ -1254,7 +1254,7 @@ function LoginGate({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <LoginScreen
         onSignIn={onSignIn}
         onSignUp={onSignUp}
