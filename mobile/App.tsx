@@ -859,64 +859,62 @@ function MainAppInner({
             <View style={styles.tabHeaderListActionsSpacer} />
           )}
           <View style={styles.boardTitleBlock}>
-            {tab === "today" && listView === "active" ? (
-              <View
-                style={styles.taskViewToggle}
-                accessibilityRole="radiogroup"
-                accessibilityLabel="תצוגת משימות"
-              >
-                {(
-                  [
-                    { id: "squares", label: "קוביות" },
-                    { id: "list", label: "שורות" },
-                    { id: "calendar", label: "יומן" },
-                  ] as const
-                ).map((option, index) => {
-                  const active = taskBoardView === option.id;
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      style={[
-                        styles.taskViewOption,
-                        index > 0 && styles.taskViewOptionDivider,
-                        active && styles.taskViewOptionActive,
-                      ]}
-                      onPress={() => {
-                        if (option.id === "calendar") {
-                          setShowTaskCalendar(true);
-                          exitSelect();
-                          return;
-                        }
-                        setShowTaskCalendar(false);
-                        setBoardItemView(option.id);
-                        void writeBoardItemView(option.id);
-                        if (option.id === "squares") exitSelect();
-                      }}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
-                      accessibilityLabel={`תצוגת ${option.label}`}
-                    >
-                      <Text
-                        style={[styles.taskViewText, active && styles.taskViewTextActive]}
-                      >
-                        {option.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : null}
             <Text
               style={styles.columnTitle}
               numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
             >
               {columnTitle}
             </Text>
             <BoardBrushMark tone={boardMarkTone} />
           </View>
         </View>
+        {tab === "today" && listView === "active" ? (
+          <View
+            style={[styles.taskViewToggle, { alignSelf: "flex-end" }]}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="תצוגת משימות"
+          >
+            {(
+              [
+                { id: "squares", label: "קוביות" },
+                { id: "list", label: "שורות" },
+                { id: "calendar", label: "יומן" },
+              ] as const
+            ).map((option, index) => {
+              const active = taskBoardView === option.id;
+              return (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.taskViewOption,
+                    index > 0 && styles.taskViewOptionDivider,
+                    active && styles.taskViewOptionActive,
+                  ]}
+                  onPress={() => {
+                    if (option.id === "calendar") {
+                      setShowTaskCalendar(true);
+                      exitSelect();
+                      return;
+                    }
+                    setShowTaskCalendar(false);
+                    setBoardItemView(option.id);
+                    void writeBoardItemView(option.id);
+                    if (option.id === "squares") exitSelect();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={`תצוגת ${option.label}`}
+                >
+                  <Text
+                    style={[styles.taskViewText, active && styles.taskViewTextActive]}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
         <View style={styles.tabHeaderToolbar}>
           <ColumnSearchBar
             inline

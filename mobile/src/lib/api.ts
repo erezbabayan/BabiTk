@@ -504,6 +504,20 @@ async function uploadMultipart(path: string, uri: string, mimeType: string, name
   }
 }
 
+/**
+ * Server-side ASR + proofreading can take ~60s when only the free Whisper
+ * fallback is available; matches web EDGE_NOTEBOOK_TIMEOUT_MS.
+ */
+const VOICE_EDGE_TIMEOUT_MS = 90_000;
+
+/** Thrown when the edge request timed out: the server may still create the item, so do not retry. */
+export class VoiceIngestPendingError extends Error {
+  constructor() {
+    super("התמלול לוקח יותר זמן מהרגיל — הפריט יופיע בלוח בעוד רגע");
+    this.name = "VoiceIngestPendingError";
+  }
+}
+
 async function ingestVoiceViaEdge(params: {
   token: string;
   fileUri: string;
@@ -517,7 +531,7 @@ async function ingestVoiceViaEdge(params: {
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   if (!supabaseUrl) return false;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  const timer = setTimeout(() => controller.abort(), VOICE_EDGE_TIMEOUT_MS);
   try {
     if (params.jsonOnly && params.audioBase64) {
       const jsonResponse = await fetch(
@@ -597,7 +611,9 @@ async function ingestVoiceViaEdge(params: {
       | null;
     if (!data || data.error) return false;
     return data.ok === true || data.answered === true || typeof data.title === "string";
-  } catch {
+  } catch (error) {
+    if (controller.signal.aborted) throw new VoiceIngestPendingError();
+    void error;
     return false;
   } finally {
     clearTimeout(timer);
@@ -681,7 +697,8 @@ export async function uploadVoiceNote(
         durationSeconds: options?.durationSeconds,
       });
       if (ingested) return;
-    } catch {
+    } catch (error) {
+      if (error instanceof VoiceIngestPendingError) throw error;
       // Fall through to JSON, public ASR, then Express.
     }
     try {
@@ -696,7 +713,8 @@ export async function uploadVoiceNote(
         jsonOnly: true,
       });
       if (ingested) return;
-    } catch {
+    } catch (error) {
+      if (error instanceof VoiceIngestPendingError) throw error;
       // Fall through to public ASR, then Express.
     }
     if (!audio) {
