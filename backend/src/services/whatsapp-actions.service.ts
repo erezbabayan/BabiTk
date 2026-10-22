@@ -35,6 +35,7 @@ import {
   weekdayLabel,
 } from "../lib/proactive-whatsapp.js";
 import { rememberWhatsAppUndo, undoLastWhatsAppAction } from "./whatsapp-undo.service.js";
+import { postponeOriginalDueByDays } from "../lib/reminderRecurrence.js";
 import { searchItems } from "./search.service.js";
 import { isGratitudeOnly } from "../lib/forwarded-task.js";
 import { handleTaskBreakdown, rememberMorningHabit } from "./whatsapp-breakdown.service.js";
@@ -237,6 +238,17 @@ export async function handleWhatsAppTextIntent(options: {
       const due = addZonedMinutes(TIMEZONE, now, command.hours * 60);
       const item = await snoozeItem(options.user.id, itemId, due);
       await sendWhatsAppText(options.replyTo, `נדחה ל-${formatClock(due)}: ${item.title}`);
+      return true;
+    }
+
+    if (command.type === "nextWeek") {
+      await rememberWhatsAppUndo(options.user.id, "snooze", [snapshot]);
+      const due = postponeOriginalDueByDays(current.due_date, 7, TIMEZONE, now);
+      const item = await snoozeItem(options.user.id, itemId, due);
+      await sendWhatsAppText(
+        options.replyTo,
+        `נדחה לשבוע הבא, ל-${formatClock(due)}: ${item.title}`,
+      );
       return true;
     }
 

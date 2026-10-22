@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 import {
   advanceReminderDueDate,
@@ -16,6 +18,10 @@ import {
 } from "../../../convex/lib/resolveItemReminder.js";
 import { getZonedParts } from "../../../convex/lib/ingest/timezone.js";
 import * as backendCopy from "../lib/reminderRecurrence.js";
+import {
+  postponeOriginalDueByDays as postponeEdge,
+  reminderMetadataForNewDue as edgeReminderMetadata,
+} from "../../../supabase/functions/_shared/zoned-time.ts";
 
 const TZ = "Asia/Jerusalem";
 
@@ -293,6 +299,93 @@ describe("alert snooze from reminder popup", () => {
     const week = getZonedParts(new Date(presets.nextWeek), TZ);
     assert.equal(week.day, 26);
     assert.equal(week.hour, 9);
+  });
+
+  it("moves the original due seven local days ahead, not from now", () => {
+    const now = new Date("2026-10-24T08:00:00+03:00");
+    const original = "2026-10-19T22:15:00+03:00";
+    const due = alertSnoozeDueAt("week", now, TZ, original);
+    const parts = getZonedParts(new Date(due), TZ);
+    assert.equal(parts.year, 2026);
+    assert.equal(parts.month, 10);
+    assert.equal(parts.day, 26);
+    assert.equal(parts.hour, 22);
+    assert.equal(parts.minute, 15);
+    assert.equal(backendCopy.postponeOriginalDueByDays(original, 7, TZ, now), due);
+    assert.equal(postponeEdge(original, 7, TZ, now), due);
+  });
+
+  it("keeps the clock across the Israel DST change", () => {
+    const now = new Date("2026-10-24T08:00:00+03:00");
+    const autumn = alertSnoozeDueAt("week", now, TZ, "2026-10-23T15:00:00+03:00");
+    const autumnParts = getZonedParts(new Date(autumn), TZ);
+    assert.equal(autumnParts.month, 10);
+    assert.equal(autumnParts.day, 30);
+    assert.equal(autumnParts.hour, 15);
+    assert.equal(autumnParts.minute, 0);
+    const spring = backendCopy.postponeOriginalDueByDays(
+      "2026-03-26T10:30:00+02:00",
+      7,
+      TZ,
+      new Date("2026-03-27T12:00:00+03:00"),
+    );
+    const springParts = getZonedParts(new Date(spring), TZ);
+    assert.equal(springParts.month, 4);
+    assert.equal(springParts.day, 2);
+    assert.equal(springParts.hour, 10);
+    assert.equal(springParts.minute, 30);
+    assert.equal(
+      postponeEdge("2026-03-26T10:30:00+02:00", 7, TZ, new Date("2026-03-27T12:00:00+03:00")),
+      spring,
+    );
+  });
+
+  it("uses the current clock when the original due is missing", () => {
+    const now = new Date("2026-10-19T22:15:00+03:00");
+    const due = alertSnoozeDueAt("week", now, TZ, null);
+    const parts = getZonedParts(new Date(due), TZ);
+    assert.equal(parts.day, 26);
+    assert.equal(parts.hour, 22);
+    assert.equal(parts.minute, 15);
+  });
+
+  it("clears reminder_sent and keeps the new notify time", () => {
+    const due = "2026-10-26T22:15:00+02:00";
+    const metadata = backendCopy.reminderMetadataForNewDue(
+      { reminder_sent: true, note: "keep", analysis: { priority: "high" } },
+      due,
+    );
+    assert.equal(metadata.reminder_sent, false);
+    assert.equal(metadata.reminder_manual, true);
+    assert.equal(metadata.reminder_disabled, false);
+    assert.equal(metadata.note, "keep");
+    const analysis = metadata.analysis as { notify_at: string; target_at: string; priority: string };
+    assert.equal(analysis.notify_at, due);
+    assert.equal(analysis.target_at, due);
+    assert.equal(analysis.priority, "high");
+    assert.deepEqual(
+      edgeReminderMetadata(
+        { reminder_sent: true, note: "keep", analysis: { priority: "high" } },
+        due,
+      ),
+      metadata,
+    );
+  });
+
+  it("shows דחה לשבוע הבא beside the existing snooze controls", () => {
+    const root = path.resolve(import.meta.dirname, "../../..");
+    const files = [
+      "web/src/components/ReminderAlertModal.tsx",
+      "mobile/src/components/ReminderAlertModal.tsx",
+      "web/src/components/ReminderPicker.tsx",
+      "web/src/components/ListReminderPicker.tsx",
+      "mobile/src/components/ActionSheets.tsx",
+    ];
+    for (const file of files) {
+      const source = readFileSync(path.join(root, file), "utf8");
+      assert.match(source, /דחה לשבוע הבא/);
+      assert.match(source, /שבוע הבא|מחר ב-09:00|tomorrow/);
+    }
   });
 
   it("clears reminder_sent so the snoozed time can fire again", () => {

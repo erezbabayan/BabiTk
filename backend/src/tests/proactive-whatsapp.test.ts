@@ -84,6 +84,7 @@ describe("follow-up", () => {
     const message = buildFollowUpMessage([sample("1", "להתקשר לרופא", "2026-10-20T08:00:00.000Z")]);
     assert.match(message, /להתקשר לרופא/);
     assert.match(message, /לדחות למחר בבוקר/);
+    assert.match(message, /דחה לשבוע הבא 1/);
     const replies = followUpQuickReplies("abc-123");
     assert.deepEqual(
       replies.map((reply) => reply.id),

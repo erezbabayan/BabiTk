@@ -15,6 +15,7 @@ import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date
 import { isListReminderActive } from "../../../convex/lib/taskListNames";
 import { isReminderActive } from "../lib/item-display";
 import {
+  alertSnoozeDueAt,
   effectiveTaskDueDate,
   getReminderFlags,
   getReminderRecurrence,
@@ -74,6 +75,15 @@ export function ListReminderSheet({
                 <Text style={styles.optionText}>{opt.label}</Text>
               </Pressable>
             ))}
+            <Pressable
+              style={styles.option}
+              onPress={() => {
+                onSelect(alertSnoozeDueAt("week", new Date(), "Asia/Jerusalem", reminderAt));
+                onClose();
+              }}
+            >
+              <Text style={styles.optionText}>דחה לשבוע הבא</Text>
+            </Pressable>
 
             <View style={styles.calendarSection}>
               <Text style={styles.sectionLabel}>או בחר מתאריך ביומן</Text>
@@ -175,6 +185,21 @@ export function SnoozeSheet({ item, visible, onSelect, onClear, onClose }: Snooz
                 <Text style={styles.optionText}>{opt.label}</Text>
               </Pressable>
             ))}
+            <Pressable
+              style={styles.option}
+              onPress={() =>
+                commit(
+                  alertSnoozeDueAt(
+                    "week",
+                    new Date(),
+                    "Asia/Jerusalem",
+                    effectiveTaskDueDate(activeItem) ?? activeItem.due_date,
+                  ),
+                )
+              }
+            >
+              <Text style={styles.optionText}>דחה לשבוע הבא</Text>
+            </Pressable>
 
             <View style={styles.calendarSection}>
               <Text style={styles.sectionLabel}>חזרתיות</Text>

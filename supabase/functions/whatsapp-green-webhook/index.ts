@@ -76,6 +76,7 @@ import {
   type CaptureRow,
 } from "../_shared/proactive-whatsapp.ts";
 import { fillEmptyJewishDue } from "../_shared/jewish-calendar.ts";
+import { postponeOriginalDueByDays, reminderMetadataForNewDue } from "../_shared/zoned-time.ts";
 import { applyForwardedCapture, isGratitudeOnly } from "../_shared/forwarded-task.ts";
 import {
   applyHabitDefaults,
@@ -484,20 +485,29 @@ async function handleGroupTextIntent(options: {
         deleted_at: null,
       },
     ]);
+    const originalDue = typeof item.due_date === "string" ? item.due_date : null;
     const due =
       command.type === "snooze"
         ? addHoursIso(command.hours)
-        : tomorrowAtHourIso(command.hour);
+        : command.type === "nextWeek"
+          ? postponeOriginalDueByDays(originalDue, 7)
+          : tomorrowAtHourIso(command.hour);
     await options.supabase
       .from("mindtasker_items")
-      .update({ due_date: due, last_interacted_at: new Date().toISOString() })
+      .update({
+        due_date: due,
+        metadata: reminderMetadataForNewDue(item.metadata, due),
+        last_interacted_at: new Date().toISOString(),
+      })
       .eq("id", itemId)
       .eq("user_id", options.user.id);
     queueCalendarSync(options.supabase, options.user.id, itemId);
     const label =
       command.type === "snooze"
         ? `נדחה ל-${formatClockFromIso(due)}`
-        : `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00`;
+        : command.type === "nextWeek"
+          ? `נדחה לשבוע הבא, ל-${formatClockFromIso(due)}`
+          : `עודכן ל-מחר ${String(command.hour).padStart(2, "0")}:00`;
     await sendGreenApiText(options.gateway, replyTo, `${label}: ${item.title}`);
     return true;
   }

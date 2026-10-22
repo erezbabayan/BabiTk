@@ -21,6 +21,7 @@ export type WhatsAppCommandAction =
   | { type: "complete"; index: number | null; itemId?: string }
   | { type: "snooze"; index: number | null; itemId?: string; hours: number }
   | { type: "tomorrow"; index: number | null; itemId?: string; hour: number }
+  | { type: "nextWeek"; index: number | null; itemId?: string }
   | { type: "undo" };
 
 const QUERY_HINT =
@@ -45,7 +46,8 @@ const TOMORROW_RE =
   /^(?:מחר)(?:\s+(\d+))?(?:\s*(?:ב-?)?(\d{1,2})(?::(\d{2}))?)?$/iu;
 const NUMBERED_DONE_RE = /^(\d+)\s*(?:בוצע|סיימתי|done)$/iu;
 const NUMBERED_SNOOZE_RE = /^(\d+)\s*(?:דחה|snooze)(?:\s+שעתיים)?$/iu;
-const PAYLOAD_RE = /^(done|snooze1h|snooze2h|tomorrow|undo)(?::([0-9a-fA-F-]{4,}))?$/i;
+const NEXT_WEEK_RE = /^(?:דחה\s+לשבוע\s+הבא)(?:\s+(\d+))?$/iu;
+const PAYLOAD_RE = /^(done|snooze1h|snooze2h|tomorrow|week|undo)(?::([0-9a-fA-F-]{4,}))?$/i;
 
 const TIMEZONE = "Asia/Jerusalem";
 
@@ -178,7 +180,12 @@ export function parseWhatsAppCommand(raw: string): WhatsAppCommandAction | null 
     if (kind === "done") return { type: "complete", index: null, itemId };
     if (kind === "snooze1h") return { type: "snooze", index: null, itemId, hours: 1 };
     if (kind === "snooze2h") return { type: "snooze", index: null, itemId, hours: 2 };
+    if (kind === "week") return { type: "nextWeek", index: null, itemId };
     return { type: "tomorrow", index: null, itemId, hour: 9 };
+  }
+  const nextWeek = text.match(NEXT_WEEK_RE);
+  if (nextWeek) {
+    return { type: "nextWeek", index: nextWeek[1] ? Number(nextWeek[1]) : null };
   }
   if (UNDO_RE.test(text)) return { type: "undo" };
   const oneHour = text.match(SNOOZE_ONE_HOUR_RE);
@@ -244,6 +251,7 @@ export function buildCaptureConfirmation(items: Array<{ title: string }>): strin
     `• דחה שעתיים\n` +
     `• עוד שעה\n` +
     `• מחר\n` +
+    `• דחה לשבוע הבא\n` +
     `• בטל — מבטל את הפעולה האחרונה\n` +
     `• תפריט — שאלות מובנות (מה יש היום / מחר / עבודה)`
   );

@@ -64,6 +64,9 @@ export function ReminderAlertModal({
                 <Pressable style={styles.snooze} onPress={() => onSnooze?.("tomorrow")}>
                   <Text style={styles.snoozeText}>מחר ב-09:00</Text>
                 </Pressable>
+                <Pressable style={styles.snooze} onPress={() => onSnooze?.("week")}>
+                  <Text style={styles.snoozeText}>דחה לשבוע הבא</Text>
+                </Pressable>
               </>
             ) : (
               <Pressable style={styles.later} onPress={onDismiss}>

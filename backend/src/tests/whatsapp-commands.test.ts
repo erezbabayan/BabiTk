@@ -4,7 +4,10 @@ import {
   parseWhatsAppCommand,
   resolveCommandItemId,
   buildCaptureConfirmation,
+  buildReminderActionText,
 } from "../lib/whatsapp-commands.js";
+import { parseWhatsAppCommand as parseEdgeWhatsAppCommand } from "../../../supabase/functions/_shared/whatsapp-intents.ts";
+import { classifyWhatsAppInbound } from "../lib/whatsapp-inbound-route.js";
 import {
   parseWhatsAppQuery,
   parseMenuSelection,
@@ -28,6 +31,27 @@ describe("WhatsApp commands", () => {
     });
     assert.equal(parseWhatsAppCommand("דחה שעתיים")?.type, "snooze");
     assert.equal(parseWhatsAppCommand("מחר")?.type, "tomorrow");
+    assert.deepEqual(parseWhatsAppCommand("דחה לשבוע הבא"), {
+      type: "nextWeek",
+      index: null,
+    });
+    assert.deepEqual(parseWhatsAppCommand("דחה לשבוע הבא 2"), {
+      type: "nextWeek",
+      index: 2,
+    });
+    const weekPayload = parseWhatsAppCommand("week:abc-1234");
+    assert.equal(weekPayload?.type, "nextWeek");
+    assert.equal(weekPayload && "itemId" in weekPayload ? weekPayload.itemId : null, "abc-1234");
+    assert.equal(parseWhatsAppCommand("מה המשימות לשבוע הבא"), null);
+    assert.equal(parseWhatsAppCommand("תכניס משימה שבוע הבא"), null);
+    assert.equal(classifyWhatsAppInbound("דחה לשבוע הבא").lane, "command");
+    assert.notEqual(classifyWhatsAppInbound("מה המשימות לשבוע הבא").lane, "command");
+    assert.deepEqual(parseEdgeWhatsAppCommand("דחה לשבוע הבא 2"), {
+      type: "nextWeek",
+      index: 2,
+    });
+    assert.equal(parseEdgeWhatsAppCommand("week:abc-1234")?.type, "nextWeek");
+    assert.equal(parseEdgeWhatsAppCommand("מה המשימות לשבוע הבא"), null);
     const done = parseWhatsAppCommand("done:abc-1");
     assert.equal(done?.type === "complete" ? done.itemId : null, "abc-1");
   });
@@ -44,6 +68,8 @@ describe("WhatsApp commands", () => {
     assert.match(text, /נפתחו 2 פריטים/);
     assert.match(text, /1\. חלב/);
     assert.match(text, /בוצע 1/);
+    assert.match(text, /דחה לשבוע הבא/);
+    assert.match(buildReminderActionText("חלב", null), /דחה לשבוע הבא/);
   });
 });
 
