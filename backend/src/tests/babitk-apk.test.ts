@@ -49,6 +49,9 @@ describe("BabiTk Android release", () => {
     assert.match(login, /AppDownloadLink/);
     assert.match(download, /babitk-logo\.webp/);
     assert.match(download, /h-\[20px\] w-\[20px\]/);
+    const labelAt = download.indexOf("{BABITK_APK_LABEL}");
+    const logoAt = download.indexOf("<img");
+    assert.ok(labelAt >= 0 && logoAt > labelAt);
     assert.match(settings, /<AppDownloadLink\s+logo/);
     assert.doesNotMatch(login, /AppDownloadLink\s+logo/);
     assert.match(settings, /babisnap-logo\.webp/);

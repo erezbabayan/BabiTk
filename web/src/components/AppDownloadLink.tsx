@@ -6,6 +6,7 @@ export function AppDownloadLink({ className, logo = false }: { className?: strin
     <a href={BABITK_APK_URL} className={className} rel="noreferrer">
       {logo ? (
         <span className="inline-flex items-center justify-center gap-1.5">
+          <span>{BABITK_APK_LABEL}</span>
           <img
             src={babitkLogo}
             alt=""
@@ -13,7 +14,6 @@ export function AppDownloadLink({ className, logo = false }: { className?: strin
             height={20}
             className="h-[20px] w-[20px] shrink-0 rounded-[4px]"
           />
-          <span>{BABITK_APK_LABEL}</span>
         </span>
       ) : (
         BABITK_APK_LABEL
