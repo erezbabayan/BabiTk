@@ -2,6 +2,7 @@ import "react-native-gesture-handler";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
+  I18nManager,
   Linking,
   RefreshControl,
   StyleSheet,
@@ -45,6 +46,12 @@ import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
 import { useBoardSelection } from "./src/hooks/useBoardSelection";
 import { BoardViewToggle } from "./src/components/BoardViewToggle";
+import { TaskMonthCalendar } from "./src/components/TaskMonthCalendar";
+import {
+  calendarChipFocusYmd,
+  firstCalendarMatchYmd,
+  taskCalendarDayKey,
+} from "./src/lib/task-calendar";
 import { useConfirmDialog } from "./src/hooks/useConfirmDialog";
 import { deleteItemConfirmMessage, deleteManyItemsConfirmMessage } from "./src/lib/confirm-copy";
 import { useUserNotifications } from "./src/hooks/useUserNotifications";
@@ -56,6 +63,7 @@ import {
 } from "./src/lib/board-bulk-actions";
 import {
   readBoardItemView,
+  resolveTaskBoardView,
   toggleBoardItemView,
   writeBoardItemView,
   type BoardItemView,
@@ -138,6 +146,7 @@ function MainAppInner({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [boardItemView, setBoardItemView] = useState<BoardItemView>("list");
+  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [paywallCode, setPaywallCode] = useState<"audio_quota" | "ai_parse_quota" | null>(null);
   const [showTaskLists, setShowTaskLists] = useState(false);
@@ -307,6 +316,49 @@ function MainAppInner({
     dateSortByTab,
     tab,
   ]);
+
+  const calendarWideMatch = isUnboundedBoardMatch({
+    query: todaySearch.activeQuery,
+    tag: tagByTab.today,
+  });
+  const calendarDateFilter: BoardDateFilter =
+    calendarWideMatch ||
+    dateFilterByTab.today === "today" ||
+    dateFilterByTab.today === "tomorrow"
+      ? "all"
+      : dateFilterByTab.today;
+  const calendarBoardItems = useMemo(
+    () =>
+      applyBoardItemFilters(
+        mergeSearchResults(
+          [...board.inbox, ...board.todayTasks, ...board.notes],
+          todaySearch.activeQuery,
+          todaySearch.semanticHits,
+        ),
+        tagByTab.today,
+        priorityOnlyByTab.today,
+        calendarDateFilter,
+      ),
+    [
+      board.inbox,
+      board.todayTasks,
+      board.notes,
+      todaySearch.activeQuery,
+      todaySearch.semanticHits,
+      tagByTab.today,
+      priorityOnlyByTab.today,
+      calendarDateFilter,
+    ],
+  );
+  const calendarFocusYmd = useMemo(() => {
+    if (calendarWideMatch) {
+      const today = taskCalendarDayKey(new Date());
+      return today ? firstCalendarMatchYmd(calendarBoardItems, today) : null;
+    }
+    return calendarChipFocusYmd(dateFilterByTab.today);
+  }, [calendarBoardItems, calendarWideMatch, dateFilterByTab.today]);
+  const showCalendarView = tab === "today" && listView === "active" && showTaskCalendar;
+  const taskBoardView = resolveTaskBoardView(showTaskCalendar, boardItemView);
 
   const boardTone = tab === "inbox" ? "slate" : tab === "today" ? "blue" : "orange";
 
@@ -807,6 +859,53 @@ function MainAppInner({
             <View style={styles.tabHeaderListActionsSpacer} />
           )}
           <View style={styles.boardTitleBlock}>
+            {tab === "today" && listView === "active" ? (
+              <View
+                style={styles.taskViewToggle}
+                accessibilityRole="radiogroup"
+                accessibilityLabel="תצוגת משימות"
+              >
+                {(
+                  [
+                    { id: "squares", label: "קוביות" },
+                    { id: "list", label: "שורות" },
+                    { id: "calendar", label: "יומן" },
+                  ] as const
+                ).map((option, index) => {
+                  const active = taskBoardView === option.id;
+                  return (
+                    <TouchableOpacity
+                      key={option.id}
+                      style={[
+                        styles.taskViewOption,
+                        index > 0 && styles.taskViewOptionDivider,
+                        active && styles.taskViewOptionActive,
+                      ]}
+                      onPress={() => {
+                        if (option.id === "calendar") {
+                          setShowTaskCalendar(true);
+                          exitSelect();
+                          return;
+                        }
+                        setShowTaskCalendar(false);
+                        setBoardItemView(option.id);
+                        void writeBoardItemView(option.id);
+                        if (option.id === "squares") exitSelect();
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`תצוגת ${option.label}`}
+                    >
+                      <Text
+                        style={[styles.taskViewText, active && styles.taskViewTextActive]}
+                      >
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : null}
             <Text
               style={styles.columnTitle}
               numberOfLines={1}
@@ -882,6 +981,15 @@ function MainAppInner({
         ) : null}
       </View>
 
+      {showCalendarView ? (
+        <TaskMonthCalendar
+          items={calendarBoardItems}
+          focusYmd={calendarFocusYmd}
+          searchQuery={todaySearch.activeQuery}
+          listAllMatches={Boolean(tagByTab.today)}
+          onSelectItem={(item) => setEditItem(item)}
+        />
+      ) : (
       <FlatList
         key={boardItemView}
         style={styles.boardList}
@@ -919,6 +1027,7 @@ function MainAppInner({
         }
         renderItem={renderBoardItem}
       />
+      )}
       </View>
 
       <UndoToast item={deletedItem} onUndo={() => void handleUndo()} />
@@ -1226,6 +1335,16 @@ function LegacyAuthAppRoot() {
   );
 }
 
+// Screens are laid out RTL by hand on an LTR root (like the web app). Keep the
+// root LTR on every device locale so Hebrew phones don't mirror them again.
+try {
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+  I18nManager.swapLeftAndRightInRTL(false);
+} catch {
+  /* ignore */
+}
+
 export default function App() {
   return (
     <ErrorBoundary label="root">
@@ -1428,6 +1547,35 @@ const styles = StyleSheet.create({
     gap: 8,
     maxWidth: "70%",
     flexShrink: 1,
+  },
+  taskViewToggle: {
+    flexDirection: "row",
+    height: 26,
+    borderWidth: 1,
+    borderColor: "#93c5fd",
+    borderRadius: 6,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+  },
+  taskViewOption: {
+    paddingHorizontal: 8,
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+  },
+  taskViewOptionDivider: {
+    borderLeftWidth: 1,
+    borderLeftColor: "#93c5fd",
+  },
+  taskViewOptionActive: {
+    backgroundColor: "#dbeafe",
+  },
+  taskViewText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#1d4ed8",
+  },
+  taskViewTextActive: {
+    color: "#1e40af",
   },
   tabHeaderTitleRow: {
     flexDirection: "row",
