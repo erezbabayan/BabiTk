@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 
 import type { ReminderAlertItem } from "../hooks/useReminderAlerts";
 import type { AlertSnoozeKind } from "../lib/resolve-item-reminder";
@@ -23,7 +24,7 @@ export function ReminderAlertModal({
   const canSnooze = Boolean(onSnooze && alert?.itemId);
 
   return (
-    <Modal
+    <SafeModal
       visible={Boolean(alert)}
       transparent
       animationType="fade"
@@ -88,7 +89,7 @@ export function ReminderAlertModal({
           </View>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

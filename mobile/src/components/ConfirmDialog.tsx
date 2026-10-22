@@ -1,4 +1,5 @@
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 
 export type ConfirmVariant = "default" | "danger";
 
@@ -29,7 +30,7 @@ export function ConfirmDialog({
   const messageLines = message.split("\n").filter((line) => line.length > 0);
 
   return (
-    <Modal
+    <SafeModal
       visible
       transparent
       animationType="fade"
@@ -67,7 +68,7 @@ export function ConfirmDialog({
           </View>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

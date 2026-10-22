@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Image,
   Linking,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
@@ -249,7 +249,7 @@ export function SettingsScreen({
 
     <>
 
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <SafeModal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
 
         <View style={styles.backdrop}>
 
@@ -328,11 +328,11 @@ export function SettingsScreen({
 
         </View>
 
-      </Modal>
+      </SafeModal>
 
 
 
-      <Modal visible={userVisible} transparent animationType="fade" onRequestClose={() => setUserVisible(false)}>
+      <SafeModal visible={userVisible} transparent animationType="fade" onRequestClose={() => setUserVisible(false)}>
 
         <View style={styles.subBackdrop}>
 
@@ -367,11 +367,11 @@ export function SettingsScreen({
 
         </View>
 
-      </Modal>
+      </SafeModal>
 
 
 
-      <Modal
+      <SafeModal
 
         visible={premiumVisible}
 
@@ -455,11 +455,11 @@ export function SettingsScreen({
 
         </View>
 
-      </Modal>
+      </SafeModal>
 
 
 
-      <Modal
+      <SafeModal
         visible={notificationsVisible}
         transparent
         animationType="fade"
@@ -625,7 +625,7 @@ export function SettingsScreen({
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </SafeModal>
 
       <TagSettingsScreen
 

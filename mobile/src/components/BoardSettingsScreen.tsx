@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { ConvexHttpClient } from "convex/browser";
 import { useMutation, useQuery } from "convex/react";
@@ -103,7 +103,7 @@ function BoardSettingsShell({
   if (!visible) return null;
 
   return (
-    <Modal
+    <SafeModal
       visible={visible}
       transparent
       animationType="slide"
@@ -135,7 +135,7 @@ function BoardSettingsShell({
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

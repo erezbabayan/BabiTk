@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { SafeModal } from "./SafeModal";
 
 import { setSubscriptionTier, type UsageSummary } from "../lib/api";
 
@@ -50,7 +51,7 @@ export function PaywallModal({ visible, code, summary, onClose, onUpgraded }: Pa
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>{title}</Text>
@@ -103,7 +104,7 @@ export function PaywallModal({ visible, code, summary, onClose, onUpgraded }: Pa
           </View>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

@@ -2,12 +2,12 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { buildDemoTestItems } from "../lib/demo-seed-data";
 import { clearDemoItems, clearDemoSeedItems, seedDemoTestData } from "../lib/demo-store";
 
@@ -90,7 +90,7 @@ export function TestDataScreen({ visible, onClose, onChanged }: TestDataScreenPr
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <Text style={styles.title}>נתוני בדיקה</Text>
@@ -132,7 +132,7 @@ export function TestDataScreen({ visible, onClose, onChanged }: TestDataScreenPr
           </Pressable>
         </View>
       </View>
-    </Modal>
+    </SafeModal>
   );
 }
 

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Modal,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import {
   MAX_ITEM_TAGS,
   MAX_USER_TAGS,
@@ -109,7 +109,7 @@ export function TagWheelPicker({
   }
 
   return (
-    <Modal
+    <SafeModal
       visible={visible}
       transparent
       animationType="fade"
@@ -254,7 +254,7 @@ export function TagWheelPicker({
           </View>
         </Pressable>
       </Pressable>
-    </Modal>
+    </SafeModal>
   );
 }
 

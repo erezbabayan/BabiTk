@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
@@ -183,7 +183,7 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
 
   return (
     <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
             <Text style={styles.title}>סל מחזור</Text>
@@ -307,7 +307,7 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
             </Pressable>
           </View>
         </View>
-      </Modal>
+      </SafeModal>
       {confirmDialog}
     </>
   );

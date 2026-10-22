@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Dimensions,
   LayoutAnimation,
-  Modal,
   Platform,
   Pressable,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   UIManager,
   View,
 } from "react-native";
+import { SafeModal } from "./SafeModal";
 import { ScrollView, GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -606,7 +606,7 @@ export function TaskListsModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <SafeModal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <GestureHandlerRootView style={styles.gestureRoot}>
       <View style={styles.overlay}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="סגור" />
@@ -799,7 +799,7 @@ export function TaskListsModal({
         />
       ) : null}
       </GestureHandlerRootView>
-    </Modal>
+    </SafeModal>
   );
 }
 
