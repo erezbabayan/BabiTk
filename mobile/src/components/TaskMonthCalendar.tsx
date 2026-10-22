@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   PanResponder,
   Pressable,
@@ -41,6 +41,8 @@ interface TaskMonthCalendarProps {
   searchQuery?: string;
   listAllMatches?: boolean;
   onSelectItem?: (item: MindtaskerItem) => void;
+  /** Board swipeable card (archive/delete + undo) — same component as the list views. */
+  renderItem?: (item: MindtaskerItem) => ReactNode;
 }
 
 function ddmmyyyy(ymd: string): string {
@@ -93,6 +95,7 @@ export function TaskMonthCalendar({
   searchQuery = "",
   listAllMatches = false,
   onSelectItem,
+  renderItem,
 }: TaskMonthCalendarProps) {
   const todayYmd = taskCalendarDayKey(new Date()) ?? "";
   const [hebrewOn, setHebrewOn] = useState(false);
@@ -289,6 +292,9 @@ export function TaskMonthCalendar({
                       : ""}
                   </Text>
                   {group.hits.map((hit) => (
+                    renderItem ? (
+                      <View key={`${hit.item.id}:${hit.dueIso}`}>{renderItem(hit.item)}</View>
+                    ) : (
                     <DayTaskRow
                       key={`${hit.item.id}:${hit.dueIso}`}
                       item={hit.item}
@@ -296,6 +302,7 @@ export function TaskMonthCalendar({
                       extraDayCount={hit.extraDayCount}
                       onPress={() => onSelectItem?.(hit.item)}
                     />
+                    )
                   ))}
                 </View>
               ))}
@@ -313,14 +320,18 @@ export function TaskMonthCalendar({
                 אין משימות ביום הזה. הוסיפו תאריך למשימה בלוח כדי שתופיע ביומן.
               </Text>
             ) : (
-              selectedTasks.map(({ item, dueIso }) => (
+              selectedTasks.map(({ item, dueIso }) =>
+                renderItem ? (
+                  <View key={`${item.id}:${dueIso}`}>{renderItem(item)}</View>
+                ) : (
                 <DayTaskRow
                   key={`${item.id}:${dueIso}`}
                   item={item}
                   dueIso={dueIso}
                   onPress={() => onSelectItem?.(item)}
                 />
-              ))
+                ),
+              )
             )}
           </>
         )}
