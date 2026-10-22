@@ -58,15 +58,27 @@ export function ReminderAlertModal({
             {canSnooze ? (
               <>
                 <Text style={styles.snoozeHint}>דחה למועד אחר</Text>
-                <Pressable style={styles.snooze} onPress={() => onSnooze?.("hour")}>
-                  <Text style={styles.snoozeText}>עוד שעה</Text>
-                </Pressable>
-                <Pressable style={styles.snooze} onPress={() => onSnooze?.("tomorrow")}>
-                  <Text style={styles.snoozeText}>מחר ב-09:00</Text>
-                </Pressable>
-                <Pressable style={styles.snooze} onPress={() => onSnooze?.("week")}>
-                  <Text style={styles.snoozeText}>דחה לשבוע הבא</Text>
-                </Pressable>
+                <View style={styles.snoozeRow}>
+                  <Pressable style={styles.snooze} onPress={() => onSnooze?.("hour")}>
+                    <Text style={styles.snoozeText} numberOfLines={1}>
+                      עוד שעה
+                    </Text>
+                  </Pressable>
+                  <Pressable style={styles.snooze} onPress={() => onSnooze?.("tomorrow")}>
+                    <Text style={styles.snoozeText} numberOfLines={1}>
+                      מחר ב-09:00
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.snooze}
+                    accessibilityLabel="דחה לשבוע הבא"
+                    onPress={() => onSnooze?.("week")}
+                  >
+                    <Text style={styles.snoozeText} numberOfLines={1}>
+                      שבוע הבא
+                    </Text>
+                  </Pressable>
+                </View>
               </>
             ) : (
               <Pressable style={styles.later} onPress={onDismiss}>
@@ -153,15 +165,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  snoozeRow: {
+    flexDirection: "row",
+    flexWrap: "nowrap",
+    gap: 4,
+    alignItems: "stretch",
+  },
   snooze: {
+    flex: 1,
+    minWidth: 0,
     borderWidth: 1,
     borderColor: "#fcd34d",
     borderRadius: 12,
-    paddingVertical: 11,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#fffbeb",
   },
-  snoozeText: { color: "#92400e", fontWeight: "700", fontSize: 15 },
+  snoozeText: {
+    color: "#92400e",
+    fontWeight: "700",
+    fontSize: 12,
+    textAlign: "center",
+  },
   later: { paddingVertical: 8, alignItems: "center" },
   laterText: { color: "#94a3b8", fontSize: 14 },
 });

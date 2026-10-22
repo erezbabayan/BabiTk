@@ -89,27 +89,28 @@ export function ReminderAlertModal({
         {canSnooze ? (
           <div className="mt-3 border-t border-amber-100 pt-3">
             <p className="mb-2 text-xs font-medium text-slate-500">דחה למועד אחר</p>
-            <div className="flex flex-row-reverse flex-wrap justify-start gap-2">
+            <div className="flex flex-row-reverse flex-nowrap gap-1">
               <button
                 type="button"
                 onClick={() => onSnooze?.("hour")}
-                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-amber-300 bg-amber-50 px-1 py-2 text-center text-[11px] font-semibold leading-tight text-amber-800 hover:bg-amber-100"
               >
                 עוד שעה
               </button>
               <button
                 type="button"
                 onClick={() => onSnooze?.("tomorrow")}
-                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-amber-300 bg-amber-50 px-1 py-2 text-center text-[11px] font-semibold leading-tight text-amber-800 hover:bg-amber-100"
               >
                 מחר ב-09:00
               </button>
               <button
                 type="button"
                 onClick={() => onSnooze?.("week")}
-                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+                aria-label="דחה לשבוע הבא"
+                className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-amber-300 bg-amber-50 px-1 py-2 text-center text-[11px] font-semibold leading-tight text-amber-800 hover:bg-amber-100"
               >
-                דחה לשבוע הבא
+                שבוע הבא
               </button>
             </div>
           </div>
