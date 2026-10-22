@@ -5,6 +5,7 @@ import { resolveLoginEmail } from "../lib/resolve-login-email";
 import { isForcedLocalMode, requireSupabase, supabaseAuthRedirectUrl } from "../lib/supabase";
 import { type SignupDetails, validateSignupDetails } from "../lib/signup-details";
 import { GoogleSignInButton } from "./GoogleSignInButton";
+import { AppDownloadLink } from "./AppDownloadLink";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 import { PasswordInput } from "./PasswordInput";
 
@@ -98,6 +99,7 @@ function LoginShell({
         <p className="mt-4 text-center text-xs text-slate-400">
           ארגן משימות, הערות ומחברות — במקום אחד
         </p>
+        <AppDownloadLink className="mt-3 block text-center text-sm font-semibold text-slate-700 underline" />
       </div>
     </main>
   );

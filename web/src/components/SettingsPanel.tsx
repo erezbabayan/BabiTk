@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { AdminUsersPanel } from "./AdminUsersPanel";
+import { AppDownloadLink } from "./AppDownloadLink";
 import { BoardSettingsPanel } from "./BoardSettingsPanel";
 import { GoogleCalendarLink } from "./GoogleCalendarLink";
 import { NotebookScanSettings } from "./NotebookScanSettings";
@@ -134,18 +135,21 @@ export function SettingsPanel({
         </div>
 
         {section === "menu" ? (
-          <div className="divide-y divide-slate-100">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSection(item.id)}
-                className="w-full py-3 text-right text-sm text-slate-700 hover:bg-slate-50"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="divide-y divide-slate-100">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSection(item.id)}
+                  className="w-full py-3 text-right text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <AppDownloadLink className="mt-3 block w-full rounded-lg border border-slate-300 py-3 text-center text-sm font-semibold text-slate-800 hover:bg-slate-50" />
+          </>
         ) : null}
 
         {section === "user" ? (
