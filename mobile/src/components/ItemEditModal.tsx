@@ -28,6 +28,8 @@ import {
   parseChecklist,
   type ChecklistEntry,
 } from "../lib/checklist";
+import { isDeviceVoiceItem } from "../lib/device-voice-chip";
+import { DeviceVoiceChip } from "./DeviceVoiceChip";
 
 interface ItemEditModalProps {
   item: MindtaskerItem | null;
@@ -148,7 +150,10 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
                 </Text>
               </Pressable>
             </View>
-            <Text style={styles.label}>כותרת</Text>
+            <View style={styles.titleLabelRow}>
+              <Text style={styles.label}>כותרת</Text>
+              {item && isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
+            </View>
             <TextInput
               style={styles.input}
               value={title}
@@ -369,6 +374,11 @@ const styles = StyleSheet.create({
   },
   typeChipTextTask: { color: "#1d4ed8" },
   typeChipTextNote: { color: "#92400e" },
+  titleLabelRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 6,
+  },
   label: {
     fontSize: 12,
     fontWeight: "600",

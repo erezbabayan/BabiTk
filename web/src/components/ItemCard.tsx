@@ -28,6 +28,8 @@ import {
   ITEM_HEADLINE_CLASS,
 } from "../lib/item-typography";
 import { isPriorityItem } from "../lib/item-priority";
+import { isDeviceVoiceItem } from "../lib/device-voice-chip";
+import { DeviceVoiceChip } from "./DeviceVoiceChip";
 import { PriorityStar } from "./PriorityStar";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import {
@@ -321,15 +323,18 @@ function ItemCardComponent({
                 dense ? "gap-1" : "gap-[6px]"
               } ${isSquares ? "min-w-0" : ""}`}
             >
-          <h3
-            className={`min-w-0 w-full ${
-              dense
-                ? "truncate text-right text-xs font-semibold leading-none text-slate-900"
-                : ITEM_HEADLINE_CLASS
-            } ${!dense && (contentCollapsed || isSquares) ? "line-clamp-2" : ""} ${strikeClass}`}
-          >
-            {headlineText}
-          </h3>
+          <div className="flex min-w-0 w-full items-start gap-1" dir="rtl">
+            <h3
+              className={`min-w-0 flex-1 ${
+                dense
+                  ? "truncate text-right text-xs font-semibold leading-none text-slate-900"
+                  : ITEM_HEADLINE_CLASS
+              } ${!dense && (contentCollapsed || isSquares) ? "line-clamp-2" : ""} ${strikeClass}`}
+            >
+              {headlineText}
+            </h3>
+            {isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
+          </div>
 
           {showSource ? (
             <div>
