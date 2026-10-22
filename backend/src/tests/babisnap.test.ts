@@ -11,9 +11,12 @@ import {
   babisnapDownloadUrl,
   babisnapOpenLink,
   babisnapPairLink,
+  babisnapPairPageUrl,
   babisnapStatusLabel,
   isAndroidChrome,
+  isBabisnapPairLocation,
   parseBabisnapResponse,
+  readBabisnapPairFragment,
 } from "../../../convex/lib/babisnap.ts";
 import { hashDeviceToken } from "../../../supabase/functions/_shared/device-voice-ingest.ts";
 import {
@@ -100,15 +103,44 @@ describe("BabiSnap link", () => {
     assert.equal(babisnapStatusLabel({ connected: true, lastUsedAt: null }), "ממתין לחיבור");
     assert.equal(babisnapStatusLabel({ connected: false, lastUsedAt: null }), null);
     assert.equal(BABISNAP_COPY.connect, "חבר את BabiSnap");
+    assert.equal(BABISNAP_COPY.openApp, "פתח ב-BabiSnap");
     assert.equal(BABISNAP_COPY.copyManual, "העתק קוד ידנית");
     assert.equal(BABISNAP_COPY.download, "הורד והתקן את BabiSnap");
+
+    const page = babisnapPairPageUrl("tok+en secret");
+    assert.ok(page);
+    const parsed = new URL(page);
+    assert.equal(parsed.origin + parsed.pathname, "https://erezbabayan.github.io/BabiTk/");
+    assert.equal(parsed.search, "");
+    assert.equal(parsed.hash.includes("tok+en"), false);
+    assert.equal(parsed.hash.includes(" "), false);
+    assert.match(parsed.hash, /#\/babisnap-pair#token=tok%2Ben%20secret&url=/);
+    assert.equal(isBabisnapPairLocation(parsed.hash), true);
+    const fragment = readBabisnapPairFragment(parsed.hash);
+    assert.equal(fragment?.token, "tok+en secret");
+    assert.equal(fragment?.url, BABISNAP_VOICE_INGEST_URL);
+    assert.equal(
+      readBabisnapPairFragment(
+        `#/babisnap-pair#token=abc&url=${encodeURIComponent("https://evil.example/ingest")}`,
+      ),
+      null,
+    );
 
     const root = path.resolve(import.meta.dirname, "../../..");
     const web = readFileSync(path.join(root, "web/src/components/BabiSnapSettings.tsx"), "utf8");
     const mobile = readFileSync(path.join(root, "mobile/src/components/BabiSnapSettings.tsx"), "utf8");
     assert.match(web, /window\.open\("about:blank"/);
     assert.match(web, /babisnapOpenLink/);
+    assert.match(web, /babisnapPairPageUrl/);
     assert.match(web, /babisnap-logo\.webp/);
+    const pairPage = readFileSync(path.join(root, "web/src/components/BabiSnapPairPage.tsx"), "utf8");
+    const entry = readFileSync(path.join(root, "web/src/main.tsx"), "utf8");
+    assert.match(pairPage, /BABISNAP_COPY\.openApp/);
+    assert.match(pairPage, /babisnapOpenLink/);
+    assert.doesNotMatch(pairPage, /localStorage|sessionStorage|fetch\(|console\./);
+    const pairAt = entry.indexOf("isBabisnapPairLocation");
+    const appAt = entry.indexOf("<App />");
+    assert.ok(pairAt >= 0 && appAt > pairAt);
     assert.match(mobile, /babisnap-logo\.webp/);
     assert.match(mobile, /Linking\.openURL\(link\)/);
     assert.doesNotMatch(web, /פתח ב-BabiSnap/);

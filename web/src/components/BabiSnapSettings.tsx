@@ -5,7 +5,7 @@ import {
   BABISNAP_COPY,
   babisnapDownloadUrl,
   babisnapOpenLink,
-  babisnapPairLink,
+  babisnapPairPageUrl,
   babisnapStatusLabel,
 } from "../../../convex/lib/babisnap";
 import logo from "../assets/babisnap-logo.webp";
@@ -25,11 +25,11 @@ function useDesktop(): boolean {
   return desktop;
 }
 
-function QrImage({ value, label }: { value: string; label: string }) {
+function QrImage({ value, label, width = 180 }: { value: string; label: string; width?: number }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    void toDataURL(value, { margin: 1, width: 180, errorCorrectionLevel: "M" })
+    void toDataURL(value, { margin: 1, width, errorCorrectionLevel: "M" })
       .then((url) => {
         if (!cancelled) setSrc(url);
       })
@@ -39,14 +39,14 @@ function QrImage({ value, label }: { value: string; label: string }) {
     return () => {
       cancelled = true;
     };
-  }, [value]);
+  }, [value, width]);
   if (!src) return null;
   return (
     <img
       src={src}
       alt={label}
-      width={180}
-      height={180}
+      width={width}
+      height={width}
       className="mx-auto rounded-lg border border-slate-200 bg-white p-2"
     />
   );
@@ -103,9 +103,8 @@ export function BabiSnapSettings() {
     void (async () => {
       try {
         const status = await babisnapAction("connect");
-        const link = status.token ? babisnapPairLink(status.token) : null;
         const openLink = status.token ? babisnapOpenLink(status.token, userAgent) : null;
-        setPairLink(link);
+        setPairLink(status.token ? babisnapPairPageUrl(status.token) : null);
         setConnected(true);
         setLastUsedAt(null);
         if (!desktop && openLink) {
@@ -179,7 +178,9 @@ export function BabiSnapSettings() {
         </div>
       ) : null}
 
-      {desktop && pairLink ? <QrImage value={pairLink} label={BABISNAP_COPY.pairQr} /> : null}
+      {desktop && pairLink ? (
+        <QrImage value={pairLink} label={BABISNAP_COPY.pairQr} width={260} />
+      ) : null}
       {error ? <p className="text-red-600">{error}</p> : null}
 
       <button

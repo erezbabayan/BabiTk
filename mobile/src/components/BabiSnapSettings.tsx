@@ -6,6 +6,7 @@ import {
   BABISNAP_COPY,
   babisnapDownloadUrl,
   babisnapPairLink,
+  babisnapPairPageUrl,
   babisnapStatusLabel,
 } from "../../../convex/lib/babisnap";
 import logo from "../../assets/babisnap-logo.webp";
@@ -66,7 +67,7 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
       try {
         const status = await babisnapAction("connect");
         const link = status.token ? babisnapPairLink(status.token) : null;
-        setPairLink(link);
+        setPairLink(status.token ? babisnapPairPageUrl(status.token) : null);
         setConnected(true);
         setLastUsedAt(null);
         if (link) await Linking.openURL(link);

@@ -12,6 +12,9 @@ export const BABISNAP_VOICE_INGEST_URL =
 
 export const BABISNAP_ANDROID_PACKAGE = "com.babisnap.app";
 
+/** Public site. The pair token stays in the URL fragment and is not requested from this host. */
+export const BABITK_WEB_BASE = "https://erezbabayan.github.io/BabiTk/";
+
 export const BABISNAP_COPY = {
   connected: "מחובר ✓",
   waiting: "ממתין לחיבור",
@@ -22,6 +25,7 @@ export const BABISNAP_COPY = {
   disconnect: "נתק",
   disconnectConfirm: "לנתק את BabiSnap? החיבור הנוכחי יפסיק לעבוד.",
   copyManual: "העתק קוד ידנית",
+  openApp: "פתח ב-BabiSnap",
   copied: "הועתק",
   downloadQr: "קוד להורדת BabiSnap",
   pairQr: "קוד לחיבור BabiSnap",
@@ -66,6 +70,38 @@ export function isAndroidChrome(userAgent: string): boolean {
 export function babisnapOpenLink(token: string, userAgent: string): string | null {
   if (isAndroidChrome(userAgent)) return babisnapAndroidIntentLink(token);
   return babisnapPairLink(token);
+}
+
+const PAIR_PAGE_PREFIX = "#/babisnap-pair#";
+
+/** https page for the desktop QR. Token and ingest URL are only in the fragment. */
+export function babisnapPairPageUrl(token: string, base = BABITK_WEB_BASE): string | null {
+  const trimmedToken = token.trim();
+  if (!trimmedToken) return null;
+  const root = base.endsWith("/") ? base : `${base}/`;
+  return `${root}#/babisnap-pair#token=${encodeURIComponent(trimmedToken)}&url=${encodeURIComponent(BABISNAP_VOICE_INGEST_URL)}`;
+}
+
+export function isBabisnapPairLocation(hash: string): boolean {
+  return hash === "#/babisnap-pair" || hash.startsWith(PAIR_PAGE_PREFIX);
+}
+
+/** Reads the fragment. Rejects any ingest URL other than the fixed endpoint. */
+export function readBabisnapPairFragment(hash: string): { token: string; url: string } | null {
+  if (!hash.startsWith(`${PAIR_PAGE_PREFIX}token=`)) return null;
+  const body = hash.slice(PAIR_PAGE_PREFIX.length);
+  const split = body.indexOf("&url=");
+  if (!body.startsWith("token=") || split < 0) return null;
+  let token = "";
+  let url = "";
+  try {
+    token = decodeURIComponent(body.slice("token=".length, split));
+    url = decodeURIComponent(body.slice(split + "&url=".length));
+  } catch {
+    return null;
+  }
+  if (!token || url !== BABISNAP_VOICE_INGEST_URL) return null;
+  return { token, url };
 }
 
 /** מחובר only after a recording. A token that was never used is still waiting. */
