@@ -449,10 +449,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     flexShrink: 0,
+    direction: "ltr",
   },
   wordmarkRow: {
     flexDirection: "row",
     alignItems: "baseline",
+    direction: "ltr",
   },
   wordmarkBabi: {
     color: "#1e293b", // slate-800

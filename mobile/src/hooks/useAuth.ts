@@ -18,6 +18,7 @@ import {
 
 } from "../lib/demo-store";
 
+import { resolveLoginEmail } from "../lib/resolve-login-email";
 import { isSupabaseConfigured, requireSupabase } from "../lib/supabase";
 import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import { applyRememberMePreference } from "../lib/auth-storage";
@@ -174,11 +175,28 @@ export function useAuth() {
 
 
 
+    const loginEmail = await resolveLoginEmail(email);
     const supabase = requireSupabase();
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password,
+    });
 
-    if (error) throw error;
+    if (error) {
+      const raw = error.message.toLowerCase();
+      if (raw.includes("invalid login credentials") || raw.includes("invalid_credentials")) {
+        throw new Error("שם משתמש או סיסמה שגויים");
+      }
+      if (
+        raw.includes("network request failed") ||
+        raw.includes("failed to fetch") ||
+        raw.includes("network")
+      ) {
+        throw new Error("בעיית רשת — בדוק חיבור Wi‑Fi או נתונים סלולריים");
+      }
+      throw error;
+    }
 
   };
 
