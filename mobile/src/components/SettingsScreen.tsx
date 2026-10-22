@@ -32,6 +32,7 @@ import {
 
 } from "../lib/api";
 
+import { BabiSnapSettings } from "./BabiSnapSettings";
 import { PhoneLinkScreen } from "./PhoneLinkScreen";
 
 import { ChannelSettingsModal } from "./ChannelSettingsModal";
@@ -135,6 +136,7 @@ export function SettingsScreen({
   const [phoneVisible, setPhoneVisible] = useState(false);
 
   const [voiceVisible, setVoiceVisible] = useState(false);
+  const [babisnapVisible, setBabisnapVisible] = useState(false);
 
   const [notebookVisible, setNotebookVisible] = useState(false);
 
@@ -275,6 +277,7 @@ export function SettingsScreen({
               onPress={() => setPhoneVisible(true)}
             />
             <SettingsMenuRow icon="mic" label="הקלטה קולית" onPress={() => setVoiceVisible(true)} />
+            <SettingsMenuRow icon="mic" label="BabiSnap" onPress={() => setBabisnapVisible(true)} />
             <SettingsMenuRow icon="image" label="סריקת מחברת" onPress={() => setNotebookVisible(true)} />
             <SettingsMenuRow icon="edit" label="קליטת טקסט" onPress={() => setTextVisible(true)} />
             <SettingsMenuRow
@@ -641,6 +644,8 @@ export function SettingsScreen({
         summary={summary}
         onClose={() => setVoiceVisible(false)}
       />
+
+      <BabiSnapSettings visible={babisnapVisible} onClose={() => setBabisnapVisible(false)} />
 
 
 
