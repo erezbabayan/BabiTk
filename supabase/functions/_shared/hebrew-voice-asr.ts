@@ -18,6 +18,7 @@ import {
   pickBestHebrewTranscript,
 } from "./hebrew-asr-proofread.ts";
 import { transcribeViaPublicWhisper } from "./hebrew-asr-gradio.ts";
+import { isGeminiAudioConfigured, transcribeViaGeminiAudio } from "./gemini-audio-asr.ts";
 import {
   asrUploadVariants,
   audioDataUrl,
@@ -68,7 +69,7 @@ export interface VoiceTranscription {
   rawText: string;
   correctedText: string;
   title: string;
-  engine: "runpod" | "groq" | "openai" | "gradio";
+  engine: "runpod" | "groq" | "openai" | "gemini" | "gradio";
 }
 
 export function audioFileName(messageId: string, mimeType: string): string {
@@ -116,7 +117,7 @@ export function normalizeAsrUpload(
   return { fileName: audioFileName("recording", mime), mimeType: mime };
 }
 
-const ASR_TIMEOUT_MS = 12_000;
+const ASR_TIMEOUT_MS = 10_000;
 const SHORT_ASR_TIMEOUT_MS = 8_000;
 const SHORT_AUDIO_BYTES = 80_000;
 const RUNPOD_TIMEOUT_MS = 8_000;
@@ -220,6 +221,17 @@ async function transcribeViaRunPod(audio: Uint8Array): Promise<string> {
   const text = collectSegmentText(extractSegmentsFromRunPodOutput(data.output));
   if (!text) throw new Error("empty_transcription");
   return text;
+}
+
+const GROQ_SIBLING_MODEL: Record<string, string> = {
+  "whisper-large-v3-turbo": "whisper-large-v3",
+  "whisper-large-v3": "whisper-large-v3-turbo",
+};
+
+/** Rate limit, server error or timeout: worth one quick try on another model/provider. */
+export function isRetryableAsrError(error: unknown): boolean {
+  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  return /HTTP 429|HTTP 5\d\d|rate.?limit|timeout|TimeoutError|AbortError|aborted/i.test(message);
 }
 
 function isAsrFormatError(error: unknown): boolean {
@@ -405,7 +417,7 @@ export async function transcribeAudio(
     mimeType.toLowerCase().includes("ogg") ||
     mimeType.toLowerCase().includes("opus");
   const asrTimeout = oggLike
-    ? Math.max(ASR_TIMEOUT_MS, 15_000)
+    ? Math.max(ASR_TIMEOUT_MS, 10_000)
     : hotPath || (audio.byteLength > 0 && audio.byteLength <= SHORT_AUDIO_BYTES)
       ? SHORT_ASR_TIMEOUT_MS
       : ASR_TIMEOUT_MS;
@@ -434,18 +446,31 @@ export async function transcribeAudio(
     try {
       if (engine === "groq") {
         if (!groqKey) continue;
-        const text = await transcribeWithOpenAiCompatible(
-          "https://api.groq.com/openai/v1/audio/transcriptions",
-          groqKey,
-          groqModel,
-          audio,
-          fileName,
-          resolvedMime,
-          prompt,
-          asrTimeout,
-          sourceUrl,
+        // Groq rate limits are per model: on 429/5xx/timeout try the sibling model once.
+        const groqModels = [groqModel, GROQ_SIBLING_MODEL[groqModel]].filter(
+          (model): model is string => Boolean(model),
         );
-        return { text, engine: "groq" };
+        let lastGroqError: unknown;
+        for (const [index, model] of groqModels.entries()) {
+          try {
+            const text = await transcribeWithOpenAiCompatible(
+              "https://api.groq.com/openai/v1/audio/transcriptions",
+              groqKey,
+              model,
+              audio,
+              fileName,
+              resolvedMime,
+              prompt,
+              asrTimeout,
+              sourceUrl,
+            );
+            return { text, engine: "groq" };
+          } catch (error) {
+            lastGroqError = error;
+            if (index === 0 && !isRetryableAsrError(error)) break;
+          }
+        }
+        throw lastGroqError instanceof Error ? lastGroqError : new Error("groq_failed");
       }
       if (engine === "runpod") {
         const text = await transcribeViaRunPod(audio);
@@ -483,6 +508,15 @@ export async function transcribeAudio(
       errors.push(
         `${engine}:${error instanceof Error ? error.message : "failed"}`,
       );
+    }
+  }
+
+  if (isGeminiAudioConfigured()) {
+    try {
+      const { text } = await transcribeViaGeminiAudio(audio, resolvedMime);
+      return { text, engine: "gemini" };
+    } catch (error) {
+      errors.push(`gemini:${error instanceof Error ? error.message : "failed"}`);
     }
   }
 
