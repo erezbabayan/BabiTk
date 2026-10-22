@@ -621,7 +621,7 @@ function MainAppInner({
   const isSquaresView = boardItemView === "squares";
 
   const renderBoardItem = useCallback(
-    ({ item }: { item: MindtaskerItem }) => {
+    ({ item, calendarCell = false }: { item: MindtaskerItem; calendarCell?: boolean }) => {
       const swipe = buildMobileSwipeActions(tab, listView, item, board, () =>
         handleDelete(item),
       );
@@ -668,7 +668,7 @@ function MainAppInner({
         />
       );
 
-      if (!isSquaresView) return card;
+      if (!isSquaresView || calendarCell) return card;
 
       return (
         <View style={styles.squaresCell}>
@@ -691,6 +691,11 @@ function MainAppInner({
       toggleSelect,
       userTags,
     ],
+  );
+
+  const renderCalendarItem = useCallback(
+    (item: MindtaskerItem) => renderBoardItem({ item, calendarCell: true }),
+    [renderBoardItem],
   );
 
   const boardListExtraData = useMemo(
@@ -986,6 +991,7 @@ function MainAppInner({
           searchQuery={todaySearch.activeQuery}
           listAllMatches={Boolean(tagByTab.today)}
           onSelectItem={(item) => setEditItem(item)}
+          renderItem={renderCalendarItem}
         />
       ) : (
       <FlatList
