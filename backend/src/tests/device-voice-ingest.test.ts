@@ -11,6 +11,7 @@ import {
   hashDeviceToken,
   parseVoiceIngestBody,
   voiceDueAt,
+  voiceItemPlacement,
   voiceTaskContent,
   voiceTaskMetadata,
   type DeviceTokenRecord,
@@ -32,7 +33,15 @@ function request(body: unknown, token = "babi_test_token_value_0123456789"): Req
 }
 
 function memoryStore(options?: { revoked?: boolean; existing?: StoredVoiceTask }): VoiceIngestStore & {
-  inserted: Array<{ userId: string; title: string; content: string; dueAt: string | null; metadata: Record<string, unknown> }>;
+  inserted: Array<{
+    userId: string;
+    title: string;
+    content: string;
+    dueAt: string | null;
+    isActionable: boolean;
+    status: "inbox";
+    metadata: Record<string, unknown>;
+  }>;
   timestamps: string[];
 } {
   const device: DeviceTokenRecord = {
@@ -41,7 +50,15 @@ function memoryStore(options?: { revoked?: boolean; existing?: StoredVoiceTask }
     revokedAt: options?.revoked ? "2026-10-01T00:00:00Z" : null,
     requestTimestamps: [],
   };
-  const inserted: Array<{ userId: string; title: string; content: string; dueAt: string | null; metadata: Record<string, unknown> }> = [];
+  const inserted: Array<{
+    userId: string;
+    title: string;
+    content: string;
+    dueAt: string | null;
+    isActionable: boolean;
+    status: "inbox";
+    metadata: Record<string, unknown>;
+  }> = [];
   const tasks = new Map<string, StoredVoiceTask>();
   if (options?.existing) tasks.set("client-1", options.existing);
   return {
@@ -88,7 +105,19 @@ describe("voice ingest contract", () => {
       user_id: "someone-else",
     });
     assert.equal(parsed.ok, true);
-    if (parsed.ok) assert.equal(parsed.value.title, "לקנות חלב");
+    if (parsed.ok) {
+      assert.equal(parsed.value.title, "לקנות חלב");
+      assert.equal(parsed.value.itemType, "task");
+      assert.equal(parsed.value.board, "default");
+    }
+    assert.equal(parseVoiceIngestBody({ title: "חלב", type: "idea" }).ok, false);
+    assert.equal(parseVoiceIngestBody({ title: "חלב", board: "tasks" }).ok, false);
+    const notebookNote = parseVoiceIngestBody({ title: "רעיון", type: "note", board: "notebook" });
+    assert.equal(notebookNote.ok, true);
+    if (notebookNote.ok) {
+      assert.equal(notebookNote.value.itemType, "note");
+      assert.equal(notebookNote.value.board, "notebook");
+    }
   });
 
   it("builds a Jerusalem due instant and keeps the clock across DST", () => {
@@ -161,6 +190,45 @@ describe("voice ingest handler", () => {
     assert.equal(store.inserted[0]?.userId, "user-1");
     assert.match(store.inserted[0]?.content ?? "", /מיקום: רחוב הרצל/);
     assert.equal(store.inserted[0]?.metadata.source, "voice");
+    assert.equal(store.inserted[0]?.status, "inbox");
+    assert.equal(store.inserted[0]?.isActionable, true);
+  });
+
+  it("keeps a notebook note on the same due and reminder path as a task", async () => {
+    const store = memoryStore();
+    const response = await handleVoiceIngest(
+      request({
+        title: "רעיון למתנה",
+        type: "note",
+        board: "notebook",
+        due_date: "2026-10-23",
+        due_time: "15:00",
+        source: "voice",
+      }),
+      store,
+      NOW,
+    );
+    assert.equal(response.status, 201);
+    const row = store.inserted[0];
+    assert.equal(row?.status, "inbox");
+    assert.equal(row?.isActionable, false);
+    assert.match(row?.dueAt ?? "", /T15:00:00\+03:00$/);
+    assert.equal(row?.metadata.source, "voice");
+    assert.equal(row?.metadata.channel, "voice");
+    assert.equal(row?.metadata.reminder_manual, true);
+    assert.equal(row?.metadata.reminder_sent, false);
+    assert.equal(row?.metadata.reminder_disabled, false);
+    const analysis = row?.metadata.analysis as { notify_at: string; target_at: string };
+    assert.equal(analysis.notify_at, row?.dueAt);
+    assert.equal(analysis.target_at, row?.dueAt);
+    assert.deepEqual(voiceItemPlacement({ itemType: "task", board: "notebook" }), {
+      status: "inbox",
+      isActionable: true,
+    });
+    assert.deepEqual(voiceItemPlacement({ itemType: "note", board: "default" }), {
+      status: "inbox",
+      isActionable: false,
+    });
   });
 
   it("returns the same task for a repeated client_id", async () => {
@@ -198,6 +266,7 @@ describe("voice ingest handler", () => {
 describe("voice ingest deploy wiring", () => {
   it("deploys with verify_jwt disabled and stores only a hash", () => {
     const root = path.resolve(import.meta.dirname, "../../..");
+    const endpoint = readFileSync(path.join(root, "supabase/functions/voice-ingest/index.ts"), "utf8");
     const workflow = readFileSync(path.join(root, ".github/workflows/deploy-supabase-functions.yml"), "utf8");
     const config = readFileSync(path.join(root, "supabase/config.toml"), "utf8");
     const migration = readFileSync(
@@ -209,5 +278,7 @@ describe("voice ingest deploy wiring", () => {
     assert.match(migration, /token_hash/);
     assert.match(migration, /enable row level security/);
     assert.match(migration, /revoke all on table public\.device_tokens from anon, authenticated/);
+    assert.match(endpoint, /is_actionable: input\.isActionable/);
+    assert.match(endpoint, /status: input\.status/);
   });
 });
