@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  buildColumnMovePatch,
+  getItemColumn,
   isActiveBoardItem,
   isTaskArchiveItem,
   itemsInColumn,
@@ -54,6 +56,29 @@ describe("board columns hide deleted items", () => {
       itemsInColumn(rows, "inbox").map((row) => row.id),
       ["alive"],
     );
+  });
+});
+
+describe("notebook voice items move onto the tasks and notes boards", () => {
+  it("keeps a classified inbox note in the notebook until the user moves it", () => {
+    const note = item({
+      title: "רעיון",
+      status: "inbox",
+      is_actionable: false,
+      due_date: "2026-10-23T15:00:00+03:00",
+      metadata: { source: "voice", reminder_manual: true },
+    });
+    assert.equal(getItemColumn(note), "inbox");
+
+    const onTasks = item({ ...note, ...buildColumnMovePatch("today", note.metadata) });
+    assert.equal(onTasks.status, "pending");
+    assert.equal(onTasks.is_actionable, true);
+    assert.equal(getItemColumn(onTasks), "today");
+
+    const onNotes = item({ ...note, ...buildColumnMovePatch("notes", note.metadata) });
+    assert.equal(onNotes.status, "pending");
+    assert.equal(onNotes.is_actionable, false);
+    assert.equal(getItemColumn(onNotes), "notes");
   });
 });
 

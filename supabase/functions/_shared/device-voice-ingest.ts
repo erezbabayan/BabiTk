@@ -18,6 +18,9 @@ const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{2}):(\d{2})$/;
 const CLIENT_ID_RE = /^[A-Za-z0-9._:-]+$/;
 
+export type VoiceItemType = "task" | "note";
+export type VoiceBoard = "notebook" | "default";
+
 export interface VoiceIngestInput {
   title: string;
   dueDate: string | null;
@@ -25,6 +28,8 @@ export interface VoiceIngestInput {
   notes: string;
   location: string | null;
   clientId: string | null;
+  itemType: VoiceItemType;
+  board: VoiceBoard;
 }
 
 export interface DeviceTokenRecord {
@@ -49,6 +54,8 @@ export interface VoiceIngestStore {
     title: string;
     content: string;
     dueAt: string | null;
+    isActionable: boolean;
+    status: "inbox";
     metadata: Record<string, unknown>;
   }): Promise<StoredVoiceTask | { conflict: true }>;
 }
@@ -159,7 +166,56 @@ export function parseVoiceIngestBody(raw: unknown): { ok: true; value: VoiceInge
     clientId = body.client_id;
   }
 
-  return { ok: true, value: { title, dueDate, dueTime, notes, location, clientId } };
+  const itemType = readChoice(body.type, ["task", "note"], "task", "type must be task or note");
+  if (typeof itemType !== "string") return itemType;
+  const board = readChoice(body.board, ["notebook", "default"], "default", "board must be notebook or default");
+  if (typeof board !== "string") return board;
+
+  return {
+    ok: true,
+    value: {
+      title,
+      dueDate,
+      dueTime,
+      notes,
+      location,
+      clientId,
+      itemType,
+      board,
+    },
+  };
+}
+
+function readChoice<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+  message: string,
+): T | { ok: false; message: string } {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) return value as T;
+  return invalid(message);
+}
+
+/**
+ * מחברת is the inbox column (`status: inbox`), which is also where voice
+ * ingest already lands. `board: default` keeps that column. `board: notebook`
+ * is the same column, named for BabiSnap. Task vs note is only `is_actionable`.
+ * Due dates are applied by the caller for both types.
+ */
+const VOICE_BOARD_STATUS: Record<VoiceBoard, "inbox"> = {
+  default: "inbox",
+  notebook: "inbox",
+};
+
+export function voiceItemPlacement(input: {
+  itemType: VoiceItemType;
+  board: VoiceBoard;
+}): { status: "inbox"; isActionable: boolean } {
+  return {
+    status: VOICE_BOARD_STATUS[input.board],
+    isActionable: input.itemType === "task",
+  };
 }
 
 /** Jerusalem local date + clock. Date-only defaults to 09:00. Time-only uses today. */
@@ -259,6 +315,10 @@ export async function handleVoiceIngest(
     return jsonResponse(voiceErrorBody("unauthorized", "invalid token"), 401);
   }
 
+  const placement = voiceItemPlacement({
+    itemType: parsed.value.itemType,
+    board: parsed.value.board,
+  });
   const dueAt = voiceDueAt(parsed.value.dueDate, parsed.value.dueTime, now);
   if (parsed.value.clientId) {
     const existing = await store.findByClientId(device.userId, parsed.value.clientId);
@@ -279,6 +339,8 @@ export async function handleVoiceIngest(
     title: parsed.value.title,
     content: voiceTaskContent(parsed.value.notes, parsed.value.location),
     dueAt,
+    isActionable: placement.isActionable,
+    status: placement.status,
     metadata: voiceTaskMetadata({
       clientId: parsed.value.clientId,
       location: parsed.value.location,

@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildColumnMovePatch, buildPlaceColumnPatch } from "./item-columns.ts";
+import { buildColumnMovePatch, buildPlaceColumnPatch, getItemColumn } from "./item-columns.ts";
+import type { MindtaskerItem } from "./supabase";
+
+function notebookVoiceItem(overrides: Partial<MindtaskerItem>): MindtaskerItem {
+  return {
+    status: "inbox",
+    is_actionable: false,
+    metadata: { source: "voice", reminder_manual: true },
+    due_date: "2026-10-23T15:00:00+03:00",
+    ...overrides,
+  } as MindtaskerItem;
+}
+
+describe("notebook voice items move onto the tasks and notes boards", () => {
+  it("keeps a classified inbox note in the notebook until the user moves it", () => {
+    const note = notebookVoiceItem({});
+    assert.equal(getItemColumn(note), "inbox");
+
+    const onTasks = notebookVoiceItem({ ...note, ...buildColumnMovePatch("today", note.metadata) });
+    assert.equal(onTasks.status, "pending");
+    assert.equal(onTasks.is_actionable, true);
+    assert.equal(getItemColumn(onTasks), "today");
+
+    const onNotes = notebookVoiceItem({ ...note, ...buildColumnMovePatch("notes", note.metadata) });
+    assert.equal(onNotes.status, "pending");
+    assert.equal(onNotes.is_actionable, false);
+    assert.equal(getItemColumn(onNotes), "notes");
+  });
+});
 
 describe("buildPlaceColumnPatch", () => {
   it("keeps reminder metadata when a card moves between columns", () => {

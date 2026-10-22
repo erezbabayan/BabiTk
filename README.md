@@ -94,7 +94,7 @@ Authorization: Bearer <טוקן-מכשיר>
 Content-Type: application/json
 ```
 
-גוף הבקשה: `title` (חובה), `due_date` (`YYYY-MM-DD`, אופציונלי), `due_time` (`HH:MM` לפי שעון ירושלים, אופציונלי), `notes`, `source` (`voice`), `location`, ו־`client_id` לאידמפוטנטיות. בלי שעה, תאריך נשמר ב־09:00. מיקום נכנס לתוכן המשימה (`מיקום: …`) כי אין עמודת מיקום. המשימה נכנסת לתיבה כמו קליטת וואטסאפ, עם תזכורת וסנכרון ליומן גוגל כשיש מועד.
+גוף הבקשה: `title` (חובה), `due_date` (`YYYY-MM-DD`, אופציונלי), `due_time` (`HH:MM` לפי שעון ירושלים, אופציונלי), `notes`, `source` (`voice`), `location`, `client_id` לאידמפוטנטיות, `type` (`task` או `note`, ברירת מחדל `task`) ו־`board` (`notebook` או `default`, ברירת מחדל `default`). בלי שעה, תאריך נשמר ב־09:00. מיקום נכנס לתוכן (`מיקום: …`) כי אין עמודת מיקום. המחברת היא עמודת `inbox`. גם `default` וגם `notebook` נכנסים אליה, כמו קליטת וואטסאפ. `type: task` שומר `is_actionable: true` (משימה) ו־`type: note` שומר `false` (הערה). מועד ותזכורת נשמרים לשני הסוגים. הצ'יפ «מהכפתור» נשאר כי `metadata.source` הוא `voice`.
 
 הנפקת טוקן למשתמש (המפתח הסודי לא נשמר בגיט):
 
