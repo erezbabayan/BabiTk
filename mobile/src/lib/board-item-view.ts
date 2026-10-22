@@ -29,3 +29,13 @@ export async function writeBoardItemView(view: BoardItemView): Promise<void> {
     /* ignore */
   }
 }
+
+export type TaskBoardView = BoardItemView | "calendar";
+
+/** Tasks board segmented view (calendar wins over list/squares), same as web. */
+export function resolveTaskBoardView(
+  showCalendar: boolean,
+  itemView: BoardItemView,
+): TaskBoardView {
+  return showCalendar ? "calendar" : itemView;
+}

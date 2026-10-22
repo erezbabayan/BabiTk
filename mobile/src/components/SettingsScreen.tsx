@@ -290,7 +290,7 @@ export function SettingsScreen({
             <SettingsMenuRow icon="edit" label="קליטת טקסט" onPress={() => setTextVisible(true)} />
             <SettingsMenuRow
               icon="calendar"
-              label={calendarLinked ? "יומן מחובר — נתק" : "Google Calendar"}
+              label={calendarLinked ? "יומן מחובר — נתק" : "יומן BabiTk"}
               onPress={() => void connectCalendar()}
             />
             <SettingsMenuRow

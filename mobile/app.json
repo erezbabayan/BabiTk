@@ -10,7 +10,9 @@
       "infoPlist": {
         "NSMicrophoneUsageDescription": "BabiTk צריך גישה למיקרופון כדי להקליט הודעות קוליות לקליטה.",
         "NSCameraUsageDescription": "BabiTk צריך גישה למצלמה כדי לסרוק דפי מחברת.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -41,7 +43,11 @@
             "DEFAULT"
           ]
         }
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "scheme": "mindtasker",
     "plugins": [
@@ -68,7 +74,18 @@
       ],
       "@react-native-community/datetimepicker",
       "expo-web-browser",
-      "expo-secure-store"
-    ]
+      "expo-secure-store",
+      "./plugins/with-ltr-root"
+    ],
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "extra": {
+      "supportsRTL": false,
+      "forcesRTL": false
+    }
   }
 }
