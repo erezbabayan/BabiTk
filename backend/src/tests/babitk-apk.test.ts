@@ -92,6 +92,7 @@ describe("BabiTk Android release", () => {
     assert.match(workflow, /ANDROID_KEY_PASSWORD/);
     assert.match(workflow, /base64 -d > mobile\/android\/app\/babitk-release\.keystore/);
     assert.match(workflow, /ndk;\$\{ndk:-27\.1\.12297006\}/);
+    assert.match(workflow, /android-actions\/setup-android@v4/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEYSTORE_PASSWORD"/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEY_PASSWORD"/);
     assert.doesNotMatch(ci, /assembleRelease/);
