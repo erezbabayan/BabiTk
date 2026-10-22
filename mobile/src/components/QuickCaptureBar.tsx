@@ -233,6 +233,11 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
         await onAfterCapture?.();
       }
     } catch (err) {
+      if (err instanceof Error && err.name === "VoiceIngestPendingError") {
+        Alert.alert("ההקלטה התקבלה", err.message);
+        setTimeout(() => void onAfterCapture?.(), 30_000);
+        return;
+      }
       const message = formatCaptureError(err, "העלאת ההקלטה נכשלה");
       Alert.alert("שגיאה בהקלטה", message);
     } finally {
