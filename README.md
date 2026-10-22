@@ -82,6 +82,27 @@ docker compose up -d --build
 | `scripts/verify-stack.mjs` | בודק שכל שכבות המערכת תקינות |
 | `scripts/check-env.mjs` | מאמת קבצי הגדרות סביבה |
 | `scripts/check-integrations.mjs` | בודק תשלומים, וואטסאפ ויומן |
+| `scripts/mint-device-token.mjs` | מנפיק טוקן מכשיר לקליטת קול (`voice-ingest`). מדפיס את הטוקן פעם אחת ושומר רק גיבוב |
+
+## קליטת משימה משרת קול (Raspberry Pi)
+
+פונקציית Edge‏ `voice-ingest` יוצרת משימה למשתמש לפי טוקן מכשיר. אין JWT של משתמש. הטוקן יכול ליצור משימות רק עבור המשתמש שאליו הוא הונפק.
+
+```http
+POST https://ghibfuinantybqidwadj.supabase.co/functions/v1/voice-ingest
+Authorization: Bearer <טוקן-מכשיר>
+Content-Type: application/json
+```
+
+גוף הבקשה: `title` (חובה), `due_date` (`YYYY-MM-DD`, אופציונלי), `due_time` (`HH:MM` לפי שעון ירושלים, אופציונלי), `notes`, `source` (`voice`), `location`, ו־`client_id` לאידמפוטנטיות. בלי שעה, תאריך נשמר ב־09:00. מיקום נכנס לתוכן המשימה (`מיקום: …`) כי אין עמודת מיקום. המשימה נכנסת לתיבה כמו קליטת וואטסאפ, עם תזכורת וסנכרון ליומן גוגל כשיש מועד.
+
+הנפקת טוקן למשתמש (המפתח הסודי לא נשמר בגיט):
+
+```bash
+node --experimental-strip-types scripts/mint-device-token.mjs erezbabayan@gmail.com
+```
+
+הסקריפט קורא `SUPABASE_SERVICE_ROLE_KEY` מהסביבה או מ־`backend/.env`. הוא מדפיס את הטוקן פעם אחת.
 
 ## אפליקציית מובייל
 

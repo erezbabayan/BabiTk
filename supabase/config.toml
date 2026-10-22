@@ -41,6 +41,9 @@ verify_jwt = true
 [functions.ingest-voice]
 verify_jwt = true
 
+[functions.voice-ingest]
+verify_jwt = false
+
 [functions.ingest-notebook]
 verify_jwt = true
 
