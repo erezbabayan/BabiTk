@@ -58,6 +58,25 @@ jobs:
             exit 1
           fi
 
+      - name: Require Supabase public env
+        run: |
+          if [ -z "${EXPO_PUBLIC_SUPABASE_URL}" ] || [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            echo "EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY is empty. The release bundle must inline them."
+            exit 1
+          fi
+          case "$EXPO_PUBLIC_SUPABASE_URL" in
+            https://*.supabase.co) ;;
+            *) echo "EXPO_PUBLIC_SUPABASE_URL is not an https Supabase host"; exit 1 ;;
+          esac
+          umask 077
+          printf '%s\n' \
+            "EXPO_PUBLIC_SUPABASE_URL=${EXPO_PUBLIC_SUPABASE_URL}" \
+            "EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}" \
+            "EXPO_PUBLIC_DEMO_MODE=${EXPO_PUBLIC_DEMO_MODE}" \
+            > mobile/.env
+          echo "Supabase host for Metro: ${EXPO_PUBLIC_SUPABASE_URL}"
+          echo "Anon key length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+
       - name: Install dependencies
         run: |
           npm ci

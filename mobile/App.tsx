@@ -1131,7 +1131,6 @@ function MainAppInner({
 function LoginGate({
   onSignIn,
   onSignUp,
-  onMicrosoftSignIn,
   onGoogleSignIn,
   onDemoEnter,
 }: {
@@ -1141,7 +1140,6 @@ function LoginGate({
     password: string,
     details: { firstName: string; lastName: string; phone: string },
   ) => Promise<void>;
-  onMicrosoftSignIn?: () => Promise<void>;
   onGoogleSignIn?: () => Promise<void>;
   onDemoEnter?: () => Promise<void>;
 }) {
@@ -1151,7 +1149,6 @@ function LoginGate({
       <LoginScreen
         onSignIn={onSignIn}
         onSignUp={onSignUp}
-        onMicrosoftSignIn={onMicrosoftSignIn}
         onGoogleSignIn={onGoogleSignIn}
         onDemoEnter={onDemoEnter}
         allowSignup={isSupabaseConfigured}
@@ -1176,7 +1173,6 @@ function LegacyAuthAppRoot() {
     signIn,
     signUp,
     signInWithGoogle,
-    signInWithMicrosoft,
     signInDemoQuick,
     signOut,
   } = useAuth();
@@ -1206,9 +1202,6 @@ function LegacyAuthAppRoot() {
           <LoginGate
             onSignIn={signIn}
             onSignUp={signUp}
-            onMicrosoftSignIn={
-              isSupabaseConfigured ? () => signInWithMicrosoft() : undefined
-            }
             onGoogleSignIn={
               isSupabaseConfigured ? () => signInWithGoogle() : undefined
             }

@@ -21,7 +21,6 @@ interface AuthLoginScreenProps {
     signupDetails?: SignupDetails,
   ) => Promise<void>;
   onGoogleSignIn?: () => Promise<void>;
-  onMicrosoftSignIn?: () => Promise<void>;
   notice?: string | null;
   subtitle?: string;
   showEmailForm?: boolean;
@@ -108,7 +107,6 @@ function LoginShell({
 function AuthForm({
   onSubmit,
   onGoogleSignIn,
-  onMicrosoftSignIn,
   notice,
   subtitle,
   showEmailForm = true,
@@ -119,7 +117,6 @@ function AuthForm({
 }: {
   onSubmit: AuthLoginScreenProps["onSubmit"];
   onGoogleSignIn?: AuthLoginScreenProps["onGoogleSignIn"];
-  onMicrosoftSignIn?: AuthLoginScreenProps["onMicrosoftSignIn"];
   notice?: string | null;
   subtitle?: AuthLoginScreenProps["subtitle"];
   showEmailForm?: AuthLoginScreenProps["showEmailForm"];
@@ -195,22 +192,8 @@ function AuthForm({
     }
   }
 
-  async function handleMicrosoftSignIn() {
-    if (!onMicrosoftSignIn) return;
-    setError(null);
-    setMessage(null);
-    setOauthLoading(true);
-    try {
-      await onMicrosoftSignIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "התחברות Microsoft נכשלה");
-    } finally {
-      setOauthLoading(false);
-    }
-  }
-
   const busy = loading || oauthLoading;
-  const hasOAuth = Boolean(onGoogleSignIn || onMicrosoftSignIn);
+  const hasOAuth = Boolean(onGoogleSignIn);
 
   return (
     <LoginShell
@@ -420,17 +403,6 @@ function AuthForm({
           />
         ) : null}
 
-        {hasOAuth && onMicrosoftSignIn ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleMicrosoftSignIn()}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
-          >
-            <span aria-hidden>Ⓜ</span>
-            {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
-          </button>
-        ) : null}
       </div>
     </LoginShell>
   );
@@ -481,9 +453,6 @@ function SetupForm() {
             הרץ <code className="rounded bg-slate-100 px-1">.\scripts\setup-google-auth.ps1</code> להנחיות Google
           </li>
           <li>
-            הרץ <code className="rounded bg-slate-100 px-1">.\scripts\setup-azure-auth.ps1</code> להנחיות Microsoft
-          </li>
-          <li>
             מלא <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_URL</code> ו-{" "}
             <code className="rounded bg-slate-100 px-1">VITE_SUPABASE_ANON_KEY</code> ב-{" "}
             <code className="rounded bg-slate-100 px-1">web/.env</code>
@@ -509,7 +478,6 @@ export function LoginScreen(props: LoginScreenProps) {
     <AuthForm
       onSubmit={props.onSubmit}
       onGoogleSignIn={props.onGoogleSignIn}
-      onMicrosoftSignIn={props.onMicrosoftSignIn}
       notice={props.notice}
       subtitle={props.subtitle}
       showEmailForm={props.showEmailForm}

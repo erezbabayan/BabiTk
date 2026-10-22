@@ -23,6 +23,10 @@ const REQUIRED_REDIRECTS = [
   "http://127.0.0.1:5173/",
   "http://127.0.0.1:5173/**",
   "mindtasker://**",
+  "mindtasker://",
+  "mindtasker:///",
+  "mindtasker://auth-callback",
+  "mindtasker://auth-callback/",
 ];
 
 function splitList(value) {
@@ -150,6 +154,7 @@ async function main() {
     /provider is not enabled|unsupported provider/i.test(probeBody);
 
   console.log(`site_url=${SITE_URL}`);
+  console.log(`redirects=${patch.uri_allow_list}`);
   console.log(`google_secrets=${google ? "present" : "missing"}`);
   console.log(`authorize_status=${probe.status}`);
   if (enabled) {

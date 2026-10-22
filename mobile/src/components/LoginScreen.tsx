@@ -24,7 +24,6 @@ interface LoginScreenProps {
   onSignIn: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   onSignUp?: (email: string, password: string, details: SignupDetails) => Promise<void>;
   onGoogleSignIn?: () => Promise<void>;
-  onMicrosoftSignIn?: () => Promise<void>;
   onDemoEnter?: () => Promise<void>;
   allowSignup?: boolean;
   authSubtitle?: string;
@@ -120,7 +119,6 @@ export function LoginScreen({
   onSignIn,
   onSignUp,
   onGoogleSignIn,
-  onMicrosoftSignIn,
   onDemoEnter,
   allowSignup = false,
   authSubtitle,
@@ -211,20 +209,6 @@ export function LoginScreen({
     }
   }
 
-  async function handleMicrosoftSignIn() {
-    if (!onMicrosoftSignIn) return;
-    setError(null);
-    setMessage(null);
-    setOauthLoading(true);
-    try {
-      await onMicrosoftSignIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "התחברות Microsoft נכשלה");
-    } finally {
-      setOauthLoading(false);
-    }
-  }
-
   const busy = loading || oauthLoading;
 
   const loginSubtitle =
@@ -260,18 +244,6 @@ export function LoginScreen({
                 <Text style={styles.googleButtonText}>התחבר עם Google</Text>
               </>
             )}
-          </Pressable>
-        ) : null}
-
-        {onMicrosoftSignIn && authMode === "login" ? (
-          <Pressable
-            style={[styles.oauthButton, busy && styles.buttonDisabled]}
-            onPress={() => void handleMicrosoftSignIn()}
-            disabled={busy}
-          >
-            <Text style={styles.microsoftButtonText}>
-              {oauthLoading ? "מתחבר..." : "התחבר עם Microsoft"}
-            </Text>
           </Pressable>
         ) : null}
 
@@ -319,23 +291,28 @@ export function LoginScreen({
         ) : null}
 
         <TextInput
-          style={styles.input}
-          placeholder={!isSupabaseConfigured ? DEMO_LOGIN_EMAIL : "you@example.com"}
+          style={[styles.input, styles.ltrField]}
+          placeholder={!isSupabaseConfigured ? DEMO_LOGIN_EMAIL : "שם משתמש או אימייל"}
           placeholderTextColor="#94a3b8"
           autoCapitalize="none"
+          autoCorrect={false}
           keyboardType="email-address"
           textContentType="emailAddress"
+          autoComplete="email"
           value={email}
           onChangeText={setEmail}
           textAlign="left"
         />
         <View style={styles.passwordWrap}>
           <TextInput
-            style={styles.passwordInput}
+            style={[styles.passwordInput, styles.ltrField]}
             placeholder="••••••••"
             placeholderTextColor="#94a3b8"
+            autoCapitalize="none"
+            autoCorrect={false}
             secureTextEntry={!passwordVisible}
             textContentType="password"
+            autoComplete="current-password"
             value={password}
             onChangeText={setPassword}
             textAlign="left"
@@ -454,9 +431,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     backgroundColor: "#fff",
   },
+  ltrField: {
+    writingDirection: "ltr",
+    textAlign: "left",
+  },
   passwordWrap: {
     position: "relative",
     justifyContent: "center",
+    direction: "ltr",
   },
   passwordInput: {
     borderWidth: 1,
