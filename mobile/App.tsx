@@ -63,6 +63,8 @@ import {
 } from "./src/lib/board-bulk-actions";
 import {
   readBoardItemView,
+  readTaskCalendarPref,
+  writeTaskCalendarPref,
   resolveTaskBoardView,
   toggleBoardItemView,
   writeBoardItemView,
@@ -146,7 +148,7 @@ function MainAppInner({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [boardItemView, setBoardItemView] = useState<BoardItemView>("list");
-  const [showTaskCalendar, setShowTaskCalendar] = useState(false);
+  const [showTaskCalendar, setShowTaskCalendar] = useState(true);
   const [billingNotice, setBillingNotice] = useState<string | null>(null);
   const [paywallCode, setPaywallCode] = useState<"audio_quota" | "ai_parse_quota" | null>(null);
   const [showTaskLists, setShowTaskLists] = useState(false);
@@ -232,6 +234,9 @@ function MainAppInner({
 
   useEffect(() => {
     let cancelled = false;
+    void readTaskCalendarPref().then((show) => {
+      if (!cancelled) setShowTaskCalendar(show);
+    });
     void readBoardItemView().then((view) => {
       if (!cancelled) setBoardItemView(view);
     });
@@ -898,10 +903,12 @@ function MainAppInner({
                   onPress={() => {
                     if (option.id === "calendar") {
                       setShowTaskCalendar(true);
+                      void writeTaskCalendarPref(true);
                       exitSelect();
                       return;
                     }
                     setShowTaskCalendar(false);
+                    void writeTaskCalendarPref(false);
                     setBoardItemView(option.id);
                     void writeBoardItemView(option.id);
                     if (option.id === "squares") exitSelect();
