@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import babisnapLogo from "../assets/babisnap-logo.webp";
 import { AdminUsersPanel } from "./AdminUsersPanel";
 import { AppDownloadLink } from "./AppDownloadLink";
 import { BoardSettingsPanel } from "./BoardSettingsPanel";
@@ -144,11 +145,27 @@ export function SettingsPanel({
                   onClick={() => setSection(item.id)}
                   className="w-full py-3 text-right text-sm text-slate-700 hover:bg-slate-50"
                 >
-                  {item.label}
+                  {item.id === "babisnap" ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <img
+                        src={babisnapLogo}
+                        alt=""
+                        width={20}
+                        height={20}
+                        className="h-[20px] w-[20px] shrink-0 rounded-full"
+                      />
+                      <span>{item.label}</span>
+                    </span>
+                  ) : (
+                    item.label
+                  )}
                 </button>
               ))}
             </div>
-            <AppDownloadLink className="mt-3 block w-full rounded-lg border border-slate-300 py-3 text-center text-sm font-semibold text-slate-800 hover:bg-slate-50" />
+            <AppDownloadLink
+              logo
+              className="mt-3 block w-full rounded-lg border border-slate-300 py-3 text-center text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            />
           </>
         ) : null}
 
