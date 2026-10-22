@@ -18,6 +18,11 @@ backend/data/
 .convex-auth-keys.json
 .convex-auth-env.tmp
 node_modules/
+mobile/android/
+*.keystore
+*.jks
+*.apk
+*.aab
 .expo/
 dist/
 build/

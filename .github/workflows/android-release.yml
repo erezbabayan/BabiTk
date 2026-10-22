@@ -1,0 +1,118 @@
+name: Android release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      EXPO_PUBLIC_SUPABASE_URL: https://ghibfuinantybqidwadj.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4
+      EXPO_PUBLIC_DEMO_MODE: "false"
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Require release signing secrets
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "See store/SIGNING.md. Secret values are not printed."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm ci --prefix mobile
+
+      - name: Generate Android project
+        working-directory: mobile
+        run: npx expo prebuild --platform android --non-interactive --no-install
+
+      - name: Install SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          ndk=$(grep -oE 'ndkVersion[[:space:]]*=[[:space:]]*"[^"]+"' mobile/android/build.gradle | head -1 | cut -d'"' -f2 || true)
+          if [ -z "$ndk" ] && [ -f mobile/android/gradle/libs.versions.toml ]; then
+            ndk=$(sed -n 's/^ndkVersion *= *"\([^"]*\)".*/\1/p' mobile/android/gradle/libs.versions.toml | head -1)
+          fi
+          # Expo SDK 54 default when the generated project does not pin a version.
+          sdkmanager "ndk;${ndk:-27.1.12297006}"
+
+      - name: Sign the release
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+        run: |
+          umask 077
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/android/app/babitk-release.keystore
+          node scripts/apply-android-release-signing-cli.mjs mobile/android/app/build.gradle
+
+      - name: Build APK and AAB
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Upload Play-ready AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: BabiTk-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      - name: Publish BabiTk.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk BabiTk.apk
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="android-${GITHUB_SHA}"
+          fi
+          NOTES="קובץ התקנה לאנדרואיד. הקישור הקבוע: https://github.com/erezbabayan/BabiTk/releases/latest/download/BabiTk.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" BabiTk.apk --clobber
+            gh release edit "$TAG" --latest --notes "$NOTES"
+          else
+            gh release create "$TAG" BabiTk.apk --title "BabiTk Android" --notes "$NOTES" --latest
+          fi
