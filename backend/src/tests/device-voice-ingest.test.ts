@@ -154,7 +154,7 @@ describe("voice ingest handler", () => {
       NOW,
     );
     assert.equal(response.status, 201);
-    const body = await response.json();
+    const body = (await response.json()) as { ok: boolean; task_id: string; due_at: string };
     assert.equal(body.ok, true);
     assert.equal(body.task_id, "task-1");
     assert.match(body.due_at, /T15:00:00\+03:00$/);
@@ -169,7 +169,8 @@ describe("voice ingest handler", () => {
     const second = await handleVoiceIngest(request({ title: "חלב", client_id: "pi-42", source: "voice" }), store, NOW);
     assert.equal(first.status, 201);
     assert.equal(second.status, 201);
-    assert.equal((await second.json()).task_id, "task-1");
+    const replay = (await second.json()) as { task_id: string };
+    assert.equal(replay.task_id, "task-1");
     assert.equal(store.inserted.length, 1);
   });
 
@@ -177,7 +178,8 @@ describe("voice ingest handler", () => {
     const store = memoryStore();
     const unauthorized = await handleVoiceIngest(request({ title: "חלב" }, "not-a-valid-device-token-value"), store, NOW);
     assert.equal(unauthorized.status, 401);
-    assert.equal((await unauthorized.json()).error.code, "unauthorized");
+    const unauthorizedBody = (await unauthorized.json()) as { error: { code: string } };
+    assert.equal(unauthorizedBody.error.code, "unauthorized");
 
     const invalid = await handleVoiceIngest(request({ source: "voice" }), store, NOW);
     assert.equal(invalid.status, 400);
@@ -188,7 +190,8 @@ describe("voice ingest handler", () => {
     }
     const limited = await handleVoiceIngest(request({ title: "עוד אחת", source: "voice" }), store, NOW);
     assert.equal(limited.status, 429);
-    assert.equal((await limited.json()).error.code, "rate_limited");
+    const limitedBody = (await limited.json()) as { error: { code: string } };
+    assert.equal(limitedBody.error.code, "rate_limited");
   });
 });
 

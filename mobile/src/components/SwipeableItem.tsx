@@ -7,6 +7,8 @@ import type { UserTag } from "../lib/tags";
 import { ItemActionBar, type BoardTab, type ListView } from "./ItemActionBar";
 import { ItemTagDots } from "./ItemTagDots";
 import { SourceIndicator } from "./SourceIndicator";
+import { DeviceVoiceChip } from "./DeviceVoiceChip";
+import { isDeviceVoiceItem } from "../lib/device-voice-chip";
 import {
   buildItemDisplayFields,
   buildItemScheduleLine,
@@ -259,6 +261,7 @@ export function SwipeableItem({
               >
                 {headlineText}
               </Text>
+              {isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
             </View>
 
             {showBody ||

@@ -32,6 +32,7 @@ const SOURCE_TYPE_TO_KIND: Record<SourceType, SourceDisplayKind> = {
 };
 
 export function sourceTypeToDisplayKind(type: string | null | undefined): SourceDisplayKind {
+  if (type === "voice" || type === "app_voice") return "voice";
   if (type && type in SOURCE_TYPE_TO_KIND) {
     return SOURCE_TYPE_TO_KIND[type as SourceType];
   }
