@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -8,7 +10,17 @@ import {
 
 describe("device voice chip", () => {
   it("matches only voice-ingest tasks", () => {
-    assert.equal(DEVICE_VOICE_CHIP_LABEL, "🎙️ מהכפתור");
+    assert.equal(DEVICE_VOICE_CHIP_LABEL, "BabiSnap");
+    const root = path.resolve(import.meta.dirname, "../../..");
+    for (const file of [
+      "web/src/components/DeviceVoiceChip.tsx",
+      "mobile/src/components/DeviceVoiceChip.tsx",
+    ]) {
+      const source = readFileSync(path.join(root, file), "utf8");
+      assert.match(source, /babisnap-logo\.webp/);
+      assert.match(source, /h-4 w-4|width: 16/);
+      assert.match(source, /DEVICE_VOICE_CHIP_LABEL/);
+    }
     assert.equal(isDeviceVoiceItem({ metadata: { source: "voice", channel: "voice" } }), true);
     assert.equal(
       isDeviceVoiceItem({

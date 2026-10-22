@@ -1,6 +1,8 @@
 import { StrictMode, Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { BabiSnapPairPage } from "./components/BabiSnapPairPage";
 import { SplashScreen } from "./components/SplashScreen";
+import { isBabisnapPairLocation } from "../../convex/lib/babisnap";
 import { BoardItemViewProvider } from "./providers/BoardItemViewProvider";
 import { watchDeployVersion } from "./lib/stale-deploy";
 import "./index.css";
@@ -69,6 +71,13 @@ function BootError({ message, onRetry }: { message: string; onRetry: () => void 
 }
 
 function Root() {
+  if (isBabisnapPairLocation(window.location.hash)) {
+    return <BabiSnapPairPage />;
+  }
+  return <AppBoot />;
+}
+
+function AppBoot() {
   const [showSplash, setShowSplash] = useState(true);
   const [bootReady, setBootReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
