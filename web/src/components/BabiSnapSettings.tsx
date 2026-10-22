@@ -1,16 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toDataURL } from "qrcode";
 
 import {
   BABISNAP_COPY,
   babisnapDownloadUrl,
+  babisnapOpenLink,
   babisnapPairLink,
-  formatBabisnapLastUsed,
+  babisnapStatusLabel,
 } from "../../../convex/lib/babisnap";
+import logo from "../assets/babisnap-logo.webp";
 import { babisnapAction } from "../lib/babisnap-client";
 
 function useDesktop(): boolean {
-  const [desktop, setDesktop] = useState(false);
+  const [desktop, setDesktop] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(min-width: 800px)").matches,
+  );
   useEffect(() => {
     const media = window.matchMedia("(min-width: 800px)");
     const apply = () => setDesktop(media.matches);
@@ -37,7 +41,15 @@ function QrImage({ value, label }: { value: string; label: string }) {
     };
   }, [value]);
   if (!src) return null;
-  return <img src={src} alt={label} width={180} height={180} className="mx-auto rounded-lg border border-slate-200 bg-white p-2" />;
+  return (
+    <img
+      src={src}
+      alt={label}
+      width={180}
+      height={180}
+      className="mx-auto rounded-lg border border-slate-200 bg-white p-2"
+    />
+  );
 }
 
 function hebrewError(error: unknown): string {
@@ -56,6 +68,7 @@ export function BabiSnapSettings() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,23 +89,39 @@ export function BabiSnapSettings() {
     };
   }, []);
 
-  const lastLabel = formatBabisnapLastUsed(lastUsedAt);
+  const statusLabel = babisnapStatusLabel({ connected, lastUsedAt });
+  const showDownload = !lastUsedAt && Boolean(downloadUrl);
 
-  async function connect() {
+  function connectAndOpen() {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     setCopied(false);
-    try {
-      const status = await babisnapAction("connect");
-      const link = status.token ? babisnapPairLink(status.token) : null;
-      setPairLink(link);
-      setConnected(true);
-      setLastUsedAt(null);
-    } catch (err) {
-      setError(hebrewError(err));
-    } finally {
-      setBusy(false);
-    }
+    const pending = desktop ? null : window.open("about:blank", "_blank");
+    const userAgent = navigator.userAgent;
+    void (async () => {
+      try {
+        const status = await babisnapAction("connect");
+        const link = status.token ? babisnapPairLink(status.token) : null;
+        const openLink = status.token ? babisnapOpenLink(status.token, userAgent) : null;
+        setPairLink(link);
+        setConnected(true);
+        setLastUsedAt(null);
+        if (!desktop && openLink) {
+          if (pending) pending.location.href = openLink;
+          else window.location.assign(openLink);
+        } else {
+          pending?.close();
+        }
+      } catch (err) {
+        pending?.close();
+        setError(hebrewError(err));
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    })();
   }
 
   async function disconnect() {
@@ -125,22 +154,23 @@ export function BabiSnapSettings() {
 
   return (
     <div className="space-y-3 text-sm" dir="rtl">
-      <p className={`font-semibold ${connected ? "text-emerald-700" : "text-slate-700"}`}>
-        {connected ? BABISNAP_COPY.connected : BABISNAP_COPY.disconnected}
-      </p>
-      {connected ? (
-        <p className="text-slate-600">
-          {lastLabel ? `${BABISNAP_COPY.lastPrefix}: ${lastLabel}` : BABISNAP_COPY.noneYet}
+      <div className="flex items-center gap-2">
+        <img src={logo} alt="" width={32} height={32} className="h-8 w-8 rounded-full" />
+        <h2 className="text-base font-bold text-slate-900">BabiSnap</h2>
+      </div>
+      {statusLabel ? (
+        <p className={`font-semibold ${lastUsedAt ? "text-emerald-700" : "text-slate-700"}`}>
+          {statusLabel}
         </p>
       ) : null}
 
-      {!connected && downloadUrl ? (
+      {showDownload && downloadUrl ? (
         <div className="space-y-2">
           <a
             href={downloadUrl}
             target="_blank"
             rel="noreferrer"
-            className="block rounded-lg bg-emerald-700 px-3 py-3 text-center text-sm font-bold text-white hover:bg-emerald-800"
+            className="block rounded-lg border border-emerald-700 px-3 py-2 text-center text-sm font-semibold text-emerald-800 hover:bg-emerald-50"
           >
             {BABISNAP_COPY.download}
           </a>
@@ -149,39 +179,28 @@ export function BabiSnapSettings() {
         </div>
       ) : null}
 
-      {pairLink ? (
-        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs text-slate-600">{BABISNAP_COPY.once}</p>
-          <a
-            href={pairLink}
-            className="block rounded-lg bg-slate-900 px-3 py-4 text-center text-base font-bold text-white hover:bg-slate-800"
-          >
-            {BABISNAP_COPY.open}
-          </a>
-          <p className="text-xs text-slate-500">{BABISNAP_COPY.hint}</p>
-          {desktop ? <QrImage value={pairLink} label={BABISNAP_COPY.pairQr} /> : null}
-          <button type="button" onClick={() => void copyLink()} className="text-xs text-slate-500 underline">
-            {copied ? BABISNAP_COPY.copied : BABISNAP_COPY.copy}
-          </button>
-        </div>
-      ) : null}
-
+      {desktop && pairLink ? <QrImage value={pairLink} label={BABISNAP_COPY.pairQr} /> : null}
       {error ? <p className="text-red-600">{error}</p> : null}
 
       <button
         type="button"
         disabled={busy}
-        onClick={() => void connect()}
+        onClick={connectAndOpen}
         className="w-full rounded-lg bg-slate-900 px-3 py-3 text-sm font-bold text-white hover:bg-slate-800 disabled:opacity-50"
       >
         {BABISNAP_COPY.connect}
       </button>
+      {pairLink ? (
+        <button type="button" onClick={() => void copyLink()} className="text-xs text-slate-500 underline">
+          {copied ? BABISNAP_COPY.copied : BABISNAP_COPY.copyManual}
+        </button>
+      ) : null}
       {connected ? (
         <button
           type="button"
           disabled={busy}
           onClick={() => void disconnect()}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          className="block text-xs text-slate-500 underline disabled:opacity-50"
         >
           {BABISNAP_COPY.disconnect}
         </button>

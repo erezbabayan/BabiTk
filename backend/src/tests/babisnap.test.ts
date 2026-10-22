@@ -7,8 +7,12 @@ import {
   BABISNAP_COPY,
   BABISNAP_DOWNLOAD_URL,
   BABISNAP_VOICE_INGEST_URL,
+  babisnapAndroidIntentLink,
   babisnapDownloadUrl,
+  babisnapOpenLink,
   babisnapPairLink,
+  babisnapStatusLabel,
+  isAndroidChrome,
   parseBabisnapResponse,
 } from "../../../convex/lib/babisnap.ts";
 import { hashDeviceToken } from "../../../supabase/functions/_shared/device-voice-ingest.ts";
@@ -77,8 +81,38 @@ describe("BabiSnap link", () => {
       link,
       /url=https%3A%2F%2Fghibfuinantybqidwadj\.supabase\.co%2Ffunctions%2Fv1%2Fvoice-ingest$/,
     );
-    assert.equal(BABISNAP_COPY.open, "פתח ב-BabiSnap וחבר");
+    assert.equal(
+      babisnapAndroidIntentLink("tok+en"),
+      "intent://pair?token=tok%2Ben&url=https%3A%2F%2Fghibfuinantybqidwadj.supabase.co%2Ffunctions%2Fv1%2Fvoice-ingest#Intent;scheme=babisnap;package=com.babisnap.app;S.browser_fallback_url=https%3A%2F%2Fgithub.com%2Ferezbabayan%2FBabiSnap%2Freleases%2Flatest%2Fdownload%2FBabiSnap.apk;end",
+    );
+    const androidChrome =
+      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
+    assert.equal(isAndroidChrome(androidChrome), true);
+    assert.equal(babisnapOpenLink("tok+en", androidChrome), babisnapAndroidIntentLink("tok+en"));
+    assert.equal(babisnapOpenLink("tok+en", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), link);
+    assert.equal(
+      isAndroidChrome(
+        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/120.0.0.0 Mobile Safari/537.36",
+      ),
+      false,
+    );
+    assert.equal(babisnapStatusLabel({ connected: true, lastUsedAt: "2026-10-22T12:00:00Z" }), "מחובר ✓");
+    assert.equal(babisnapStatusLabel({ connected: true, lastUsedAt: null }), "ממתין לחיבור");
+    assert.equal(babisnapStatusLabel({ connected: false, lastUsedAt: null }), null);
+    assert.equal(BABISNAP_COPY.connect, "חבר את BabiSnap");
+    assert.equal(BABISNAP_COPY.copyManual, "העתק קוד ידנית");
     assert.equal(BABISNAP_COPY.download, "הורד והתקן את BabiSnap");
+
+    const root = path.resolve(import.meta.dirname, "../../..");
+    const web = readFileSync(path.join(root, "web/src/components/BabiSnapSettings.tsx"), "utf8");
+    const mobile = readFileSync(path.join(root, "mobile/src/components/BabiSnapSettings.tsx"), "utf8");
+    assert.match(web, /window\.open\("about:blank"/);
+    assert.match(web, /babisnapOpenLink/);
+    assert.match(web, /babisnap-logo\.webp/);
+    assert.match(mobile, /babisnap-logo\.webp/);
+    assert.match(mobile, /Linking\.openURL\(link\)/);
+    assert.doesNotMatch(web, /פתח ב-BabiSnap/);
+    assert.doesNotMatch(mobile, /פתח ב-BabiSnap/);
   });
 
   it("reads a connect response once and ignores a later status token", () => {

@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
-import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
 import {
   BABISNAP_COPY,
   babisnapDownloadUrl,
   babisnapPairLink,
-  formatBabisnapLastUsed,
+  babisnapStatusLabel,
 } from "../../../convex/lib/babisnap";
+import logo from "../../assets/babisnap-logo.webp";
 import { babisnapAction } from "../lib/babisnap-client";
 
 function hebrewError(error: unknown): string {
@@ -25,6 +26,7 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const busyRef = useRef(false);
 
   useEffect(() => {
     if (!visible) {
@@ -51,22 +53,30 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
     };
   }, [visible]);
 
-  const lastLabel = formatBabisnapLastUsed(lastUsedAt);
+  const statusLabel = babisnapStatusLabel({ connected, lastUsedAt });
+  const showDownload = !lastUsedAt && Boolean(downloadUrl);
 
-  async function connect() {
+  function connectAndOpen() {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
     setCopied(false);
-    try {
-      const status = await babisnapAction("connect");
-      setPairLink(status.token ? babisnapPairLink(status.token) : null);
-      setConnected(true);
-      setLastUsedAt(null);
-    } catch (err) {
-      setError(hebrewError(err));
-    } finally {
-      setBusy(false);
-    }
+    void (async () => {
+      try {
+        const status = await babisnapAction("connect");
+        const link = status.token ? babisnapPairLink(status.token) : null;
+        setPairLink(link);
+        setConnected(true);
+        setLastUsedAt(null);
+        if (link) await Linking.openURL(link);
+      } catch (err) {
+        setError(hebrewError(err));
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    })();
   }
 
   function disconnect() {
@@ -102,19 +112,17 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <ScrollView contentContainerStyle={styles.scroll}>
-            <Text style={styles.title}>BabiSnap</Text>
+            <View style={styles.header}>
+              <Image source={logo} style={styles.headerLogo} />
+              <Text style={styles.title}>BabiSnap</Text>
+            </View>
             {loading ? <Text style={styles.muted}>טוען...</Text> : null}
             {!loading ? (
               <>
-                <Text style={[styles.status, connected ? styles.statusOn : null]}>
-                  {connected ? BABISNAP_COPY.connected : BABISNAP_COPY.disconnected}
-                </Text>
-                {connected ? (
-                  <Text style={styles.muted}>
-                    {lastLabel ? `${BABISNAP_COPY.lastPrefix}: ${lastLabel}` : BABISNAP_COPY.noneYet}
-                  </Text>
+                {statusLabel ? (
+                  <Text style={[styles.status, lastUsedAt ? styles.statusOn : null]}>{statusLabel}</Text>
                 ) : null}
-                {!connected && downloadUrl ? (
+                {showDownload && downloadUrl ? (
                   <>
                     <Pressable style={styles.download} onPress={() => void Linking.openURL(downloadUrl)}>
                       <Text style={styles.downloadText}>{BABISNAP_COPY.download}</Text>
@@ -122,25 +130,20 @@ export function BabiSnapSettings({ visible, onClose }: { visible: boolean; onClo
                     <Text style={styles.note}>{BABISNAP_COPY.installNote}</Text>
                   </>
                 ) : null}
-                {pairLink ? (
-                  <View style={styles.once}>
-                    <Text style={styles.note}>{BABISNAP_COPY.once}</Text>
-                    <Pressable style={styles.open} onPress={() => void Linking.openURL(pairLink)}>
-                      <Text style={styles.openText}>{BABISNAP_COPY.open}</Text>
-                    </Pressable>
-                    <Text style={styles.note}>{BABISNAP_COPY.hint}</Text>
-                    <Pressable onPress={() => void copyLink()}>
-                      <Text style={styles.copy}>{copied ? BABISNAP_COPY.copied : BABISNAP_COPY.copy}</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
                 {error ? <Text style={styles.error}>{error}</Text> : null}
-                <Pressable style={styles.connect} disabled={busy} onPress={() => void connect()}>
+                <Pressable style={styles.connect} disabled={busy} onPress={connectAndOpen}>
                   <Text style={styles.connectText}>{BABISNAP_COPY.connect}</Text>
                 </Pressable>
+                {pairLink ? (
+                  <Pressable onPress={() => void copyLink()}>
+                    <Text style={styles.link}>
+                      {copied ? BABISNAP_COPY.copied : BABISNAP_COPY.copyManual}
+                    </Text>
+                  </Pressable>
+                ) : null}
                 {connected ? (
-                  <Pressable style={styles.disconnect} disabled={busy} onPress={disconnect}>
-                    <Text style={styles.disconnectText}>{BABISNAP_COPY.disconnect}</Text>
+                  <Pressable disabled={busy} onPress={disconnect}>
+                    <Text style={styles.link}>{BABISNAP_COPY.disconnect}</Text>
                   </Pressable>
                 ) : null}
               </>
@@ -169,6 +172,8 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   scroll: { gap: 10 },
+  header: { flexDirection: "row-reverse", alignItems: "center", gap: 8 },
+  headerLogo: { width: 32, height: 32, borderRadius: 16 },
   title: { fontSize: 18, fontWeight: "800", textAlign: "right", color: "#0f172a" },
   status: { fontSize: 16, fontWeight: "700", textAlign: "right", color: "#334155" },
   statusOn: { color: "#047857" },
@@ -176,27 +181,12 @@ const styles = StyleSheet.create({
   note: { fontSize: 12, lineHeight: 18, textAlign: "right", color: "#64748b" },
   download: {
     borderRadius: 12,
-    backgroundColor: "#047857",
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  downloadText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  once: {
-    gap: 8,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    padding: 12,
-  },
-  open: {
-    borderRadius: 12,
-    backgroundColor: "#0f172a",
-    paddingVertical: 16,
+    borderColor: "#047857",
+    paddingVertical: 10,
     alignItems: "center",
   },
-  openText: { color: "#fff", fontSize: 16, fontWeight: "800" },
-  copy: { fontSize: 12, color: "#64748b", textAlign: "right", textDecorationLine: "underline" },
+  downloadText: { color: "#047857", fontSize: 14, fontWeight: "700" },
   connect: {
     borderRadius: 12,
     backgroundColor: "#0f172a",
@@ -204,14 +194,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   connectText: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  disconnect: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  disconnectText: { color: "#334155", fontSize: 14, fontWeight: "700" },
+  link: { fontSize: 12, color: "#64748b", textAlign: "right", textDecorationLine: "underline" },
   error: { color: "#dc2626", textAlign: "right", fontSize: 13 },
   close: { alignItems: "center", paddingTop: 8 },
   closeText: { color: "#64748b", fontSize: 15 },

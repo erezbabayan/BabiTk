@@ -1,6 +1,6 @@
 /** Tasks created by the device voice-ingest endpoint, not WhatsApp or in-app recording. */
 
-export const DEVICE_VOICE_CHIP_LABEL = "🎙️ מהכפתור";
+export const DEVICE_VOICE_CHIP_LABEL = "BabiSnap";
 
 const WHATSAPP_SOURCES = new Set(["whatsapp_voice", "whatsapp_text", "whatsapp"]);
 const IN_APP_VOICE_SOURCE = "app_voice";
