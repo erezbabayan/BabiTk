@@ -47,10 +47,12 @@ describe("BabiTk Android release", () => {
     );
     assert.match(settings, /AppDownloadLink/);
     assert.match(login, /AppDownloadLink/);
-    assert.match(download, /babitk-logo\.webp/);
-    assert.match(download, /h-\[20px\] w-\[20px\]/);
+    assert.match(download, /MindTaskerLogo/);
+    assert.match(download, /variant="mark"/);
+    assert.match(download, /\[&_svg\]:h-\[20px\]/);
+    assert.doesNotMatch(download, /babitk-logo\.webp/);
     const labelAt = download.indexOf("{BABITK_APK_LABEL}");
-    const logoAt = download.indexOf("<img");
+    const logoAt = download.indexOf("<MindTaskerLogo");
     assert.ok(labelAt >= 0 && logoAt > labelAt);
     assert.match(settings, /<AppDownloadLink\s+logo/);
     assert.doesNotMatch(login, /AppDownloadLink\s+logo/);
