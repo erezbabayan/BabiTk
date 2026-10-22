@@ -40,8 +40,23 @@ describe("BabiTk Android release", () => {
     assert.equal(BABITK_APK_LABEL, "הורידו את אפליקציית BabiTk");
     const settings = readFileSync(path.join(ROOT, "web/src/components/SettingsPanel.tsx"), "utf8");
     const login = readFileSync(path.join(ROOT, "web/src/components/LoginScreen.tsx"), "utf8");
+    const download = readFileSync(path.join(ROOT, "web/src/components/AppDownloadLink.tsx"), "utf8");
+    const mobileSettings = readFileSync(
+      path.join(ROOT, "mobile/src/components/SettingsScreen.tsx"),
+      "utf8",
+    );
     assert.match(settings, /AppDownloadLink/);
     assert.match(login, /AppDownloadLink/);
+    assert.match(download, /babitk-logo\.webp/);
+    assert.match(download, /h-\[20px\] w-\[20px\]/);
+    assert.match(settings, /<AppDownloadLink\s+logo/);
+    assert.doesNotMatch(login, /AppDownloadLink\s+logo/);
+    assert.match(settings, /babisnap-logo\.webp/);
+    assert.match(settings, /h-\[20px\] w-\[20px\] shrink-0 rounded-full/);
+    assert.match(mobileSettings, /babisnap-logo\.webp/);
+    assert.match(mobileSettings, /width: 20, height: 20/);
+    assert.match(mobileSettings, /logo=\{babisnapLogo\} label="BabiSnap"/);
+    assert.doesNotMatch(mobileSettings, /icon="mic" label="BabiSnap"/);
   });
 
   it("signs only the release build and does not embed secrets", () => {

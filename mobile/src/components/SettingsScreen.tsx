@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   ActivityIndicator,
+  Image,
   Linking,
   Modal,
   Pressable,
@@ -32,6 +33,7 @@ import {
 
 } from "../lib/api";
 
+import babisnapLogo from "../../assets/babisnap-logo.webp";
 import { BabiSnapSettings } from "./BabiSnapSettings";
 import { PhoneLinkScreen } from "./PhoneLinkScreen";
 
@@ -64,11 +66,13 @@ function formatHoursLabel(hours: number): string {
 
 function SettingsMenuRow({
   icon,
+  logo,
   label,
   onPress,
   disabled,
 }: {
-  icon: NotebookIconName;
+  icon?: NotebookIconName;
+  logo?: number;
   label: string;
   onPress: () => void;
   disabled?: boolean;
@@ -76,7 +80,11 @@ function SettingsMenuRow({
   return (
     <Pressable style={styles.row} onPress={onPress} disabled={disabled}>
       <View style={styles.rowInner}>
-        <NotebookIcon name={icon} size={16} tone="slate" />
+        {logo != null ? (
+          <Image source={logo} style={styles.rowLogo} accessibilityIgnoresInvertColors />
+        ) : icon ? (
+          <NotebookIcon name={icon} size={16} tone="slate" />
+        ) : null}
         <Text style={styles.rowText}>{label}</Text>
       </View>
     </Pressable>
@@ -277,7 +285,7 @@ export function SettingsScreen({
               onPress={() => setPhoneVisible(true)}
             />
             <SettingsMenuRow icon="mic" label="הקלטה קולית" onPress={() => setVoiceVisible(true)} />
-            <SettingsMenuRow icon="mic" label="BabiSnap" onPress={() => setBabisnapVisible(true)} />
+            <SettingsMenuRow logo={babisnapLogo} label="BabiSnap" onPress={() => setBabisnapVisible(true)} />
             <SettingsMenuRow icon="image" label="סריקת מחברת" onPress={() => setNotebookVisible(true)} />
             <SettingsMenuRow icon="edit" label="קליטת טקסט" onPress={() => setTextVisible(true)} />
             <SettingsMenuRow
@@ -736,6 +744,7 @@ const styles = StyleSheet.create({
   },
 
   rowText: { fontSize: 15, textAlign: "right", color: "#334155" },
+  rowLogo: { width: 20, height: 20, borderRadius: 10 },
 
   close: { marginTop: 16, alignItems: "center" },
 
