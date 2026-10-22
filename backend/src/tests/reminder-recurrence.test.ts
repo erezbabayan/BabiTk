@@ -386,6 +386,18 @@ describe("alert snooze from reminder popup", () => {
       assert.match(source, /דחה לשבוע הבא/);
       assert.match(source, /שבוע הבא|מחר ב-09:00|tomorrow/);
     }
+    const webPopup = readFileSync(
+      path.join(root, "web/src/components/ReminderAlertModal.tsx"),
+      "utf8",
+    );
+    const mobilePopup = readFileSync(
+      path.join(root, "mobile/src/components/ReminderAlertModal.tsx"),
+      "utf8",
+    );
+    assert.match(webPopup, /flex-nowrap/);
+    assert.match(webPopup, />\s*שבוע הבא\s*</);
+    assert.match(mobilePopup, /flexWrap:\s*"nowrap"/);
+    assert.match(mobilePopup, /שבוע הבא/);
   });
 
   it("clears reminder_sent so the snoozed time can fire again", () => {
