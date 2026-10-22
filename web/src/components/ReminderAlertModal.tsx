@@ -104,6 +104,13 @@ export function ReminderAlertModal({
               >
                 מחר ב-09:00
               </button>
+              <button
+                type="button"
+                onClick={() => onSnooze?.("week")}
+                className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100"
+              >
+                דחה לשבוע הבא
+              </button>
             </div>
           </div>
         ) : (

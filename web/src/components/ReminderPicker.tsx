@@ -4,6 +4,7 @@ import { snoozePresets } from "../hooks/useItems";
 import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";
 import { isReminderActive } from "../lib/item-display";
 import {
+  alertSnoozeDueAt,
   effectiveTaskDueDate,
   getReminderFlags,
   getReminderRecurrence,
@@ -33,11 +34,16 @@ function initialDueParts(item: MindtaskerItem): DueDateParts {
 
 export function ReminderPicker({ item, onSelect, onClear, onClose }: ReminderPickerProps) {
   const presets = snoozePresets();
+  const originalDue = effectiveTaskDueDate(item) ?? item.due_date;
   const options = [
     { label: "בעוד דקה", value: presets.in1Minute },
     { label: "עוד 3 שעות", value: presets.in3Hours },
     { label: "מחר בבוקר", value: presets.tomorrowMorning },
     { label: "שבוע הבא", value: presets.nextWeek },
+    {
+      label: "דחה לשבוע הבא",
+      value: alertSnoozeDueAt("week", new Date(), "Asia/Jerusalem", originalDue),
+    },
   ];
 
   const [dueParts, setDueParts] = useState<DueDateParts>(() => initialDueParts(item));

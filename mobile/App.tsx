@@ -86,7 +86,7 @@ import { mergeTaskArchiveItems } from "./src/lib/item-columns";
 import { useTaskLists } from "./src/hooks/useTaskLists";
 import { BOARD_TAB_FONT, BOARD_TITLE_FONT } from "./src/lib/board-font";
 import { BOARD_SQUARE_GAP_PX, BOARD_SQUARE_HALF_GAP_PX, BOARD_SQUARE_RADIUS_PX, BOARD_SQUARE_TILE_HEIGHT_PX, BOARD_CHROME_INSET_PX } from "./src/lib/board-item-layout";
-import { alertSnoozeDueAt } from "./src/lib/resolve-item-reminder";
+import { alertSnoozeDueAt, effectiveTaskDueDate } from "./src/lib/resolve-item-reminder";
 import { ConvexAppProvider } from "./src/providers/ConvexAppProvider";
 import { ConvexAuthGate } from "./src/providers/ConvexAuthGate";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
@@ -1060,7 +1060,11 @@ function MainAppInner({
             const pool = [...board.inbox, ...board.todayTasks, ...board.notes];
             const found = pool.find((item) => item.id === current.itemId);
             if (found) {
-              void board.snoozeTask(found, alertSnoozeDueAt(kind)).finally(() => {
+              const original = effectiveTaskDueDate(found) ?? found.due_date;
+              void board.snoozeTask(
+                found,
+                alertSnoozeDueAt(kind, new Date(), "Asia/Jerusalem", original),
+              ).finally(() => {
                 void reminderAlerts.acknowledge();
               });
               return;

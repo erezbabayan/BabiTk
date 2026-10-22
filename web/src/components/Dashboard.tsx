@@ -62,6 +62,7 @@ import {
   registerAlertSnoozeHandler,
   snoozeReminderAlert,
 } from "../lib/reminder-alert-snooze";
+import { alertSnoozeDueAt, effectiveTaskDueDate } from "../lib/resolve-item-reminder";
 import type { AlertSnoozeKind } from "../lib/resolve-item-reminder";
 import { ItemEditModal } from "./ItemEditModal";
 import { TaskMonthCalendar } from "./TaskMonthCalendar";
@@ -150,10 +151,11 @@ export function Dashboard({ userId, refreshTick = 0, homeResetTick = 0 }: Dashbo
   );
 
   useEffect(() => {
-    registerAlertSnoozeHandler(async (itemId, dueIso) => {
+    registerAlertSnoozeHandler(async (itemId, kind) => {
       const found = reminderItemsRef.current.find((entry) => entry.id === itemId);
       if (!found) return;
-      await snoozeTask(found, dueIso);
+      const original = effectiveTaskDueDate(found) ?? found.due_date;
+      await snoozeTask(found, alertSnoozeDueAt(kind, new Date(), "Asia/Jerusalem", original));
     });
     return () => registerAlertSnoozeHandler(null);
   }, [snoozeTask]);

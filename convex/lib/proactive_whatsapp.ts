@@ -353,7 +353,7 @@ export function buildMorningBriefingMessage(
     });
     sections.push("");
   }
-  sections.push("השב: «בוצע 1» · «עוד שעה» · «מחר בבוקר» · «תפריט»");
+  sections.push("השב: «בוצע 1» · «עוד שעה» · «מחר בבוקר» · «דחה לשבוע הבא» · «תפריט»");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
@@ -364,8 +364,8 @@ export function buildFollowUpMessage(tasks: ProactiveTask[]): string {
   const noun = shown.length === 1 ? "המשימה הזו עדיין פתוחה" : "המשימות האלה עדיין פתוחות";
   return (
     `${noun}:\n${lines.join("\n")}\n\n` +
-    `לדחות למחר בבוקר?\n` +
-    `השב: «בוצע 1» · «עוד שעה 1» · «מחר 1»`
+    `לדחות למחר בבוקר או לשבוע הבא?\n` +
+    `השב: «בוצע 1» · «עוד שעה 1» · «מחר 1» · «דחה לשבוע הבא 1»`
   );
 }
 

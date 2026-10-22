@@ -139,16 +139,36 @@ export function snoozePresetIsos(
   };
 }
 
-export type AlertSnoozeKind = "hour" | "tomorrow";
+export type AlertSnoozeKind = "hour" | "tomorrow" | "week";
 
-/** When the in-app reminder popup snoozes: +1 hour, or tomorrow 09:00 local. */
+/**
+ * Move a scheduled reminder forward by whole local days, keeping the clock
+ * time of the original due instant. A missing original falls back to `now`.
+ */
+export function postponeOriginalDueByDays(
+  originalDue: string | null | undefined,
+  days = 7,
+  timezone = DEFAULT_TIMEZONE,
+  now = new Date(),
+): string {
+  const parsed = originalDue ? Date.parse(originalDue) : Number.NaN;
+  const source = Number.isFinite(parsed) ? new Date(parsed) : now;
+  const parts = getZonedParts(source, timezone);
+  return addZonedDays(timezone, source, days, parts.hour, parts.minute);
+}
+
+/** Popup snooze: +1 hour from now, tomorrow 09:00, or +7 days from the original due. */
 export function alertSnoozeDueAt(
   kind: AlertSnoozeKind,
   now = new Date(),
   timezone = DEFAULT_TIMEZONE,
+  originalDue?: string | null,
 ): string {
   if (kind === "hour") {
     return addZonedMinutes(timezone, now, 60);
+  }
+  if (kind === "week") {
+    return postponeOriginalDueByDays(originalDue, 7, timezone, now);
   }
   return defaultTomorrowReminderIso(timezone, now);
 }

@@ -14,6 +14,7 @@ import type { DbMindtaskerItem, DbSourceMaterial, SourceType } from "../types/da
 import { syncNoteEmbedding } from "./search.service.js";
 import { reconcileItemCalendar } from "./calendar.service.js";
 import { resolveRestoreFromArchivePatch } from "../lib/item-restore.js";
+import { reminderMetadataForNewDue } from "../lib/reminderRecurrence.js";
 
 export interface CreateSourceMaterialInput {
   userId: string;
@@ -344,12 +345,13 @@ export async function snoozeItem(
   dueDate: string,
 ): Promise<DbMindtaskerItem> {
   const supabase = getSupabaseAdmin();
-  await getItemById(itemId, userId);
+  const current = await getItemById(itemId, userId);
 
   const { data, error } = await supabase
     .from("mindtasker_items")
     .update({
       due_date: dueDate,
+      metadata: reminderMetadataForNewDue(current.metadata, dueDate),
       last_interacted_at: new Date().toISOString(),
     })
     .eq("id", itemId)

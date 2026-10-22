@@ -81,6 +81,32 @@ function addDaysKeepingTime(
   return addZonedDays(timeZone, from, days, parts.hour, parts.minute);
 }
 
+/** +N local days from the original due clock. A missing original uses `now`. */
+export function postponeOriginalDueByDays(
+  originalDue: string | null | undefined,
+  days = 7,
+  timeZone = DEFAULT_TIMEZONE,
+  now = new Date(),
+): string {
+  const parsed = originalDue ? Date.parse(originalDue) : Number.NaN;
+  const source = Number.isFinite(parsed) ? new Date(parsed) : now;
+  const parts = getZonedParts(source, timeZone);
+  return addZonedDays(timeZone, source, days, parts.hour, parts.minute);
+}
+
+/** Clears the sent flag so a snoozed reminder can fire again at `dueDate`. */
+export function reminderMetadataForNewDue(
+  metadata: unknown,
+  dueDate: string,
+): Record<string, unknown> {
+  const patched = patchReminderMetadata(metadata, {
+    manual: true,
+    disabled: false,
+    sent: false,
+  });
+  return syncAnalysisFireTimes(patched, dueDate);
+}
+
 /** Israeli work week: Sunday–Thursday. */
 function isIsraeliWeekday(weekday: number): boolean {
   return weekday >= 0 && weekday <= 4;

@@ -1,9 +1,6 @@
-import {
-  alertSnoozeDueAt,
-  type AlertSnoozeKind,
-} from "./resolve-item-reminder";
+import type { AlertSnoozeKind } from "./resolve-item-reminder";
 
-type AlertSnoozeHandler = (itemId: string, dueIso: string) => Promise<void> | void;
+type AlertSnoozeHandler = (itemId: string, kind: AlertSnoozeKind) => Promise<void> | void;
 
 let handler: AlertSnoozeHandler | null = null;
 
@@ -16,6 +13,6 @@ export async function snoozeReminderAlert(
   kind: AlertSnoozeKind,
 ): Promise<boolean> {
   if (!itemId || !handler) return false;
-  await handler(itemId, alertSnoozeDueAt(kind));
+  await handler(itemId, kind);
   return true;
 }

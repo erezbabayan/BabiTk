@@ -132,6 +132,38 @@ function addDaysKeepingTime(timeZone: string, fromIso: string, days: number): st
   return addZonedDays(timeZone, from, days, parts.hour, parts.minute);
 }
 
+/** +N local days from the original due clock. Missing original uses `now`. */
+export function postponeOriginalDueByDays(
+  originalDue: string | null | undefined,
+  days = 7,
+  timeZone = DEFAULT_TIMEZONE,
+  now = new Date(),
+): string {
+  const parsed = originalDue ? Date.parse(originalDue) : Number.NaN;
+  const sourceIso = Number.isFinite(parsed) ? new Date(parsed).toISOString() : now.toISOString();
+  return addDaysKeepingTime(timeZone, sourceIso, days);
+}
+
+/** Clears the sent flag so a snoozed reminder can fire again at `dueDate`. */
+export function reminderMetadataForNewDue(metadata: unknown, dueDate: string): Record<string, unknown> {
+  const base =
+    metadata && typeof metadata === "object" ? { ...(metadata as Record<string, unknown>) } : {};
+  const analysisRaw = base.analysis;
+  const analysis =
+    analysisRaw && typeof analysisRaw === "object"
+      ? { ...(analysisRaw as Record<string, unknown>) }
+      : {};
+  analysis.target_at = dueDate;
+  analysis.notify_at = dueDate;
+  return {
+    ...base,
+    analysis,
+    reminder_sent: false,
+    reminder_disabled: false,
+    reminder_manual: true,
+  };
+}
+
 function addMonthsKeepingTime(timeZone: string, fromIso: string, months: number): string {
   const from = new Date(fromIso);
   const parts = getZonedParts(from, timeZone);

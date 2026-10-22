@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { formatListReminderAt, isListReminderActive } from "../../../convex/lib/taskListNames";
+import { alertSnoozeDueAt } from "../lib/resolve-item-reminder";
 import { snoozePresets } from "../hooks/useItems";
 import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";
 import { DueDateFields } from "./DueDateFields";
@@ -25,6 +26,10 @@ export function ListReminderPicker({
     { label: "עוד 3 שעות", value: presets.in3Hours },
     { label: "מחר בבוקר", value: presets.tomorrowMorning },
     { label: "שבוע הבא", value: presets.nextWeek },
+    {
+      label: "דחה לשבוע הבא",
+      value: alertSnoozeDueAt("week", new Date(), "Asia/Jerusalem", reminderAt),
+    },
   ];
 
   const [dueParts, setDueParts] = useState<DueDateParts>(() => splitDueDate(reminderAt));
