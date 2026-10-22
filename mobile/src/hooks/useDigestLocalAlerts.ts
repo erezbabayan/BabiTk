@@ -2,11 +2,13 @@ import { useEffect, useRef } from "react";
 import { useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
+import { useConvexBackend } from "../lib/data-backend";
 import { syncDigestLocalAlerts } from "../lib/digest-local-alerts";
 
 /** Keep local OS alerts in sync with the user's WhatsApp digest hours. */
 export function useDigestLocalAlerts(enabled: boolean): void {
-  const viewer = useQuery(api.users.viewer, enabled ? {} : "skip");
+  const convexBackend = useConvexBackend();
+  const viewer = useQuery(api.users.viewer, enabled && convexBackend ? {} : "skip");
   const lastFingerprint = useRef<string | null>(null);
 
   useEffect(() => {

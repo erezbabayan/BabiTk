@@ -113,6 +113,20 @@ describe("BabiTk Android release", () => {
     assert.match(mobileAuth, /resolveLoginEmail/);
     assert.match(appJson, /"host": "auth-callback"/);
     assert.doesNotMatch(appJson, /autoVerify/);
+    const convexProvider = readFileSync(
+      path.join(ROOT, "mobile/src/providers/ConvexAppProvider.tsx"),
+      "utf8",
+    );
+    const metro = readFileSync(path.join(ROOT, "mobile/metro.config.js"), "utf8");
+    const rootPkg = readFileSync(path.join(ROOT, "package.json"), "utf8");
+    const mobilePkg = readFileSync(path.join(ROOT, "mobile/package.json"), "utf8");
+    assert.match(convexProvider, /ConvexProviderWithAuth/);
+    assert.match(metro, /disableHierarchicalLookup: true/);
+    assert.match(metro, /extraNodeModules/);
+    assert.match(metro, /nodeModulesPaths: \[mobileModules\]/);
+    assert.match(rootPkg, /"convex": "1\.41\.0"/);
+    assert.match(mobilePkg, /"overrides"/);
+    assert.match(mobilePkg, /"convex": "1\.41\.0"/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEYSTORE_PASSWORD"/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEY_PASSWORD"/);
     assert.doesNotMatch(ci, /assembleRelease/);
