@@ -10,6 +10,7 @@ import { TagSettings } from "./TagSettings";
 import { TextCaptureSettings } from "./TextCaptureSettings";
 import { TrashSettings } from "./TrashSettings";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { BabiSnapSettings } from "./BabiSnapSettings";
 import { UserSettings } from "./UserSettings";
 import { VoiceRecordingSettings } from "./VoiceRecordingSettings";
 import { NotificationPrefs } from "./NotificationPrefs";
@@ -22,6 +23,7 @@ export type SettingsSection =
   | "notifications"
   | "whatsapp"
   | "voice"
+  | "babisnap"
   | "notebook"
   | "text"
   | "calendar"
@@ -51,6 +53,7 @@ export const SETTINGS_MENU_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: "notifications", label: "🔔 התראות" },
   { id: "whatsapp", label: "💬 וואטסאפ — חיבור" },
   { id: "voice", label: "🎙 הקלטה קולית" },
+  { id: "babisnap", label: "BabiSnap" },
   { id: "notebook", label: "📷 סריקת מחברת" },
   { id: "text", label: "✏️ קליטת טקסט" },
   { id: "calendar", label: "📅 יומן BabiTk" },
@@ -179,6 +182,13 @@ export function SettingsPanel({
           )
         ) : null}
         {section === "voice" ? <VoiceRecordingSettings summary={summary} /> : null}
+        {section === "babisnap" ? (
+          cloudBackend ? (
+            <BabiSnapSettings />
+          ) : (
+            <OfflineNotice>חיבור BabiSnap דורש חשבון ענן.</OfflineNotice>
+          )
+        ) : null}
         {section === "notebook" ? <NotebookScanSettings summary={summary} /> : null}
         {section === "text" ? <TextCaptureSettings summary={summary} /> : null}
         {section === "calendar" ? <GoogleCalendarLink userId={userId} /> : null}
