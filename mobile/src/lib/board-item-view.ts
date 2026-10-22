@@ -39,3 +39,26 @@ export function resolveTaskBoardView(
 ): TaskBoardView {
   return showCalendar ? "calendar" : itemView;
 }
+
+/** v2: calendar (יומן) is the tasks-board default; older implicit list/squares state is ignored once. */
+const TASK_CALENDAR_KEY = "babitk.taskBoardCalendar.v2";
+
+export function parseTaskCalendarPref(raw: string | null | undefined): boolean {
+  return raw === "0" ? false : true;
+}
+
+export async function readTaskCalendarPref(): Promise<boolean> {
+  try {
+    return parseTaskCalendarPref(await AsyncStorage.getItem(TASK_CALENDAR_KEY));
+  } catch {
+    return true;
+  }
+}
+
+export async function writeTaskCalendarPref(show: boolean): Promise<void> {
+  try {
+    await AsyncStorage.setItem(TASK_CALENDAR_KEY, show ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
