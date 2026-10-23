@@ -24,8 +24,16 @@ import {
   VOICE_PENDING_TITLE,
   VOICE_TRANSCRIBING_TITLE,
   VOICE_UNAVAILABLE_TITLE,
+  titleFromInboundText,
 } from "./voice-text.ts";
 import { classifyWhatsAppInbound } from "./whatsapp-inbound-route.ts";
+import {
+  VOICE_ASR_MAX_ATTEMPTS,
+  voiceAsrAttemptsExhausted,
+  voiceAsrErrorLabel,
+  voiceAsrFinalMetadata,
+  withVoiceAsrAttempt,
+} from "./voice-asr-attempts.ts";
 import { loadAllowedTagNames, parseIncomingMessage } from "./parse-incoming-message.ts";
 import { sendGreenApiText } from "./green-api-send.ts";
 import { queueCalendarSync } from "./google-calendar.ts";
@@ -594,10 +602,15 @@ export async function softDeleteVoiceItemAsQuestion(
   row: VoiceItemRow,
   transcribed: { rawText: string; content: string },
 ): Promise<void> {
+  // Never leave "ממתין לתמלול" in the trash for an answered question.
+  const questionText = (transcribed.content || transcribed.rawText || "").trim();
   const { error: deleteError } = await supabase
     .from("mindtasker_items")
     .update({
       deleted_at: new Date().toISOString(),
+      ...(questionText && needsVoiceTranscription(row.title, row.content)
+        ? { title: titleFromInboundText(questionText), content: questionText }
+        : {}),
       metadata: {
         ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
         source: metadataString(row.metadata, "source") || "whatsapp_voice",
@@ -647,6 +660,8 @@ export async function transcribeStoredVoiceItem(
   supabase: AdminClient,
   row: VoiceItemRow,
   gateway: VoiceGatewayCredentials | null,
+  /** manual: the user tapped "retry" in the app, so the background cap does not apply. */
+  options: { manual?: boolean } = {},
 ): Promise<{
   title: string;
   content: string;
@@ -670,6 +685,10 @@ export async function transcribeStoredVoiceItem(
       audioUrl: firstSourceMaterial(row)?.storage_url ?? null,
     };
   }
+  if (!options.manual && voiceAsrAttemptsExhausted(row.metadata)) {
+    throw new Error("voice_asr_attempts_exhausted");
+  }
+  await recordVoiceAsrAttempt(supabase, row);
   const source = firstSourceMaterial(row);
   const messageId = metadataString(row.metadata, "whatsapp_message_id") || row.id;
   const chatId = metadataString(row.metadata, "chat_id");
@@ -722,6 +741,50 @@ async function sendVoiceCaptureConfirmation(
   );
 }
 
+/** Count the attempt before ASR runs, so isolate timeouts are counted too. */
+async function recordVoiceAsrAttempt(supabase: AdminClient, row: VoiceItemRow): Promise<void> {
+  const metadata = withVoiceAsrAttempt(row.metadata);
+  const { error } = await supabase
+    .from("mindtasker_items")
+    .update({ metadata })
+    .eq("id", row.id)
+    .is("deleted_at", null);
+  if (error) {
+    console.error("voice asr attempt counter failed", error.message);
+    return;
+  }
+  row.metadata = metadata;
+}
+
+/**
+ * Catch-up failure handling: keep the item pending (a later tick may succeed,
+ * e.g. Green-API media not ready yet) until the attempt cap, then give it a
+ * clear final status so it is never sent to ASR again.
+ */
+export async function handleVoiceCatchupFailure(
+  supabase: AdminClient,
+  row: VoiceItemRow,
+  error: unknown,
+): Promise<"final" | "retry_later"> {
+  if (voiceAsrAttemptsExhausted(row.metadata, VOICE_ASR_MAX_ATTEMPTS)) {
+    await markVoiceItemUnavailable(supabase, row, error);
+    return "final";
+  }
+  const { error: updateError } = await supabase
+    .from("mindtasker_items")
+    .update({
+      metadata: {
+        ...(row.metadata ?? {}),
+        voice_asr_last_error: voiceAsrErrorLabel(error),
+        voice_transcribe_started_at: null,
+      },
+    })
+    .eq("id", row.id)
+    .is("deleted_at", null);
+  if (updateError) console.error("voice catchup failure note failed", updateError.message);
+  return "retry_later";
+}
+
 /** Repair at most one leftover placeholder. Safe to call after inbound ingest. */
 export async function repairOnePlaceholderVoiceItem(
   supabase: AdminClient,
@@ -745,7 +808,7 @@ export async function repairOnePlaceholderVoiceItem(
     return true;
   } catch (error) {
     console.error("placeholder voice repair failed", error);
-    await markVoiceItemUnavailable(supabase, row);
+    await markVoiceItemUnavailable(supabase, row, error);
     return false;
   }
 }
@@ -753,19 +816,20 @@ export async function repairOnePlaceholderVoiceItem(
 export async function markVoiceItemUnavailable(
   supabase: AdminClient,
   row: VoiceItemRow,
+  cause?: unknown,
 ): Promise<void> {
   const { error } = await supabase
     .from("mindtasker_items")
     .update({
       title: VOICE_UNAVAILABLE_TITLE,
       last_interacted_at: new Date().toISOString(),
-      metadata: {
-        ...(typeof row.metadata === "object" && row.metadata ? row.metadata : {}),
-        voice_transcribe_started_at: null,
-        voice_refine_pending: false,
-      },
+      metadata: voiceAsrFinalMetadata(
+        typeof row.metadata === "object" && row.metadata ? row.metadata : {},
+        cause ?? "voice_asr_failed",
+      ),
     })
-    .eq("id", row.id);
+    .eq("id", row.id)
+    .is("deleted_at", null);
   if (error) {
     console.error("mark voice unavailable failed", error);
   }
@@ -785,7 +849,7 @@ export async function awaitStoredVoiceTranscription(
     return { answered: transcribed.answered, title: transcribed.title };
   } catch (error) {
     console.error("stored voice transcription failed", error);
-    await markVoiceItemUnavailable(supabase, row);
+    await markVoiceItemUnavailable(supabase, row, error);
     return null;
   }
 }

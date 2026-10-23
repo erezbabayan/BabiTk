@@ -808,6 +808,7 @@ Deno.serve(async (req) => {
         row,
         (adminGateway as VoiceGatewayCredentials | null) ??
           (gateway as VoiceGatewayCredentials | null),
+        { manual: true },
       );
       return json({
         ok: true,
