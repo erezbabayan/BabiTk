@@ -47,6 +47,7 @@ import {
   type VoiceItemRow,
 } from "../_shared/voice-ingest.ts";
 import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
+import { markWhatsAppInboundSeen } from "../_shared/whatsapp-group-catchup-cron.ts";
 import { sendGreenApiText } from "../_shared/green-api-send.ts";
 import {
   addHoursIso,
@@ -1280,6 +1281,8 @@ Deno.serve(async (req) => {
           text: message.text,
         });
         if (handled) {
+          // Background ledger write: scheduled group catch-up never re-imports this id.
+          scheduleBackgroundWork(markWhatsAppInboundSeen(supabase, user.id, message.messageId));
           answered.push({ messageId: message.messageId, userId: user.id });
           await maybeSendGroupMenu({
             supabase,
@@ -1292,6 +1295,7 @@ Deno.serve(async (req) => {
         }
       }
       const inserted = await ingestMessage(supabase, user, message, gateway);
+      scheduleBackgroundWork(markWhatsAppInboundSeen(supabase, user.id, message.messageId));
       if (inserted === "answered") {
         answered.push({ messageId: message.messageId, userId: user.id });
       } else if (
