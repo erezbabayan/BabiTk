@@ -20,5 +20,5 @@ export async function resolveLoginEmail(identifier: string): Promise<string> {
   if (typeof data === "string" && looksLikeEmail(data)) {
     return data.trim().toLowerCase();
   }
-  throw new Error("שם משתמש לא נמצא. בדקו את האיות או הירשמו.");
+  throw new Error("שם משתמש או סיסמה שגויים");
 }

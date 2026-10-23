@@ -516,6 +516,7 @@ Deno.serve(async (req) => {
       );
     }
     console.error("google-calendar", error);
-    return json({ error: message }, 400);
+    // Keep machine-readable codes the clients map to messages; hide raw upstream/DB text.
+    return json({ error: /^[a-z_]{3,64}$/.test(message) ? message : "calendar_failed" }, 400);
   }
 });
