@@ -68,3 +68,6 @@ enabled = true
 [studio]
 enabled = true
 port = 54323
+
+[functions.whatsapp-group-catchup]
+verify_jwt = false

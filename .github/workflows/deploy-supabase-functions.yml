@@ -168,6 +168,7 @@ jobs:
           supabase functions deploy whatsapp-green-connect --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy whatsapp-phone-otp --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy whatsapp-send-reminders --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
+          supabase functions deploy whatsapp-group-catchup --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy ingest-voice --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy voice-ingest --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy babisnap --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"

@@ -244,12 +244,14 @@ describe("server-side group inbox catch-up", () => {
     assert.match(source, /runWhatsAppGroupInboxCatchup/);
   });
 
-  it("ships a service-role GitHub Action that does not need Edge Function deploy", () => {
+  it("keeps the GitHub catch-up as an hourly backup of the pg_cron Edge Function", () => {
     const source = readFileSync(
       join(here, "../../../.github/workflows/whatsapp-group-catchup.yml"),
       "utf8",
     );
-    assert.match(source, /whatsapp-group-inbox-catchup.ts/);
-    assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
+    assert.match(source, /functions\/v1\/whatsapp-group-catchup/);
+    assert.match(source, /cron: "47 \* \* \* \*"/);
+    assert.equal(source.includes("push:"), false);
+    assert.equal(source.includes("SUPABASE_SERVICE_ROLE_KEY"), false);
   });
 });

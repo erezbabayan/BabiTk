@@ -1,22 +1,35 @@
-name: WhatsApp group inbox catch-up
+name: WhatsApp group inbox catch-up (hourly backup)
+
+# Primary scheduler is pg_cron (job babitk-whatsapp-group-catchup, every 10 min,
+# migration 20261023151000_pg_cron_group_catchup.sql). This hourly run only calls
+# the same Edge Function, which imports NEW group texts after the per-user
+# watermark and dedupes by Green-API message id under a single-flight lease, so
+# an extra run can never import old messages or duplicates. Without the
+# GROUP_CATCHUP_CRON_SECRET repo secret it is a no-op.
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
-  push:
-    branches: [main]
+    - cron: "47 * * * *"
   workflow_dispatch:
 
 jobs:
   catchup:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Pull group WhatsApp texts into inbox
+      - name: Trigger whatsapp-group-catchup
         env:
-          SUPABASE_URL: https://ghibfuinantybqidwadj.supabase.co
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node --experimental-strip-types scripts/whatsapp-group-inbox-catchup.ts
+          CATCHUP_SECRET: ${{ secrets.GROUP_CATCHUP_CRON_SECRET }}
+        run: |
+          if [ -z "${CATCHUP_SECRET}" ]; then
+            echo "GROUP_CATCHUP_CRON_SECRET not set; pg_cron is the primary scheduler. Skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o /tmp/out.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${CATCHUP_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data '{"source":"github"}' \
+            https://ghibfuinantybqidwadj.supabase.co/functions/v1/whatsapp-group-catchup)
+          echo "HTTP ${code}"
+          jq -c '{ok, skipped, users, inserted, duplicates, errors}' /tmp/out.json || true
+          test "${code}" = "200"
