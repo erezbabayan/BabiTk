@@ -28,8 +28,7 @@ import {
   parseChecklist,
   type ChecklistEntry,
 } from "../lib/checklist";
-import { isDeviceVoiceItem } from "../lib/device-voice-chip";
-import { DeviceVoiceChip } from "./DeviceVoiceChip";
+import { ItemSourceChip } from "./ItemSourceChip";
 
 interface ItemEditModalProps {
   item: MindtaskerItem | null;
@@ -152,7 +151,7 @@ export function ItemEditModal({ item, visible, onClose, onSave }: ItemEditModalP
             </View>
             <View style={styles.titleLabelRow}>
               <Text style={styles.label}>כותרת</Text>
-              {item && isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
+              {item ? <ItemSourceChip item={item} /> : null}
             </View>
             <TextInput
               style={styles.input}

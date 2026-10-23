@@ -433,7 +433,7 @@ function clientTimezone(): string {
 export async function ingestText(text: string, _legacyUserId?: string): Promise<void> {
   if (isDemoMode) {
     const { ingestTextSync } = await import("./sync-client");
-    await ingestTextSync({ text, sourceType: "whatsapp_text", timezone: clientTimezone() });
+    await ingestTextSync({ text, sourceType: "typed_text", timezone: clientTimezone() });
     return;
   }
 

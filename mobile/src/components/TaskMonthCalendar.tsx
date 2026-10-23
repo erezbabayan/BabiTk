@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ItemSourceChip } from "./ItemSourceChip";
 import {
   PanResponder,
   Pressable,
@@ -83,6 +84,7 @@ function DayTaskRow({
       <Text style={styles.rowTitle} numberOfLines={1}>
         {item.title.trim() || "משימה"}
       </Text>
+      <ItemSourceChip item={item} />
       <Text style={[styles.rowMeta, recurring && styles.rowMetaRecurring]}>{meta}</Text>
     </TouchableOpacity>
   );

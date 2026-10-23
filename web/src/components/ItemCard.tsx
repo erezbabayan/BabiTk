@@ -28,8 +28,7 @@ import {
   ITEM_HEADLINE_CLASS,
 } from "../lib/item-typography";
 import { isPriorityItem } from "../lib/item-priority";
-import { isDeviceVoiceItem } from "../lib/device-voice-chip";
-import { DeviceVoiceChip } from "./DeviceVoiceChip";
+import { ItemSourceChip } from "./ItemSourceChip";
 import { PriorityStar } from "./PriorityStar";
 import { useBoardItemViewOptional } from "../providers/BoardItemViewProvider";
 import {
@@ -333,7 +332,7 @@ function ItemCardComponent({
             >
               {headlineText}
             </h3>
-            {isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
+            <ItemSourceChip item={item} />
           </div>
 
           {showSource ? (
