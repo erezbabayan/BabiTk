@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { hasPasswordLogin } from "../lib/auth-account";
-import { apiFetch, getGoogleCalendarStatus } from "../lib/api";
+import { getGoogleCalendarStatus } from "../lib/api";
 import { requireSupabase } from "../lib/supabase";
 import { getAuthAccountView, type AuthAccountView } from "../lib/user-profile";
 import { ChangePasswordForm } from "./ChangePasswordForm";
@@ -120,7 +120,10 @@ export function UserSettings() {
                 setError(null);
                 setMessage(null);
                 try {
-                  const data = await apiFetch<unknown>("/api/profile/export");
+                  const { data, error: fnError } = await requireSupabase().functions.invoke("account", {
+                    body: { action: "export" },
+                  });
+                  if (fnError) throw new Error("הייצוא נכשל");
                   const blob = new Blob([JSON.stringify(data, null, 2)], {
                     type: "application/json",
                   });
@@ -155,8 +158,11 @@ export function UserSettings() {
                 setError(null);
                 setMessage(null);
                 try {
-                  await apiFetch("/api/profile", { method: "DELETE" });
-                  await requireSupabase().auth.signOut();
+                  const { error: fnError } = await requireSupabase().functions.invoke("account", {
+                    body: { action: "delete" },
+                  });
+                  if (fnError) throw new Error("מחיקת החשבון נכשלה");
+                  await requireSupabase().auth.signOut({ scope: "local" });
                   window.location.reload();
                 } catch (err) {
                   setError(err instanceof Error ? err.message : "מחיקת החשבון נכשלה");

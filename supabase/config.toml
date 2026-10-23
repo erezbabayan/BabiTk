@@ -47,6 +47,9 @@ verify_jwt = false
 [functions.babisnap]
 verify_jwt = true
 
+[functions.account]
+verify_jwt = true
+
 [functions.ingest-notebook]
 verify_jwt = true
 
