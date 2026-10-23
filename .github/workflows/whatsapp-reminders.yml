@@ -1,8 +1,12 @@
-name: WhatsApp reminder dispatch
+name: WhatsApp reminder dispatch (hourly backup)
 
+# Primary scheduler is pg_cron in Supabase (job "babitk-whatsapp-reminders", every
+# 5 minutes; see supabase/migrations/20261023140000_pg_cron_reminders.sql).
+# This hourly run is only a backup. The Edge Function takes a single-flight lease
+# and every sender is marked once per user/item/day, so an extra run sends nothing twice.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "37 * * * *"
   workflow_dispatch:
 
 jobs:
