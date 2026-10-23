@@ -35,6 +35,11 @@ import { dispatchProactiveWhatsApp } from "../_shared/whatsapp-proactive-dispatc
 import { dispatchNotebookReminders } from "../_shared/notebook-reminder-dispatch.ts";
 import { isInsideShabbatQuiet } from "../_shared/jewish-calendar.ts";
 import { envFlagEnabled } from "../_shared/proactive-whatsapp.ts";
+import {
+  REMINDERS_CRON_LEASE,
+  REMINDERS_CRON_LEASE_TTL_SECONDS,
+  withCronLease,
+} from "../_shared/cron-lease.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -86,7 +91,7 @@ type GatewayRow = {
   api_url: string;
 };
 
-Deno.serve(async (req) => {
+async function handleRequest(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return json({ ok: true });
   if (req.method !== "POST" && req.method !== "GET") {
     return json({ error: "method_not_allowed" }, 405);
@@ -438,4 +443,22 @@ Deno.serve(async (req) => {
   }
 
   return json({ ok: true, sent, digests, ...proactive, notebookReminders });
+}
+
+Deno.serve(async (req) => {
+  // Cron callers (pg_cron every 5 min, GitHub Actions backup) run one at a time,
+  // so overlapping ticks can't double-send. User-scoped calls are not gated.
+  if (!SUPABASE_URL || !SERVICE_ROLE || req.method === "OPTIONS" || !isCronAuth(req)) {
+    return handleRequest(req);
+  }
+  const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return withCronLease(
+    admin,
+    REMINDERS_CRON_LEASE,
+    REMINDERS_CRON_LEASE_TTL_SECONDS,
+    () => handleRequest(req),
+    () => json({ ok: true, skipped: "busy", sent: 0, digests: 0 }),
+  );
 });
