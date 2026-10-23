@@ -29,3 +29,9 @@ build/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+# Local build/check artifacts and logs (see .cursorignore)
+mobile/.expo-check-bundle/
+.azure-logs/
+.tmp-*
+*.log

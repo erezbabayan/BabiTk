@@ -1,0 +1,14 @@
+# Generated / build output and logs: keep them out of Cursor's index and context.
+# Note: convex/ is NOT ignored. The Convex runtime is retired, but convex/lib is
+# still imported by supabase/functions/_shared, the web/mobile builds and the tests.
+mobile/.expo-check-bundle/
+.azure-logs/
+web/assets/
+web/dist/
+convex/_generated/
+convex-export-tmp
+convex-export-tmp/
+web/babitk-local-seed.json
+web/public/babitk-local-seed.json
+.tmp-*
+**/*.log
