@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { secureTokenStorage } from "./secure-token-storage";
+
 const REMEMBER_ME_KEY = "mindtasker:auth:remember-me";
 const REMEMBER_EMAIL_KEY = "mindtasker:auth:remembered-email";
 export const CONVEX_AUTH_USER_KEY = "mindtasker:convex:auth-session-user";
@@ -50,10 +52,8 @@ export async function writeConvexAuthTokens(
   if (!jwtKey || !refreshKey) return;
 
   try {
-    await AsyncStorage.multiSet([
-      [jwtKey, token],
-      [refreshKey, refreshToken],
-    ]);
+    await secureTokenStorage.setItem(jwtKey, token);
+    await secureTokenStorage.setItem(refreshKey, refreshToken);
   } catch {
     // ignore
   }
@@ -61,7 +61,7 @@ export async function writeConvexAuthTokens(
 
 export async function clearConvexAuthTokens(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove(convexAuthStorageKeys());
+    for (const key of convexAuthStorageKeys()) await secureTokenStorage.removeItem(key);
   } catch {
     // ignore
   }
@@ -72,22 +72,16 @@ export async function readConvexAuthJwt(): Promise<string | null> {
   const jwtKey = keys.find((key) => key.includes("__convexAuthJWT"));
   if (!jwtKey) return null;
   try {
-    return (await AsyncStorage.getItem(jwtKey)) ?? null;
+    return (await secureTokenStorage.getItem(jwtKey)) ?? null;
   } catch {
     return null;
   }
 }
 
 export const mutableAuthTokenStorage: TokenStorage = {
-  async getItem(key: string) {
-    return AsyncStorage.getItem(key);
-  },
-  async setItem(key: string, value: string) {
-    await AsyncStorage.setItem(key, value);
-  },
-  async removeItem(key: string) {
-    await AsyncStorage.removeItem(key);
-  },
+  getItem: (key: string) => secureTokenStorage.getItem(key),
+  setItem: (key: string, value: string) => secureTokenStorage.setItem(key, value),
+  removeItem: (key: string) => secureTokenStorage.removeItem(key),
 };
 
 export async function readCachedAuthUserId(): Promise<string | null> {

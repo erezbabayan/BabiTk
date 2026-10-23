@@ -43,6 +43,7 @@ import { TagSettingsScreen } from "./TagSettingsScreen";
 import { TrashScreen } from "./TrashScreen";
 import { BoardSettingsScreen } from "./BoardSettingsScreen";
 import { ChangePasswordSection } from "./ChangePasswordSection";
+import { AccountDataSection } from "./AccountDataSection";
 import { TestDataScreen } from "./TestDataScreen";
 import { NotebookIcon, type NotebookIconName } from "./NotebookIcons";
 
@@ -350,6 +351,7 @@ export function SettingsScreen({
                   {profile.email}
                 </Text>
                 <ChangePasswordSection email={profile.email} />
+                <AccountDataSection />
               </>
             ) : (
 
