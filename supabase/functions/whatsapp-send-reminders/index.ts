@@ -32,6 +32,7 @@ import {
   reminderDueQueryFloorIso,
 } from "../_shared/task-reminder-due.ts";
 import { dispatchProactiveWhatsApp } from "../_shared/whatsapp-proactive-dispatch.ts";
+import { dispatchNotebookReminders } from "../_shared/notebook-reminder-dispatch.ts";
 import { isInsideShabbatQuiet } from "../_shared/jewish-calendar.ts";
 import { envFlagEnabled } from "../_shared/proactive-whatsapp.ts";
 
@@ -419,5 +420,22 @@ Deno.serve(async (req) => {
     console.error("proactive dispatch failed", error);
   }
 
-  return json({ ok: true, sent, digests, ...proactive });
+  let notebookReminders = 0;
+  if (cron) {
+    try {
+      const deliverTo = async (userId: string, message: string) => {
+        const context = await contextFor(userId);
+        if (!context) return false;
+        return deliver(context, message);
+      };
+      ({ notebookReminders } = await dispatchNotebookReminders(admin, deliverTo, now, {
+        enabled: envFlagEnabled(Deno.env.get("WHATSAPP_NOTEBOOK_REMINDER"), true),
+        shabbatQuiet: envFlagEnabled(Deno.env.get("WHATSAPP_SHABBAT_MODE"), true) && isInsideShabbatQuiet(now),
+      }));
+    } catch (error) {
+      console.error("notebook reminder dispatch failed", error);
+    }
+  }
+
+  return json({ ok: true, sent, digests, ...proactive, notebookReminders });
 });
