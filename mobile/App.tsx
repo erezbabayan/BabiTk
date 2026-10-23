@@ -45,7 +45,7 @@ import { useDigestLocalAlerts } from "./src/hooks/useDigestLocalAlerts";
 import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
 import { useBoardSelection } from "./src/hooks/useBoardSelection";
-import { BoardViewToggle } from "./src/components/BoardViewToggle";
+import { AppTopBar } from "./src/components/AppTopBar";
 import { TaskMonthCalendar } from "./src/components/TaskMonthCalendar";
 import {
   calendarChipFocusYmd,
@@ -718,65 +718,30 @@ function MainAppInner({
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
-      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity
-          onPress={goHome}
-          accessibilityRole="button"
-          accessibilityLabel="חזרה למסך הראשי"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <MindTaskerLogo size="medium" />
-        </TouchableOpacity>
-        <View style={styles.topBarActions}>
-          {summary && !summary.isPremium ? (
-            <TouchableOpacity
-              onPress={() => {
-                setPaywallCode(null);
-                setPaywallVisible(true);
-              }}
-            >
-              <Text style={styles.usage}>
-                AI {summary.aiParses.used}/{summary.aiParses.allocated}
-              </Text>
-            </TouchableOpacity>
-          ) : summary?.isPremium ? (
-            <TouchableOpacity
-              onPress={() => {
-                setPaywallCode(null);
-                setPaywallVisible(true);
-              }}
-            >
-              <Text style={styles.premium}>Premium</Text>
-            </TouchableOpacity>
-          ) : null}
-          <BoardViewToggle view={boardItemView} onToggle={handleToggleBoardView} />
-          {notificationsEnabled ? (
-            <TouchableOpacity
-              onPress={() => setNotificationsVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel="התראות"
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <View style={styles.bellWrap}>
-                <Text style={styles.bellIcon}>🔔</Text>
-                {(unreadNotifications ?? 0) > 0 ? (
-                  <View style={styles.bellBadge}>
-                    <Text style={styles.bellBadgeText}>
-                      {(unreadNotifications ?? 0) > 9 ? "9+" : String(unreadNotifications)}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </TouchableOpacity>
-          ) : null}
-          <TouchableOpacity onPress={() => setSettingsVisible(true)}>
-            <Text style={styles.topBarLink}>הגדרות</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={onSignOut}>
-            <Text style={styles.topBarLink}>התנתק</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <AppTopBar
+        topInset={insets.top}
+        usage={
+          summary
+            ? {
+                isPremium: summary.isPremium,
+                used: summary.aiParses.used,
+                allocated: summary.aiParses.allocated,
+              }
+            : null
+        }
+        onOpenPaywall={() => {
+          setPaywallCode(null);
+          setPaywallVisible(true);
+        }}
+        boardItemView={boardItemView}
+        onToggleBoardView={handleToggleBoardView}
+        notificationsEnabled={Boolean(notificationsEnabled)}
+        unreadNotifications={unreadNotifications ?? 0}
+        onOpenNotifications={() => setNotificationsVisible(true)}
+        onOpenSettings={() => setSettingsVisible(true)}
+        onSignOut={onSignOut}
+        onLogoPress={goHome}
+      />
 
       <View style={styles.captureBar}>
         {isSyncEnabled() && !board.isSyncing && !board.syncError ? (
@@ -1382,48 +1347,6 @@ const styles = StyleSheet.create({
     color: "#64748b",
   },
   container: { flex: 1, backgroundColor: "#f1f5f9" },
-  topBar: {
-    flexShrink: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    direction: "ltr",
-  },
-  topBarActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    direction: "ltr",
-  },
-  bellWrap: {
-    position: "relative",
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bellIcon: { fontSize: 16 },
-  bellBadge: {
-    position: "absolute",
-    top: -4,
-    right: -6,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#dc2626",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "700" },
-  usage: { fontSize: 12, fontWeight: "600", color: "#b45309" },
-  premium: { fontSize: 12, fontWeight: "700", color: "#047857" },
-  topBarLink: { color: "#64748b", fontSize: 14 },
   captureBar: {
     flexShrink: 0,
     paddingHorizontal: 16,

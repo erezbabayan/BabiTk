@@ -22,8 +22,7 @@ import {
   parseChecklist,
   type ChecklistEntry,
 } from "../lib/checklist";
-import { isDeviceVoiceItem } from "../lib/device-voice-chip";
-import { DeviceVoiceChip } from "./DeviceVoiceChip";
+import { ItemSourceChip } from "./ItemSourceChip";
 
 export interface ItemEditInput {
   title: string;
@@ -263,7 +262,7 @@ export function ItemEditModal({ item, onClose, onSave }: ItemEditModalProps) {
             <div>
               <div className="mb-px flex items-center gap-1.5" dir="rtl">
                 <label className="text-[10px] font-medium text-slate-500">כותרת</label>
-                {isDeviceVoiceItem(item) ? <DeviceVoiceChip /> : null}
+                <ItemSourceChip item={item} />
               </div>
               {resolved.transcribing ? (
                 <p className="mb-1 text-[10px] text-slate-500">ההודעה הקולית בתהליך תמלול…</p>

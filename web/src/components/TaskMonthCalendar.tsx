@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from "react";
 
+import { ItemSourceChip } from "./ItemSourceChip";
 import { isoDateToDdMmYyyy } from "../lib/date-display";
 import { hebrewDayMark, hebrewDayTooltip, hebrewMonthHeading } from "../lib/hebrew-calendar";
 import {
@@ -132,9 +133,10 @@ function CalendarDayTaskRow({
   const meta = [recurrenceLabel, extraLabel, timeLabel].filter(Boolean).join(" · ");
   const body = (
     <>
-      <span className="min-w-0 truncate font-medium text-slate-800">
+      <span className="min-w-0 flex-1 truncate text-right font-medium text-slate-800">
         {item.title.trim() || "משימה"}
       </span>
+      <ItemSourceChip item={item} />
       <span
         className={`shrink-0 text-[11px] ${recurring ? "font-medium text-teal-800" : "text-slate-500"}`}
       >

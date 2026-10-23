@@ -4,10 +4,12 @@ import type { BoardItemView } from "../lib/board-item-view";
 interface BoardViewToggleProps {
   view: BoardItemView;
   onToggle: () => void;
+  /** Hide the text label (phone-width top bar); the switch keeps its accessibility label. */
+  compact?: boolean;
 }
 
 /** Sliding switch that toggles board items between list and squares. */
-export function BoardViewToggle({ view, onToggle }: BoardViewToggleProps) {
+export function BoardViewToggle({ view, onToggle, compact = false }: BoardViewToggleProps) {
   const isSquares = view === "squares";
 
   return (
@@ -18,7 +20,7 @@ export function BoardViewToggle({ view, onToggle }: BoardViewToggleProps) {
       accessibilityLabel="שינוי תצוגה"
       accessibilityState={{ selected: isSquares }}
     >
-      <Text style={styles.label}>שינוי תצוגה</Text>
+      {compact ? null : <Text style={styles.label}>שינוי תצוגה</Text>}
       <View style={[styles.track, isSquares && styles.trackSquares]}>
         <View style={[styles.thumb, isSquares && styles.thumbSquares]} />
         <Text style={[styles.icon, styles.iconList, isSquares && styles.iconDim]}>☰</Text>
