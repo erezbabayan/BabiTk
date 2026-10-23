@@ -12,6 +12,7 @@ import {
   isWhatsAppMessageCaptured,
   scheduleBackgroundWork,
   transcribeStoredVoiceItem,
+  handleVoiceCatchupFailure,
   type VoiceGatewayCredentials,
   type VoiceItemRow,
 } from "./voice-ingest.ts";
@@ -207,6 +208,7 @@ export async function catchUpCaptureVoice(options: {
       result.transcribed += 1;
     } catch (error) {
       console.error("catchup voice transcribe failed", error);
+      await handleVoiceCatchupFailure(options.supabase, row, error);
     }
   }
   for (const item of toOcr.slice(0, 6)) {

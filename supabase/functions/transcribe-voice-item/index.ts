@@ -93,7 +93,9 @@ Deno.serve(async (req) => {
   const gateway = (gatewayData as VoiceGatewayCredentials | null) ?? null;
 
   try {
-    const transcribed = await transcribeStoredVoiceItem(supabase, row, gateway);
+    const transcribed = await transcribeStoredVoiceItem(supabase, row, gateway, {
+      manual: true,
+    });
     return json({
       ok: true,
       itemId: row.id,

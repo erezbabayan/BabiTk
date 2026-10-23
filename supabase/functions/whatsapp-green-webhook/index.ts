@@ -38,6 +38,7 @@ import {
   insertPendingWhatsAppVoiceItem,
   interceptVoiceItemQuestion,
   repairOnePlaceholderVoiceItem,
+  handleVoiceCatchupFailure,
   scheduleBackgroundWork,
   softDeleteVoiceItemAsQuestion,
   transcribeStoredVoiceItem,
@@ -653,7 +654,13 @@ async function alreadyIngested(
   if (isSoftDeletedVoiceItem(existing)) return true;
   if (needsVoiceTranscription(existing.title, existing.content)) {
     scheduleBackgroundWork(
-      transcribeStoredVoiceItem(supabase, existing, gateway).then(() => undefined),
+      transcribeStoredVoiceItem(supabase, existing, gateway).then(
+        () => undefined,
+        async (error) => {
+          console.error("duplicate-webhook voice transcribe failed", error);
+          await handleVoiceCatchupFailure(supabase, existing, error);
+        },
+      ),
     );
   } else if (needsOcrTranscription(existing.title, existing.content)) {
     scheduleBackgroundWork(
