@@ -1,0 +1,12 @@
+---
+description: Supabase Edge Functions (Deno) conventions for BabiTk
+globs: supabase/functions/**
+alwaysApply: false
+---
+- Deno runtime. Import shared code from `../_shared/*.ts` (and `../../../convex/lib/ingest/*.ts` with explicit `.ts` extensions). Check with `deno check supabase/functions/<name>/index.ts`.
+- Read secrets via `Deno.env.get(...)` / `_shared/runtime-env.ts`. Never log or return tokens or keys; compare secrets with `_shared/safe-compare.ts`.
+- Webhooks fail closed: missing config means 401/503, never open access.
+- `whatsapp-green-webhook` must keep answering Green-API quickly with 2xx for accepted calls. Do slow work (ASR, OCR, LLM) with bounded timeouts and retries.
+- ASR/OCR: use free providers only (Groq, Gemini free tier, Hugging Face). Do not add paid OpenAI models.
+- Schema changes go in `supabase/migrations/` (timestamped). `supabase db push` runs before the functions deploy, so never drop a column that the currently deployed code still reads.
+- Keep the Hebrew user-facing messages in Hebrew.

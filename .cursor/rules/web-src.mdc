@@ -1,0 +1,11 @@
+---
+description: BabiTk web app (React + Vite + Tailwind, Hebrew RTL)
+globs: web/src/**
+alwaysApply: false
+---
+- The UI is Hebrew and RTL. Use logical Tailwind utilities (`ms-`/`me-`, `ps-`/`pe-`, `text-start`) and check truncation with Hebrew text.
+- It must work at 360–412px and on desktop. Use `sm:`/`lg:` breakpoints instead of separate components. Icon-only buttons need a Hebrew `aria-label`.
+- Data goes through Supabase (`src/lib/supabase.ts`, `src/lib/api.ts`). Convex is retired: `useConvexBackend()` is always false, so don't add new Convex reads.
+- Bundle small assets in `src/assets`; no per-item network fetches for icons.
+- New pure logic belongs in `src/lib/*.ts` with a `*.test.ts`; add the test file to the `npm test` list in `web/package.json`.
+- Verify with `npm test && npm run build` in `web/`. Never commit `web/dist`, and never put secrets in `VITE_*` (only the public anon key belongs there).
