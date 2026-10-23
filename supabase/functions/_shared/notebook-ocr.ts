@@ -1,8 +1,12 @@
 /**
- * Notebook / photo OCR cascade for Edge:
- * 1. Gemini Flash (when GEMINI_API_KEY) — free, strong Hebrew print + handwriting
- * 2. Groq Llama-4 Scout (when GROQ_API_KEY)
- * 3. OpenAI GPT-4o
+ * Notebook / photo OCR cascade for Edge (free tiers only):
+ * 1. Gemini (when GEMINI_API_KEY) — gemini-3.5-flash-lite, then gemini-3.6-flash;
+ *    one retry each on transient errors (429/5xx/overloaded).
+ * 2. Groq qwen/qwen3.8-27b vision (when GROQ_API_KEY) — free last resort.
+ * No OpenAI / paid vision step.
+ *
+ * Proofread (refineNotebookTranscription) stays a separate step:
+ * Gemini GEMINI_PARSE_MODEL → Groq qwen/qwen3.8-27b → Groq openai/gpt-oss-120b → raw.
  *
  * One photo ≈ one page. Output is capped at MAX_OCR_OUTPUT_CHARS (~1,500 Hebrew words).
  */
@@ -32,20 +36,21 @@ export const notebookVisionTranscriptionPrompt = `תמלל את כל הטקסט 
 אם אין טקסט קריא בכלל — החזר מחרוזת ריקה.
 החזר רק את התמלול, בלי כותרות ובלי JSON.`;
 
-const GROQ_VISION_MODEL_DEFAULT = "meta-llama/llama-4-scout-17b-16e-instruct";
-const GROQ_VISION_MODEL_FALLBACKS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
-  "llama-3.2-11b-vision-preview",
-] as const;
-const GEMINI_VISION_MODELS = [
-  "gemini-3.1-flash-lite",
-  "gemini-3.5-flash",
-  "gemini-3.6-flash",
-  "gemini-flash-latest",
-  "gemini-3.8-flash",
-] as const;
+/** Groq vision model (verified against GET /openai/v1/models, 2026-10-23). */
+export const GROQ_VISION_MODEL_DEFAULT = "qwen/qwen3.8-27b";
+/** Groq text models for the proofread fallback, in order. */
+export const GROQ_PARSE_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"] as const;
+/** Free-tier Gemini vision models, best first (stable, no announced shutdown). */
+export const GEMINI_VISION_MODELS = ["gemini-3.5-flash-lite", "gemini-3.6-flash"] as const;
+/** Attempts per Gemini model: 1 try + 1 retry on transient errors. */
+export const GEMINI_ATTEMPTS_PER_MODEL = 2;
+/** Low thinking keeps OCR fast; thinking tokens count against maxOutputTokens. */
+const GEMINI_THINKING: Record<string, { level: string; headroomTokens: number }> = {
+  "gemini-3.5-flash-lite": { level: "minimal", headroomTokens: 512 },
+  "gemini-3.6-flash": { level: "low", headroomTokens: 1536 },
+};
 
+/** "openai" is kept only so older stored `vision_engine` values still type-check; it is never produced. */
 export type VisionOcrEngine = "gemini" | "groq" | "openai";
 
 export type NotebookOcrResult = {
@@ -86,8 +91,7 @@ export function notebookBodyFromOcr(transcribed: NotebookOcrApplyText): {
 export function isVisionOcrConfigured(): boolean {
   return Boolean(
     readRuntimeEnv("GEMINI_API_KEY") ||
-      readRuntimeEnv("GROQ_API_KEY") ||
-      readRuntimeEnv("OPENAI_API_KEY"),
+      readRuntimeEnv("GROQ_API_KEY"),
   );
 }
 
@@ -142,11 +146,12 @@ async function chatCompletion(params: {
   userText: string;
   imageDataUrl?: string;
   maxTokens: number;
+  extraBody?: Record<string, unknown>;
 }): Promise<string> {
   const userContent = params.imageDataUrl
     ? [
-        { type: "text", text: params.userText },
         { type: "image_url", image_url: { url: params.imageDataUrl } },
+        { type: "text", text: params.userText },
       ]
     : params.userText;
   const messages: Array<Record<string, unknown>> = [];
@@ -165,6 +170,7 @@ async function chatCompletion(params: {
       temperature: 0,
       max_tokens: params.maxTokens,
       messages,
+      ...(params.extraBody ?? {}),
     }),
     signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
   });
@@ -176,6 +182,28 @@ async function chatCompletion(params: {
   const text = chatContent(body);
   if (!text) throw new Error("empty_ocr");
   return text;
+}
+
+/** Image part first, then the instruction (Gemini's recommended order for single-image prompts). */
+export function geminiOcrParts(bytes: Uint8Array, mimeType: string): Array<Record<string, unknown>> {
+  return [
+    {
+      inlineData: {
+        mimeType: normalizeImageMime(mimeType),
+        data: bytesToBase64(bytes),
+      },
+    },
+    { text: notebookVisionTranscriptionPrompt },
+  ];
+}
+
+export function geminiOcrGenerationConfig(model: string): Record<string, unknown> {
+  const thinking = GEMINI_THINKING[model];
+  return {
+    temperature: 0,
+    maxOutputTokens: MAX_OCR_OUTPUT_TOKENS + (thinking?.headroomTokens ?? 0),
+    ...(thinking ? { thinkingConfig: { thinkingLevel: thinking.level } } : {}),
+  };
 }
 
 async function ocrWithGemini(
@@ -194,21 +222,10 @@ async function ocrWithGemini(
       contents: [
         {
           role: "user",
-          parts: [
-            { text: notebookVisionTranscriptionPrompt },
-            {
-              inlineData: {
-                mimeType: normalizeImageMime(mimeType),
-                data: bytesToBase64(bytes),
-              },
-            },
-          ],
+          parts: geminiOcrParts(bytes, mimeType),
         },
       ],
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: MAX_OCR_OUTPUT_TOKENS,
-      },
+      generationConfig: geminiOcrGenerationConfig(model),
     }),
     signal: AbortSignal.timeout(OCR_TIMEOUT_MS),
   });
@@ -227,7 +244,7 @@ async function ocrWithGemini(
   return text;
 }
 
-function isTransientGeminiError(message: string): boolean {
+export function isTransientGeminiError(message: string): boolean {
   return /http_429|http_503|http_500|http_502|http_504|overloaded|unavailable|resource.?exhausted|high demand/i.test(
     message,
   );
@@ -240,13 +257,13 @@ async function ocrWithGeminiRetrying(
   model: string,
 ): Promise<string> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < GEMINI_ATTEMPTS_PER_MODEL; attempt += 1) {
     try {
       return await ocrWithGemini(bytes, mimeType, apiKey, model);
     } catch (error) {
       lastError = error;
       const message = error instanceof Error ? error.message : String(error);
-      if (!isTransientGeminiError(message) || attempt === 2) break;
+      if (!isTransientGeminiError(message) || attempt === GEMINI_ATTEMPTS_PER_MODEL - 1) break;
       await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
     }
   }
@@ -266,24 +283,22 @@ async function ocrWithGroq(
     userText: notebookVisionTranscriptionPrompt,
     imageDataUrl: toDataUrl(bytes, mimeType),
     maxTokens: MAX_OCR_OUTPUT_TOKENS,
+    extraBody: groqReasoningBody(model),
   });
 }
 
-async function ocrWithOpenAi(
-  bytes: Uint8Array,
-  mimeType: string,
-  apiKey: string,
-  model: string,
-): Promise<string> {
-  return await chatCompletion({
-    url: "https://api.openai.com/v1/chat/completions",
-    apiKey,
-    model,
-    system: notebookVisionTranscriptionPrompt,
-    userText: "תמלל את התמונה.",
-    imageDataUrl: toDataUrl(bytes, mimeType),
-    maxTokens: MAX_OCR_OUTPUT_TOKENS,
-  });
+/** Qwen 3.8 on Groq: reasoning off (plain transcription). GPT-OSS: low effort, hidden. */
+export function groqReasoningBody(model: string): Record<string, unknown> {
+  if (/^qwen\//i.test(model)) return { reasoning_effort: "none" };
+  if (/^openai\/gpt-oss/i.test(model)) return { reasoning_effort: "low", include_reasoning: false };
+  return {};
+}
+
+/** An env override replaces the first slot; the chain is always at most 2 Gemini models. */
+export function geminiVisionModelOrder(override?: string | null): string[] {
+  const first = override?.trim() || GEMINI_VISION_MODELS[0];
+  const rest = GEMINI_VISION_MODELS.filter((model) => model !== first);
+  return [first, ...rest].slice(0, 2);
 }
 
 export async function transcribeCaptureImage(
@@ -302,17 +317,11 @@ export async function transcribeCaptureImage(
   );
   const geminiKey = readRuntimeEnv("GEMINI_API_KEY");
   const groqKey = readRuntimeEnv("GROQ_API_KEY");
-  const openAiKey = readRuntimeEnv("OPENAI_API_KEY");
   const groqModel = readRuntimeEnv("GROQ_VISION_MODEL") || GROQ_VISION_MODEL_DEFAULT;
-  const openAiModel = readRuntimeEnv("OPENAI_VISION_MODEL") || "gpt-4o";
-  const geminiModel = readRuntimeEnv("GEMINI_VISION_MODEL") || GEMINI_VISION_MODELS[0];
   const errors: string[] = [];
 
   if (geminiKey) {
-    const models = [
-      geminiModel,
-      ...GEMINI_VISION_MODELS.filter((model) => model !== geminiModel),
-    ];
+    const models = geminiVisionModelOrder(readRuntimeEnv("GEMINI_VISION_MODEL"));
     for (const model of models) {
       try {
         const rawTranscription = clipOcrText(
@@ -328,10 +337,7 @@ export async function transcribeCaptureImage(
   }
 
   if (groqKey) {
-    const models = [
-      groqModel,
-      ...GROQ_VISION_MODEL_FALLBACKS.filter((model) => model !== groqModel),
-    ];
+    const models = [...new Set([groqModel, GROQ_VISION_MODEL_DEFAULT])];
     for (const model of models) {
       try {
         const rawTranscription = clipOcrText(
@@ -346,20 +352,14 @@ export async function transcribeCaptureImage(
     }
   }
 
-  if (openAiKey) {
-    try {
-      const rawTranscription = clipOcrText(
-        await ocrWithOpenAi(bytes, imageMimeType, openAiKey, openAiModel),
-      );
-      return { rawTranscription, imageMimeType, engine: "openai" };
-    } catch (error) {
-      errors.push(`openai:${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
   throw new Error(
     errors.length > 0 ? `vision_ocr_failed:${errors.join(" | ")}` : "vision_ocr_not_configured",
   );
+}
+
+/** Some models swap ASCII hyphens for U+2011 / U+2010; keep plain hyphens so text matches the source. */
+export function normalizeProofreadPunctuation(text: string): string {
+  return text.replace(/[\u2010\u2011]/g, "-");
 }
 
 export async function refineNotebookTranscription(rawTranscription: string): Promise<string> {
@@ -367,7 +367,6 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
   if (!trimmed) return trimmed;
   const geminiKey = readRuntimeEnv("GEMINI_API_KEY");
   const groqKey = readRuntimeEnv("GROQ_API_KEY");
-  const openAiKey = readRuntimeEnv("OPENAI_API_KEY");
   if (geminiKey) {
     try {
       const model = readRuntimeEnv("GEMINI_PARSE_MODEL") || "gemini-3.1-flash-lite";
@@ -392,7 +391,7 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
         if (refined) return refined;
       }
     } catch {
-      // Groq / OpenAI / raw
+      // Groq / raw
     }
   }
   const tryRefine = async (url: string, apiKey: string, model: string) =>
@@ -404,31 +403,25 @@ export async function refineNotebookTranscription(rawTranscription: string): Pro
           model,
           system: inboundHebrewProofreadPrompt,
           userText: trimmed,
-          maxTokens: MAX_OCR_OUTPUT_TOKENS,
+          // GPT-OSS reasoning tokens count against max_tokens.
+          maxTokens: MAX_OCR_OUTPUT_TOKENS + 1024,
+          extraBody: groqReasoningBody(model),
         }),
       ),
     );
 
-  if (openAiKey) {
-    try {
-      return await tryRefine(
-        "https://api.openai.com/v1/chat/completions",
-        openAiKey,
-        readRuntimeEnv("OPENAI_PARSE_MODEL") || "gpt-4o-mini",
-      );
-    } catch {
-      // Groq / raw
-    }
-  }
   if (groqKey) {
-    try {
-      return await tryRefine(
-        "https://api.groq.com/openai/v1/chat/completions",
-        groqKey,
-        readRuntimeEnv("GROQ_PARSE_MODEL") || "llama-3.3-70b-versatile",
-      );
-    } catch {
-      // keep raw
+    const override = readRuntimeEnv("GROQ_PARSE_MODEL");
+    const models = [...new Set([...(override ? [override] : []), ...GROQ_PARSE_MODELS])];
+    for (const model of models) {
+      try {
+        const refined = normalizeProofreadPunctuation(
+          await tryRefine("https://api.groq.com/openai/v1/chat/completions", groqKey, model),
+        );
+        if (refined) return refined;
+      } catch {
+        // next Groq model / keep raw
+      }
     }
   }
   return trimmed;
