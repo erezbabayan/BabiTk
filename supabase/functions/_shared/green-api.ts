@@ -1,4 +1,5 @@
 /** Green-API webhook parsing — port of convex/lib/greenApiParser.ts for Edge Functions. */
+import { timingSafeEqualString } from "./safe-compare.ts";
 
 export type GreenApiMessageType = "text" | "audio" | "image" | "unsupported";
 
@@ -417,19 +418,18 @@ export function verifyGreenApiWebhookAuth(
   request: Request,
   expectedToken: string | undefined,
 ): boolean {
-  if (!expectedToken) return true;
+  // Fail closed: no configured token means nothing is accepted. Header auth only
+  // (Green-API sends webhookUrlToken as "Authorization: Bearer <token>"); ?token= is ignored.
+  if (!expectedToken) return false;
   const authHeader = request.headers.get("authorization");
   const bearer =
     authHeader?.startsWith("Bearer ") === true
       ? authHeader.slice("Bearer ".length)
-      : undefined;
-  const headerToken = request.headers.get("x-webhook-token");
-  const queryToken = new URL(request.url).searchParams.get("token");
-  return (
-    bearer === expectedToken ||
-    headerToken === expectedToken ||
-    queryToken === expectedToken
-  );
+      : "";
+  const headerToken = request.headers.get("x-webhook-token") ?? "";
+  const bearerOk = timingSafeEqualString(bearer, expectedToken);
+  const headerOk = timingSafeEqualString(headerToken, expectedToken);
+  return bearerOk || headerOk;
 }
 
 export function phoneLookupVariants(phone: string): string[] {

@@ -3,6 +3,7 @@ import type {
   WhatsAppProviderId,
   WhatsAppProviderStatus,
 } from "../../types/whatsapp.js";
+import { safeEqual } from "../../lib/safe-compare.js";
 
 const PROVIDER_LABELS: Record<WhatsAppProviderId, string> = {
   meta: "Meta Cloud API",
@@ -65,8 +66,9 @@ export function verifyAlternateWebhookAuth(
       ? env.greenApiWebhookToken
       : env.whapiWebhookToken);
 
+  // Fail closed and header-only (no ?token=), same as the Supabase edge webhook.
   if (!expected) {
-    return true;
+    return false;
   }
 
   const authHeader = headers.authorization;
@@ -79,8 +81,7 @@ export function verifyAlternateWebhookAuth(
   const headerToken = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
 
   return (
-    bearer === expected ||
-    headerToken === expected ||
-    query.token === expected
+    safeEqual(bearer, expected) ||
+    safeEqual(headerToken, expected)
   );
 }

@@ -215,7 +215,8 @@ export const env = {
     }
   },
   get demoSyncEnabled() {
-    return (process.env.DEMO_SYNC_ENABLED ?? "true").toLowerCase() === "true";
+    // Off unless explicitly enabled (local demo mode sets DEMO_SYNC_ENABLED=true).
+    return (process.env.DEMO_SYNC_ENABLED ?? "false").toLowerCase() === "true";
   },
   get demoSyncToken() {
     return configuredDemoSyncToken();

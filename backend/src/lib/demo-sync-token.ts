@@ -1,4 +1,6 @@
 /** אסימון הסנכרון המקומי. ציבורי, ולכן אסור לקבל אותו בפרודקשן. */
+import { safeEqual } from "./safe-compare.js";
+
 export const DEFAULT_DEMO_SYNC_TOKEN = "mindtasker-local-sync";
 
 export function configuredDemoSyncToken(): string {
@@ -14,5 +16,5 @@ export function acceptsDemoSyncToken(
   if (nodeEnv === "production" && presented === DEFAULT_DEMO_SYNC_TOKEN) {
     return false;
   }
-  return presented === configured;
+  return safeEqual(presented, configured);
 }

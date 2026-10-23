@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+import { matchesAnySecret } from "../_shared/safe-compare.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
@@ -56,11 +57,8 @@ function bearerToken(req: Request): string {
 }
 
 function isCronAuth(req: Request): boolean {
-  const token = bearerToken(req);
-  const queryToken = new URL(req.url).searchParams.get("token") ?? "";
-  if (SERVICE_ROLE && token === SERVICE_ROLE) return true;
-  if (CRON_SECRET && (token === CRON_SECRET || queryToken === CRON_SECRET)) return true;
-  return false;
+  // Header only; constant-time. (No caller used ?token=, verified in edge logs.)
+  return matchesAnySecret(bearerToken(req), [SERVICE_ROLE, CRON_SECRET]);
 }
 
 async function userIdFromJwt(

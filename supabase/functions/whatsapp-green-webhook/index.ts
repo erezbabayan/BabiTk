@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+import { matchesAnySecret } from "../_shared/safe-compare.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
@@ -1061,10 +1062,7 @@ Deno.serve(async (req) => {
       return json({ error: "gateway_missing" }, 400);
     }
     const { data: gatewayRow } = await gatewayQuery.maybeSingle();
-    const allowed = [SERVICE_ROLE, gatewayRow?.webhook_token].filter(
-      (value): value is string => typeof value === "string" && value.length > 0,
-    );
-    if (!token || !allowed.includes(token)) {
+    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token])) {
       return json({ error: "invalid_webhook_token" }, 401);
     }
     if (!gatewayRow?.user_id) {
@@ -1100,10 +1098,7 @@ Deno.serve(async (req) => {
       .select("user_id,instance_id,api_token,api_url,webhook_token")
       .limit(1)
       .maybeSingle();
-    const allowed = [SERVICE_ROLE, gatewayRow?.webhook_token].filter(
-      (value): value is string => typeof value === "string" && value.length > 0,
-    );
-    if (!token || !allowed.includes(token)) {
+    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token])) {
       return json({ error: "invalid_webhook_token" }, 401);
     }
     const userId =
