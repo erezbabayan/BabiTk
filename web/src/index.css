@@ -230,7 +230,7 @@ body {
 }
 
 .app-header-nav-link {
-  @apply shrink-0 whitespace-nowrap border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:px-2 sm:text-sm;
+  @apply inline-flex shrink-0 items-center whitespace-nowrap border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-stone-500 transition hover:text-stone-800 sm:px-2 sm:text-sm;
 }
 
 .system-activity-btn {
