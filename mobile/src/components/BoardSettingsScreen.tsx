@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeModal } from "./SafeModal";
+import { NotebookReminderSection } from "./NotebookReminderSection";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { ConvexHttpClient } from "convex/browser";
 import { useMutation, useQuery } from "convex/react";
@@ -298,6 +299,7 @@ function BoardSettingsConvexScreen({
         {savedHint && !error ? (
           <Text style={styles.saved}>נשמר בהצלחה · מסונכרן</Text>
         ) : null}
+        <NotebookReminderSection />
       </>
     ) : (
       <Text style={styles.empty}>אין הגדרות נוספות לבורד זה כרגע.</Text>
@@ -406,6 +408,7 @@ function BoardSettingsLocalScreen({
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {saving ? <Text style={styles.saving}>שומר...</Text> : null}
         {savedHint && !error ? <Text style={styles.saved}>נשמר בהצלחה</Text> : null}
+        <NotebookReminderSection />
       </>
     ) : (
       <Text style={styles.empty}>אין הגדרות נוספות לבורד זה כרגע.</Text>

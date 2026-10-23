@@ -2,6 +2,7 @@ import { useState } from "react";
 import { BOARD_SETTINGS_LABELS, type InboxArchiveHours } from "../lib/board-settings";
 import { useBoardSettings } from "../hooks/useBoardSettings";
 import { NotebookBoardSettings } from "./NotebookBoardSettings";
+import { NotebookReminderSettings } from "./NotebookReminderSettings";
 
 type BoardSection = "menu" | "inbox" | "today" | "notes";
 
@@ -86,6 +87,8 @@ export function BoardSettingsPanel() {
           {savedHint && !error ? (
             <p className="text-xs text-emerald-700">נשמר בהצלחה · מסונכרן עם האפליקציה</p>
           ) : null}
+
+          <NotebookReminderSettings />
         </>
       ) : null}
 
