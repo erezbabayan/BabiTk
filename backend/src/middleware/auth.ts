@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../config/env.js";
 import { getSupabaseAuthClient } from "../lib/supabase.js";
 import { SYNC_USER_ID } from "../services/sync-store.service.js";
+import { safeEqual } from "../lib/safe-compare.js";
 
 export interface AuthenticatedUser {
   id: string;
@@ -32,7 +33,7 @@ export async function requireAuth(
   if (
     !env.isSupabaseAuthConfigured &&
     env.demoSyncEnabled &&
-    token === DEMO_BEARER_TOKEN
+    safeEqual(token, DEMO_BEARER_TOKEN)
   ) {
     request.user = {
       id: SYNC_USER_ID,

@@ -259,6 +259,19 @@ describe("Convex Green-API parser", () => {
     assert.equal(verifyGreenApiWebhookAuth(request, "secret-token"), true);
   });
 
+  it("rejects ?token= in the URL and fails closed without a configured token", () => {
+    const viaQuery = new Request("https://example.com/webhook/green-api?token=secret-token");
+    assert.equal(verifyGreenApiWebhookAuth(viaQuery, "secret-token"), false);
+    const bearer = new Request("https://example.com/webhook/green-api", {
+      headers: { Authorization: "Bearer secret-token" },
+    });
+    assert.equal(verifyGreenApiWebhookAuth(bearer, undefined), false);
+    const wrong = new Request("https://example.com/webhook/green-api", {
+      headers: { Authorization: "Bearer secret-tokeX" },
+    });
+    assert.equal(verifyGreenApiWebhookAuth(wrong, "secret-token"), false);
+  });
+
   it("includes local and international phone variants", () => {
     const variants = phoneLookupVariants("+972501234567");
     assert.ok(variants.includes("+972501234567"));

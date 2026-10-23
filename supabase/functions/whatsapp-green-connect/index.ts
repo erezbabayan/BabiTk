@@ -43,9 +43,9 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function webhookPublicUrl(webhookToken: string): string {
-  const token = encodeURIComponent(webhookToken);
-  return `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook?token=${token}`;
+/** Token travels only in webhookUrlToken (Authorization header), never in the URL. */
+function webhookPublicUrl(_webhookToken: string): string {
+  return `${SUPABASE_URL}/functions/v1/whatsapp-green-webhook`;
 }
 
 function greenUrl(baseUrl: string, instanceId: string, method: string, token: string): string {
@@ -204,7 +204,10 @@ async function backfillCaptureHistory(
     try {
       const response = await fetch(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${gateway.webhook_token ?? ""}`,
+        },
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(isAudio || isImage ? 12_000 : 8_000),
       });
