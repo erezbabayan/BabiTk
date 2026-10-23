@@ -45,9 +45,19 @@ const MIME = {
   ".webmanifest": "application/manifest+json",
 };
 
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.convex.cloud wss://*.convex.cloud https://*.convex.site https://accounts.google.com https://www.googleapis.com https://oauth2.googleapis.com https://fonts.googleapis.com https://fonts.gstatic.com; frame-src 'self' https://accounts.google.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'; upgrade-insecure-requests",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
+};
+
 function send(res, status, body, headers = {}) {
   const payload = typeof body === "string" ? Buffer.from(body) : body;
   res.writeHead(status, {
+    ...SECURITY_HEADERS,
     "Content-Length": payload.length,
     ...headers,
   });

@@ -45,6 +45,16 @@ Deno.serve(async (req) => {
   });
 
   if (body.action === "export") {
+    // Never put credentials or verification secrets into a downloadable file.
+    const SECRET_PROFILE_KEYS = [
+      "google_refresh_token",
+      "phone_verify_hash",
+      "phone_verify_expires_at",
+      "phone_verify_attempts",
+      "phone_verify_sent_at",
+      "stripe_customer_id",
+      "stripe_subscription_id",
+    ];
     const [profile, items, tags, lessons, lists] = await Promise.all([
       admin.from("users").select("*").eq("id", userId).maybeSingle(),
       admin.from("mindtasker_items").select("*").eq("user_id", userId),
@@ -54,7 +64,13 @@ Deno.serve(async (req) => {
     ]);
     return json({
       exported_at: new Date().toISOString(),
-      profile: profile.data,
+      profile: profile.data
+        ? Object.fromEntries(
+          Object.entries(profile.data as Record<string, unknown>).filter(
+            ([key]) => !SECRET_PROFILE_KEYS.includes(key),
+          ),
+        )
+        : null,
       items: items.data ?? [],
       tags: tags.data ?? [],
       lessons: lessons.data ?? [],
