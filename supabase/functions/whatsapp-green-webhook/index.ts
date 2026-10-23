@@ -154,6 +154,7 @@ function isMissingSchemaError(error: { code?: string; message?: string } | null)
 interface GatewayRow extends VoiceGatewayCredentials {
   user_id: string;
   webhook_token: string | null;
+  webhook_token_next?: string | null;
 }
 
 async function findVerifiedUser(
@@ -1053,7 +1054,7 @@ Deno.serve(async (req) => {
       typeof payload.userId === "string" ? payload.userId.trim() : "";
     let gatewayQuery = supabase
       .from("whatsapp_gateways")
-      .select("user_id,instance_id,api_token,api_url,webhook_token");
+      .select("user_id,instance_id,api_token,api_url,webhook_token,webhook_token_next");
     if (instanceId) {
       gatewayQuery = gatewayQuery.eq("instance_id", instanceId);
     } else if (payloadUserId) {
@@ -1062,7 +1063,7 @@ Deno.serve(async (req) => {
       return json({ error: "gateway_missing" }, 400);
     }
     const { data: gatewayRow } = await gatewayQuery.maybeSingle();
-    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token])) {
+    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token, gatewayRow?.webhook_token_next])) {
       return json({ error: "invalid_webhook_token" }, 401);
     }
     if (!gatewayRow?.user_id) {
@@ -1095,10 +1096,10 @@ Deno.serve(async (req) => {
     };
     const { data: gatewayRow } = await supabase
       .from("whatsapp_gateways")
-      .select("user_id,instance_id,api_token,api_url,webhook_token")
+      .select("user_id,instance_id,api_token,api_url,webhook_token,webhook_token_next")
       .limit(1)
       .maybeSingle();
-    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token])) {
+    if (!matchesAnySecret(token, [SERVICE_ROLE, gatewayRow?.webhook_token, gatewayRow?.webhook_token_next])) {
       return json({ error: "invalid_webhook_token" }, 401);
     }
     const userId =
@@ -1154,7 +1155,7 @@ Deno.serve(async (req) => {
   if (instanceId) {
     const { data } = await supabase
       .from("whatsapp_gateways")
-      .select("user_id,webhook_token,instance_id,api_token,api_url")
+      .select("user_id,webhook_token,webhook_token_next,instance_id,api_token,api_url")
       .eq("instance_id", instanceId)
       .maybeSingle();
     gateway = (data as GatewayRow | null) ?? null;
@@ -1162,13 +1163,17 @@ Deno.serve(async (req) => {
   if (!gateway) {
     const { data } = await supabase
       .from("whatsapp_gateways")
-      .select("user_id,webhook_token,instance_id,api_token,api_url")
+      .select("user_id,webhook_token,webhook_token_next,instance_id,api_token,api_url")
       .limit(1)
       .maybeSingle();
     gateway = (data as GatewayRow | null) ?? null;
   }
 
-  if (!verifyGreenApiWebhookAuth(req, gateway?.webhook_token ?? undefined)) {
+  // Token rotation: accept the primary token and, while a rotation is in flight,
+  // webhook_token_next. Both are checked (constant-time) so timing does not reveal which.
+  const primaryOk = verifyGreenApiWebhookAuth(req, gateway?.webhook_token ?? undefined);
+  const nextOk = verifyGreenApiWebhookAuth(req, gateway?.webhook_token_next ?? undefined);
+  if (!primaryOk && !nextOk) {
     return json({ error: "invalid_webhook_token" }, 401);
   }
 
