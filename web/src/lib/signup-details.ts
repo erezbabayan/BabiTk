@@ -1,8 +1,12 @@
+export const SIGNUP_CONSENT_ERROR = "יש לאשר את תנאי השימוש ומדיניות הפרטיות כדי להירשם";
+
 export type SignupDetails = {
   firstName: string;
   lastName: string;
   phone: string;
   username: string;
+  /** Legal docs version the user accepted at signup (privacy + terms). */
+  acceptedLegalVersion?: string;
 };
 
 const USERNAME_PATTERN = /^[^\s]{2,32}$/;
@@ -28,6 +32,9 @@ export function validateSignupDetails(details: SignupDetails): void {
   if (!firstName) throw new Error("יש להזין שם פרטי");
   if (!lastName) throw new Error("יש להזין שם משפחה");
   if (!phone) throw new Error("יש להזין מספר טלפון");
+  if (!details.acceptedLegalVersion) {
+    throw new Error(SIGNUP_CONSENT_ERROR);
+  }
 
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 9) {

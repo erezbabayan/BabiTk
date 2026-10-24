@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   Share,
@@ -13,6 +14,9 @@ import * as FileSystem from "expo-file-system/legacy";
 
 import { isSupabaseConfigured, requireSupabase } from "../lib/supabase";
 import { clearAllConvexUserCaches } from "../lib/convex-user-cache";
+
+export const BABITK_PRIVACY_URL = "https://erezbabayan.github.io/BabiTk/privacy.html";
+export const BABITK_TERMS_URL = "https://erezbabayan.github.io/BabiTk/terms.html";
 
 export const DELETE_ACCOUNT_CONFIRM =
   "למחוק את החשבון וכל הנתונים? הפעולה לא ניתנת לביטול.";
@@ -130,6 +134,15 @@ export function AccountDataSection() {
       </View>
       {message ? <Text style={styles.message}>{message}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      <View style={styles.legalRow}>
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(BABITK_PRIVACY_URL)}>
+          <Text style={styles.legalLink}>מדיניות פרטיות</Text>
+        </Pressable>
+        <Text style={styles.description}>·</Text>
+        <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(BABITK_TERMS_URL)}>
+          <Text style={styles.legalLink}>תנאי שימוש</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -157,4 +170,6 @@ const styles = StyleSheet.create({
   dangerText: { color: "#dc2626" },
   message: { color: "#16a34a", textAlign: "right" },
   error: { color: "#dc2626", textAlign: "right" },
+  legalRow: { flexDirection: "row-reverse", gap: 8, alignItems: "center" },
+  legalLink: { fontSize: 13, color: "#4f46e5", textDecorationLine: "underline" },
 });

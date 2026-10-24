@@ -7,6 +7,7 @@ import { type SignupDetails, validateSignupDetails } from "../lib/signup-details
 import { GoogleSignInButton } from "./GoogleSignInButton";
 import { AppDownloadLink } from "./AppDownloadLink";
 import { MindTaskerLogo } from "./MindTaskerLogo";
+import { BABITK_LEGAL_VERSION, BABITK_PRIVACY_URL, BABITK_TERMS_URL } from "../lib/legal";
 import { PasswordInput } from "./PasswordInput";
 
 type AuthMode = "login" | "signup";
@@ -99,8 +100,23 @@ function LoginShell({
           ארגן משימות, הערות ומחברות — במקום אחד
         </p>
         <AppDownloadLink className="mt-3 block text-center text-sm font-semibold text-slate-700 underline" />
+        <LegalLinks className="mt-3 text-center text-xs text-slate-500" />
       </div>
     </main>
+  );
+}
+
+export function LegalLinks({ className }: { className?: string }) {
+  return (
+    <p className={className}>
+      <a href={BABITK_PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-600">
+        מדיניות פרטיות
+      </a>
+      {" · "}
+      <a href={BABITK_TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-indigo-600">
+        תנאי שימוש
+      </a>
+    </p>
   );
 }
 
@@ -132,6 +148,7 @@ function AuthForm({
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [rememberMe, setRememberMe] = useState(() => readRememberMe());
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -152,6 +169,7 @@ function AuthForm({
           lastName: lastName.trim(),
           phone: phone.trim(),
           username: username.trim(),
+          acceptedLegalVersion: acceptedLegal ? BABITK_LEGAL_VERSION : undefined,
         };
         validateSignupDetails(signupDetails);
       }
@@ -174,6 +192,7 @@ function AuthForm({
     setLastName("");
     setPhone("");
     setUsername("");
+    setAcceptedLegal(false);
     setError(null);
     setMessage(null);
   }
@@ -332,6 +351,30 @@ function AuthForm({
               </label>
             ) : null}
 
+            {authMode === "signup" ? (
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-slate-600">
+                <input
+                  type="checkbox"
+                  name="acceptLegal"
+                  required
+                  checked={acceptedLegal}
+                  onChange={(e) => setAcceptedLegal(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  קראתי ואני מסכים/ה ל
+                  <a href={BABITK_TERMS_URL} target="_blank" rel="noopener noreferrer" className="underline">
+                    תנאי השימוש
+                  </a>
+                  {" ול"}
+                  <a href={BABITK_PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="underline">
+                    מדיניות הפרטיות
+                  </a>
+                  , ואני בן/בת 16 ומעלה
+                </span>
+              </label>
+            ) : null}
+
             {authMode === "login" ? (
               <button
                 type="button"
@@ -401,6 +444,12 @@ function AuthForm({
             disabled={busy}
             loading={oauthLoading}
           />
+        ) : null}
+
+        {onGoogleSignIn ? (
+          <p className="text-center text-xs text-slate-400">
+            בהמשך עם Google את/ה מסכים/ה לתנאי השימוש ולמדיניות הפרטיות
+          </p>
         ) : null}
 
       </div>

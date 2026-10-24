@@ -403,7 +403,7 @@ function ConfiguredApp() {
     password: string,
     authMode: "login" | "signup",
     rememberMe = true,
-    signupDetails?: { firstName: string; lastName: string; phone: string; username?: string },
+    signupDetails?: { firstName: string; lastName: string; phone: string; username?: string; acceptedLegalVersion?: string },
   ) {
     if (authMode === "login") {
       const loginEmail = await resolveLoginEmail(email);
@@ -444,6 +444,12 @@ function ConfiguredApp() {
           last_name: signupDetails.lastName,
           phone: signupDetails.phone,
           username,
+          ...(signupDetails.acceptedLegalVersion
+            ? {
+                terms_accepted_version: signupDetails.acceptedLegalVersion,
+                terms_accepted_at: new Date().toISOString(),
+              }
+            : {}),
           full_name: [signupDetails.firstName, signupDetails.lastName]
             .filter(Boolean)
             .join(" "),
