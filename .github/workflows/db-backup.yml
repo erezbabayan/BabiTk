@@ -7,8 +7,8 @@ name: Monthly encrypted DB backup
 # Free: runs on GitHub-hosted runners, artifact storage is within the free quota.
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "15 2 1 * *" # 02:15 UTC on the 1st of each month
+  schedule:
+    - cron: "15 2 1 * *" # 02:15 UTC on the 1st of each month
 
 permissions:
   contents: read
