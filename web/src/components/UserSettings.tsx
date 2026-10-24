@@ -6,6 +6,7 @@ import { requireSupabase } from "../lib/supabase";
 import { getAuthAccountView, type AuthAccountView } from "../lib/user-profile";
 import { ChangePasswordForm } from "./ChangePasswordForm";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
+import { LegalLinks } from "./LoginScreen";
 
 export function UserSettings() {
   const [account, setAccount] = useState<AuthAccountView | null>(null);
@@ -107,6 +108,7 @@ export function UserSettings() {
         <p className="mt-1 text-xs text-slate-500">
           ייצוא מוריד JSON של הפריטים והפרופיל. מחיקה מוחקת את החשבון וכל הנתונים.
         </p>
+        <LegalLinks className="mt-1 text-xs text-slate-500" />
         {message ? <p className="mt-2 text-emerald-700">{message}</p> : null}
         {error ? <p className="mt-2 text-red-600">{error}</p> : null}
         <div className="mt-3 flex flex-col gap-2">
