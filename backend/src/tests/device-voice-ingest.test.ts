@@ -9,6 +9,8 @@ import {
   generateDeviceToken,
   handleVoiceIngest,
   hashDeviceToken,
+  mapVoiceTagsToAllowed,
+  sanitizeVoiceTags,
   parseVoiceIngestBody,
   voiceDueAt,
   voiceItemPlacement,
@@ -32,11 +34,16 @@ function request(body: unknown, token = "babi_test_token_value_0123456789"): Req
   });
 }
 
-function memoryStore(options?: { revoked?: boolean; existing?: StoredVoiceTask }): VoiceIngestStore & {
+function memoryStore(options?: {
+  revoked?: boolean;
+  existing?: StoredVoiceTask;
+  tagsFail?: boolean;
+}): VoiceIngestStore & {
   inserted: Array<{
     userId: string;
     title: string;
     content: string;
+    tags: string[];
     dueAt: string | null;
     isActionable: boolean;
     status: "inbox";
@@ -54,6 +61,7 @@ function memoryStore(options?: { revoked?: boolean; existing?: StoredVoiceTask }
     userId: string;
     title: string;
     content: string;
+    tags: string[];
     dueAt: string | null;
     isActionable: boolean;
     status: "inbox";
@@ -75,6 +83,16 @@ function memoryStore(options?: { revoked?: boolean; existing?: StoredVoiceTask }
       device.requestTimestamps.splice(0, device.requestTimestamps.length, ...timestamps);
     },
     async touchToken() {},
+    async loadAllowedTagNames() {
+      if (options?.tagsFail) throw new Error("db down");
+      return ["משפחה", "עבודה", "מילואים", "Shopping"];
+    },
+    async listTags() {
+      return [
+        { name: "משפחה", color: "#f9a8d4" },
+        { name: "מילואים", color: "#fca5a5" },
+      ];
+    },
     async insertTask(input) {
       const clientId = input.metadata.voice_client_id;
       if (typeof clientId === "string" && tasks.has(clientId)) return { conflict: true };
@@ -280,5 +298,120 @@ describe("voice ingest deploy wiring", () => {
     assert.match(migration, /revoke all on table public\.device_tokens from anon, authenticated/);
     assert.match(endpoint, /is_actionable: input\.isActionable/);
     assert.match(endpoint, /status: input\.status/);
+  });
+});
+
+function getRequest(token = "babi_test_token_value_0123456789", method = "GET"): Request {
+  return new Request("https://example.test/voice-ingest", {
+    method,
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+describe("voice ingest tags", () => {
+  it("sanitizes tags: strings only, trim, dedupe, max 12, max 40 chars", () => {
+    assert.deepEqual(sanitizeVoiceTags(undefined), []);
+    assert.deepEqual(sanitizeVoiceTags("מילואים"), []);
+    assert.deepEqual(sanitizeVoiceTags([" מילואים ", "מילואים", 5, null, "", "#עבודה", "x".repeat(41)]), [
+      "מילואים",
+      "עבודה",
+    ]);
+    const many = Array.from({ length: 20 }, (_, i) => `t${i}`);
+    assert.equal(sanitizeVoiceTags(many).length, 12);
+    assert.deepEqual(mapVoiceTagsToAllowed(["shopping", "לא קיים", "מילואים"], ["Shopping", "מילואים"]), [
+      "Shopping",
+      "מילואים",
+    ]);
+  });
+
+  it("saves only the user's tags and never fails on bad tags", async () => {
+    const store = memoryStore();
+    const ok = await handleVoiceIngest(
+      request({ title: "אימון", type: "task", tags: ["מילואים", "לא קיים", "shopping"] }),
+      store,
+      NOW,
+    );
+    assert.equal(ok.status, 201);
+    assert.deepEqual(store.inserted[0]?.tags, ["מילואים", "Shopping"]);
+
+    const bad = await handleVoiceIngest(request({ title: "חלב", tags: "oops" }), store, NOW);
+    assert.equal(bad.status, 201);
+    assert.deepEqual(store.inserted[1]?.tags, []);
+
+    const failing = memoryStore({ tagsFail: true });
+    const down = await handleVoiceIngest(request({ title: "חלב", type: "task", tags: ["מילואים"] }), failing, NOW);
+    assert.equal(down.status, 201);
+    assert.deepEqual(failing.inserted[0]?.tags, []);
+  });
+
+  it("old clients (no tags, no type) behave exactly as before", async () => {
+    const store = memoryStore();
+    const response = await handleVoiceIngest(request({ title: "לקנות חלב", notes: "נוצר בהכתבה: לקנות מחר חלב" }), store, NOW);
+    assert.equal(response.status, 201);
+    assert.deepEqual(store.inserted[0]?.tags, []);
+    assert.equal(store.inserted[0]?.metadata.voice_explicit, undefined);
+    assert.equal(store.inserted[0]?.metadata.context_parsed_at, undefined);
+  });
+});
+
+describe("voice ingest explicit title + type", () => {
+  it("keeps title and type exactly as sent and marks the item parsed", async () => {
+    const store = memoryStore();
+    await handleVoiceIngest(
+      request({ title: "לקנות חלב", type: "task", notes: "נוצר בהכתבה: לקנות מחר חלב" }),
+      store,
+      NOW,
+    );
+    await handleVoiceIngest(
+      request({ title: "קוד לשער 1234", type: "note", notes: "נוצר בהכתבה: קוד לשער 1234" }),
+      store,
+      NOW,
+    );
+    assert.equal(store.inserted[0]?.title, "לקנות חלב");
+    assert.equal(store.inserted[0]?.isActionable, true);
+    assert.equal(store.inserted[0]?.metadata.voice_explicit, true);
+    assert.equal(store.inserted[0]?.metadata.context_parsed_at, NOW.toISOString());
+    assert.equal(store.inserted[1]?.title, "קוד לשער 1234");
+    assert.equal(store.inserted[1]?.isActionable, false);
+    assert.equal(store.inserted[1]?.metadata.voice_explicit, true);
+  });
+});
+
+describe("voice ingest GET tags", () => {
+  it("returns {tags:[{name,color}]} for a valid device token", async () => {
+    const store = memoryStore();
+    const response = await handleVoiceIngest(getRequest(), store, NOW);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
+    assert.deepEqual(await response.json(), {
+      tags: [
+        { name: "משפחה", color: "#f9a8d4" },
+        { name: "מילואים", color: "#fca5a5" },
+      ],
+    });
+    assert.equal(store.timestamps.length, 1);
+  });
+
+  it("rejects bad/revoked tokens and enforces the same rate limit", async () => {
+    assert.equal((await handleVoiceIngest(getRequest("short"), memoryStore(), NOW)).status, 401);
+    assert.equal(
+      (await handleVoiceIngest(getRequest("babi_wrong_token_value_0123456789"), memoryStore(), NOW)).status,
+      401,
+    );
+    assert.equal((await handleVoiceIngest(getRequest(), memoryStore({ revoked: true }), NOW)).status, 401);
+    const store = memoryStore();
+    for (let i = 0; i < 60; i += 1) {
+      assert.equal((await handleVoiceIngest(getRequest(), store, NOW)).status, 200);
+    }
+    assert.equal((await handleVoiceIngest(getRequest(), store, NOW)).status, 429);
+  });
+
+  it("OPTIONS preflight allows GET and POST", async () => {
+    const response = await handleVoiceIngest(getRequest(undefined, "OPTIONS"), memoryStore(), NOW);
+    assert.equal(response.status, 204);
+    assert.match(response.headers.get("Access-Control-Allow-Methods") ?? "", /GET/);
+    assert.match(response.headers.get("Access-Control-Allow-Methods") ?? "", /POST/);
+    assert.match(response.headers.get("Access-Control-Allow-Headers") ?? "", /authorization/);
+    assert.equal((await handleVoiceIngest(getRequest(undefined, "DELETE"), memoryStore(), NOW)).status, 405);
   });
 });

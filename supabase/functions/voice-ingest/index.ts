@@ -3,9 +3,11 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { queueCalendarSync } from "../_shared/google-calendar.ts";
+import { DEFAULT_TAG_NAMES } from "../_shared/default-tags.ts";
 import {
   handleVoiceIngest,
   jsonResponse,
+  normalizeVoiceTagList,
   voiceErrorBody,
   type DeviceTokenRecord,
   type VoiceIngestStore,
@@ -76,6 +78,28 @@ Deno.serve(async (req) => {
         .eq("id", tokenId);
       if (error) throw new Error(error.message);
     },
+    // Same rules as _shared/parse-incoming-message.ts loadAllowedTagNames.
+    async loadAllowedTagNames(userId) {
+      try {
+        const { data } = await supabase.from("user_tags").select("name").eq("user_id", userId);
+        const names = ((data ?? []) as Array<{ name?: unknown }>)
+          .map((row) => (typeof row.name === "string" ? row.name.trim() : ""))
+          .filter(Boolean);
+        return names.length > 0 ? names : DEFAULT_TAG_NAMES;
+      } catch {
+        return DEFAULT_TAG_NAMES;
+      }
+    },
+    async listTags(userId) {
+      const { data, error } = await supabase
+        .from("user_tags")
+        .select("name, color")
+        .eq("user_id", userId)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (error) throw new Error(error.message);
+      return normalizeVoiceTagList(data ?? []);
+    },
     async insertTask(input) {
       const now = new Date().toISOString();
       const { data: source, error: sourceError } = await supabase
@@ -99,7 +123,7 @@ Deno.serve(async (req) => {
           content: input.content,
           is_actionable: input.isActionable,
           status: input.status,
-          tags: [],
+          tags: input.tags,
           due_date: input.dueAt,
           metadata: input.metadata,
           sort_order: Date.now(),
@@ -124,6 +148,6 @@ Deno.serve(async (req) => {
     return await handleVoiceIngest(req, store);
   } catch (error) {
     console.error("voice-ingest failed", error);
-    return jsonResponse(voiceErrorBody("server", "could not create task"), 500);
+    return jsonResponse(voiceErrorBody("server", "request failed"), 500);
   }
 });
