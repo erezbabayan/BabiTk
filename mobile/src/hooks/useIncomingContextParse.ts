@@ -31,6 +31,10 @@ function itemNeedsContextParse(item: MindtaskerItem): boolean {
   if (metadata && typeof metadata === "object" && CONTEXT_PARSED_AT_KEY in metadata) {
     return false;
   }
+  // Device voice item with explicit title + type: keep it exactly as sent.
+  if (metadata && typeof metadata === "object" && (metadata as Record<string, unknown>).voice_explicit === true) {
+    return false;
+  }
   if (isVoicePlaceholder(item.title ?? "", item.content ?? "")) {
     return false;
   }
@@ -104,6 +108,11 @@ export function useIncomingContextParse(
     const fields = parsedItemInsertFields(parsed, {
       ...(typeof next.metadata === "object" && next.metadata ? next.metadata : {}),
     });
+    const meta = next.metadata as Record<string, unknown> | null | undefined;
+    const existingTags = Array.isArray(next.tags) ? (next.tags as string[]) : [];
+    if (meta && typeof meta === "object" && meta.source === "voice" && existingTags.length > 0) {
+      fields.tags = Array.from(new Set([...existingTags, ...fields.tags]));
+    }
 
     busyRef.current = true;
     inFlight.current.add(next.id);

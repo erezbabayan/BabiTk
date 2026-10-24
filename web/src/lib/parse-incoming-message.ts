@@ -39,6 +39,9 @@ export function itemNeedsContextParse(item: Pick<
   if (metadata && typeof metadata === "object" && CONTEXT_PARSED_AT_KEY in metadata) {
     return false;
   }
+  if (isExplicitVoiceItem(metadata)) {
+    return false;
+  }
   if (needsVoiceTranscription(item.title, item.content)) {
     return false;
   }
@@ -51,8 +54,31 @@ export function itemNeedsContextParse(item: Pick<
   return true;
 }
 
+/** Device voice item sent with explicit title + type: keep it exactly as sent. */
+export function isExplicitVoiceItem(metadata: unknown): boolean {
+  return Boolean(
+    metadata &&
+      typeof metadata === "object" &&
+      (metadata as Record<string, unknown>).voice_explicit === true,
+  );
+}
+
+/** Voice items may arrive with device-chosen tags; keep them when re-parsing. */
+export function keepVoiceTags(
+  metadata: unknown,
+  existing: readonly string[] | null | undefined,
+  parsed: readonly string[],
+): string[] {
+  const isVoice =
+    Boolean(metadata) &&
+    typeof metadata === "object" &&
+    (metadata as Record<string, unknown>).source === "voice";
+  if (!isVoice || !existing?.length) return [...parsed];
+  return Array.from(new Set([...existing, ...parsed]));
+}
+
 export function contextParsePatch(
-  item: Pick<MindtaskerItem, "title" | "content" | "metadata">,
+  item: Pick<MindtaskerItem, "title" | "content" | "metadata"> & { tags?: string[] | null },
   allowedTags?: string[],
   now = new Date(),
 ): Partial<MindtaskerItem> | null {
@@ -71,7 +97,7 @@ export function contextParsePatch(
     content: fields.content,
     is_actionable: fields.is_actionable,
     due_date: fields.due_date,
-    tags: fields.tags,
+    tags: keepVoiceTags(item.metadata, item.tags, fields.tags),
     metadata: fields.metadata,
   };
 }

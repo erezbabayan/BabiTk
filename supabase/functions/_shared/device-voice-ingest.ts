@@ -3,6 +3,7 @@
  * The plaintext token is never stored; callers persist SHA-256 hex only.
  */
 
+import { inferTagsFromText } from "./tag-inference.ts";
 import { getZonedParts, zonedLocalToIso } from "./zoned-time.ts";
 
 export const VOICE_INGEST_TIMEZONE = "Asia/Jerusalem";
@@ -17,6 +18,9 @@ const CLIENT_ID_MAX = 128;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const TIME_RE = /^(\d{2}):(\d{2})$/;
 const CLIENT_ID_RE = /^[A-Za-z0-9._:-]+$/;
+export const VOICE_TAGS_MAX = 12;
+export const VOICE_TAG_MAX_CHARS = 40;
+const DEFAULT_TAG_COLOR = "#64748b";
 
 export type VoiceItemType = "task" | "note";
 export type VoiceBoard = "notebook" | "default";
@@ -30,6 +34,15 @@ export interface VoiceIngestInput {
   clientId: string | null;
   itemType: VoiceItemType;
   board: VoiceBoard;
+  /** Requested tags (sanitized, not yet mapped to the user's tags). */
+  tags: string[];
+  /** True when the client sent `type` explicitly (title is always explicit). */
+  typeExplicit: boolean;
+}
+
+export interface VoiceTag {
+  name: string;
+  color: string;
 }
 
 export interface DeviceTokenRecord {
@@ -49,10 +62,15 @@ export interface VoiceIngestStore {
   findByClientId(userId: string, clientId: string): Promise<StoredVoiceTask | null>;
   saveRateLimit(tokenId: string, timestamps: string[], lastUsedAt: string): Promise<void>;
   touchToken(tokenId: string, lastUsedAt: string): Promise<void>;
+  /** User's tag names (falls back to defaults when the user has none). */
+  loadAllowedTagNames(userId: string): Promise<string[]>;
+  /** User's tags with colors, in display order. */
+  listTags(userId: string): Promise<VoiceTag[]>;
   insertTask(input: {
     userId: string;
     title: string;
     content: string;
+    tags: string[];
     dueAt: string | null;
     isActionable: boolean;
     status: "inbox";
@@ -64,11 +82,85 @@ export function voiceErrorBody(code: string, message: string): { ok: false; erro
   return { ok: false, error: { code, message } };
 }
 
+export const VOICE_CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, content-type, x-client-info, apikey",
+  "Access-Control-Max-Age": "86400",
+};
+
 export function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: { ...VOICE_CORS_HEADERS, "Content-Type": "application/json; charset=utf-8" },
   });
+}
+
+/**
+ * Lenient: anything that is not an array of strings yields []. Never fails the
+ * request, so older BabiSnap builds (no `tags`) keep working.
+ */
+export function sanitizeVoiceTags(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of raw) {
+    if (typeof value !== "string") continue;
+    const name = value.trim().replace(/^#+/u, "").trim();
+    if (!name || name.length > VOICE_TAG_MAX_CHARS) continue;
+    const key = name.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= VOICE_TAGS_MAX) break;
+  }
+  return out;
+}
+
+/** Keep only tags the user has, using the user's canonical spelling. */
+export function mapVoiceTagsToAllowed(requested: readonly string[], allowed: readonly string[]): string[] {
+  const byKey = new Map<string, string>();
+  for (const name of allowed) {
+    const trimmed = typeof name === "string" ? name.trim() : "";
+    if (trimmed && !byKey.has(trimmed.toLocaleLowerCase())) byKey.set(trimmed.toLocaleLowerCase(), trimmed);
+  }
+  const out: string[] = [];
+  for (const name of requested) {
+    const hit = byKey.get(name.toLocaleLowerCase());
+    if (hit && !out.includes(hit)) out.push(hit);
+  }
+  return out;
+}
+
+/**
+ * Tags saved on a device voice item: the requested tags the user owns. When the
+ * item is explicit (title + type) and none were sent, infer from the text so
+ * auto-tagging still happens even though the client re-parse is skipped.
+ */
+export function resolveVoiceItemTags(input: {
+  requested: readonly string[];
+  allowed: readonly string[];
+  explicit: boolean;
+  text: string;
+}): string[] {
+  const mapped = mapVoiceTagsToAllowed(input.requested, input.allowed);
+  if (mapped.length > 0 || !input.explicit || input.requested.length > 0) return mapped;
+  try {
+    return inferTagsFromText(input.text, [...input.allowed]);
+  } catch {
+    return [];
+  }
+}
+
+export function normalizeVoiceTagList(rows: readonly { name?: unknown; color?: unknown }[]): VoiceTag[] {
+  const out: VoiceTag[] = [];
+  for (const row of rows) {
+    const name = typeof row.name === "string" ? row.name.trim() : "";
+    if (!name) continue;
+    const color = typeof row.color === "string" && row.color.trim() ? row.color.trim() : DEFAULT_TAG_COLOR;
+    out.push({ name, color });
+  }
+  return out;
 }
 
 export function readBearerToken(header: string | null): string | null {
@@ -182,6 +274,8 @@ export function parseVoiceIngestBody(raw: unknown): { ok: true; value: VoiceInge
       clientId,
       itemType,
       board,
+      tags: sanitizeVoiceTags(body.tags),
+      typeExplicit: body.type === "task" || body.type === "note",
     },
   };
 }
@@ -255,8 +349,17 @@ export function voiceTaskMetadata(input: {
   clientId: string | null;
   location: string | null;
   dueAt: string | null;
+  /** Explicit title + type: clients must not re-parse title/type. */
+  explicit?: boolean;
+  now?: Date;
 }): Record<string, unknown> {
   const metadata: Record<string, unknown> = { source: "voice", channel: "voice" };
+  if (input.explicit) {
+    metadata.voice_explicit = true;
+    // Marks the item as already parsed so the web/mobile context re-parse
+    // (normalizeTaskPresentation, note->task) never rewrites it.
+    metadata.context_parsed_at = (input.now ?? new Date()).toISOString();
+  }
   if (input.clientId) metadata.voice_client_id = input.clientId;
   if (input.location) metadata.location = input.location;
   if (input.dueAt) {
@@ -288,14 +391,28 @@ export async function handleVoiceIngest(
   store: VoiceIngestStore,
   now = new Date(),
 ): Promise<Response> {
-  if (request.method === "OPTIONS") return new Response(null, { status: 204 });
-  if (request.method !== "POST") {
-    return jsonResponse(voiceErrorBody("method_not_allowed", "POST is required"), 405);
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: VOICE_CORS_HEADERS });
+  if (request.method !== "POST" && request.method !== "GET") {
+    return jsonResponse(voiceErrorBody("method_not_allowed", "GET or POST is required"), 405);
   }
 
   const token = readBearerToken(request.headers.get("Authorization"));
   if (!token) {
     return jsonResponse(voiceErrorBody("unauthorized", "invalid token"), 401);
+  }
+
+  if (request.method === "GET") {
+    const device = await store.findToken(await hashDeviceToken(token));
+    if (!device || device.revokedAt) {
+      return jsonResponse(voiceErrorBody("unauthorized", "invalid token"), 401);
+    }
+    const limit = applyVoiceRateLimit(device.requestTimestamps, now);
+    if (!limit.allowed) {
+      return jsonResponse(voiceErrorBody("rate_limited", "at most 60 requests per hour for this device"), 429);
+    }
+    await store.saveRateLimit(device.id, limit.kept, now.toISOString());
+    const tags = normalizeVoiceTagList(await store.listTags(device.userId));
+    return jsonResponse({ tags }, 200);
   }
 
   let payload: unknown;
@@ -334,10 +451,28 @@ export async function handleVoiceIngest(
   }
   await store.saveRateLimit(device.id, limit.kept, now.toISOString());
 
+  const content = voiceTaskContent(parsed.value.notes, parsed.value.location);
+  const explicit = parsed.value.typeExplicit;
+  let tags: string[] = [];
+  if (parsed.value.tags.length > 0 || explicit) {
+    try {
+      const allowed = await store.loadAllowedTagNames(device.userId);
+      tags = resolveVoiceItemTags({
+        requested: parsed.value.tags,
+        allowed,
+        explicit,
+        text: `${parsed.value.title}\n${parsed.value.notes}`,
+      });
+    } catch {
+      tags = [];
+    }
+  }
+
   const inserted = await store.insertTask({
     userId: device.userId,
     title: parsed.value.title,
-    content: voiceTaskContent(parsed.value.notes, parsed.value.location),
+    content,
+    tags,
     dueAt,
     isActionable: placement.isActionable,
     status: placement.status,
@@ -345,6 +480,8 @@ export async function handleVoiceIngest(
       clientId: parsed.value.clientId,
       location: parsed.value.location,
       dueAt,
+      explicit,
+      now,
     }),
   });
   if ("conflict" in inserted) {
