@@ -84,7 +84,7 @@ describe("BabiTk Android release", () => {
     assert.match(workflow, /branches: \[main\]/);
     assert.match(workflow, /tags: \["v\*"\]/);
     assert.match(workflow, /BabiTk\.apk/);
-    assert.match(workflow, /upload-artifact@v4/);
+    assert.match(workflow, /upload-artifact@[0-9a-f]{40} # v4/);
     assert.match(workflow, /name: BabiTk-aab/);
     assert.match(workflow, /ANDROID_KEYSTORE_BASE64/);
     assert.match(workflow, /ANDROID_KEYSTORE_PASSWORD/);
@@ -92,7 +92,7 @@ describe("BabiTk Android release", () => {
     assert.match(workflow, /ANDROID_KEY_PASSWORD/);
     assert.match(workflow, /base64 -d > mobile\/android\/app\/babitk-release\.keystore/);
     assert.match(workflow, /ndk;\$\{ndk:-27\.1\.12297006\}/);
-    assert.match(workflow, /android-actions\/setup-android@v4/);
+    assert.match(workflow, /android-actions\/setup-android@[0-9a-f]{40} # v4/);
     assert.match(workflow, /Require Supabase public env/);
     assert.match(workflow, /EXPO_PUBLIC_SUPABASE_URL/);
     assert.match(workflow, /mobile\/\.env/);
