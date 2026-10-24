@@ -1,0 +1,78 @@
+name: Monthly encrypted DB backup
+
+# DISABLED until secrets exist. To enable:
+#   1. Add repo secrets SUPABASE_DB_PASSWORD and BACKUP_PASSPHRASE (long random string, store it in a password manager too).
+#   2. Uncomment the schedule below.
+# Output: a gpg (AES256, symmetric) encrypted pg_dump uploaded as a workflow artifact (90-day retention).
+# Free: runs on GitHub-hosted runners, artifact storage is within the free quota.
+on:
+  workflow_dispatch:
+  # schedule:
+  #   - cron: "15 2 1 * *" # 02:15 UTC on the 1st of each month
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      PGHOST: aws-1-eu-west-1.pooler.supabase.com
+      PGPORT: "5432" # session mode (pg_dump needs session pooling)
+      PGUSER: postgres.ghibfuinantybqidwadj
+      PGDATABASE: postgres
+      PGSSLMODE: require
+    steps:
+      - name: Require secrets
+        id: cfg
+        run: |
+          if [ -z "$PGPASSWORD" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::warning::SUPABASE_DB_PASSWORD or BACKUP_PASSPHRASE secret missing; backup skipped."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install pg_dump 17
+        if: steps.cfg.outputs.ok == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Dump and encrypt
+        if: steps.cfg.outputs.ok == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          STAMP=$(date -u +%Y%m%dT%H%MZ)
+          echo "STAMP=$STAMP" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/17/bin/pg_dump --format=custom --no-owner --no-privileges \
+            --schema=public --schema=auth --schema=storage --schema=cron \
+            --file=db.dump
+          ls -l db.dump
+          gpg --batch --yes --pinentry-mode loopback --passphrase-fd 3 \
+            --symmetric --cipher-algo AES256 -o "babitk-db-$STAMP.dump.gpg" db.dump 3<<<"$BACKUP_PASSPHRASE"
+          shred -u db.dump
+          sha256sum "babitk-db-$STAMP.dump.gpg" | tee "babitk-db-$STAMP.sha256"
+
+      - name: Upload encrypted backup
+        if: steps.cfg.outputs.ok == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: babitk-db-${{ env.STAMP }}
+          path: |
+            babitk-db-*.dump.gpg
+            babitk-db-*.sha256
+          retention-days: 90
+          if-no-files-found: error
