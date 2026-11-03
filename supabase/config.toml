@@ -72,5 +72,9 @@ port = 54323
 [functions.whatsapp-group-catchup]
 verify_jwt = false
 
+# BabiSnap calls this machine-to-machine with a Bearer registry key, not a
+# Supabase user JWT. verify_jwt must stay false: the platform would reject the
+# request (401) before the handler can check SNAP_REGISTRY_CLIENT_KEY.
+# Admin actions use a separate SNAP_REGISTRY_ADMIN_KEY that is not in the APK.
 [functions.snap-users]
 verify_jwt = false
