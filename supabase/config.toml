@@ -71,3 +71,6 @@ port = 54323
 
 [functions.whatsapp-group-catchup]
 verify_jwt = false
+
+[functions.snap-users]
+verify_jwt = false
