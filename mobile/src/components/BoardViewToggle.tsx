@@ -15,6 +15,7 @@ export function BoardViewToggle({ view, onToggle, compact = false }: BoardViewTo
   return (
     <Pressable
       onPress={onToggle}
+      hitSlop={10}
       style={styles.root}
       accessibilityRole="button"
       accessibilityLabel="שינוי תצוגה"

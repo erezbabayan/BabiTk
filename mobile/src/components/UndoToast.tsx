@@ -16,7 +16,7 @@ export function UndoToast({ item, onUndo }: UndoToastProps) {
       <Text style={styles.text} numberOfLines={1}>
         נמחק: {item.title}
       </Text>
-      <Pressable onPress={onUndo} style={styles.undoBtn}>
+      <Pressable onPress={onUndo} style={styles.undoBtn} hitSlop={10}>
         <Text style={styles.undoText}>בטל</Text>
       </Pressable>
     </View>

@@ -51,7 +51,7 @@ function GhostButton({
       onPress={onPress}
       accessibilityLabel={label}
       accessibilityState={{ selected: active || reminder }}
-      hitSlop={8}
+      hitSlop={10}
       style={[
         styles.ghostBtn,
         dense && styles.ghostBtnDense,

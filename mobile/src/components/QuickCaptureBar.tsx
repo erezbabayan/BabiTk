@@ -285,7 +285,7 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
             disabled={loading || !canSubmit || isRecording}
             accessibilityLabel="קלוט"
             accessibilityRole="button"
-            hitSlop={4}
+            hitSlop={10}
           >
             {loading ? (
               <MindTaskerLogo size="capture" variant="mark" thinking />
@@ -324,7 +324,7 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
             disabled={loading && !isRecording}
             accessibilityLabel={isRecording ? "עצור הקלטה והעלה" : "התחל הקלטה"}
             accessibilityRole="button"
-            hitSlop={4}
+            hitSlop={10}
           >
             {loading && !isRecording ? (
               <ActivityIndicator size="small" color="#334155" />
@@ -338,7 +338,7 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
               onPress={() => void stopDeviceRecording(false)}
               accessibilityLabel="בטל הקלטה"
               accessibilityRole="button"
-              hitSlop={4}
+              hitSlop={10}
             >
               <Text style={styles.cancelRecord}>✕</Text>
             </Pressable>
@@ -349,7 +349,7 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
               disabled={loading}
               accessibilityLabel="סריקת מחברת"
               accessibilityRole="button"
-              hitSlop={4}
+              hitSlop={10}
             >
               <NotebookIcon name="image" size={18} tone="slate" />
             </Pressable>
