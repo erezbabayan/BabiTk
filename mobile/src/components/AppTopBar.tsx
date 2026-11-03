@@ -29,7 +29,7 @@ interface AppTopBarProps {
 }
 
 const ICON_COLOR = "#64748b";
-const HIT = { top: 8, bottom: 8, left: 8, right: 8 };
+const HIT = { top: 10, bottom: 10, left: 10, right: 10 };
 
 function GearIcon() {
   return (
@@ -80,7 +80,7 @@ export function AppTopBar({
       </TouchableOpacity>
       <View style={[styles.actions, compact && styles.actionsCompact]}>
         {usage && !usage.isPremium ? (
-          <TouchableOpacity onPress={onOpenPaywall} accessibilityRole="button" accessibilityLabel="שימוש ב-AI">
+          <TouchableOpacity onPress={onOpenPaywall} accessibilityRole="button" accessibilityLabel="שימוש ב-AI" hitSlop={HIT}>
             <Text style={[styles.usage, compact && styles.small]} numberOfLines={1}>
               {compact ? `${usage.used}/${usage.allocated}` : `AI ${usage.used}/${usage.allocated}`}
             </Text>

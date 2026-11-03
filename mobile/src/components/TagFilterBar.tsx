@@ -30,6 +30,7 @@ export function TagFilterBar({
       <Pressable
         style={[styles.toggle, selected ? styles.toggleOn : null]}
         onPress={() => setOpen((v) => !v)}
+        hitSlop={10}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
       >
@@ -53,6 +54,7 @@ export function TagFilterBar({
             <Pressable
               style={[styles.chip, selected === null && styles.chipAllActive]}
               onPress={() => onSelect(null)}
+              hitSlop={6}
             >
               <Text style={[styles.chipText, selected === null && styles.chipTextActive]}>
                 הכל
