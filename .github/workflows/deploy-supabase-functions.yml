@@ -134,6 +134,7 @@ jobs:
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET }}
           SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET: ${{ secrets.SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET }}
+          SNAP_REGISTRY_KEY: ${{ secrets.SNAP_REGISTRY_KEY }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN is empty — schema and Edge Functions were NOT deployed."
@@ -165,6 +166,7 @@ jobs:
           sync_secret RUNPOD_ENDPOINT_ID "${RUNPOD_ENDPOINT_ID:-}"
           sync_secret GOOGLE_CLIENT_ID "${GOOGLE_CLIENT_ID:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID:-}}"
           sync_secret GOOGLE_CLIENT_SECRET "${GOOGLE_CLIENT_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET:-${SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET:-}}}"
+          sync_secret SNAP_REGISTRY_KEY "${SNAP_REGISTRY_KEY:-}"
           IMPORT_MAP="supabase/functions/deno.json"
           supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
@@ -175,6 +177,7 @@ jobs:
           supabase functions deploy ingest-voice --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy voice-ingest --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy babisnap --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
+          supabase functions deploy snap-users --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy account --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy ingest-notebook --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"
           supabase functions deploy github-oidc-mint --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
