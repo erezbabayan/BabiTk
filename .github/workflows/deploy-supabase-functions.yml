@@ -142,7 +142,7 @@ jobs:
           fi
           if [ -n "$SUPABASE_DB_PASSWORD" ]; then
             npx supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
-            npx supabase db push --yes
+            npx supabase db push --remote --yes
           else
             echo "::warning::SUPABASE_DB_PASSWORD is empty — migrations were not pushed. Functions will still deploy."
           fi
