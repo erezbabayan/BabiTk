@@ -148,6 +148,21 @@ describe("BabiTk Android release", () => {
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEYSTORE_PASSWORD"/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEY_PASSWORD"/);
     assert.doesNotMatch(ci, /assembleRelease/);
+    assert.match(ci, /expo export:embed/);
+    assert.match(ci, /--platform android/);
+    assert.match(ci, /--dev false/);
+    assert.doesNotMatch(mobilePkg, /"image-size"/);
+    const mobileLock = JSON.parse(
+      readFileSync(path.join(ROOT, "mobile/package-lock.json"), "utf8"),
+    ) as { packages?: Record<string, { version?: string }> };
+    for (const [name, meta] of Object.entries(mobileLock.packages ?? {})) {
+      if (!name.endsWith("node_modules/image-size")) continue;
+      assert.match(
+        meta.version ?? "",
+        /^1\./,
+        `${name}@${meta.version} breaks Metro, which passes a filesystem path to image-size 1.x`,
+      );
+    }
     assert.doesNotMatch(deploy, /BabiTk\.apk/);
     for (const name of [
       "ANDROID_KEYSTORE_BASE64",
