@@ -169,7 +169,7 @@ function MainAppInner({
   useTagCascadeSync(board.convexUserId);
   const notificationsEnabled = isSupabaseConfigured && Boolean(userId);
   const notifications = useUserNotifications(userId, notificationsEnabled);
-  usePushRegistration(notificationsEnabled);
+  usePushRegistration(notificationsEnabled, userId);
   useDigestLocalAlerts(notificationsEnabled);
   const unreadNotifications = notifications.unread;
   const reminderAlerts = useReminderAlerts(

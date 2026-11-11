@@ -27,9 +27,12 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
   );
 }
 
+/** Channel id the reminder edge function sets on Expo push messages. */
+export const ANDROID_REMINDER_CHANNEL_ID = "reminders";
+
 export async function ensureAndroidReminderChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
-  await Notifications.setNotificationChannelAsync("reminders", {
+  await Notifications.setNotificationChannelAsync(ANDROID_REMINDER_CHANNEL_ID, {
     name: "תזכורות",
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
@@ -66,7 +69,7 @@ export async function scheduleItemReminderNotification(options: {
     return null;
   }
 
-  const channelId = Platform.OS === "android" ? "reminders" : undefined;
+  const channelId = Platform.OS === "android" ? ANDROID_REMINDER_CHANNEL_ID : undefined;
   const trigger =
     msUntil <= 2000
       ? {

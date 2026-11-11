@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 
-import { apiFetch } from "../lib/api";
+import { isExpoPushToken, upsertOwnPushToken } from "../lib/push-token";
 import {
   ensureAndroidReminderChannel,
   ensureNotificationPermissions,
@@ -22,45 +22,63 @@ function resolveProjectId(): string | undefined {
   return undefined;
 }
 
-/** Register Expo push token with the API when signed in on a physical device. */
-export function usePushRegistration(enabled: boolean): void {
+/**
+ * Register this device's Expo push token on the signed-in user.
+ * Production has no REST API, so the token is written to user_push_tokens
+ * with the user's Supabase session (RLS: auth.uid() = user_id).
+ */
+export function usePushRegistration(enabled: boolean, userId: string | undefined): void {
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !userId) return;
     if (!Device.isDevice) return;
 
     let cancelled = false;
+    let registered = false;
+    let inFlight = false;
+    let missingProject = false;
 
-    void (async () => {
+    const attempt = async () => {
+      if (cancelled || registered || inFlight || missingProject) return;
+      inFlight = true;
       try {
         await ensureAndroidReminderChannel();
         const granted = await ensureNotificationPermissions();
         if (!granted || cancelled) return;
 
         const projectId = resolveProjectId();
-        const tokenResult = await Notifications.getExpoPushTokenAsync(
-          projectId ? { projectId } : undefined,
-        );
-        if (cancelled || !tokenResult.data) return;
+        if (!projectId) {
+          missingProject = true;
+          console.warn(
+            "[push] missing EAS projectId (EXPO_PUBLIC_EAS_PROJECT_ID or extra.eas.projectId). Token was not registered.",
+          );
+          return;
+        }
+
+        const tokenResult = await Notifications.getExpoPushTokenAsync({ projectId });
+        const token = tokenResult.data;
+        if (cancelled || !token || !isExpoPushToken(token)) return;
 
         const platform =
           Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web";
-        const response = await apiFetch("/api/profile/push-token", {
-          method: "POST",
-          body: JSON.stringify({ token: tokenResult.data, platform }),
-        });
-        if (!response.ok) {
-          throw new Error(`push-token ${response.status}`);
-        }
+        await upsertOwnPushToken({ userId, token, platform });
+        registered = true;
       } catch (error) {
         console.warn(
           "[push] registration skipped:",
-          error instanceof Error ? error.message : String(error),
+          error instanceof Error ? error.message : "unknown",
         );
+      } finally {
+        inFlight = false;
       }
-    })();
+    };
 
+    void attempt();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void attempt();
+    });
     return () => {
       cancelled = true;
+      sub.remove();
     };
-  }, [enabled]);
+  }, [enabled, userId]);
 }

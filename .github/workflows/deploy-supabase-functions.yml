@@ -141,6 +141,7 @@ jobs:
           SNAP_REGISTRY_CLIENT_KEY: ${{ secrets.SNAP_REGISTRY_CLIENT_KEY }}
           SNAP_REGISTRY_ADMIN_KEY: ${{ secrets.SNAP_REGISTRY_ADMIN_KEY }}
           SNAP_REGISTRY_KEY: ${{ secrets.SNAP_REGISTRY_KEY }}
+          EXPO_ACCESS_TOKEN: ${{ secrets.EXPO_ACCESS_TOKEN }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::SUPABASE_ACCESS_TOKEN is empty — schema and Edge Functions were NOT deployed."
@@ -176,6 +177,7 @@ jobs:
           sync_secret SNAP_REGISTRY_ADMIN_KEY "${SNAP_REGISTRY_ADMIN_KEY:-}"
           # Temporary. Client-only in the function. Drop after BabiSnap ships the new client key.
           sync_secret SNAP_REGISTRY_KEY "${SNAP_REGISTRY_KEY:-}"
+          sync_secret EXPO_ACCESS_TOKEN "${EXPO_ACCESS_TOKEN:-}"
           IMPORT_MAP="supabase/functions/deno.json"
           supabase functions deploy whatsapp-green-webhook --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP" --no-verify-jwt
           supabase functions deploy transcribe-voice-item --project-ref "$PROJECT_REF" --import-map "$IMPORT_MAP"

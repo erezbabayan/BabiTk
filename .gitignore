@@ -21,6 +21,7 @@ node_modules/
 mobile/android/
 *.keystore
 *.jks
+google-services.json
 *.apk
 *.aab
 .expo/

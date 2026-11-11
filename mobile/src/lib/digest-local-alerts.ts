@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 
 import {
+  ANDROID_REMINDER_CHANNEL_ID,
   ensureAndroidReminderChannel,
   ensureNotificationPermissions,
 } from "./local-notifications";
@@ -135,7 +136,7 @@ export async function syncDigestLocalAlerts(options: {
   if (!granted) return 0;
 
   const fires = nextDigestFireDates(options.hours, 14, options.days ?? "everyday");
-  const channelId = Platform.OS === "android" ? "reminders" : undefined;
+  const channelId = Platform.OS === "android" ? ANDROID_REMINDER_CHANNEL_ID : undefined;
   let scheduled = 0;
 
   for (const when of fires) {
@@ -162,7 +163,7 @@ export async function syncDigestLocalAlerts(options: {
         data: { kind: "daily_digest_local" },
         ...(Platform.OS === "android"
           ? {
-              channelId: "reminders",
+              channelId: ANDROID_REMINDER_CHANNEL_ID,
               priority: Notifications.AndroidNotificationPriority.MAX,
             }
           : {}),
@@ -194,7 +195,7 @@ export async function presentDigestReceivedAlert(options: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 1,
           repeats: false,
-          channelId: "reminders",
+          channelId: ANDROID_REMINDER_CHANNEL_ID,
         } as const)
       : null;
 
