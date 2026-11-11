@@ -119,14 +119,32 @@ describe("BabiTk Android release", () => {
     );
     const metro = readFileSync(path.join(ROOT, "mobile/metro.config.js"), "utf8");
     const rootPkg = readFileSync(path.join(ROOT, "package.json"), "utf8");
+    const webPkg = readFileSync(path.join(ROOT, "web/package.json"), "utf8");
     const mobilePkg = readFileSync(path.join(ROOT, "mobile/package.json"), "utf8");
     assert.match(convexProvider, /ConvexProviderWithAuth/);
     assert.match(metro, /disableHierarchicalLookup: true/);
     assert.match(metro, /extraNodeModules/);
     assert.match(metro, /nodeModulesPaths: \[mobileModules\]/);
     assert.match(rootPkg, /"convex": "1\.41\.0"/);
+    assert.match(webPkg, /"convex": "1\.41\.0"/);
     assert.match(mobilePkg, /"overrides"/);
     assert.match(mobilePkg, /"convex": "1\.41\.0"/);
+    for (const rel of ["package-lock.json", "web/package-lock.json", "mobile/package-lock.json"]) {
+      const lock = JSON.parse(readFileSync(path.join(ROOT, rel), "utf8")) as {
+        packages?: Record<string, { version?: string; overrides?: { convex?: unknown } }>;
+      };
+      const overrides = lock.packages?.[""]?.overrides;
+      const pin = overrides?.convex;
+      const pinned =
+        pin === "1.41.0" ||
+        (pin !== null && typeof pin === "object" && (pin as { "."?: unknown })["."] === "1.41.0");
+      assert.equal(pinned, true, `${rel} must keep packages[""].overrides.convex at 1.41.0`);
+      for (const [name, meta] of Object.entries(lock.packages ?? {})) {
+        if (!name.endsWith("node_modules/ws") || !meta.version?.startsWith("8.")) continue;
+        const minor = Number(meta.version.split(".")[1]);
+        assert.ok(minor >= 21, `${rel} ${name}@${meta.version} is below the ws 8.21.0 fix`);
+      }
+    }
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEYSTORE_PASSWORD"/);
     assert.doesNotMatch(workflow, /echo "\$ANDROID_KEY_PASSWORD"/);
     assert.doesNotMatch(ci, /assembleRelease/);
