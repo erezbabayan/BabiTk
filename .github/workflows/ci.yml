@@ -50,5 +50,19 @@ jobs:
           npm ci
           npm test
 
+      - name: Mobile release JS bundle
+        working-directory: mobile
+        env:
+          EXPO_NO_TELEMETRY: "1"
+          EXPO_PUBLIC_DEMO_MODE: "false"
+          EXPO_PUBLIC_SUPABASE_URL: https://ghibfuinantybqidwadj.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4
+        run: |
+          npx expo export:embed \
+            --platform android \
+            --dev false \
+            --bundle-output "$RUNNER_TEMP/babitk.android.bundle" \
+            --assets-dest "$RUNNER_TEMP/babitk-android-assets"
+
       - name: Stack smoke checks
         run: node scripts/verify-stack.mjs
