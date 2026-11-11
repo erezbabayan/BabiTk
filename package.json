@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "@auth/core": "^0.41.3",
-    "@convex-dev/auth": "^0.0.94",
-    "@hebcal/core": "^6.14.6",
+    "@convex-dev/auth": "^0.0.96",
+    "@hebcal/core": "^6.15.0",
     "convex": "1.41.0",
     "openai": "^4.104.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.3",
+    "@types/node": "^25.9.9",
     "netlify-cli": "^27.17.0",
     "typescript": "^5.8.3"
   },
