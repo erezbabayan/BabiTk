@@ -12,6 +12,22 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # Raise ranges only. A toml advisory must not lower netlify-cli.
+    versioning-strategy: increase
     groups:
       security-minor-patch:
+        applies-to: version-updates
         update-types: ["minor", "patch"]
+        patterns: ["*"]
+        # The Android client pins one convex copy. Don't float it in the group.
+        exclude-patterns: ["convex"]
+    ignore:
+      # update-types apply to version updates. Security updates still open.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "toml"
+        versions: ["< 5.0.1"]
+      - dependency-name: "netlify-cli"
+        versions: ["< 27.17.0"]
+      - dependency-name: "convex"
+        versions: ["< 1.41.0"]
