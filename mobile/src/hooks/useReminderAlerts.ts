@@ -16,6 +16,8 @@ export type ReminderAlertItem = {
   itemId?: string;
 };
 
+type QueuedReminder = ReminderAlertItem & { skipOsEcho?: boolean };
+
 function toAlertItem(row: UserNotification): ReminderAlertItem {
   return {
     _id: row.id,
@@ -39,7 +41,7 @@ function pruneSeenIds(seen: Set<string>, max = 200) {
 /** Watch for new reminder rows and present OS sound + in-app dialog (FIFO queue). */
 export function useReminderAlerts(userId: string | undefined, enabled: boolean) {
   const [alert, setAlert] = useState<ReminderAlertItem | null>(null);
-  const queueRef = useRef<ReminderAlertItem[]>([]);
+  const queueRef = useRef<QueuedReminder[]>([]);
   const seenIds = useRef(new Set<string>());
   const bootstrapped = useRef(false);
   const showingRef = useRef(false);
@@ -53,6 +55,9 @@ export function useReminderAlerts(userId: string | undefined, enabled: boolean) 
     }
     showingRef.current = true;
     setAlert(next);
+    // A server push already showed the Android system notification. Scheduling
+    // another local one would pop the same reminder twice.
+    if (next.skipOsEcho) return;
     void presentImmediateReminderAlert({
       title: next.title,
       body: next.body,
@@ -64,11 +69,11 @@ export function useReminderAlerts(userId: string | undefined, enabled: boolean) 
     });
   }
 
-  function enqueue(items: ReminderAlertItem[]) {
+  function enqueue(items: ReminderAlertItem[], options?: { skipOsEcho?: boolean }) {
     for (const item of items) {
       if (seenIds.current.has(item._id)) continue;
       seenIds.current.add(item._id);
-      queueRef.current.push(item);
+      queueRef.current.push({ ...item, skipOsEcho: options?.skipOsEcho });
     }
     pruneSeenIds(seenIds.current);
     presentNext();
@@ -108,14 +113,17 @@ export function useReminderAlerts(userId: string | undefined, enabled: boolean) 
           : typeof data?.taskId === "string"
             ? data.taskId
             : undefined;
-      enqueue([
-        {
-          _id: notificationId,
-          title,
-          body,
-          itemId,
-        },
-      ]);
+      enqueue(
+        [
+          {
+            _id: notificationId,
+            title,
+            body,
+            itemId,
+          },
+        ],
+        { skipOsEcho: data?.source === "server_push" },
+      );
     });
 
     return () => {

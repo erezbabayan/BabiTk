@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 
 import {
+  ANDROID_REMINDER_CHANNEL_ID,
   ensureAndroidReminderChannel,
   ensureNotificationPermissions,
 } from "./local-notifications";
@@ -24,7 +25,7 @@ export async function presentImmediateReminderAlert(options: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 1,
           repeats: false,
-          channelId: "reminders",
+          channelId: ANDROID_REMINDER_CHANNEL_ID,
         } as const)
       : null;
 

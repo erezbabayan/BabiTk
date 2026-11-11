@@ -40,6 +40,15 @@ import {
   REMINDERS_CRON_LEASE_TTL_SECONDS,
   withCronLease,
 } from "../_shared/cron-lease.ts";
+import {
+  buildItemReminderPushMessages,
+  pushAllowedByPreference,
+  pushReminderFireStamp,
+  sendExpoPushMessages,
+  shouldSendItemPush,
+  uniqueExpoPushTokens,
+  withPushReminderStamp,
+} from "../_shared/expo-push.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -134,8 +143,10 @@ async function handleRequest(req: Request): Promise<Response> {
   }
   const holdShabbat = (userId: string) => shabbatOptOut != null && !shabbatOptOut.has(userId);
   let sent = 0;
+  let pushed = 0;
   let digests = 0;
   const userCache = new Map<string, { user: ReminderUserRow; gateway: GatewayRow | null } | null>();
+  const pushTokenCache = new Map<string, string[]>();
 
   async function contextFor(userId: string) {
     if (userCache.has(userId)) return userCache.get(userId) ?? null;
@@ -159,6 +170,88 @@ async function handleRequest(req: Request): Promise<Response> {
       : null;
     userCache.set(userId, packed);
     return packed;
+  }
+
+  async function tokensFor(userId: string): Promise<string[]> {
+    const cached = pushTokenCache.get(userId);
+    if (cached) return cached;
+    const { data: user, error: userError } = await admin
+      .from("users")
+      .select("notify_in_app")
+      .eq("id", userId)
+      .maybeSingle();
+    if (userError) {
+      console.error("push preference read failed", userError.message);
+      return [];
+    }
+    if (!pushAllowedByPreference(user?.notify_in_app)) {
+      pushTokenCache.set(userId, []);
+      return [];
+    }
+    const { data, error } = await admin
+      .from("user_push_tokens")
+      .select("token")
+      .eq("user_id", userId);
+    if (error) {
+      console.error("push token read failed", error.message);
+      return [];
+    }
+    const tokens = uniqueExpoPushTokens((data ?? []).map((row: { token: unknown }) => row.token));
+    pushTokenCache.set(userId, tokens);
+    return tokens;
+  }
+
+  /** Merge the push stamp onto the latest metadata so a WhatsApp retry cannot send the phone alert again. */
+  async function mergePushStamp(itemId: string, fireAt: string): Promise<void> {
+    const { data, error } = await admin
+      .from("mindtasker_items")
+      .select("metadata")
+      .eq("id", itemId)
+      .maybeSingle();
+    if (error) {
+      console.error("push reminder stamp read failed", error.message);
+      return;
+    }
+    const latest =
+      data?.metadata && typeof data.metadata === "object"
+        ? (data.metadata as Record<string, unknown>)
+        : {};
+    if (pushReminderFireStamp(latest) === fireAt) return;
+    const { error: updateError } = await admin
+      .from("mindtasker_items")
+      .update({ metadata: withPushReminderStamp(latest, fireAt, true) })
+      .eq("id", itemId);
+    if (updateError) console.error("push reminder stamp failed", updateError.message);
+  }
+
+  async function deliverItemPush(
+    userId: string,
+    item: { id: string; title: string },
+    notifyAt: string,
+  ): Promise<boolean> {
+    const tokens = await tokensFor(userId);
+    if (tokens.length === 0) return false;
+    const messages = buildItemReminderPushMessages(tokens, {
+      id: item.id,
+      title: item.title,
+      notifyAt,
+    });
+    const result = await sendExpoPushMessages(messages, {
+      accessToken: Deno.env.get("EXPO_ACCESS_TOKEN")?.trim() || undefined,
+    });
+    if (result.invalidTokens.length > 0) {
+      const { error } = await admin
+        .from("user_push_tokens")
+        .delete()
+        .eq("user_id", userId)
+        .in("token", result.invalidTokens);
+      if (error) console.error("push token revoke failed", error.message);
+      pushTokenCache.set(
+        userId,
+        tokens.filter((token) => !result.invalidTokens.includes(token)),
+      );
+    }
+    return result.delivered > 0;
   }
 
   async function deliver(
@@ -277,6 +370,28 @@ async function handleRequest(req: Request): Promise<Response> {
     const notifyAt = resolveItemNotifyAt(item);
     if (!notifyAt || notifyAt > nowIso) continue;
     if (isReminderOverdueBeyondWindow(notifyAt, nowMs)) continue;
+    if (holdShabbat(item.user_id)) continue;
+
+    // Phone alert is independent of WhatsApp. A failed or missing WhatsApp
+    // destination must not block it, and a later WhatsApp retry must not send
+    // a second push for the same notify instant.
+    let metadataForWrite = metadata;
+    if (shouldSendItemPush(metadata, notifyAt)) {
+      try {
+        const deliveredPush = await deliverItemPush(item.user_id, item, notifyAt);
+        if (deliveredPush) {
+          metadataForWrite = withPushReminderStamp(metadata, notifyAt, true);
+          await mergePushStamp(item.id, notifyAt);
+          pushed += 1;
+        }
+      } catch (error) {
+        console.error(
+          "push reminder failed",
+          error instanceof Error ? error.message : "send_failed",
+        );
+      }
+    }
+
     if (whatsappReminderFireStamp(metadata) === notifyAt) continue;
     const context = await contextFor(item.user_id);
     if (!context || holdShabbat(item.user_id)) continue;
@@ -291,7 +406,7 @@ async function handleRequest(req: Request): Promise<Response> {
       );
       if (!delivered) continue;
       const after = patchAfterReminderSent(
-        { due_date: item.due_date, metadata },
+        { due_date: item.due_date, metadata: metadataForWrite },
         notifyAt,
       );
       await admin
@@ -318,7 +433,7 @@ async function handleRequest(req: Request): Promise<Response> {
   if (scopedUserId) listsQuery = listsQuery.eq("user_id", scopedUserId);
   const { data: lists, error: listsError } = await listsQuery;
   if (listsError) {
-    return json({ error: listsError.message, sent }, 500);
+    return json({ error: listsError.message, sent, pushed }, 500);
   }
 
   for (const list of lists ?? []) {
@@ -341,7 +456,7 @@ async function handleRequest(req: Request): Promise<Response> {
   }
 
   if (!cron) {
-    return json({ ok: true, sent, digests: 0 });
+    return json({ ok: true, sent, pushed, digests: 0 });
   }
 
   const hour = localHour(now);
@@ -442,7 +557,7 @@ async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
-  return json({ ok: true, sent, digests, ...proactive, notebookReminders });
+  return json({ ok: true, sent, pushed, digests, ...proactive, notebookReminders });
 }
 
 Deno.serve(async (req) => {

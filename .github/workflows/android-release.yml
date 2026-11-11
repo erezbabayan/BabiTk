@@ -27,6 +27,7 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: https://ghibfuinantybqidwadj.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdoaWJmdWluYW50eWJxaWR3YWRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1Njg0MDksImV4cCI6MjEwNTE0NDQwOX0.WGT54YlYGFugfIRyLHN_pXGYl1ZyfyKtXTLZHl0g7a4
       EXPO_PUBLIC_DEMO_MODE: "false"
+      EXPO_PUBLIC_EAS_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_EAS_PROJECT_ID }}
       EXPO_NO_TELEMETRY: "1"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -76,6 +77,12 @@ jobs:
             "EXPO_PUBLIC_SUPABASE_ANON_KEY=${EXPO_PUBLIC_SUPABASE_ANON_KEY}" \
             "EXPO_PUBLIC_DEMO_MODE=${EXPO_PUBLIC_DEMO_MODE}" \
             > mobile/.env
+          if [ -n "${EXPO_PUBLIC_EAS_PROJECT_ID}" ]; then
+            printf '%s\n' "EXPO_PUBLIC_EAS_PROJECT_ID=${EXPO_PUBLIC_EAS_PROJECT_ID}" >> mobile/.env
+            echo "EAS project id length: ${#EXPO_PUBLIC_EAS_PROJECT_ID}"
+          else
+            echo "EXPO_PUBLIC_EAS_PROJECT_ID is not set. Expo push token registration will fail until this GitHub Actions secret is set and a new APK is built."
+          fi
           echo "Supabase host for Metro: ${EXPO_PUBLIC_SUPABASE_URL}"
           echo "Anon key length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
 
@@ -83,6 +90,11 @@ jobs:
         run: |
           npm ci
           npm ci --prefix mobile
+
+      - name: Optional Firebase Android config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: node scripts/apply-android-fcm-client.mjs
 
       - name: Generate Android project
         working-directory: mobile
