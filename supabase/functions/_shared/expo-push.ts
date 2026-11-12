@@ -10,6 +10,14 @@
 export const ANDROID_REMINDER_CHANNEL_ID = "reminders";
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
+/**
+ * Notification categories registered on the phone (mobile/src/lib/reminder-notification-actions.ts).
+ * Tasks get בוצע / עוד שעה / מחר 09:00; notes only the two snooze buttons.
+ * No ":" or "-" in ids (expo-notifications restriction). Keep both files in sync.
+ */
+export const REMINDER_CATEGORY_TASK = "item_reminder_task";
+export const REMINDER_CATEGORY_NOTE = "item_reminder_note";
+
 const EXPO_TOKEN_PREFIXES = ["ExponentPushToken[", "ExpoPushToken["] as const;
 
 export type ExpoPushMessage = {
@@ -19,6 +27,7 @@ export type ExpoPushMessage = {
   sound: "default";
   priority: "high";
   channelId: string;
+  categoryId: string;
   data: {
     source: "server_push";
     itemId: string;
@@ -71,9 +80,10 @@ export function withPushReminderStamp(
 
 export function buildItemReminderPushMessages(
   tokens: readonly string[],
-  item: { id: string; title: string; notifyAt: string },
+  item: { id: string; title: string; notifyAt: string; isActionable?: boolean | null },
 ): ExpoPushMessage[] {
   const body = item.title.trim() || "יש תזכורת שממתינה";
+  const categoryId = item.isActionable === false ? REMINDER_CATEGORY_NOTE : REMINDER_CATEGORY_TASK;
   return uniqueExpoPushTokens(tokens).map((to) => ({
     to,
     title: "תזכורת",
@@ -81,6 +91,7 @@ export function buildItemReminderPushMessages(
     sound: "default",
     priority: "high",
     channelId: ANDROID_REMINDER_CHANNEL_ID,
+    categoryId,
     data: {
       source: "server_push",
       itemId: item.id,

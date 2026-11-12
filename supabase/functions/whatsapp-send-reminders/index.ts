@@ -226,7 +226,7 @@ async function handleRequest(req: Request): Promise<Response> {
 
   async function deliverItemPush(
     userId: string,
-    item: { id: string; title: string },
+    item: { id: string; title: string; is_actionable?: boolean | null },
     notifyAt: string,
   ): Promise<boolean> {
     const tokens = await tokensFor(userId);
@@ -235,6 +235,7 @@ async function handleRequest(req: Request): Promise<Response> {
       id: item.id,
       title: item.title,
       notifyAt,
+      isActionable: item.is_actionable,
     });
     const result = await sendExpoPushMessages(messages, {
       accessToken: Deno.env.get("EXPO_ACCESS_TOKEN")?.trim() || undefined,
