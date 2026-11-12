@@ -141,8 +141,8 @@ jobs:
             exit 1
           fi
           if [ -n "$SUPABASE_DB_PASSWORD" ]; then
-            npx supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
-            npx supabase db push --remote --yes
+            npx -y supabase@3.1.0 link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD" --yes
+            npx -y supabase@3.1.0 db push --remote --yes
           else
             echo "::warning::SUPABASE_DB_PASSWORD is empty — migrations were not pushed. Functions will still deploy."
           fi
@@ -153,7 +153,7 @@ jobs:
             local value="${2:-}"
             if [ -n "$value" ]; then
               echo "::add-mask::$value"
-              npx supabase secrets set --project-ref "$PROJECT_REF" "${name}=${value}" >/dev/null
+              npx -y supabase@3.1.0 secrets set --project-ref "$PROJECT_REF" "${name}=${value}" >/dev/null
               echo "synced $name"
             else
               echo "skip $name (not in GitHub secrets)"
