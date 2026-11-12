@@ -113,7 +113,7 @@ export async function getUsageSummaryApi(): Promise<UsageSummary> {
   }
 
   if (isSupabaseConfigured) {
-    const profile = await getCloudUserProfile();
+    const profile = await getCloudUserProfile({ fresh: true });
     const isPremium = profile.tier === "premium";
     const audioAllocated = isPremium ? Number.MAX_SAFE_INTEGER : profile.allocated_audio_seconds;
     const aiAllocated = isPremium ? Number.MAX_SAFE_INTEGER : profile.allocated_ai_parses;

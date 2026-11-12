@@ -49,7 +49,7 @@ export function NotificationPrefs({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     let cancelled = false;
-    void getCloudUserProfile()
+    void getCloudUserProfile({ fresh: true })
       .then((next) => {
         if (!cancelled) setProfile(next);
       })

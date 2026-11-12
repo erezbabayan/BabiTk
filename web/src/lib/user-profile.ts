@@ -1,5 +1,15 @@
 import { newUserProfileRow } from "./auth-account";
 import { isMissingSchemaError } from "./schema-compat";
+import { createDedupedCache } from "./deduped-cache";
+
+/** Profile reads on boot (usage, board settings, notifications, WhatsApp catch-up) share one request. */
+const PROFILE_CACHE_TTL_MS = 30_000;
+const profileCache = createDedupedCache<CloudUserProfile>(PROFILE_CACHE_TTL_MS);
+
+/** Drop the cached profile (any write to public.users, sign-out, server-side changes). */
+export function invalidateCloudUserProfileCache(): void {
+  profileCache.invalidate();
+}
 
 export type ProactiveWhatsAppPrefs = {
   morningEnabled: boolean;
@@ -73,7 +83,9 @@ export async function saveProactiveWhatsAppPrefs(
   if (patch.followUpHour !== undefined) row.whatsapp_followup_hour = patch.followUpHour;
   if (patch.weeklyEnabled !== undefined) row.whatsapp_weekly_summary_enabled = patch.weeklyEnabled;
   if (patch.shabbatModeEnabled !== undefined) row.whatsapp_shabbat_mode_enabled = patch.shabbatModeEnabled;
+  invalidateCloudUserProfileCache();
   const { error } = await supabase.from("users").update(row).eq("id", auth.id);
+  invalidateCloudUserProfileCache();
   if (error) throw error;
   const loaded = await loadProactiveWhatsAppPrefs();
   return { ...PROACTIVE_DEFAULTS, ...(loaded ?? {}) };
@@ -292,6 +304,7 @@ export async function ensureOwnUserProfile(input: {
   username?: string | null;
 }): Promise<void> {
   const supabase = requireSupabase();
+  invalidateCloudUserProfileCache();
   const { error } = await supabase
     .from("users")
     .upsert(newUserProfileRow(input.id, input.email, input.username), { onConflict: "id" });
@@ -341,13 +354,37 @@ async function loadUserProfileRow(
   return inserted.data as unknown as Record<string, unknown>;
 }
 
-export async function getCloudUserProfile(): Promise<CloudUserProfile> {
+/**
+ * `fresh: true` skips the 30s cache (screens showing values the server may have just
+ * changed: phone link, onboarding, notification prefs, usage after a capture).
+ */
+export async function getCloudUserProfile(
+  options: { fresh?: boolean } = {},
+): Promise<CloudUserProfile> {
   const auth = await requireAuthUser();
-  const row = await loadUserProfileRow(auth.id, auth.email);
-  return mapProfile(row, auth.id, auth.email);
+  const profile = await profileCache.get(
+    auth.id,
+    async () => {
+      const row = await loadUserProfileRow(auth.id, auth.email);
+      return mapProfile(row, auth.id, auth.email);
+    },
+    options,
+  );
+  return { ...profile };
 }
 
 export async function updateCloudUserProfile(
+  patch: Parameters<typeof updateCloudUserProfileUncached>[0],
+): Promise<CloudUserProfile> {
+  invalidateCloudUserProfileCache();
+  try {
+    return await updateCloudUserProfileUncached(patch);
+  } finally {
+    invalidateCloudUserProfileCache();
+  }
+}
+
+async function updateCloudUserProfileUncached(
   patch: Partial<
     Pick<
       CloudUserProfile,

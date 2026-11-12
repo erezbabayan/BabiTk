@@ -61,7 +61,7 @@ export function SupabasePhoneLinkSettings({ summary }: SupabasePhoneLinkSettings
   const autoBindAttempted = useRef(false);
 
   async function refresh() {
-    const next = await getCloudUserProfile();
+    const next = await getCloudUserProfile({ fresh: true });
     setProfile(next);
     setProactive(await loadProactiveWhatsAppPrefs().catch(() => null));
     setGroupName(next.whatsapp_capture_group_name?.trim() ?? "");
