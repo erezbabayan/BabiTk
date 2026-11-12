@@ -368,7 +368,10 @@ async function handleRequest(req: Request): Promise<Response> {
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
     if (metadata.reminder_sent === true) continue;
     const notifyAt = resolveItemNotifyAt(item);
-    if (!notifyAt || notifyAt > nowIso) continue;
+    if (!notifyAt) continue;
+    // Compare instants, not strings: notify_at may carry a +02:00 offset while nowIso is UTC.
+    const notifyMs = Date.parse(notifyAt);
+    if (!Number.isFinite(notifyMs) || notifyMs > nowMs) continue;
     if (isReminderOverdueBeyondWindow(notifyAt, nowMs)) continue;
     if (holdShabbat(item.user_id)) continue;
 
