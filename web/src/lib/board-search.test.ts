@@ -5,7 +5,8 @@ import {
   isIgnorableBoardSearchError,
   isLegacyExpressApiAvailable,
   shouldRunRemoteBoardSearch,
-} from "./board-search.js";
+  shouldUseLegacyCompleteApi,
+} from "./board-search.ts";
 
 describe("board search remote API gating", () => {
   it("skips remote search on GitHub Pages (no Express API URL)", () => {
@@ -30,5 +31,11 @@ describe("board search remote API gating", () => {
     assert.equal(isIgnorableBoardSearchError(new Error("Search failed: 405")), true);
     assert.equal(isIgnorableBoardSearchError(new Error("Failed to fetch")), true);
     assert.equal(isIgnorableBoardSearchError(new Error("חיפוש נכשל")), false);
+  });
+
+  it("marks done directly (no 405 round trip) without an Express API URL", () => {
+    assert.equal(shouldUseLegacyCompleteApi(undefined), false);
+    assert.equal(shouldUseLegacyCompleteApi(""), false);
+    assert.equal(shouldUseLegacyCompleteApi("https://api.example.com"), true);
   });
 });
