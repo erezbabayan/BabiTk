@@ -27,7 +27,7 @@ import {
 import { isDemoMode } from "../lib/supabase";
 import { requestOpenTaskCalendar } from "../lib/task-calendar";
 import { GoogleOAuthEnable } from "./GoogleOAuthEnable";
-import { TaskMonthCalendar } from "./TaskMonthCalendar";
+import { TaskMonthCalendarLazy as TaskMonthCalendar } from "./lazy-screens";
 
 const DEMO_LINK_KEY = "babitk-demo-calendar-linked";
 
