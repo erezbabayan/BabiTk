@@ -11,6 +11,8 @@ import {
   buildItemReminderPushMessages,
   isExpoPushToken,
   pushReminderFireStamp,
+  REMINDER_CATEGORY_NOTE,
+  REMINDER_CATEGORY_TASK,
   sendExpoPushMessages,
   shouldSendItemPush,
   summarizeExpoPushTickets,
@@ -54,8 +56,26 @@ describe("item reminder push payload", () => {
       sound: "default",
       priority: "high",
       channelId: "reminders",
+      categoryId: "item_reminder_task",
       data: { source: "server_push", itemId: "item-1", fireAt: DUE },
     });
+  });
+
+  it("gives notes the snooze-only category, tasks the full one", () => {
+    const [note] = buildItemReminderPushMessages([TOKEN], {
+      id: "n1",
+      title: "רעיון",
+      notifyAt: DUE,
+      isActionable: false,
+    });
+    const [task] = buildItemReminderPushMessages([TOKEN], {
+      id: "t1",
+      title: "משימה",
+      notifyAt: DUE,
+      isActionable: true,
+    });
+    assert.equal(note?.categoryId, REMINDER_CATEGORY_NOTE);
+    assert.equal(task?.categoryId, REMINDER_CATEGORY_TASK);
   });
 
   it("skips a disabled reminder the same way WhatsApp does", () => {

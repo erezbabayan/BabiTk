@@ -1,4 +1,6 @@
 import "react-native-gesture-handler";
+// Registers reminder notification buttons + the background action task at module scope.
+import "./src/lib/reminder-notification-handler";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FlatList,
@@ -44,6 +46,8 @@ import { DateScopeFilterBar } from "./src/components/DateScopeFilterBar";
 import { useDigestLocalAlerts } from "./src/hooks/useDigestLocalAlerts";
 import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
+import { useReminderNotificationResponses } from "./src/hooks/useReminderNotificationResponses";
+import { fetchItemForOpen } from "./src/lib/reminder-open-item";
 import { useBoardSelection } from "./src/hooks/useBoardSelection";
 import { AppTopBar } from "./src/components/AppTopBar";
 import { TaskMonthCalendar } from "./src/components/TaskMonthCalendar";
@@ -181,6 +185,54 @@ function MainAppInner({
   const [moveItem, setMoveItem] = useState<MindtaskerItem | null>(null);
   const [sourceItem, setSourceItem] = useState<MindtaskerItem | null>(null);
   const [editItem, setEditItem] = useState<MindtaskerItem | null>(null);
+  // Tapping a reminder notification body opens that item (warm and cold start).
+  const [pendingOpenItemId, setPendingOpenItemId] = useState<string | null>(null);
+  const openFetchRef = useRef<string | null>(null);
+  useReminderNotificationResponses(notificationsEnabled, setPendingOpenItemId);
+  useEffect(() => {
+    if (!pendingOpenItemId) return;
+    const found = board.items.find((item) => item.id === pendingOpenItemId) ??
+      [
+        ...board.inbox,
+        ...board.todayTasks,
+        ...board.notes,
+        ...board.completedTasks,
+        ...board.inboxArchive,
+        ...board.notesArchive,
+      ].find((item) => item.id === pendingOpenItemId);
+    if (found) {
+      setPendingOpenItemId(null);
+      setSettingsVisible(false);
+      setEditItem(found);
+      return;
+    }
+    if (board.loading || openFetchRef.current === pendingOpenItemId) return;
+    // Not on the loaded board (archived, completed, or older than the window): load it directly.
+    const wanted = pendingOpenItemId;
+    openFetchRef.current = wanted;
+    void fetchItemForOpen(wanted)
+      .then((item) => {
+        if (item) {
+          setSettingsVisible(false);
+          setEditItem(item);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        openFetchRef.current = null;
+        setPendingOpenItemId((current) => (current === wanted ? null : current));
+      });
+  }, [
+    pendingOpenItemId,
+    board.loading,
+    board.items,
+    board.inbox,
+    board.todayTasks,
+    board.notes,
+    board.completedTasks,
+    board.inboxArchive,
+    board.notesArchive,
+  ]);
   const [tagPickerItem, setTagPickerItem] = useState<MindtaskerItem | null>(null);
   const [tagDraft, setTagDraft] = useState<string[]>([]);
   const [deletedItem, setDeletedItem] = useState<MindtaskerItem | null>(null);
