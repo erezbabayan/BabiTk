@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import {
   ANDROID_REMINDER_CHANNEL_ID,
   buildItemReminderPushMessages,
+  type ExpoNotificationPushMessage,
   headlessPushTokens,
   isExpoPushToken,
   PUSH_FORMAT_HEADLESS,
@@ -80,8 +81,8 @@ describe("item reminder push payload", () => {
       notifyAt: DUE,
       isActionable: true,
     });
-    assert.equal(note?.categoryId, REMINDER_CATEGORY_NOTE);
-    assert.equal(task?.categoryId, REMINDER_CATEGORY_TASK);
+    assert.equal((note as ExpoNotificationPushMessage | undefined)?.categoryId, REMINDER_CATEGORY_NOTE);
+    assert.equal((task as ExpoNotificationPushMessage | undefined)?.categoryId, REMINDER_CATEGORY_TASK);
   });
 
   it("skips a disabled reminder the same way WhatsApp does", () => {
