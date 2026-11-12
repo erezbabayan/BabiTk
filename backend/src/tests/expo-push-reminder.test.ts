@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 import {
   ANDROID_REMINDER_CHANNEL_ID,
   buildItemReminderPushMessages,
+  headlessPushTokens,
   isExpoPushToken,
+  PUSH_FORMAT_HEADLESS,
   pushReminderFireStamp,
   REMINDER_CATEGORY_NOTE,
   REMINDER_CATEGORY_TASK,
@@ -24,6 +26,10 @@ import {
   resolveItemNotifyAt,
   stampWhatsAppReminderFireAt,
 } from "../../../supabase/functions/_shared/whatsapp-reminders.ts";
+import {
+  headlessReminderFromTaskPayload,
+  PUSH_FORMAT_HEADLESS as MOBILE_PUSH_FORMAT,
+} from "../../../mobile/src/lib/reminder-notification-actions.ts";
 
 const DUE = "2026-11-11T09:00:00.000Z";
 const TOKEN = "ExponentPushToken[abc123]";
@@ -262,5 +268,68 @@ describe("android FCM client config script", () => {
     );
     assert.equal(wrong.status, 1);
     assert.match(wrong.stderr, /com\.mindtasker\.app/);
+  });
+});
+
+describe("headless reminder push (buttons in background/killed)", () => {
+  it("sends data-only to headless-capable tokens and the classic message to the rest", () => {
+    const OLD = "ExponentPushToken[old]";
+    const headless = headlessPushTokens([
+      { token: TOKEN, push_format: PUSH_FORMAT_HEADLESS },
+      { token: OLD, push_format: null },
+      { token: "junk", push_format: PUSH_FORMAT_HEADLESS },
+      { token: "ExponentPushToken[nocol]" },
+    ]);
+    assert.deepEqual([...headless], [TOKEN]);
+    const [newer, older] = buildItemReminderPushMessages(
+      [TOKEN, OLD],
+      { id: "item-1", title: " לקנות חלב ", notifyAt: DUE, isActionable: true },
+      { headlessTokens: headless },
+    );
+    assert.deepEqual(newer, {
+      to: TOKEN,
+      priority: "high",
+      _contentAvailable: true,
+      data: {
+        source: "server_push",
+        kind: "item_reminder",
+        itemId: "item-1",
+        fireAt: DUE,
+        reminderTitle: "תזכורת",
+        reminderBody: "לקנות חלב",
+        categoryId: REMINDER_CATEGORY_TASK,
+      },
+    });
+    // No title/body/channelId at top level, or Expo turns it into a tray Notification Message.
+    assert.equal("title" in (newer as object), false);
+    assert.equal("channelId" in (newer as object), false);
+    assert.equal((older as { title?: string }).title, "תזכורת");
+  });
+
+  it("phone side reads the task payload the way Android delivers it (data.dataString)", () => {
+    const [message] = buildItemReminderPushMessages(
+      [TOKEN],
+      { id: "n1", title: "רעיון", notifyAt: DUE, isActionable: false },
+      { headlessTokens: new Set([TOKEN]) },
+    );
+    const payload = { notification: null, data: { dataString: JSON.stringify(message?.data) } };
+    const reminder = headlessReminderFromTaskPayload(payload);
+    assert.ok(reminder);
+    assert.equal(reminder.title, "תזכורת");
+    assert.equal(reminder.body, "רעיון");
+    assert.equal(reminder.categoryId, REMINDER_CATEGORY_NOTE);
+    assert.deepEqual(reminder.data, { source: "server_push", itemId: "n1", fireAt: DUE });
+    assert.match(reminder.identifier, /^server_reminder_n1_[0-9A-Za-z]+$/);
+    assert.equal(MOBILE_PUSH_FORMAT, PUSH_FORMAT_HEADLESS);
+  });
+
+  it("ignores responses, other pushes and bad JSON", () => {
+    assert.equal(headlessReminderFromTaskPayload({ actionIdentifier: "x", notification: {} }), null);
+    assert.equal(headlessReminderFromTaskPayload({ data: { dataString: "{" } }), null);
+    assert.equal(
+      headlessReminderFromTaskPayload({ data: { dataString: JSON.stringify({ source: "other" }) } }),
+      null,
+    );
+    assert.equal(headlessReminderFromTaskPayload(null), null);
   });
 });

@@ -20,7 +20,19 @@ export const REMINDER_CATEGORY_NOTE = "item_reminder_note";
 
 const EXPO_TOKEN_PREFIXES = ["ExponentPushToken[", "ExpoPushToken["] as const;
 
-export type ExpoPushMessage = {
+/**
+ * Token rows written by an app build that presents server reminders itself
+ * (headless push + background task). Older builds have no push_format.
+ */
+export const PUSH_FORMAT_HEADLESS = "headless_v1";
+
+/**
+ * Classic Notification Message (title/body/channelId at top level).
+ * On Android, FCM renders it in the tray when the app is backgrounded or
+ * killed, so expo-notifications never applies categoryId: no buttons.
+ * Kept for app builds that cannot present headless reminders.
+ */
+export type ExpoNotificationPushMessage = {
   to: string;
   title: string;
   body: string;
@@ -34,6 +46,40 @@ export type ExpoPushMessage = {
     fireAt: string;
   };
 };
+
+/**
+ * Headless (data-only) message. The app's expo-task-manager task receives it
+ * in every app state and presents a local notification with the category,
+ * so the buttons show in background and killed states too.
+ * See https://github.com/expo/expo/issues/36282.
+ */
+export type ExpoHeadlessPushMessage = {
+  to: string;
+  priority: "high";
+  _contentAvailable: true;
+  data: {
+    source: "server_push";
+    kind: "item_reminder";
+    itemId: string;
+    fireAt: string;
+    reminderTitle: string;
+    reminderBody: string;
+    categoryId: string;
+  };
+};
+
+export type ExpoPushMessage = ExpoNotificationPushMessage | ExpoHeadlessPushMessage;
+
+/** Tokens whose row says the app presents headless reminders (missing column = none). */
+export function headlessPushTokens(rows: readonly unknown[]): Set<string> {
+  const out = new Set<string>();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    const { token, push_format } = row as { token?: unknown; push_format?: unknown };
+    if (isExpoPushToken(token) && push_format === PUSH_FORMAT_HEADLESS) out.add(token);
+  }
+  return out;
+}
 
 export function isExpoPushToken(token: unknown): token is string {
   if (typeof token !== "string" || !token.endsWith("]")) return false;
@@ -81,10 +127,26 @@ export function withPushReminderStamp(
 export function buildItemReminderPushMessages(
   tokens: readonly string[],
   item: { id: string; title: string; notifyAt: string; isActionable?: boolean | null },
+  options?: { headlessTokens?: ReadonlySet<string> },
 ): ExpoPushMessage[] {
   const body = item.title.trim() || "יש תזכורת שממתינה";
   const categoryId = item.isActionable === false ? REMINDER_CATEGORY_NOTE : REMINDER_CATEGORY_TASK;
-  return uniqueExpoPushTokens(tokens).map((to) => ({
+  return uniqueExpoPushTokens(tokens).map((to): ExpoPushMessage => options?.headlessTokens?.has(to)
+    ? {
+        to,
+        priority: "high",
+        _contentAvailable: true,
+        data: {
+          source: "server_push",
+          kind: "item_reminder",
+          itemId: item.id,
+          fireAt: item.notifyAt,
+          reminderTitle: "תזכורת",
+          reminderBody: body,
+          categoryId,
+        },
+      }
+    : ({
     to,
     title: "תזכורת",
     body,
@@ -97,7 +159,7 @@ export function buildItemReminderPushMessages(
       itemId: item.id,
       fireAt: item.notifyAt,
     },
-  }));
+  }) as ExpoNotificationPushMessage);
 }
 
 type ExpoTicket = {

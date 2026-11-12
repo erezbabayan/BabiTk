@@ -42,6 +42,7 @@ import {
 } from "../_shared/cron-lease.ts";
 import {
   buildItemReminderPushMessages,
+  headlessPushTokens,
   pushAllowedByPreference,
   pushReminderFireStamp,
   sendExpoPushMessages,
@@ -147,6 +148,8 @@ async function handleRequest(req: Request): Promise<Response> {
   let digests = 0;
   const userCache = new Map<string, { user: ReminderUserRow; gateway: GatewayRow | null } | null>();
   const pushTokenCache = new Map<string, string[]>();
+  /** Tokens whose app build presents headless reminders with buttons (see expo-push.ts). */
+  const headlessTokenSet = new Set<string>();
 
   async function contextFor(userId: string) {
     if (userCache.has(userId)) return userCache.get(userId) ?? null;
@@ -188,15 +191,18 @@ async function handleRequest(req: Request): Promise<Response> {
       pushTokenCache.set(userId, []);
       return [];
     }
+    // "*" so this keeps working before the push_format column exists.
     const { data, error } = await admin
       .from("user_push_tokens")
-      .select("token")
+      .select("*")
       .eq("user_id", userId);
     if (error) {
       console.error("push token read failed", error.message);
       return [];
     }
-    const tokens = uniqueExpoPushTokens((data ?? []).map((row: { token: unknown }) => row.token));
+    const rows = data ?? [];
+    const tokens = uniqueExpoPushTokens(rows.map((row: { token: unknown }) => row.token));
+    for (const token of headlessPushTokens(rows)) headlessTokenSet.add(token);
     pushTokenCache.set(userId, tokens);
     return tokens;
   }
@@ -231,12 +237,16 @@ async function handleRequest(req: Request): Promise<Response> {
   ): Promise<boolean> {
     const tokens = await tokensFor(userId);
     if (tokens.length === 0) return false;
-    const messages = buildItemReminderPushMessages(tokens, {
-      id: item.id,
-      title: item.title,
-      notifyAt,
-      isActionable: item.is_actionable,
-    });
+    const messages = buildItemReminderPushMessages(
+      tokens,
+      {
+        id: item.id,
+        title: item.title,
+        notifyAt,
+        isActionable: item.is_actionable,
+      },
+      { headlessTokens: headlessTokenSet },
+    );
     const result = await sendExpoPushMessages(messages, {
       accessToken: Deno.env.get("EXPO_ACCESS_TOKEN")?.trim() || undefined,
     });
