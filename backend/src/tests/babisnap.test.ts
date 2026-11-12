@@ -246,7 +246,7 @@ describe("BabiSnap wiring", () => {
     assert.match(endpoint, /babisnap_status/);
     assert.doesNotMatch(endpoint, /SERVICE_ROLE/);
     assert.match(config, /\[functions\.babisnap\]\s+verify_jwt = true/);
-    assert.match(workflow, /functions deploy babisnap --project-ref "\$PROJECT_REF" --import-map "\$IMPORT_MAP"\n/);
+    assert.match(workflow, /functions deploy babisnap --project-ref "\$PROJECT_REF" --import-map "\$IMPORT_MAP"(?: --yes)?\n/);
     assert.match(migration, /name = 'BabiSnap'/);
     assert.match(migration, /user_id = auth\.uid\(\)/);
     assert.doesNotMatch(migration, /grant select \(token_hash\)/i);
