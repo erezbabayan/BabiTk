@@ -8,11 +8,15 @@ import {
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LocalBackendBanner } from "./components/LocalBackendBanner";
 import { AppShell } from "./components/AppShell";
-import { Dashboard } from "./components/Dashboard";
-import { LoginScreen } from "./components/LoginScreen";
-import { PaywallModal } from "./components/PaywallModal";
-import { SettingsPanel } from "./components/SettingsPanel";
-import { OnboardingWizard } from "./components/OnboardingWizard";
+import {
+  DashboardScreen as Dashboard,
+  LoginScreenLazy as LoginScreen,
+  OnboardingWizardLazy as OnboardingWizard,
+  PaywallModalLazy as PaywallModal,
+  SettingsPanelLazy as SettingsPanel,
+  prefetchFirstScreen,
+  prefetchSecondaryScreens,
+} from "./components/lazy-screens";
 import { useUsage } from "./hooks/useUsage";
 import { useHeaderUserName } from "./hooks/useHeaderUserName";
 import { ingestTextApi, registerPaywallHandler } from "./lib/api";
@@ -49,6 +53,9 @@ import type { UserNameParts } from "./lib/user-display-name";
 import { UserTagsProvider } from "./providers/UserTagsProvider";
 
 const DEMO_HEADER_NAME: UserNameParts = { firstName: "משתמש", lastName: "הדגמה" };
+
+// Start downloading the board (signed in) or login screen while App itself evaluates.
+prefetchFirstScreen();
 
 export default function App() {
   if (isSupabaseConfigured) {
@@ -192,6 +199,11 @@ function DemoApp() {
 function ConfiguredApp() {
   const supabase = requireSupabase();
   const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    return prefetchSecondaryScreens();
+  }, [userId]);
   const [userMetadata, setUserMetadata] = useState<Record<string, unknown> | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<"menu" | "calendar">("menu");

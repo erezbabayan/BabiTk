@@ -65,7 +65,7 @@ import {
 import { alertSnoozeDueAt, effectiveTaskDueDate } from "../lib/resolve-item-reminder";
 import type { AlertSnoozeKind } from "../lib/resolve-item-reminder";
 import { ItemEditModal } from "./ItemEditModal";
-import { TaskMonthCalendar } from "./TaskMonthCalendar";
+import { TaskMonthCalendarLazy as TaskMonthCalendar } from "./lazy-screens";
 import type { ChecklistEntry } from "../lib/checklist";
 import type { MindtaskerItem } from "../types";
 import {
