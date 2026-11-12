@@ -1,5 +1,6 @@
 import { isMissingSchemaError } from "./schema-compat";
 import { requireSupabase } from "./supabase";
+import { PUSH_FORMAT_HEADLESS } from "./reminder-notification-actions";
 
 /** Keep in sync with supabase/functions/_shared/expo-push.ts isExpoPushToken. */
 export function isExpoPushToken(token: string): boolean {
@@ -22,16 +23,23 @@ export async function upsertOwnPushToken(params: {
   if (!isExpoPushToken(params.token)) {
     throw new Error("unexpected push token");
   }
-  const { error } = await requireSupabase()
-    .from("user_push_tokens")
-    .upsert(
-      {
-        user_id: params.userId,
-        token: params.token,
-        platform: params.platform,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,token" },
-    );
+  const row = {
+    user_id: params.userId,
+    token: params.token,
+    platform: params.platform,
+    updated_at: new Date().toISOString(),
+  };
+  // Android builds with the headless reminder task tell the server to send
+  // data-only reminders (buttons work in background/killed states).
+  const withFormat =
+    params.platform === "android" ? { ...row, push_format: PUSH_FORMAT_HEADLESS } : row;
+  const table = requireSupabase().from("user_push_tokens");
+  let { error } = await table.upsert(withFormat, { onConflict: "user_id,token" });
+  if (error && withFormat !== row && isMissingSchemaError(error)) {
+    // push_format column not migrated yet: keep the classic push.
+    ({ error } = await requireSupabase()
+      .from("user_push_tokens")
+      .upsert(row, { onConflict: "user_id,token" }));
+  }
   if (error && !isMissingSchemaError(error)) throw error;
 }

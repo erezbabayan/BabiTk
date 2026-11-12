@@ -13,8 +13,10 @@ import * as Notifications from "expo-notifications";
 import * as TaskManager from "expo-task-manager";
 
 import { requireSupabase, isSupabaseConfigured } from "./supabase";
+import { ANDROID_REMINDER_CHANNEL_ID, ensureAndroidReminderChannel } from "./local-notifications";
 import {
   buildReminderActionPatch,
+  headlessReminderFromTaskPayload,
   parseReminderAction,
   REMINDER_CATEGORY_BUTTONS,
   reminderItemIdFromData,
@@ -110,12 +112,47 @@ function isNotificationResponse(value: unknown): value is Notifications.Notifica
   );
 }
 
+/**
+ * Server reminders arrive as headless (data-only) pushes so the buttons work in
+ * every app state: a tray-rendered Notification Message never gets categories
+ * on Android (https://github.com/expo/expo/issues/36282). Present it here as a
+ * local notification with the category; the task runs in foreground,
+ * background and killed states.
+ */
+export async function presentHeadlessReminder(payload: unknown): Promise<boolean> {
+  const reminder = headlessReminderFromTaskPayload(payload);
+  if (!reminder) return false;
+  if (Platform.OS === "android") await ensureAndroidReminderChannel();
+  await Notifications.scheduleNotificationAsync({
+    identifier: reminder.identifier,
+    content: {
+      title: reminder.title,
+      body: reminder.body,
+      data: reminder.data,
+      categoryIdentifier: reminder.categoryId,
+      sound: true,
+      priority: Notifications.AndroidNotificationPriority.MAX,
+    },
+    trigger: Platform.OS === "android" ? { channelId: ANDROID_REMINDER_CHANNEL_ID } : null,
+  });
+  return true;
+}
+
 if (Platform.OS !== "web" && !TaskManager.isTaskDefined(REMINDER_ACTION_TASK)) {
   TaskManager.defineTask<Notifications.NotificationTaskPayload>(
     REMINDER_ACTION_TASK,
     async ({ data }) => {
       if (isNotificationResponse(data)) {
         await handleReminderActionResponse(data);
+        return;
+      }
+      try {
+        await presentHeadlessReminder(data);
+      } catch (error) {
+        console.warn(
+          "[reminder-push] present failed:",
+          error instanceof Error ? error.message : "unknown",
+        );
       }
     },
   );

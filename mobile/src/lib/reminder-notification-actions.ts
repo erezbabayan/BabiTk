@@ -135,3 +135,55 @@ export function buildReminderActionPatch(
   );
   return { ...reminder, last_interacted_at: nowIso };
 }
+
+/** Must match PUSH_FORMAT_HEADLESS in supabase/functions/_shared/expo-push.ts. */
+export const PUSH_FORMAT_HEADLESS = "headless_v1";
+
+export type HeadlessReminder = {
+  identifier: string;
+  title: string;
+  body: string;
+  categoryId: string;
+  data: { source: "server_push"; itemId: string; fireAt: string };
+};
+
+/**
+ * Read a headless server reminder from a notification task payload.
+ * Android delivers the Expo `data` as JSON in data.dataString (FCM "body").
+ * Returns null for anything else (responses, other pushes, bad JSON).
+ */
+export function headlessReminderFromTaskPayload(payload: unknown): HeadlessReminder | null {
+  if (!payload || typeof payload !== "object" || "actionIdentifier" in payload) return null;
+  const raw = (payload as { data?: unknown }).data;
+  if (!raw || typeof raw !== "object") return null;
+  const dataString = (raw as { dataString?: unknown }).dataString;
+  let data: Record<string, unknown> | null = null;
+  if (typeof dataString === "string") {
+    try {
+      const parsed: unknown = JSON.parse(dataString);
+      if (parsed && typeof parsed === "object") data = parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  if (!data || data.source !== "server_push" || data.kind !== "item_reminder") return null;
+  const itemId = typeof data.itemId === "string" ? data.itemId.trim() : "";
+  const fireAt = typeof data.fireAt === "string" ? data.fireAt : "";
+  if (!itemId || !fireAt) return null;
+  const categoryId =
+    data.categoryId === REMINDER_CATEGORY_NOTE ? REMINDER_CATEGORY_NOTE : REMINDER_CATEGORY_TASK;
+  const title = typeof data.reminderTitle === "string" && data.reminderTitle.trim()
+    ? data.reminderTitle
+    : "תזכורת";
+  const body = typeof data.reminderBody === "string" && data.reminderBody.trim()
+    ? data.reminderBody
+    : "יש תזכורת שממתינה";
+  return {
+    // Same reminder twice (retry, task run twice) replaces instead of stacking.
+    identifier: `server_reminder_${itemId}_${fireAt.replace(/[^0-9A-Za-z]/g, "")}`,
+    title,
+    body,
+    categoryId,
+    data: { source: "server_push", itemId, fireAt },
+  };
+}
