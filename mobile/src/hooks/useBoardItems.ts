@@ -25,6 +25,12 @@ import {
 import { isDemoMode, normalizeMindtaskerRows, requireSupabase, type MindtaskerItem } from "../lib/supabase";
 import { collectPagedRows } from "../lib/supabase-paginate";
 import { applyItemRealtimeChange } from "../lib/realtime-items";
+import {
+  applyOptimisticPatch,
+  mergeServerRow,
+  rollbackOptimisticPatch,
+  snapshotPatchedFields,
+} from "../lib/optimistic-patch";
 import { isSyncEnabled } from "../lib/sync-client";
 import {
   applyOptimistic,
@@ -49,6 +55,12 @@ const ITEM_SELECT = `
   id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id, sort_order, created_at,
   source_materials (id, source_type, storage_url, raw_text, metadata)
 `;
+
+/** Columns returned by optimistic UPDATEs (no join — source_materials stays as loaded). */
+const ITEM_RETURN_COLUMNS =
+  "id, title, content, is_actionable, status, due_date, tags, metadata, source_material_id, sort_order, created_at";
+
+const CACHE_WRITE_DEBOUNCE_MS = 1200;
 
 export interface ItemEditInput {
   title: string;
@@ -170,6 +182,9 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
   const { isOnline, isSyncing, setIsSyncing } = useNetworkStatus();
   const syncVersionRef = useRef<number | null>(null);
   const refreshInFlightRef = useRef(false);
+  const serverLoadedRef = useRef(false);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   const refresh = useCallback(async () => {
     if (!enabled) {
@@ -200,6 +215,7 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       try {
         const data = await fetchAllFromServer(userId);
         setItems(data);
+        serverLoadedRef.current = true;
         await writeCache(CACHE_KEYS.inbox, data);
         setSyncError(null);
       } catch (error) {
@@ -277,8 +293,8 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
       options?: { refresh?: boolean },
     ) => {
       if (!enabled) return;
-      const shouldRefresh = options?.refresh !== false;
       if (isDemoMode) {
+        const shouldRefresh = options?.refresh !== false;
         const showSync = isSyncEnabled();
         if (showSync) setIsSyncing(true);
         try {
@@ -295,16 +311,45 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
         return;
       }
 
-      const supabase = requireSupabase();
-      const { error } = await supabase
-        .from("mindtasker_items")
-        .update(patch)
-        .eq("id", item.id);
-      if (error) throw error;
-      if (shouldRefresh) await refresh();
+      // Optimistic: the card changes on tap. Supabase runs in the background and the
+      // realtime channel (plus UPDATE … RETURNING) reconciles; no full board reload.
+      const snapshot = snapshotPatchedFields(
+        itemsRef.current.find((entry) => entry.id === item.id),
+        patch,
+      );
+      setItems((prev) => applyOptimisticPatch(prev, item.id, patch));
+      try {
+        const supabase = requireSupabase();
+        const { data, error } = await supabase
+          .from("mindtasker_items")
+          .update(patch)
+          .eq("id", item.id)
+          .select(ITEM_RETURN_COLUMNS)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) {
+          setItems((prev) =>
+            mergeServerRow(prev, data as unknown as { id: string } & Record<string, unknown>),
+          );
+        }
+      } catch (error) {
+        setItems((prev) => rollbackOptimisticPatch(prev, item.id, snapshot));
+        void refresh();
+        throw error;
+      }
+      if (options?.refresh === true) await refresh();
     },
     [enabled, refresh, setIsSyncing],
   );
+
+  // Keep the offline cache current without a full reload after every tap.
+  useEffect(() => {
+    if (!enabled || isDemoMode || !serverLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      void writeCache(CACHE_KEYS.inbox, items);
+    }, CACHE_WRITE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [enabled, items]);
 
   useIncomingContextParse(
     items,
