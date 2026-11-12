@@ -32,7 +32,7 @@ export function OnboardingWizard({ enabled, userId, summary }: OnboardingWizardP
       return;
     }
     let cancelled = false;
-    void getCloudUserProfile()
+    void getCloudUserProfile({ fresh: true })
       .then((profile) => {
         if (!cancelled) {
           setVisible(!profile.onboarding_completed_at);

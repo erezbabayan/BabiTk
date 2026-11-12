@@ -57,7 +57,7 @@ async function existingWhatsAppMessageIds(userId: string): Promise<Set<string>> 
 }
 
 async function bindCaptureGroupIfNeeded(): Promise<string | null> {
-  const profile = await getCloudUserProfile();
+  const profile = await getCloudUserProfile({ fresh: true });
   const existing = parseGroupChatId(profile.whatsapp_capture_group_chat_id ?? "");
   if (existing) return existing;
   const savedName = profile.whatsapp_capture_group_name?.trim() ?? "";
@@ -138,7 +138,7 @@ async function catchUpWhatsAppGroupInboxOnce(): Promise<WhatsAppCatchupResult> {
   } catch {
     // live connect may be unauthorized; restoring @g.us still unblocks the webhook
   }
-  const profile = await getCloudUserProfile();
+  const profile = await getCloudUserProfile({ fresh: true });
   const boundChatId =
     parseGroupChatId(profile.whatsapp_capture_group_chat_id ?? "") ?? boundBefore;
   const knownAfter = await existingWhatsAppMessageIds(userId);

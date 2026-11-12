@@ -1,4 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
+import {
+  startVisibleInterval,
+  WHATSAPP_CATCHUP_INTERVAL_MS,
+  WHATSAPP_CATCHUP_MIN_GAP_MS,
+} from "./lib/visible-interval";
 
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LocalBackendBanner } from "./components/LocalBackendBanner";
@@ -292,11 +297,21 @@ function ConfiguredApp() {
           console.warn("whatsapp group catchup", error);
         });
     };
-    run();
-    const timer = window.setInterval(run, 45_000);
+    // Was every 45s in every open tab, even hidden. pg_cron catches up server-side
+    // every 10 min; the client now runs on open, on return to the tab, then every 5 min.
+    const stop = startVisibleInterval(run, {
+      intervalMs: WHATSAPP_CATCHUP_INTERVAL_MS,
+      minGapMs: WHATSAPP_CATCHUP_MIN_GAP_MS,
+      doc: document,
+      timers: {
+        setInterval: (fn, ms) => window.setInterval(fn, ms),
+        clearInterval: (id) => window.clearInterval(id as number),
+        now: () => Date.now(),
+      },
+    });
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
     };
   }, [userId]);
 
