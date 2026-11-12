@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { stablePropsEqual, useStableHandlers } from "../lib/stable-props";
 import { StyleSheet, Text, Vibration, View } from "react-native";
 import { Gesture, GestureDetector, Swipeable, TouchableOpacity } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
@@ -82,7 +83,7 @@ function renderActionSlot(action: SwipeSideAction, width: number, compact = fals
   return <SwipeActionSlot action={action} width={width} compact={compact} />;
 }
 
-export function SwipeableItem({
+function SwipeableItemComponent({
   item,
   userTags = [],
   tagsOverride,
@@ -711,3 +712,26 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
 });
+
+const SWIPE_ACTION_KEYS = ["leftAction", "rightAction"] as const;
+
+const SwipeableItemMemo = memo(
+  SwipeableItemComponent,
+  stablePropsEqual(SWIPE_ACTION_KEYS) as unknown as (
+    prev: SwipeableItemProps,
+    next: SwipeableItemProps,
+  ) => boolean,
+);
+
+/**
+ * App.renderBoardItem builds new inline callbacks (and swipe actions) for every row on
+ * every render. Stable wrappers always call the latest callback, so the memoized card
+ * re-renders only when its item or display props change.
+ */
+export function SwipeableItem(props: SwipeableItemProps) {
+  const stable = useStableHandlers(
+    props as unknown as Record<string, unknown>,
+    SWIPE_ACTION_KEYS,
+  );
+  return <SwipeableItemMemo {...(stable as unknown as SwipeableItemProps)} />;
+}

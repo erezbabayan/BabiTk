@@ -1,4 +1,5 @@
 import { resolveCardTapAction, isInteractiveCardTarget } from "../lib/item-card-tap";
+import { stablePropsEqual, useStableHandlers } from "../lib/stable-props";
 import { memo, useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import type { MindtaskerItem } from "../types";
 import { ItemEditModal, type ItemEditInput } from "./ItemEditModal";
@@ -563,4 +564,16 @@ function ItemCardComponent({
   );
 }
 
-export const ItemCard = memo(ItemCardComponent);
+const ItemCardMemo = memo(
+  ItemCardComponent,
+  stablePropsEqual() as unknown as (prev: ItemCardProps, next: ItemCardProps) => boolean,
+);
+
+/**
+ * Parents pass new inline callbacks every render; swap them for stable wrappers that
+ * call the latest callback, so a tap on one card no longer re-renders every card.
+ */
+export function ItemCard(props: ItemCardProps) {
+  const stable = useStableHandlers(props as unknown as Record<string, unknown>);
+  return <ItemCardMemo {...(stable as unknown as ItemCardProps)} />;
+}
