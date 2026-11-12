@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, Vibration, View } from "react-native";
 import { Gesture, GestureDetector, Swipeable, TouchableOpacity } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
+import { resolveCardPress } from "../lib/card-press";
 import type { MindtaskerItem } from "../lib/supabase";
 import type { UserTag } from "../lib/tags";
 import { ItemActionBar, type BoardTab, type ListView } from "./ItemActionBar";
@@ -36,7 +37,6 @@ import {
 const ACTION_WIDTH = 108;
 const ACTION_WIDTH_DENSE = 64;
 const ACTION_WIDTH_SQUARES = 56;
-const DOUBLE_PRESS_MS = 400;
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_MOVE_SLOP = 16;
 
@@ -112,7 +112,7 @@ export function SwipeableItem({
   onToggleSelect,
 }: SwipeableItemProps) {
   const swipeRef = useRef<Swipeable>(null);
-  const lastPressRef = useRef(0);
+  const [pressed, setPressed] = useState(false);
   const longPressFiredRef = useRef(false);
   const [itemExpanded, setItemExpanded] = useState(false);
 
@@ -185,21 +185,13 @@ export function SwipeableItem({
   );
 
   function handleCardPress() {
-    if (selecting) {
-      onToggleSelect?.();
-      return;
-    }
-    if (longPressFiredRef.current) {
-      longPressFiredRef.current = false;
-      return;
-    }
-    const now = Date.now();
-    if (now - lastPressRef.current < DOUBLE_PRESS_MS) {
-      lastPressRef.current = 0;
-      onEdit();
-      return;
-    }
-    lastPressRef.current = now;
+    const action = resolveCardPress({
+      selecting,
+      longPressFired: longPressFiredRef.current,
+    });
+    longPressFiredRef.current = false;
+    if (action === "toggle-select") onToggleSelect?.();
+    else if (action === "edit") onEdit();
   }
 
   function handleOpen(direction: "left" | "right") {
@@ -216,6 +208,7 @@ export function SwipeableItem({
           dense ? styles.cardDense : null,
           isSquares ? styles.cardSquares : null,
           selected ? styles.cardSelected : null,
+          pressed && !selecting ? styles.cardPressed : null,
           cardMinHeight !== undefined ? { minHeight: cardMinHeight } : null,
         ]}
       >
@@ -228,11 +221,16 @@ export function SwipeableItem({
         />
 
         <TouchableOpacity
-          activeOpacity={1}
+          activeOpacity={0.85}
+          delayPressIn={40}
           onPress={handleCardPress}
           onPressIn={() => {
             longPressFiredRef.current = false;
+            setPressed(true);
           }}
+          onPressOut={() => setPressed(false)}
+          accessibilityRole="button"
+          accessibilityHint="לחיצה פותחת עריכה"
           style={[
             styles.cardInner,
             dense || isSquares ? styles.cardInnerDense : null,
@@ -394,7 +392,6 @@ export function SwipeableItem({
                 item={item}
                 tab={tab}
                 listView={listView}
-                onEdit={onEdit}
                 onToggleType={onToggleType}
                 onComplete={onComplete}
                 onSnooze={onSnooze}
@@ -494,6 +491,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 2,
     elevation: 1,
+  },
+  cardPressed: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#93c5fd",
+    transform: [{ scale: 0.99 }],
   },
   cardSelected: {
     backgroundColor: "#eff6ff",

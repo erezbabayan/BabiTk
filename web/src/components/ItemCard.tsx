@@ -1,3 +1,4 @@
+import { resolveCardTapAction, isInteractiveCardTarget } from "../lib/item-card-tap";
 import { memo, useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import type { MindtaskerItem } from "../types";
 import { ItemEditModal, type ItemEditInput } from "./ItemEditModal";
@@ -204,7 +205,7 @@ function ItemCardComponent({
   const contentCollapsed = isItemContentCollapsed(display.isItemExpandable, itemExpanded);
   const headlineText = display.body ? display.headline : display.fullHeadline;
   const hasActions = Boolean(
-    onEdit || onToggleType || onComplete || onSnooze || onTagPress || onTaskListUndo,
+    onToggleType || onComplete || onSnooze || onTagPress || onTaskListUndo,
   );
   const visibleTags = tagsOverride ?? display.tags;
   const hasTags = visibleTags.length > 0;
@@ -236,13 +237,18 @@ function ItemCardComponent({
     setItemExpanded(false);
   }, [item.id]);
 
-  function handleDoubleClick(event: MouseEvent) {
-    if (selecting || !onEdit || showSource) return;
-    const target = event.target as HTMLElement;
-    if (target.closest("button, a, input, textarea, select, label, [data-item-drag-handle]")) {
-      return;
-    }
-    setEditing(true);
+  function handleCardClick(event: MouseEvent) {
+    const selection = typeof window !== "undefined" ? window.getSelection?.() : null;
+    const action = resolveCardTapAction({
+      selecting,
+      canSelect: Boolean(onToggleSelect),
+      canEdit: Boolean(onEdit),
+      showSource,
+      interactiveTarget: isInteractiveCardTarget(event.target),
+      hasTextSelection: Boolean(selection && !selection.isCollapsed && selection.toString().trim()),
+    });
+    if (action === "toggle-select") onToggleSelect?.();
+    else if (action === "edit") setEditing(true);
   }
 
   const cardMinHeight = dense ? undefined : itemCardMinHeight(display, itemExpanded);
@@ -266,23 +272,14 @@ function ItemCardComponent({
     <>
       <article
         data-item-drag-root=""
-        onDoubleClick={handleDoubleClick}
-        onClick={
-          selecting && onToggleSelect
-            ? (event) => {
-                const target = event.target as HTMLElement;
-                if (target.closest("button, a, input, textarea, select, label")) return;
-                onToggleSelect();
-              }
-            : undefined
-        }
+        onClick={handleCardClick}
         style={cardStyle}
         className={`board-notebook-item relative overflow-hidden transition ${
           dense ? "board-notebook-item--dense" : ""
         } ${isSquares ? "board-notebook-item--squares" : ""} ${
           isDragging ? "opacity-40" : ""
         } ${selected ? "board-notebook-item--selected" : ""} ${
-          selecting ? "cursor-pointer" : onEdit ? "cursor-default" : ""
+          selecting || onEdit ? "cursor-pointer board-notebook-item--tappable" : ""
         }`}
       >
         <div
@@ -517,14 +514,6 @@ function ItemCardComponent({
                         label="תיוג"
                         onClick={onTagPress}
                         active={tagPickerOpen}
-                        dense={dense || isSquares}
-                      />
-                    ) : null}
-                    {onEdit ? (
-                      <NotebookActionButton
-                        icon="edit"
-                        label="עריכה"
-                        onClick={() => setEditing(true)}
                         dense={dense || isSquares}
                       />
                     ) : null}

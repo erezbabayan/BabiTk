@@ -55,6 +55,7 @@ import {
   OPTIMISTIC_ROLLBACK_EVENT,
 } from "../lib/optimistic-capture";
 import { completeItemApi } from "../lib/api";
+import { shouldUseLegacyCompleteApi } from "../lib/board-search";
 import { queueGoogleCalendarItemSync } from "../lib/google-calendar-client";
 
 import { useConvexBackend } from "../lib/data-backend";
@@ -472,7 +473,9 @@ function useItemsSupabase(userId: string | undefined, enabled: boolean) {
 
       if (!enabled) return;
 
-      if (!isDemoMode) {
+      // Only the retired Express API has PATCH /api/items/:id/complete. On GitHub Pages
+      // (no VITE_API_URL) that call always failed (405) before falling back, delaying the tap.
+      if (!isDemoMode && shouldUseLegacyCompleteApi(import.meta.env.VITE_API_URL)) {
         try {
           await completeItemApi(item.id);
           await refresh();

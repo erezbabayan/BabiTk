@@ -468,6 +468,18 @@ body {
   @apply bg-blue-50;
 }
 
+/* Instant pressed feedback (touch has no :hover). */
+.notebook-icon-btn {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.notebook-icon-btn:active:not(:disabled) {
+  @apply bg-slate-200;
+  transform: scale(0.92);
+  transition-duration: 0ms;
+}
+
 .notebook-icon-btn--muted {
   @apply opacity-60;
 }
@@ -565,6 +577,21 @@ body {
 
 .board-notebook-item {
   @apply flex flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm transition hover:shadow-md;
+}
+
+/* Tap anywhere on the card opens the editor — show the press immediately,
+   but not while an inner control (checkbox, star, tag…) is the one pressed. */
+.board-notebook-item--tappable {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.board-notebook-item--tappable:active:not(:has(button:active, a:active, input:active, label:active, [data-item-drag-handle]:active)) {
+  background-color: #eff6ff !important;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgb(147 197 253 / 0.35);
+  transform: scale(0.99);
+  transition-duration: 0ms;
 }
 
 /* Recurring calendar-day rows: light mint, strong enough to see on white. */

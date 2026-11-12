@@ -8,6 +8,14 @@ export function isLegacyExpressApiAvailable(apiBaseUrl?: string | null): boolean
   return Boolean(apiBaseUrl?.trim());
 }
 
+/**
+ * PATCH /api/items/:id/complete exists only on the retired Express API. Without an
+ * explicit API base URL (GitHub Pages / Supabase) mark done directly and optimistically.
+ */
+export function shouldUseLegacyCompleteApi(apiBaseUrl?: string | null): boolean {
+  return isLegacyExpressApiAvailable(apiBaseUrl);
+}
+
 export function shouldRunRemoteBoardSearch(
   convexBackend: boolean,
   legacyApiAvailable: boolean,

@@ -10,7 +10,6 @@ interface ItemActionBarProps {
   item: MindtaskerItem;
   tab: BoardTab;
   listView: ListView;
-  onEdit: () => void;
   onToggleType: () => void;
   onComplete: () => void;
   onSnooze: () => void;
@@ -52,12 +51,14 @@ function GhostButton({
       accessibilityLabel={label}
       accessibilityState={{ selected: active || reminder }}
       hitSlop={10}
-      style={[
+      android_ripple={{ color: "rgba(59,130,246,0.25)", borderless: true, radius: dense ? 18 : 22 }}
+      style={({ pressed }) => [
         styles.ghostBtn,
         dense && styles.ghostBtnDense,
         active && styles.ghostBtnActive,
         accent && styles.ghostBtnAccent,
         reminder && styles.ghostBtnReminder,
+        pressed && styles.ghostBtnPressed,
       ]}
     >
       <NotebookIcon name={icon} size={dense ? 16 : 22} tone={iconTone} />
@@ -66,12 +67,12 @@ function GhostButton({
 }
 
 /**
- * Always show the full action set on every item (tag, edit, type, reminder, done/undo).
+ * Always show the full action set on every item (tag, type, reminder, done/undo).
+ * Editing opens by tapping the card itself (SwipeableItem), so there is no edit button.
  * Handlers decide what each button does; we no longer hide buttons by board/tab.
  */
 export function ItemActionBar({
   item,
-  onEdit,
   onToggleType,
   onComplete,
   onSnooze,
@@ -97,7 +98,6 @@ export function ItemActionBar({
           tone={tagPickerOpen ? "orange" : "slate"}
         />
       ) : null}
-      <GhostButton icon="edit" label="עריכה" onPress={onEdit} dense={dense} />
       <GhostButton
         icon="swap"
         label={isNote ? "הפוך למשימה" : "הפוך להערה"}
@@ -153,6 +153,10 @@ const styles = StyleSheet.create({
   ghostBtnAccent: {
     borderColor: "#93c5fd",
     backgroundColor: "#eff6ff",
+  },
+  ghostBtnPressed: {
+    backgroundColor: "#e2e8f0",
+    transform: [{ scale: 0.92 }],
   },
   ghostBtnReminder: {
     borderColor: "#ef4444",
