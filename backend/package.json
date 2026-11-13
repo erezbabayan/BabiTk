@@ -13,26 +13,26 @@
     "send-links": "tsx scripts/send-app-links.ts"
   },
   "dependencies": {
-    "@fastify/cors": "^11.0.1",
+    "@fastify/cors": "^11.4.1",
     "@fastify/multipart": "^9.0.3",
     "@fastify/rate-limit": "^10.3.0",
-    "@hebcal/core": "^6.14.6",
-    "@supabase/supabase-js": "^2.49.8",
+    "@hebcal/core": "^6.15.0",
+    "@supabase/supabase-js": "^2.119.0",
     "archiver": "^7.0.1",
     "dotenv": "^16.5.0",
-    "fastify": "^5.3.3",
+    "fastify": "^5.12.8",
     "googleapis": "^148.0.0",
     "node-cron": "^3.0.3",
     "openai": "^4.104.0",
     "sharp": "^0.35.5",
-    "stripe": "^22.2.1",
+    "stripe": "^22.6.2",
     "zod": "^3.25.56"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",
-    "@types/node": "^22.15.30",
+    "@types/node": "^22.20.5",
     "@types/node-cron": "^3.0.11",
-    "tsx": "^4.19.4",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.3"
   }
 }
