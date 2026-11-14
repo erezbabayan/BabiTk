@@ -27,7 +27,7 @@ const ingestTextSchema = z.object({
   ]).default("whatsapp_text"),
   timezone: z.string().optional(),
   locale: z.string().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 const itemSchema = z.object({
@@ -42,7 +42,7 @@ const itemSchema = z.object({
   due_date: z.string().nullable(),
   completed_at: z.string().nullable().optional(),
   tags: z.array(z.string()),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   sort_order: z.number().optional(),
   last_interacted_at: z.string(),
   created_at: z.string(),
@@ -63,7 +63,7 @@ const patchSchema = z
     deleted_at: z.string().nullable().optional(),
     source_material_id: z.string().uuid().nullable().optional(),
     source_materials: z.unknown().nullable().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 
