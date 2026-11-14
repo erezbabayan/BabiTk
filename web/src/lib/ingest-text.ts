@@ -4,7 +4,7 @@ import {
   publishAllowedTagNames,
 } from "./allowed-tags-cache";
 import { invalidateSyncCache } from "./demo-store";
-import { inferTagsFromText } from "../../../convex/lib/ingest/tagInference";
+import { inferTagsFromText } from "../../../shared/ingest/tagInference";
 import {
   dispatchOptimisticItems,
   dispatchOptimisticRollback,

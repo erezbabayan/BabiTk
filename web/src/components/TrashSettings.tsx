@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useState } from "react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import {
   permanentDeleteConfirmMessage,
   permanentDeleteManyConfirmMessage,
 } from "../lib/confirm-copy";
-import { useConvexBackend } from "../lib/data-backend";
-import { CONVEX_RUNTIME } from "../lib/convex-runtime";
 import {
   daysUntilTrashExpiry,
   formatDeletedAt,
@@ -32,8 +27,6 @@ type TrashRow = {
 type TrashSettingsProps = {
   userId?: string;
 };
-
-const OFFLINE = !CONVEX_RUNTIME;
 
 function TrashSettingsView({
   items,
@@ -278,112 +271,4 @@ function TrashSettingsOffline(_props: TrashSettingsProps) {
   );
 }
 
-function TrashSettingsOnline({ userId }: TrashSettingsProps) {
-  const convexBackend = useConvexBackend();
-  const convexUserId = userId as Id<"users"> | undefined;
-  const nowMs = useMemo(() => Date.now(), []);
-  const convexItems = useQuery(
-    api.items.listTrash,
-    convexBackend && convexUserId ? { userId: convexUserId, nowMs } : "skip",
-  );
-  const restoreMutation = useMutation(api.items.restoreFromTrash);
-  const purgeMutation = useMutation(api.items.permanentlyDeleteFromTrash);
-
-  const [legacyItems, setLegacyItems] = useState<TrashItem[]>([]);
-  const [loading, setLoading] = useState(!convexBackend);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const refreshLegacy = useCallback(async () => {
-    if (convexBackend) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setLegacyItems(await listTrashItems());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "טעינה נכשלה");
-      setLegacyItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [convexBackend]);
-
-  useEffect(() => {
-    void refreshLegacy();
-  }, [refreshLegacy]);
-
-  const items: TrashRow[] = useMemo(() => {
-    if (convexBackend) {
-      return (convexItems ?? []).map((row) => ({
-        id: row.id,
-        title: row.title,
-        content: row.content,
-        deleted_at: new Date(row.deletedAt).toISOString(),
-        is_actionable: row.isActionable,
-        status: row.status,
-      }));
-    }
-    return legacyItems;
-  }, [convexBackend, convexItems, legacyItems]);
-
-  const restoreIds = useCallback(
-    async (ids: string[]) => {
-      if (ids.length === 0) return;
-      setBusy(true);
-      setError(null);
-      try {
-        if (convexBackend && convexUserId) {
-          await restoreMutation({ userId: convexUserId, itemIds: ids });
-        } else {
-          for (const id of ids) {
-            await restoreTrashItem(id);
-          }
-          await refreshLegacy();
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "שחזור נכשל");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [convexBackend, convexUserId, refreshLegacy, restoreMutation],
-  );
-
-  const purgeIds = useCallback(
-    async (ids: string[]) => {
-      if (ids.length === 0) return;
-      setBusy(true);
-      setError(null);
-      try {
-        if (convexBackend && convexUserId) {
-          await purgeMutation({ userId: convexUserId, itemIds: ids });
-        } else {
-          for (const id of ids) {
-            await permanentlyDeleteTrashItem(id);
-          }
-          await refreshLegacy();
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "מחיקה נכשלה");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [convexBackend, convexUserId, purgeMutation, refreshLegacy],
-  );
-
-  const showLoading = convexBackend ? convexItems === undefined : loading;
-
-  return (
-    <TrashSettingsView
-      items={items}
-      loading={showLoading}
-      error={error}
-      busy={busy}
-      onRestore={restoreIds}
-      onPurge={async (ids) => purgeIds(ids)}
-    />
-  );
-}
-
-export const TrashSettings = OFFLINE ? TrashSettingsOffline : TrashSettingsOnline;
+export const TrashSettings = TrashSettingsOffline;

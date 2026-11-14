@@ -14,8 +14,8 @@ import {
 import { SafeModal } from "./SafeModal";
 import { ScrollView, GestureHandlerRootView, Swipeable } from "react-native-gesture-handler";
 
-import type { Id } from "../../../convex/_generated/dataModel";
-import { defaultTaskListName, formatListReminderAt, formatTaskListDate, isListReminderActive } from "../../../convex/lib/taskListNames";
+import type { Id } from "../lib/ids";
+import { defaultTaskListName, formatListReminderAt, formatTaskListDate, isListReminderActive } from "../../../shared/taskListNames";
 import type { TaskListRecord } from "../hooks/useTaskLists";
 import { unifiedFilterTags } from "../lib/filter-items";
 import { formatListStatusSummary, filterTodayBoardTasksByListTags, resolveListDisplayItems } from "../lib/task-list-items";

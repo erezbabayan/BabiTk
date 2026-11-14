@@ -1,4 +1,4 @@
-import { BABITK_APK_LABEL, BABITK_APK_URL } from "../../../convex/lib/babitkApk";
+import { BABITK_APK_LABEL, BABITK_APK_URL } from "../../../shared/babitkApk";
 import { MindTaskerLogo } from "./MindTaskerLogo";
 
 export function AppDownloadLink({ className, logo = false }: { className?: string; logo?: boolean }) {

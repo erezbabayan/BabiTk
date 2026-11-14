@@ -1,6 +1,6 @@
 import { supabase, isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
 import { addDemoItem, isDemoPremium, setDemoPremium } from "./demo-store";
-import { buildSupabaseIngestRows } from "../../../convex/lib/ingest/supabaseIngestRows";
+import { buildSupabaseIngestRows } from "../../../shared/ingest/supabaseIngestRows";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
 
@@ -722,15 +722,15 @@ export async function uploadVoiceNote(
     }
     try {
       const { transcribeHebrewAudioBlob } = await import(
-        "../../../convex/lib/ingest/hebrewAsrPublicClient"
+        "../../../shared/ingest/hebrewAsrPublicClient"
       );
       const blobRes = await fetch(`data:${audio.mimeType};base64,${audio.base64}`);
       const blob = await blobRes.blob();
       const transcribed = await transcribeHebrewAudioBlob(blob, "recording.m4a");
       const { parseIncomingMessage, parsedItemInsertFields } = await import(
-        "../../../convex/lib/ingest/parseIncomingMessage"
+        "../../../shared/ingest/parseIncomingMessage"
       );
-      const { DEFAULT_TAG_NAMES } = await import("../../../convex/lib/ingest/defaultTags");
+      const { DEFAULT_TAG_NAMES } = await import("../../../shared/ingest/defaultTags");
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id;
       if (!userId) throw new Error("Not authenticated");

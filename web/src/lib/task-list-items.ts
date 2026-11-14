@@ -1,5 +1,5 @@
-import type { Id } from "../../../convex/_generated/dataModel";
-import { filterConvexDocumentIds } from "../../../convex/lib/convexIds";
+import type { Id } from "./ids";
+import { filterConvexDocumentIds } from "../../../shared/convexIds";
 import type { MindtaskerItem } from "../types";
 
 export type TaskListItemRecord = {

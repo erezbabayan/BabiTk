@@ -1,4 +1,4 @@
-export { applyTextClockToIso } from "../../../convex/lib/ingest/hebrewDates.ts";
+export { applyTextClockToIso } from "../../../shared/ingest/hebrewDates.ts";
 export {
   advanceReminderDueDate,
   alertSnoozeDueAt,
@@ -25,4 +25,4 @@ export {
   type ReminderRecurrence,
   type ResolveItemReminderInput,
   type ResolveItemReminderResult,
-} from "../../../convex/lib/resolveItemReminder";
+} from "../../../shared/resolveItemReminder";

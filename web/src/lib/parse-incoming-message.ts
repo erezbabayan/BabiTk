@@ -4,8 +4,8 @@ import {
   parsedItemInsertFields,
   CONTEXT_PARSED_AT_KEY,
   type ParseIncomingOptions,
-} from "../../../convex/lib/ingest/parseIncomingMessage";
-import { DEFAULT_TAG_NAMES } from "../../../convex/lib/ingest/defaultTags";
+} from "../../../shared/ingest/parseIncomingMessage";
+import { DEFAULT_TAG_NAMES } from "../../../shared/ingest/defaultTags";
 import { needsVoiceTranscription } from "./voice-text";
 import type { MindtaskerItem } from "../types";
 

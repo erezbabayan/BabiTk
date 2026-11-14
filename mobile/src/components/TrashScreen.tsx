@@ -8,10 +8,7 @@ import {
   View,
 } from "react-native";
 import { SafeModal } from "./SafeModal";
-import { useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
 import {
   daysUntilTrashExpiry,
   formatDeletedAt,
@@ -28,7 +25,6 @@ import {
   permanentDeleteConfirmMessage,
   permanentDeleteManyConfirmMessage,
 } from "../lib/confirm-copy";
-import { useConvexBackend } from "../lib/data-backend";
 
 interface TrashScreenProps {
   visible: boolean;
@@ -43,18 +39,7 @@ type TrashRow = {
   deleted_at: string;
 };
 
-export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
-  const convexBackend = useConvexBackend();
-  const convexUserId = userId as Id<"users"> | undefined;
-  const nowMs = useMemo(() => Date.now(), [visible]);
-  const convexItems = useQuery(
-    api.items.listTrash,
-    visible && convexBackend && convexUserId
-      ? { userId: convexUserId, nowMs }
-      : "skip",
-  );
-  const restoreMutation = useMutation(api.items.restoreFromTrash);
-  const purgeMutation = useMutation(api.items.permanentlyDeleteFromTrash);
+export function TrashScreen({ visible, onClose }: TrashScreenProps) {
 
   const [legacyItems, setLegacyItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +49,7 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
   const { requestConfirm, confirmDialog } = useConfirmDialog();
 
   const refreshLegacy = useCallback(async () => {
-    if (!visible || convexBackend) return;
+    if (!visible) return;
     setLoading(true);
     setError(null);
     try {
@@ -75,7 +60,7 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
     } finally {
       setLoading(false);
     }
-  }, [visible, convexBackend]);
+  }, [visible]);
 
   function setItemsSafe(next: TrashItem[]) {
     setLegacyItems(next);
@@ -90,27 +75,17 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
   }, [visible]);
 
   const items: TrashRow[] = useMemo(() => {
-    if (convexBackend) {
-      return (convexItems ?? []).map((row) => ({
-        id: row.id,
-        title: row.title,
-        content: row.content,
-        deleted_at: new Date(row.deletedAt).toISOString(),
-      }));
-    }
     return legacyItems.map((row) => ({
       id: row.id,
       title: row.title,
       content: row.content,
       deleted_at: row.deleted_at,
     }));
-  }, [convexBackend, convexItems, legacyItems]);
+  }, [legacyItems]);
 
   const selectedCount = selected.size;
   const allSelected = items.length > 0 && selectedCount === items.length;
-  const showLoading = convexBackend
-    ? visible && convexItems === undefined
-    : loading;
+  const showLoading = loading;
 
   function toggleOne(id: string) {
     setSelected((prev) => {
@@ -134,14 +109,10 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
     setBusy(true);
     setError(null);
     try {
-      if (convexBackend && convexUserId) {
-        await restoreMutation({ userId: convexUserId, itemIds: ids });
-      } else {
-        for (const id of ids) {
-          await restoreTrashItem(id);
-        }
-        await refreshLegacy();
+      for (const id of ids) {
+        await restoreTrashItem(id);
       }
+      await refreshLegacy();
       setSelected(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "שחזור נכשל");
@@ -163,14 +134,10 @@ export function TrashScreen({ visible, onClose, userId }: TrashScreenProps) {
     setBusy(true);
     setError(null);
     try {
-      if (convexBackend && convexUserId) {
-        await purgeMutation({ userId: convexUserId, itemIds: ids });
-      } else {
-        for (const id of ids) {
-          await permanentlyDeleteTrashItem(id);
-        }
-        await refreshLegacy();
+      for (const id of ids) {
+        await permanentlyDeleteTrashItem(id);
       }
+      await refreshLegacy();
       setSelected(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "מחיקה נכשלה");

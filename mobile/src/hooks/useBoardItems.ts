@@ -43,12 +43,7 @@ import { CACHE_KEYS } from "../offline/types";
 import { flushOfflineQueue } from "../offline/sync";
 import { useNetworkStatus } from "./useNetworkStatus";
 import { ingestText } from "../lib/api";
-import { useConvexBackend, useConvexItemsRead, useDemoHybridSync } from "../lib/data-backend";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { resyncAllItemsToConvex } from "../lib/convex-mirror";
 import { useConvexUserId } from "./useConvexUserId";
-import { useBoardItemsConvex, type BoardSecondaryLoad } from "./useBoardItemsConvex";
 import { useIncomingContextParse } from "./useIncomingContextParse";
 
 const ITEM_SELECT = `
@@ -89,89 +84,20 @@ async function fetchAllFromServer(userId?: string): Promise<MindtaskerItem[]> {
   return normalizeMindtaskerRows(data);
 }
 
+export type BoardSecondaryLoad = {
+  inboxArchive?: boolean;
+  notesArchive?: boolean;
+  completed?: boolean;
+};
+
 export function useBoardItems(
   userId?: string,
   email?: string,
-  secondary?: BoardSecondaryLoad,
+  _secondary?: BoardSecondaryLoad,
 ) {
-  const convexBackend = useConvexBackend();
-  const convexItemsRead = useConvexItemsRead();
-  const demoHybrid = useDemoHybridSync();
-  const useDirectConvexAuth = shouldUseConvexAuthLogin();
-  const bridged = useConvexUserId(useDirectConvexAuth ? undefined : userId, email);
-  const convexUserId: Id<"users"> | undefined =
-    useDirectConvexAuth && userId ? (userId as Id<"users">) : bridged.convexUserId;
-  const convexUserResolving = useDirectConvexAuth ? false : bridged.resolving;
-  const convex = useBoardItemsConvex(
-    convexUserId,
-    (convexBackend || demoHybrid) && Boolean(convexUserId),
-    secondary,
-  );
-  const legacy = useBoardItemsLegacy(isDemoMode || !convexBackend, userId);
-
-  if (demoHybrid) {
-    const useConvexData = Boolean(convexUserId) && !convex.loading;
-    const dataSource = useConvexData ? convex : legacy;
-    return {
-      loading:
-        legacy.loading ||
-        (Boolean(userId) && convexUserResolving && !convexUserId) ||
-        (Boolean(convexUserId) && convex.loading),
-      items: dataSource.items,
-      inbox: dataSource.inbox,
-      todayTasks: dataSource.todayTasks,
-      notes: dataSource.notes,
-      inboxArchive: dataSource.inboxArchive,
-      notesArchive: dataSource.notesArchive,
-      completedTasks: dataSource.completedTasks,
-      isOnline: legacy.isOnline,
-      isSyncing: legacy.isSyncing,
-      syncError: legacy.syncError,
-      pendingCount: legacy.pendingCount,
-      refresh: async () => {
-        await legacy.refresh();
-        await resyncAllItemsToConvex(true);
-      },
-      approveItem: useConvexData ? convex.approveItem : legacy.approveItem,
-      completeTask: useConvexData ? convex.completeTask : legacy.completeTask,
-      snoozeTask: useConvexData ? convex.snoozeTask : legacy.snoozeTask,
-      clearReminder: useConvexData ? convex.clearReminder : legacy.clearReminder,
-      archiveItem: useConvexData ? convex.archiveItem : legacy.archiveItem,
-      restoreArchiveItem: useConvexData
-        ? convex.restoreArchiveItem
-        : legacy.restoreArchiveItem,
-      restoreCompletedTask: useConvexData
-        ? convex.restoreCompletedTask
-        : legacy.restoreCompletedTask,
-      deleteItem: useConvexData ? convex.deleteItem : legacy.deleteItem,
-      restoreDeletedItem: useConvexData
-        ? convex.restoreDeletedItem
-        : legacy.restoreDeletedItem,
-      editItem: useConvexData ? convex.editItem : legacy.editItem,
-      toggleActionable: useConvexData
-        ? convex.toggleActionable
-        : legacy.toggleActionable,
-      moveToColumn: useConvexData ? convex.moveToColumn : legacy.moveToColumn,
-      placeItem: useConvexData ? convex.placeItem : legacy.placeItem,
-      updateTags: useConvexData ? convex.updateTags : legacy.updateTags,
-      togglePriority: useConvexData ? convex.togglePriority : legacy.togglePriority,
-      toggleChecklist: useConvexData ? convex.toggleChecklist : legacy.toggleChecklist,
-      addCapturedItem: legacy.addCapturedItem,
-      convexUserId,
-    };
-  }
-
-  if (!convexBackend) {
-    return { ...legacy, convexUserId };
-  }
-
-  return {
-    ...convex,
-    convexUserId,
-    loading:
-      convex.loading ||
-      (Boolean(userId) && convexUserResolving && !convexUserId),
-  };
+  const { convexUserId } = useConvexUserId(userId, email);
+  const legacy = useBoardItemsLegacy(true, userId);
+  return { ...legacy, convexUserId };
 }
 
 function useBoardItemsLegacy(enabled: boolean, userId?: string) {

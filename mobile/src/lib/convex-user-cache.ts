@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "./ids";
 
 const STORAGE_PREFIX = "mindtasker:convex:user:";
 const memoryCache = new Map<string, Id<"users">>();

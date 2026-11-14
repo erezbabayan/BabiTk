@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { formatListReminderAt, isListReminderActive } from "../../../convex/lib/taskListNames";
+import { formatListReminderAt, isListReminderActive } from "../../../shared/taskListNames";
 import { alertSnoozeDueAt } from "../lib/resolve-item-reminder";
 import { snoozePresets } from "../hooks/useItems";
 import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";

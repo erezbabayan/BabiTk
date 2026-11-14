@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,9 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeModal } from "./SafeModal";
-import { useAction, useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
 import {
   getProfile,
   requestPhoneVerification,
@@ -20,9 +18,7 @@ import {
   type UsageSummary,
   type UserProfile,
 } from "../lib/api";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { isConvexConfigured } from "../lib/convex";
-import { isDemoMode, isSupabaseConfigured } from "../lib/supabase";
+import { isSupabaseConfigured } from "../lib/supabase";
 import { ChannelInfoView } from "./ChannelInfoView";
 import { GreenApiConnectSettings } from "./GreenApiConnectSettings";
 import {
@@ -40,16 +36,6 @@ import { confirmWhatsAppPhoneOtp, requestWhatsAppPhoneOtp } from "../lib/phone-o
 const DIGEST_HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const MAX_DIGEST_HOURS = 3;
 
-function viewerDisplayName(viewer: {
-  name?: string | null;
-  firstName?: string | null;
-  lastName?: string | null;
-} | null | undefined): string {
-  const full = viewer?.name?.trim();
-  if (full) return full;
-  return [viewer?.firstName, viewer?.lastName].filter(Boolean).join(" ").trim();
-}
-
 function formatDigestHour(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
@@ -66,20 +52,6 @@ interface PhoneLinkScreenProps {
 }
 
 export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenProps) {
-  const useConvexPhone =
-    shouldUseConvexAuthLogin() || (isDemoMode && isConvexConfigured);
-  const viewer = useQuery(
-    api.users.viewer,
-    visible && useConvexPhone ? {} : "skip",
-  );
-  const requestPhoneOtp = useAction(api.phoneOtpActions.requestPhoneOtp);
-  const confirmPhoneOtp = useMutation(api.phoneOtp.confirmPhoneOtp);
-  const updateNotificationPrefs = useMutation(api.users.updateNotificationPrefs);
-  const bindExistingGroup = useAction(api.whatsappCaptureGroupActions.bindExistingCaptureGroup);
-  const listCaptureGroups = useAction(api.whatsappCaptureGroupActions.listCaptureGroups);
-  const clearWhatsAppCaptureGroup = useMutation(api.users.clearWhatsAppCaptureGroup);
-  const saveWhatsAppCaptureGroup = useMutation(api.users.saveWhatsAppCaptureGroup);
-
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -88,14 +60,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   const [loading, setLoading] = useState(false);
   const [savingDigestHours, setSavingDigestHours] = useState(false);
   const [savingDigestDays, setSavingDigestDays] = useState(false);
-  const [bindingGroup, setBindingGroup] = useState(false);
-  const [loadingGroups, setLoadingGroups] = useState(false);
-  const [selectingGroupId, setSelectingGroupId] = useState<string | null>(null);
-  const [groupOptions, setGroupOptions] = useState<Array<{ chatId: string; name: string }>>(
-    [],
-  );
-  const [groupSearch, setGroupSearch] = useState("");
-  const [awaitingGroupMessage, setAwaitingGroupMessage] = useState(false);
   const [notifyWhatsAppGroup, setNotifyWhatsAppGroup] = useState(false);
   const [captureGroupName, setCaptureGroupName] = useState<string | null>(null);
   const [captureGroupChatId, setCaptureGroupChatId] = useState<string | null>(null);
@@ -106,22 +70,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
   const [proactive, setProactive] = useState<ProactiveWhatsAppPrefs | null>(null);
 
   useEffect(() => {
-    if (!visible || !useConvexPhone || !viewer) return;
-    const defaultName = viewerDisplayName(viewer);
-    if (defaultName) {
-      setGroupSearch((prev) => (prev.trim() ? prev : defaultName));
-    }
-  }, [
-    visible,
-    useConvexPhone,
-    viewer?.userId,
-    viewer?.name,
-    viewer?.firstName,
-    viewer?.lastName,
-  ]);
-
-  useEffect(() => {
-    if (!visible || useConvexPhone || !isSupabaseConfigured) return;
+    if (!visible || !isSupabaseConfigured) return;
     void getProfile()
       .then(setProfile)
       .catch(() => setProfile(null));
@@ -137,68 +86,16 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     void loadProactiveWhatsAppPrefs()
       .then(setProactive)
       .catch(() => setProactive(null));
-  }, [visible, useConvexPhone]);
+  }, [visible]);
 
-  useEffect(() => {
-    if (viewer?.whatsappCaptureGroupChatId && awaitingGroupMessage) {
-      setAwaitingGroupMessage(false);
-      setMessage(
-        `הקבוצה חוברה: ${viewer.whatsappCaptureGroupName?.trim() || "יעד קליטה"}`,
-      );
-    }
-  }, [
-    viewer?.whatsappCaptureGroupChatId,
-    viewer?.whatsappCaptureGroupName,
-    awaitingGroupMessage,
-  ]);
+  const digestHours = cloudDigestHours;
+  const digestDays = cloudDigestDays;
 
-  useEffect(() => {
-    if (!visible || !useConvexPhone || !viewer?.phoneVerified) return;
-    let cancelled = false;
-    void (async () => {
-      setLoadingGroups(true);
-      try {
-        const result = await listCaptureGroups({});
-        if (cancelled) return;
-        setGroupOptions(result.groups);
-        if (!result.ok && result.reason) {
-          setError(result.reason);
-        }
-      } catch {
-        if (!cancelled) setGroupOptions([]);
-      } finally {
-        if (!cancelled) setLoadingGroups(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, useConvexPhone, viewer?.phoneVerified, listCaptureGroups]);
-
-  const digestHours = useConvexPhone ? (viewer?.whatsappDigestHours ?? [9]) : cloudDigestHours;
-  const digestDays = useConvexPhone
-    ? (viewer?.whatsappDigestDays ?? "everyday")
-    : cloudDigestDays;
-  const convexReady = Boolean(viewer?.userId);
-
-  const filteredGroups = useMemo(() => {
-    const q = groupSearch.trim().toLowerCase();
-    if (!q) return [];
-    return groupOptions.filter((g) => g.name.toLowerCase().includes(q));
-  }, [groupOptions, groupSearch]);
-  const hasGroupSearch = groupSearch.trim().length > 0;
-
-  const linkedPhone = useConvexPhone
-    ? viewer?.phoneVerified && viewer.phone
-      ? viewer.phone
-      : null
-    : profile?.phone_verified
-      ? profile.phone
-      : null;
+  const linkedPhone = profile?.phone_verified ? profile.phone : null;
   const captureIsGroup = (captureGroupChatId ?? "").toLowerCase().endsWith("@g.us");
 
   useEffect(() => {
-    if (!visible || useConvexPhone || !captureIsGroup || notifyWhatsAppGroup) return;
+    if (!visible || !captureIsGroup || notifyWhatsAppGroup) return;
     let cancelled = false;
     void saveNotifyWhatsAppGroup(true)
       .then(() => {
@@ -208,19 +105,15 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     return () => {
       cancelled = true;
     };
-  }, [visible, useConvexPhone, captureIsGroup, notifyWhatsAppGroup]);
+  }, [visible, captureIsGroup, notifyWhatsAppGroup]);
 
   async function handleDigestDaysChange(next: "weekdays" | "everyday") {
     if (next === digestDays) return;
     setSavingDigestDays(true);
     setError(null);
     try {
-      if (useConvexPhone) {
-        await updateNotificationPrefs({ whatsappDigestDays: next });
-      } else {
-        await saveWhatsAppDigestDays(next);
-        setCloudDigestDays(next);
-      }
+      await saveWhatsAppDigestDays(next);
+      setCloudDigestDays(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת ימי השליחה");
     } finally {
@@ -248,12 +141,8 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setSavingDigestHours(true);
     setError(null);
     try {
-      if (useConvexPhone) {
-        await updateNotificationPrefs({ whatsappDigestHours: next });
-      } else {
-        await saveWhatsAppDigestHours(next);
-        setCloudDigestHours(next);
-      }
+      await saveWhatsAppDigestHours(next);
+      setCloudDigestHours(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בשמירת שעות התזכורת");
     } finally {
@@ -266,14 +155,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setError(null);
     setMessage(null);
     try {
-      if (useConvexPhone) {
-        if (!viewer?.userId) {
-          throw new Error("המשתמש עדיין נטען. נסו שוב בעוד רגע.");
-        }
-        const result = await requestPhoneOtp({ phone });
-        setMessage(result.message);
-        return;
-      }
       if (isSupabaseConfigured) {
         const result = await requestWhatsAppPhoneOtp(phone);
         setMessage(result.message);
@@ -293,13 +174,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     setError(null);
     setMessage(null);
     try {
-      if (useConvexPhone) {
-        const linked = await confirmPhoneOtp({ code: code.trim() });
-        setPhone("");
-        setCode("");
-        setMessage(`מחובר: ${linked}`);
-        return;
-      }
       if (isSupabaseConfigured) {
         const result = await confirmWhatsAppPhoneOtp(code.trim());
         const next = await getProfile().catch(() => null);
@@ -370,75 +244,6 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
     }
   }
 
-  async function handleBindExistingGroup() {
-    const name = groupSearch.trim() || viewerDisplayName(viewer);
-    if (!name) {
-      setError("הזינו שם קבוצה קיימת לחיבור");
-      return;
-    }
-    setBindingGroup(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await bindExistingGroup({
-        groupName: name,
-        replaceExisting: true,
-      });
-      if (result.ok) {
-        setMessage(`חוברה הקבוצה «${result.name?.trim() || name}».`);
-        const refresh = await listCaptureGroups({}).catch(() => null);
-        if (refresh?.groups) setGroupOptions(refresh.groups);
-      } else {
-        setError(result.reason ?? "חיבור הקבוצה נכשל");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה בחיבור קבוצה");
-    } finally {
-      setBindingGroup(false);
-    }
-  }
-
-  async function handleSelectGroup(chatId: string, name: string) {
-    setSelectingGroupId(chatId);
-    setError(null);
-    setMessage(null);
-    try {
-      await saveWhatsAppCaptureGroup({ chatId, name });
-      setGroupSearch(name);
-      setMessage(`הקבוצה «${name}» חוברה.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה בבחירת קבוצה");
-    } finally {
-      setSelectingGroupId(null);
-    }
-  }
-
-  async function handleClearCaptureGroup() {
-    setError(null);
-    setMessage(null);
-    try {
-      await clearWhatsAppCaptureGroup({});
-      setAwaitingGroupMessage(false);
-      setMessage("יעד הקליטה נותק.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה בניתוק");
-    }
-  }
-
-  async function handleBindByGroupMessage() {
-    setError(null);
-    setMessage(null);
-    try {
-      await clearWhatsAppCaptureGroup({});
-      setAwaitingGroupMessage(true);
-      setMessage(
-        "פתחו בוואטסאפ את הקבוצה הקיימת ושלחו שם הודעה — היא תתחבר אוטומטית.",
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "שגיאה");
-    }
-  }
-
   return (
     <SafeModal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -446,7 +251,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>וואטסאפ</Text>
             <ChannelInfoView channelId="whatsapp" summary={summary} compact>
-              {!useConvexPhone && isSupabaseConfigured && visible ? (
+              {isSupabaseConfigured && visible ? (
                 <GreenApiConnectSettings
                   onLinked={() => {
                     void getProfile()
@@ -464,7 +269,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                   }}
                 />
               ) : null}
-              {!useConvexPhone && isSupabaseConfigured ? (
+              {isSupabaseConfigured ? (
                 <View style={styles.captureBox}>
                   <Text style={styles.captureTitle}>תזכורות פעילות לקבוצה</Text>
                   <Text style={styles.hint}>
@@ -522,15 +327,15 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                     keyboardType="phone-pad"
                   />
                   <Pressable
-                    style={[styles.button, (loading || (useConvexPhone && !convexReady) || !phone.trim()) && styles.buttonDisabled]}
+                    style={[styles.button, (loading || !phone.trim()) && styles.buttonDisabled]}
                     onPress={() => void handleRequestCode()}
-                    disabled={loading || (useConvexPhone && !convexReady) || !phone.trim()}
+                    disabled={loading || !phone.trim()}
                   >
                     {loading ? (
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <Text style={styles.buttonText}>
-                        {useConvexPhone && !convexReady ? "מכין חיבור..." : "שלחו קוד"}
+                        שלחו קוד
                       </Text>
                     )}
                   </Pressable>
@@ -553,134 +358,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 </>
               )}
 
-              {linkedPhone && useConvexPhone ? (
-                <View style={styles.captureBox}>
-                  <Text style={styles.captureTitle}>קבוצת קליטה</Text>
-                  <Text style={styles.hint}>
-                    שאלה למערכת מתחילה ב-בבי, למשל «בבי מה המשימות לשבוע הבא». משימה או הערה — בלי בבי, למשל «תכניס משימה יום רביעי שבוע הבא».
-                  </Text>
-                  {viewer?.whatsappCaptureGroupChatId ? (
-                    <>
-                      <Text style={styles.ok}>
-                        {viewer.whatsappCaptureGroupChatId
-                          .trim()
-                          .toLowerCase()
-                          .endsWith("@c.us")
-                          ? "יעד קליטה: "
-                          : "מחוברת: "}
-                        {viewer.whatsappCaptureGroupName?.trim() ||
-                          (viewer.whatsappCaptureGroupChatId
-                            .trim()
-                            .toLowerCase()
-                            .endsWith("@c.us")
-                            ? "הודעה לעצמי"
-                            : "קבוצה")}
-                      </Text>
-                      {viewer.whatsappCaptureGroupChatId
-                        .trim()
-                        .toLowerCase()
-                        .endsWith("@c.us") ? (
-                        <Text style={styles.warn}>
-                          כרגע קליטה מ«הודעה לעצמי». לקליטה מקבוצה — חפשו וחברו למטה.
-                        </Text>
-                      ) : null}
-                      <Pressable
-                        style={{ marginTop: 4, marginBottom: 4 }}
-                        onPress={() => void handleClearCaptureGroup()}
-                      >
-                        <Text style={styles.clearLink}>נתק מהקבוצה</Text>
-                      </Pressable>
-                    </>
-                  ) : awaitingGroupMessage ? (
-                    <Text style={styles.warn}>
-                      ממתין: שלחו הודעה בקבוצה הקיימת בוואטסאפ.
-                    </Text>
-                  ) : (
-                    <Text style={styles.warn}>
-                      חיבור לקבוצה קיימת בלבד — חפשו וחברו.
-                    </Text>
-                  )}
-
-                  <Text style={styles.searchLabel}>חיפוש קבוצה קיימת</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="שם הקבוצה…"
-                    placeholderTextColor="#94a3b8"
-                    value={groupSearch}
-                    onChangeText={setGroupSearch}
-                    autoCorrect={false}
-                  />
-
-                  <Pressable
-                    style={[styles.primaryButton, bindingGroup && styles.buttonDisabled]}
-                    disabled={bindingGroup || !groupSearch.trim()}
-                    onPress={() => void handleBindExistingGroup()}
-                  >
-                    {bindingGroup ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>
-                        {groupSearch.trim()
-                          ? `חבר קבוצה «${groupSearch.trim()}»`
-                          : "חבר קבוצה"}
-                      </Text>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    style={[styles.outlineButton, { marginTop: 8 }]}
-                    onPress={() => void handleBindByGroupMessage()}
-                  >
-                    <Text style={styles.outlineButtonText}>
-                      חבר ע״י הודעה בקבוצה הקיימת
-                    </Text>
-                  </Pressable>
-                  <Text style={styles.hint}>
-                    אפשר להקליד חלק מהשם (למשל משימות) — יימצאו התאמות.
-                  </Text>
-                  {hasGroupSearch ? (
-                    loadingGroups ? (
-                      <ActivityIndicator color="#0369a1" style={{ marginVertical: 8 }} />
-                    ) : (
-                      <View style={styles.groupList}>
-                        {filteredGroups.length === 0 ? (
-                          <Text style={styles.hint}>לא נמצאה קבוצה תואמת.</Text>
-                        ) : (
-                          filteredGroups.map((group) => {
-                            const selected =
-                              viewer?.whatsappCaptureGroupChatId === group.chatId;
-                            const busy = selectingGroupId === group.chatId;
-                            return (
-                              <Pressable
-                                key={group.chatId}
-                                style={[
-                                  styles.groupRow,
-                                  selected ? styles.groupRowSelected : null,
-                                ]}
-                                disabled={Boolean(selectingGroupId)}
-                                onPress={() =>
-                                  void handleSelectGroup(group.chatId, group.name)
-                                }
-                              >
-                                <Text style={styles.groupRowText}>
-                                  {busy ? "מחבר…" : group.name}
-                                </Text>
-                                {selected ? (
-                                  <Text style={styles.groupRowBadge}>מחובר</Text>
-                                ) : null}
-                              </Pressable>
-                            );
-                          })
-                        )}
-                      </View>
-                    )
-                  ) : (
-                    <Text style={styles.hint}>הקלידו שם קבוצה כדי לחפש ולחבר.</Text>
-                  )}
-
-                </View>
-              ) : null}
-
-              {useConvexPhone || (!useConvexPhone && isSupabaseConfigured) ? (
+              {isSupabaseConfigured ? (
                 <View style={styles.digestBox}>
                   <Text style={styles.digestTitle}>ריכוז תזכורות</Text>
                   <Text style={styles.hint}>
@@ -703,9 +381,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             selected && styles.hourChipSelected,
                           ]}
                           disabled={
-                            (useConvexPhone
-                              ? viewer === undefined
-                              : !isSupabaseConfigured) ||
+                            !isSupabaseConfigured ||
                             savingDigestDays ||
                             savingDigestHours
                           }
@@ -742,9 +418,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                             atLimit && styles.hourChipDisabled,
                           ]}
                           disabled={
-                            (useConvexPhone
-                              ? viewer === undefined
-                              : !isSupabaseConfigured) ||
+                            !isSupabaseConfigured ||
                             savingDigestHours ||
                             atLimit
                           }
@@ -770,7 +444,7 @@ export function PhoneLinkScreen({ visible, summary, onClose }: PhoneLinkScreenPr
                 </View>
               ) : null}
 
-              {!useConvexPhone && proactive ? (
+              {proactive ? (
                 <View style={styles.digestBox}>
                   <Text style={styles.digestTitle}>בריפינג ומעקב</Text>
                   <Text style={styles.hint}>

@@ -1,1 +1,1 @@
-export { DEVICE_VOICE_CHIP_LABEL, isDeviceVoiceItem } from "../../../convex/lib/deviceVoiceChip";
+export { DEVICE_VOICE_CHIP_LABEL, isDeviceVoiceItem } from "../../../shared/deviceVoiceChip";

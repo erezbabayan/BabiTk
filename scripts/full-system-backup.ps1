@@ -127,28 +127,6 @@ if (Test-Path $backendEnv) {
   Write-Host "  backend backup skipped (no backend/.env)"
 }
 
-# 5) Convex cloud data export (when CLI is logged in)
-$convexDir = Join-Path $dest "convex-export"
-New-Item -ItemType Directory -Force -Path $convexDir | Out-Null
-$convexLog = Join-Path $dest "convex-export.log"
-Push-Location $repoRoot
-try {
-  $prevEap = $ErrorActionPreference
-  $ErrorActionPreference = "Continue"
-  npx convex export --path $convexDir *> $convexLog
-  $convexExit = $LASTEXITCODE
-  $ErrorActionPreference = $prevEap
-  if ($convexExit -ne 0) {
-    Write-Host "  convex export failed (see log)"
-  } else {
-    Write-Host "  convex export OK"
-  }
-} catch {
-  "Convex export skipped: $_" | Out-File $convexLog -Encoding utf8
-  Write-Host "  convex export skipped (see log)"
-} finally {
-  Pop-Location
-}
 
 # 6) Manifest
 $manifest = @(

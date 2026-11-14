@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseInboundText } from "../../../convex/lib/ingest/supabaseIngestRows.js";
+import { parseInboundText } from "../../../shared/ingest/supabaseIngestRows.js";
 
 const TZ = "Asia/Jerusalem";
 const REF = new Date("2025-06-18T12:00:00+03:00");

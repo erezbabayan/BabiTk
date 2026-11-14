@@ -1,6 +1,6 @@
 /**
  * Deno-safe re-export of Hebrew inbound parse for Edge Functions.
- * Relies on .ts extensions inside convex/lib/ingest.
+ * Relies on .ts extensions inside shared/ingest.
  */
 export {
   buildSupabaseIngestRows,
@@ -8,4 +8,4 @@ export {
   layoutMetadataFromParsed,
   type InboundParsedFields,
   type IngestSourceType,
-} from "../../../convex/lib/ingest/supabaseIngestRows.ts";
+} from "../../../shared/ingest/supabaseIngestRows.ts";

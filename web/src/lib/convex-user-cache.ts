@@ -1,4 +1,4 @@
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "./ids";
 
 const STORAGE_PREFIX = "mindtasker:convex:user:";
 const inFlight = new Map<string, Promise<Id<"users">>>();

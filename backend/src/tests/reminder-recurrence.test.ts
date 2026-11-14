@@ -15,8 +15,8 @@ import {
   listReminderOccurrencesInRange,
   nextActiveDueDate,
   previousReminderDueDate,
-} from "../../../convex/lib/resolveItemReminder.js";
-import { getZonedParts } from "../../../convex/lib/ingest/timezone.js";
+} from "../../../shared/resolveItemReminder.js";
+import { getZonedParts } from "../../../shared/ingest/timezone.js";
 import * as backendCopy from "../lib/reminderRecurrence.js";
 import {
   postponeOriginalDueByDays as postponeEdge,

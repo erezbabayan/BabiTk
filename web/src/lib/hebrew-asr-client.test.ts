@@ -6,7 +6,7 @@ import {
   parseGradioSseText,
   pickTranscriptFromGradioData,
   stripAsrTimestamps,
-} from "../../../convex/lib/ingest/hebrewAsrPublicClient";
+} from "../../../shared/ingest/hebrewAsrPublicClient";
 
 describe("hebrew public ASR client", () => {
   it("parses the official Whisper space SSE payload", () => {

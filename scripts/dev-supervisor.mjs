@@ -40,13 +40,6 @@ const lanIp = detectLanIp();
 /** @type {Array<{ name: string; cwd: string; command: string; args: string[]; port?: number; healthUrl?: string; startDelayMs: number }>} */
 const services = [
   {
-    name: "convex",
-    cwd: root,
-    command: "npx",
-    args: ["convex", "dev"],
-    startDelayMs: 0,
-  },
-  {
     name: "backend",
     cwd: path.join(root, "backend"),
     command: "npm",

@@ -2,7 +2,7 @@
  * Converts text typed on an English (QWERTY) keyboard while intending Hebrew
  * layout — e.g. "nhsg jsa" → "מידע חדש", ",ufbu," → "תזכורת".
  *
- * Keep in sync with convex/lib/ingest/englishKeyboardHebrew.ts
+ * Keep in sync with shared/ingest/englishKeyboardHebrew.ts
  */
 
 const EN_TO_HE: Record<string, string> = {

@@ -7,7 +7,7 @@ import {
   babisnapOpenLink,
   babisnapPairPageUrl,
   babisnapStatusLabel,
-} from "../../../convex/lib/babisnap";
+} from "../../../shared/babisnap";
 import logo from "../assets/babisnap-logo.webp";
 import { babisnapAction } from "../lib/babisnap-client";
 

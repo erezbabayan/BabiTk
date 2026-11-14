@@ -12,7 +12,7 @@
  *
  * Keep in sync with:
  *   backend/src/lib/ingest/hebrewAsrSpelling.ts
- *   convex/lib/ingest/hebrewAsrSpelling.ts
+ *   shared/ingest/hebrewAsrSpelling.ts
  */
 
 /** Vocabulary bias for Whisper / Groq / ivrit.ai turbo. */

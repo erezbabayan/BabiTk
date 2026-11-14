@@ -16,7 +16,7 @@ import {
   type ReminderActionItem,
 } from "../../../mobile/src/lib/reminder-notification-actions.ts";
 import * as serverPush from "../../../supabase/functions/_shared/expo-push.ts";
-import { getZonedParts } from "../../../convex/lib/ingest/timezone.js";
+import { getZonedParts } from "../../../shared/ingest/timezone.js";
 import { resolveItemNotifyAt } from "../../../supabase/functions/_shared/whatsapp-reminders.ts";
 
 const TZ = "Asia/Jerusalem";

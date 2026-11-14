@@ -4,8 +4,8 @@ import {
   CONTEXT_PARSED_AT_KEY,
   parseIncomingMessage,
   parsedItemInsertFields,
-} from "../../../convex/lib/ingest/parseIncomingMessage";
-import { DEFAULT_TAG_NAMES } from "../../../convex/lib/ingest/defaultTags";
+} from "../../../shared/ingest/parseIncomingMessage";
+import { DEFAULT_TAG_NAMES } from "../../../shared/ingest/defaultTags";
 import { isDemoMode, requireSupabase, type MindtaskerItem } from "../lib/supabase";
 
 const RECENT_MS = 72 * 60 * 60 * 1000;

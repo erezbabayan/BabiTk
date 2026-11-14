@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseIncomingMessage } from "../../../convex/lib/ingest/parseIncomingMessage.js";
+import { parseIncomingMessage } from "../../../shared/ingest/parseIncomingMessage.js";
 
 const ALLOWED = [
   "בית",

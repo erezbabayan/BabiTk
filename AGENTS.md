@@ -9,12 +9,12 @@ Hebrew-first task/notebook app: capture via WhatsApp (Green-API), BabiSnap/voice
   - Schema changes: `supabase/migrations/*.sql`.
 - **Web**: `web/src` (React + Vite + Tailwind), deployed to GitHub Pages (https://erezbabayan.github.io/BabiTk/) from the build artifact `web/dist`. `web/assets/` is old committed build output and is not served.
 - **Mobile**: `mobile/` (Expo / React Native), APK built by `.github/workflows/android-release.yml` on every push to main (versionCode = run number, latest at `releases/latest/download/BabiTk.apk`).
-- **Convex**: the runtime is retired (`useConvexBackend()` returns false; no deployment). The `convex/lib/**` source is still live shared code: edge functions import `convex/lib/ingest/*`, and web/mobile import shared helpers. Do not delete it.
+- **Convex**: removed entirely (no package, no backend, no deployment). Pure shared TS helpers that used to live in `convex/lib/**` are now in `shared/**`: edge functions import `shared/ingest/*`, and web/mobile/backend import shared helpers. Do not add Convex back.
 - **backend/** (Fastify): not deployed (the SSH deploy is skipped, no API URL in the builds). It hosts the main Node test suite (`backend/src/tests`).
 
 ## Test before every PR (same as CI)
 ```bash
-npm ci                                   # root (Convex shared deps)
+npm ci                                   # root (dev tooling only)
 cd backend && npm ci && npm run typecheck && OPENAI_API_KEY=sk-test npm test
 cd web && npm ci && npm test && npm run build
 cd mobile && npm ci && npm test          # tsc + unit tests
@@ -24,7 +24,7 @@ Edge functions: `deno check supabase/functions/<name>/index.ts`.
 
 ## Deploy
 - PR → `verify` must pass → squash-merge to main.
-- On merge: Deploy Web (Pages), Android release, and Deploy Supabase Functions (only when `supabase/functions/**` or `convex/lib/ingest/**` change; it runs `supabase db push` and then the function deploys).
+- On merge: Deploy Web (Pages), Android release, and Deploy Supabase Functions (only when `supabase/functions/**` or `shared/ingest/**` change; it runs `supabase db push` and then the function deploys).
 - A PR with only a migration does not trigger the Supabase deploy.
 
 ## Hebrew / RTL

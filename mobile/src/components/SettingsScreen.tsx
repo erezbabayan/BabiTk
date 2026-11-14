@@ -12,9 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeModal } from "./SafeModal";
-import { useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
 
 import {
 
@@ -48,22 +46,11 @@ import { TestDataScreen } from "./TestDataScreen";
 import { NotebookIcon, type NotebookIconName } from "./NotebookIcons";
 
 import { isDemoMode } from "../lib/supabase";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
 import {
   loadHebrewCalendarEnabled,
   setHebrewCalendarEnabled,
 } from "../lib/hebrew-calendar-pref";
 
-const OVERDUE_HOUR_OPTIONS = [1, 3, 6, 12, 24, 36, 48, 72, 96, 120, 168] as const;
-
-function formatHoursLabel(hours: number): string {
-  if (hours < 24) return `${hours}ש׳`;
-  const days = hours / 24;
-  if (Number.isInteger(days)) {
-    return days === 1 ? "יום" : `${days}ימים`;
-  }
-  return `${hours}ש׳`;
-}
 
 function SettingsMenuRow({
   icon,
@@ -159,11 +146,7 @@ export function SettingsScreen({
   const [trashVisible, setTrashVisible] = useState(false);
   const [boardsVisible, setBoardsVisible] = useState(false);
   const [testDataVisible, setTestDataVisible] = useState(false);
-  const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [hebrewOn, setHebrewOn] = useState(false);
-  const convexAuth = shouldUseConvexAuthLogin();
-  const viewer = useQuery(api.users.viewer, convexAuth ? {} : "skip");
-  const updateNotificationPrefs = useMutation(api.users.updateNotificationPrefs);
 
   useEffect(() => {
 
@@ -273,13 +256,6 @@ export function SettingsScreen({
             </View>
 
             <SettingsMenuRow icon="keyboard" label="משתמש" onPress={() => setUserVisible(true)} />
-            {convexAuth ? (
-              <SettingsMenuRow
-                icon="bell"
-                label="התראות"
-                onPress={() => setNotificationsVisible(true)}
-              />
-            ) : null}
             <SettingsMenuRow
               icon="whatsapp"
               label="וואטסאפ — חיבור"
@@ -461,173 +437,6 @@ export function SettingsScreen({
 
 
 
-      <SafeModal
-        visible={notificationsVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setNotificationsVisible(false)}
-      >
-        <View style={styles.subBackdrop}>
-          <View style={styles.subSheet}>
-            <Text style={styles.subTitle}>התראות</Text>
-            <ScrollView style={styles.notificationsScroll} nestedScrollEnabled>
-            {viewer === undefined ? (
-              <ActivityIndicator color="#4f46e5" />
-            ) : viewer ? (
-              <>
-                <View style={styles.toggleRow}>
-                  <Switch
-                    value={viewer.notifyInApp}
-                    onValueChange={(value) => {
-                      void updateNotificationPrefs({ notifyInApp: value });
-                    }}
-                  />
-                  <View style={styles.toggleCopy}>
-                    <Text style={styles.toggleLabel}>התראות באפליקציה</Text>
-                    <Text style={styles.toggleHint}>מרכז התראות והתראות מכשיר</Text>
-                  </View>
-                </View>
-                <View style={styles.toggleRow}>
-                  <Switch
-                    value={viewer.notifyOverdueReminders}
-                    onValueChange={(value) => {
-                      void updateNotificationPrefs({ notifyOverdueReminders: value });
-                    }}
-                  />
-                  <View style={styles.toggleCopy}>
-                    <Text style={styles.toggleLabel}>תזכורת חוזרת לפריטים שעבר זמנם</Text>
-                    <Text style={styles.toggleHint}>
-                      פריט שמועד ההתראה שלו עבר ועדיין פתוח
-                    </Text>
-                  </View>
-                </View>
-                {viewer.notifyOverdueReminders ? (
-                  <View style={styles.overdueTimingBox}>
-                    <Text style={styles.overdueTimingLabel}>התראה ראשונה אחרי</Text>
-                    <View style={styles.overdueChipRow}>
-                      {[
-                        ...new Set([...OVERDUE_HOUR_OPTIONS, viewer.overdueFirstHours]),
-                      ]
-                        .sort((a, b) => a - b)
-                        .map((hours) => {
-                        const active = viewer.overdueFirstHours === hours;
-                        return (
-                          <Pressable
-                            key={`first-${hours}`}
-                            onPress={() => {
-                              void updateNotificationPrefs({ overdueFirstHours: hours });
-                            }}
-                            style={[styles.overdueChip, active && styles.overdueChipActive]}
-                          >
-                            <Text
-                              style={[
-                                styles.overdueChipText,
-                                active && styles.overdueChipTextActive,
-                              ]}
-                            >
-                              {formatHoursLabel(hours)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <Text style={[styles.overdueTimingLabel, styles.overdueTimingLabelSpaced]}>
-                      ואז כל
-                    </Text>
-                    <View style={styles.overdueChipRow}>
-                      {[
-                        ...new Set([...OVERDUE_HOUR_OPTIONS, viewer.overdueRepeatHours]),
-                      ]
-                        .sort((a, b) => a - b)
-                        .map((hours) => {
-                        const active = viewer.overdueRepeatHours === hours;
-                        return (
-                          <Pressable
-                            key={`repeat-${hours}`}
-                            onPress={() => {
-                              void updateNotificationPrefs({ overdueRepeatHours: hours });
-                            }}
-                            style={[styles.overdueChip, active && styles.overdueChipActive]}
-                          >
-                            <Text
-                              style={[
-                                styles.overdueChipText,
-                                active && styles.overdueChipTextActive,
-                              ]}
-                            >
-                              {formatHoursLabel(hours)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ) : null}
-                <View style={styles.toggleRow}>
-                  <Switch
-                    value={viewer.notifyWhatsApp}
-                    disabled={!viewer.phoneVerified}
-                    onValueChange={(value) => {
-                      void updateNotificationPrefs({ notifyWhatsApp: value });
-                    }}
-                  />
-                  <View style={styles.toggleCopy}>
-                    <Text
-                      style={[
-                        styles.toggleLabel,
-                        !viewer.phoneVerified ? styles.toggleDisabled : null,
-                      ]}
-                    >
-                      התראות WhatsApp
-                    </Text>
-                    <Text style={styles.toggleHint}>
-                      {viewer.phoneVerified
-                        ? `שליחה לטלפון המאומת כשמגיע מועד התזכורת, וסיכום יומי ב־${viewer.whatsappDigestHours.map((h: number) => `${String(h).padStart(2, "0")}:00`).join(", ")} (בהגדרות וואטסאפ)`
-                        : "דורש טלפון מאומת בהגדרות וואטסאפ"}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.toggleRow}>
-                  <Switch
-                    value={viewer.notifyWhatsAppGroup === true}
-                    disabled={
-                      !viewer.phoneVerified || !viewer.whatsappCaptureGroupChatId
-                    }
-                    onValueChange={(value) => {
-                      void updateNotificationPrefs({ notifyWhatsAppGroup: value });
-                    }}
-                  />
-                  <View style={styles.toggleCopy}>
-                    <Text
-                      style={[
-                        styles.toggleLabel,
-                        !viewer.phoneVerified || !viewer.whatsappCaptureGroupChatId
-                          ? styles.toggleDisabled
-                          : null,
-                      ]}
-                    >
-                      תזכורות משימה לקבוצת וואטסאפ
-                    </Text>
-                    <Text style={styles.toggleHint}>
-                      {!viewer.phoneVerified
-                        ? "דורש טלפון מאומת בהגדרות וואטסאפ"
-                        : !viewer.whatsappCaptureGroupChatId
-                          ? "דורש קבוצת קליטה מוגדרת בהגדרות וואטסאפ"
-                          : `כשמגיע מועד תזכורת — שליחה לקבוצה «${viewer.whatsappCaptureGroupName?.trim() || "קבוצת הקליטה"}»`}
-                    </Text>
-                  </View>
-                </View>
-              </>
-            ) : (
-              <Text style={styles.profileError}>לא ניתן לטעון העדפות התראות.</Text>
-            )}
-            </ScrollView>
-            <Pressable style={styles.subClose} onPress={() => setNotificationsVisible(false)}>
-              <Text style={styles.closeText}>סגור</Text>
-            </Pressable>
-          </View>
-        </View>
-      </SafeModal>
 
       <TagSettingsScreen
 

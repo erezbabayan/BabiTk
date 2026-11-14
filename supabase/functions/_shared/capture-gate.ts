@@ -1,6 +1,6 @@
 /**
  * Capture-group gate for Edge Functions.
- * Keep in sync with convex/lib/whatsappCaptureGroup.ts evaluateCaptureGate.
+ * Keep in sync with shared/whatsappCaptureGroup.ts evaluateCaptureGate.
  */
 
 import {

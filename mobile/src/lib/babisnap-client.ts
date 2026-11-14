@@ -1,5 +1,5 @@
 import { requireSupabase } from "./supabase";
-import { parseBabisnapResponse, type BabisnapStatus } from "../../../convex/lib/babisnap";
+import { parseBabisnapResponse, type BabisnapStatus } from "../../../shared/babisnap";
 
 export async function babisnapAction(action: "status" | "connect" | "disconnect"): Promise<BabisnapStatus> {
   const supabase = requireSupabase();
