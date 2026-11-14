@@ -9,12 +9,7 @@ import {
 } from "react-native";
 import { SafeModal } from "./SafeModal";
 import { NotebookReminderSection } from "./NotebookReminderSection";
-import { useConvexAuth } from "@convex-dev/auth/react";
-import { ConvexHttpClient } from "convex/browser";
-import { useMutation, useQuery } from "convex/react";
 
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
 import {
   BOARD_SETTINGS_LABELS,
   DEFAULT_INBOX_ARCHIVE_HOURS,
@@ -22,10 +17,6 @@ import {
   type InboxArchiveHours,
 } from "../lib/board-settings";
 import { getBoardSettings, saveBoardSettings } from "../lib/board-settings-api";
-import { readConvexAuthJwt } from "../lib/auth-storage";
-import { shouldUseConvexAuthLogin } from "../lib/auth-mode";
-import { asDirectConvexUserId } from "../lib/legacy-user-id";
-import { useConvexFeatures } from "../lib/data-backend";
 
 type BoardSection = "menu" | "inbox" | "today" | "notes";
 
@@ -34,10 +25,6 @@ interface BoardSettingsScreenProps {
   userId?: string;
   userEmail?: string | null;
   onClose: () => void;
-}
-
-function isInboxArchiveHours(value: number): value is InboxArchiveHours {
-  return value === 48 || value === 72 || value === 168 || value === 720;
 }
 
 function formatSaveError(error: unknown): string {
@@ -55,33 +42,6 @@ function formatSaveError(error: unknown): string {
     return "יש להתחבר מחדש כדי לשמור";
   }
   return message.replace(/^.*Uncaught Error:\s*/i, "").slice(0, 180);
-}
-
-/**
- * RN WebSocket auth can drop the JWT while the UI still looks logged-in.
- * Mirror ConvexAuthGate password login: call Convex over HTTP with an explicit token.
- */
-async function withAuthedHttpClient<T>(
-  fetchAccessToken: (args: {
-    forceRefreshToken: boolean;
-  }) => Promise<string | null>,
-  run: (client: ConvexHttpClient) => Promise<T>,
-): Promise<T> {
-  const convexUrl = process.env.EXPO_PUBLIC_CONVEX_URL?.trim() ?? "";
-  if (!convexUrl) {
-    throw new Error("Convex לא מוגדר");
-  }
-
-  const token =
-    (await fetchAccessToken({ forceRefreshToken: true })) ??
-    (await readConvexAuthJwt());
-  if (!token) {
-    throw new Error("Not authenticated");
-  }
-
-  const client = new ConvexHttpClient(convexUrl);
-  client.setAuth(token);
-  return run(client);
 }
 
 function BoardSettingsShell({
@@ -145,177 +105,6 @@ function sectionTitle(section: BoardSection): string {
   if (section === "inbox") return BOARD_SETTINGS_LABELS.inbox;
   if (section === "today") return BOARD_SETTINGS_LABELS.today;
   return BOARD_SETTINGS_LABELS.notes;
-}
-
-function BoardSettingsConvexScreen({
-  visible,
-  userId,
-  onClose,
-}: BoardSettingsScreenProps) {
-  const convexEnabled = useConvexFeatures();
-  const { fetchAccessToken } = useConvexAuth();
-  const convexUserId = asDirectConvexUserId(userId);
-
-  const canSubscribe = Boolean(convexEnabled && convexUserId && visible);
-  const liveSettings = useQuery(
-    api.boardSettings.getForUser,
-    canSubscribe && convexUserId ? { userId: convexUserId } : "skip",
-  );
-  const updateForUser = useMutation(api.boardSettings.updateForUser);
-
-  const [section, setSection] = useState<BoardSection>("menu");
-  const [hours, setHours] = useState<InboxArchiveHours>(DEFAULT_INBOX_ARCHIVE_HOURS);
-  const [hydrated, setHydrated] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [savedHint, setSavedHint] = useState(false);
-
-  useEffect(() => {
-    if (!visible) {
-      setSection("menu");
-      setError(null);
-      setSavedHint(false);
-      setHydrated(false);
-      setHours(DEFAULT_INBOX_ARCHIVE_HOURS);
-      return;
-    }
-
-    if (!convexUserId) {
-      setError("ממתין לטעינת החשבון...");
-      setHydrated(true);
-      return;
-    }
-
-    if (liveSettings !== undefined) {
-      const value = liveSettings.inboxArchiveHours;
-      setHours(isInboxArchiveHours(value) ? value : DEFAULT_INBOX_ARCHIVE_HOURS);
-      setHydrated(true);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const settings = await withAuthedHttpClient(fetchAccessToken, (client) =>
-          client.query(api.boardSettings.getForUser, { userId: convexUserId }),
-        );
-        if (cancelled) return;
-        const value = settings.inboxArchiveHours;
-        setHours(isInboxArchiveHours(value) ? value : DEFAULT_INBOX_ARCHIVE_HOURS);
-        setError(null);
-      } catch (err) {
-        if (!cancelled) setError(formatSaveError(err));
-      } finally {
-        if (!cancelled) setHydrated(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [visible, convexUserId, liveSettings, fetchAccessToken]);
-
-  const handleSelectHours = useCallback(
-    async (nextHours: InboxArchiveHours) => {
-      if (!convexUserId) {
-        setError("ממתין לטעינת החשבון — נסה שוב בעוד רגע");
-        return;
-      }
-
-      setSaving(true);
-      setError(null);
-      setSavedHint(false);
-      const previous = hours;
-      setHours(nextHours);
-
-      try {
-        try {
-          await updateForUser({
-            userId: convexUserId,
-            inboxArchiveHours: nextHours,
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "";
-          if (!/not authenticated|unauthenticated|unauthorized/i.test(message)) {
-            throw err;
-          }
-          await withAuthedHttpClient(fetchAccessToken, (client) =>
-            client.mutation(api.boardSettings.updateForUser, {
-              userId: convexUserId as Id<"users">,
-              inboxArchiveHours: nextHours,
-            }),
-          );
-        }
-        setSavedHint(true);
-      } catch (err) {
-        setHours(previous);
-        setError(formatSaveError(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [convexUserId, fetchAccessToken, hours, updateForUser],
-  );
-
-  const body =
-    section === "menu" ? (
-      <>
-        <Pressable style={styles.row} onPress={() => setSection("inbox")}>
-          <Text style={styles.rowText}>📓 {BOARD_SETTINGS_LABELS.inbox}</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => setSection("today")}>
-          <Text style={styles.rowText}>✅ {BOARD_SETTINGS_LABELS.today}</Text>
-        </Pressable>
-        <Pressable style={styles.row} onPress={() => setSection("notes")}>
-          <Text style={styles.rowText}>📝 {BOARD_SETTINGS_LABELS.notes}</Text>
-        </Pressable>
-      </>
-    ) : section === "inbox" ? (
-      <>
-        <Text style={styles.help}>
-          פריטים שלא נוגעים בהם במחברת יעברו אוטומטית לארכיון לאחר פרק הזמן שתבחר.
-          ההגדרה מסונכרנת עם המחשב.
-        </Text>
-        <Text style={styles.fieldLabel}>מעבר לארכיון אוטומטי</Text>
-        {INBOX_ARCHIVE_HOURS_OPTIONS.map((option) => {
-          const selected = hours === option.hours;
-          return (
-            <Pressable
-              key={option.hours}
-              style={[styles.option, selected && styles.optionActive]}
-              disabled={saving || !convexUserId}
-              onPress={() => void handleSelectHours(option.hours)}
-            >
-              <View style={[styles.radio, selected && styles.radioSelected]} />
-              <Text style={[styles.optionText, selected && styles.optionTextActive]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {saving ? <Text style={styles.saving}>שומר...</Text> : null}
-        {savedHint && !error ? (
-          <Text style={styles.saved}>נשמר בהצלחה · מסונכרן</Text>
-        ) : null}
-        <NotebookReminderSection />
-      </>
-    ) : (
-      <Text style={styles.empty}>אין הגדרות נוספות לבורד זה כרגע.</Text>
-    );
-
-  return (
-    <BoardSettingsShell
-      visible={visible}
-      onClose={onClose}
-      title={sectionTitle(section)}
-      section={section}
-      setSection={setSection}
-      loading={!hydrated}
-      body={body}
-    />
-  );
 }
 
 function BoardSettingsLocalScreen({
@@ -429,10 +218,6 @@ function BoardSettingsLocalScreen({
 
 export function BoardSettingsScreen(props: BoardSettingsScreenProps) {
   if (!props.visible) return null;
-
-  if (shouldUseConvexAuthLogin()) {
-    return <BoardSettingsConvexScreen {...props} />;
-  }
 
   return <BoardSettingsLocalScreen {...props} />;
 }

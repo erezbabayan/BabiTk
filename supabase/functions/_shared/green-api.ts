@@ -1,4 +1,4 @@
-/** Green-API webhook parsing — port of convex/lib/greenApiParser.ts for Edge Functions. */
+/** Green-API webhook parsing for Edge Functions. */
 import { timingSafeEqualString } from "./safe-compare.ts";
 
 export type GreenApiMessageType = "text" | "audio" | "image" | "unsupported";

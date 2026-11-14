@@ -12,7 +12,7 @@ import { getItemColumn, type DashboardColumn } from "../lib/item-columns";
 import type { MindtaskerItem } from "../lib/supabase";
 import { colorForTag, formatTagLabel, readableTextColor, type UserTag } from "../lib/tags";
 import { combineDueDate, splitDueDate, type DueDateParts } from "../lib/due-date-fields";
-import { isListReminderActive } from "../../../convex/lib/taskListNames";
+import { isListReminderActive } from "../../../shared/taskListNames";
 import { isReminderActive } from "../lib/item-display";
 import {
   alertSnoozeDueAt,

@@ -43,7 +43,6 @@ import { NotificationsPanel } from "./src/components/NotificationsPanel";
 import { ReminderAlertModal } from "./src/components/ReminderAlertModal";
 import { BoardBulkBar } from "./src/components/BoardBulkBar";
 import { DateScopeFilterBar } from "./src/components/DateScopeFilterBar";
-import { useDigestLocalAlerts } from "./src/hooks/useDigestLocalAlerts";
 import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
 import { useReminderNotificationResponses } from "./src/hooks/useReminderNotificationResponses";
@@ -101,11 +100,8 @@ import { useTaskLists } from "./src/hooks/useTaskLists";
 import { BOARD_TAB_FONT, BOARD_TITLE_FONT } from "./src/lib/board-font";
 import { BOARD_SQUARE_GAP_PX, BOARD_SQUARE_HALF_GAP_PX, BOARD_SQUARE_RADIUS_PX, BOARD_SQUARE_TILE_HEIGHT_PX, BOARD_CHROME_INSET_PX } from "./src/lib/board-item-layout";
 import { alertSnoozeDueAt, effectiveTaskDueDate } from "./src/lib/resolve-item-reminder";
-import { ConvexAppProvider } from "./src/providers/ConvexAppProvider";
-import { ConvexAuthGate } from "./src/providers/ConvexAuthGate";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
 import { UserTagsProvider } from "./src/providers/UserTagsProvider";
-import { shouldUseConvexAuthLogin } from "./src/lib/auth-mode";
 import type { MindtaskerItem } from "./src/lib/supabase";
 import { MAX_ITEM_TAGS, alignItemTagsWithDefinitions } from "./src/lib/tags";
 
@@ -174,7 +170,6 @@ function MainAppInner({
   const notificationsEnabled = isSupabaseConfigured && Boolean(userId);
   const notifications = useUserNotifications(userId, notificationsEnabled);
   usePushRegistration(notificationsEnabled, userId);
-  useDigestLocalAlerts(notificationsEnabled);
   const unreadNotifications = notifications.unread;
   const reminderAlerts = useReminderAlerts(
     notificationsEnabled ? userId : undefined,
@@ -1296,14 +1291,6 @@ function LoginGate({
 }
 
 function AppRoot() {
-  if (shouldUseConvexAuthLogin()) {
-    return <ConvexAuthGate MainApp={MainApp} />;
-  }
-
-  return <LegacyAuthAppRoot />;
-}
-
-function LegacyAuthAppRoot() {
   const {
     session,
     loading: authLoading,
@@ -1376,11 +1363,9 @@ try {
 export default function App() {
   return (
     <ErrorBoundary label="root">
-      <ConvexAppProvider>
-        <ErrorBoundary label="app">
-          <AppRoot />
-        </ErrorBoundary>
-      </ConvexAppProvider>
+      <ErrorBoundary label="app">
+        <AppRoot />
+      </ErrorBoundary>
     </ErrorBoundary>
   );
 }

@@ -1,12 +1,41 @@
-import type { FunctionReturnType } from "convex/server";
-
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
-import { filterConvexDocumentIds } from "../../../convex/lib/convexIds";
+import type { Id } from "./ids";
+import { filterConvexDocumentIds } from "../../../shared/convexIds";
 import type { MindtaskerItem } from "./supabase";
 
-export type TaskListRecord = FunctionReturnType<typeof api.taskLists.listForUser>[number];
-export type TaskListItemRecord = TaskListRecord["items"][number];
+export type TaskListItemRecord = {
+  _id: Id<"taskListItems">;
+  _creationTime: number;
+  userId: Id<"users">;
+  listId: Id<"taskLists">;
+  sourceTaskId: Id<"tasks">;
+  title: string;
+  content: string;
+  status: MindtaskerItem["status"];
+  dueDate: string | null;
+  completedAt: string | null;
+  tags: string[];
+  metadata?: unknown;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+};
+
+export type TaskListRecord = {
+  _id: Id<"taskLists">;
+  _creationTime: number;
+  userId: Id<"users">;
+  name: string;
+  filterTags: string[];
+  reminderAt?: string | null;
+  taskIds?: Id<"tasks">[];
+  status: "active" | "archived";
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+  items: TaskListItemRecord[];
+};
 
 const LIST_VISIBLE_STATUSES = new Set<MindtaskerItem["status"]>([
   "pending",

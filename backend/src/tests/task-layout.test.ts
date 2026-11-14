@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { parseInboundText, buildSupabaseIngestRows } from "../../../convex/lib/ingest/supabaseIngestRows.js";
+import { parseInboundText, buildSupabaseIngestRows } from "../../../shared/ingest/supabaseIngestRows.js";
 import {
   extractPlaceRows,
   extractReminderRecurrence,
   stripCaptureLead,
-} from "../../../convex/lib/ingest/taskLayout.js";
+} from "../../../shared/ingest/taskLayout.js";
 import { parseInputLocally } from "../services/local-parse.service.js";
 import { classifyWhatsAppInbound } from "../lib/whatsapp-inbound-route.js";
 

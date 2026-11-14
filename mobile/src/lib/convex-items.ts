@@ -1,4 +1,4 @@
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "./ids";
 import type { MindtaskerItem } from "../lib/supabase";
 
 type SourceMaterial = NonNullable<MindtaskerItem["source_materials"]>;

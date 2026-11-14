@@ -3,4 +3,4 @@ export {
   WHATSAPP_CHIP_LABEL,
   itemSourceChip,
   type ItemSourceChipKind,
-} from "../../../convex/lib/itemSourceChip";
+} from "../../../shared/itemSourceChip";

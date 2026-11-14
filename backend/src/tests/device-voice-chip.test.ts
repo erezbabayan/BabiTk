@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import {
   DEVICE_VOICE_CHIP_LABEL,
   isDeviceVoiceItem,
-} from "../../../convex/lib/deviceVoiceChip.ts";
+} from "../../../shared/deviceVoiceChip.ts";
 
 describe("device voice chip", () => {
   it("matches only voice-ingest tasks", () => {

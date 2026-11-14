@@ -541,7 +541,7 @@ function bareWhatsAppLocalId(raw: string): string {
 }
 
 /**
- * Normalize to E.164. Keep in sync with convex/lib/phone.ts and
+ * Normalize to E.164. Keep in sync with shared/phone.ts and
  * supabase/functions/_shared/green-api.ts — the device suffix must not
  * become extra digits (`972…:31@c.us` → `+972…`, not `+972…31`).
  */

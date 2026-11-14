@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { evaluateCaptureGate } from "../../../convex/lib/whatsappCaptureGroup.js";
+import { evaluateCaptureGate } from "../../../shared/whatsappCaptureGroup.js";
 
 const OWNER_PHONE = "+972526448067";
 const PERSONAL = "972526448067@c.us";

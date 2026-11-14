@@ -34,7 +34,7 @@ export const notebookVisionTranscriptionPrompt = `תמלל את הכתוב בת�
 
 /**
  * Proofread Hebrew from any capture channel (typed, WhatsApp, voice ASR, OCR).
- * Keep in sync with convex/lib/ingest/notebookOcr.ts
+ * Keep in sync with shared/ingest/notebookOcr.ts
  */
 export const inboundHebrewProofreadPrompt = `אתה עורך לשוני לעברית מודרנית. תקן את הטקסט כך שיהיה כתוב נכון, ברור וקריא — בלי לשנות את כוונת הכותב.
 

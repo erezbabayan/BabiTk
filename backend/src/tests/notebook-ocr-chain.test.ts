@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
-import { inboundHebrewProofreadPrompt } from "../../../convex/lib/ingest/notebookOcr.ts";
+import { inboundHebrewProofreadPrompt } from "../../../shared/ingest/notebookOcr.ts";
 import {
   GEMINI_ATTEMPTS_PER_MODEL,
   GEMINI_VISION_MODELS,

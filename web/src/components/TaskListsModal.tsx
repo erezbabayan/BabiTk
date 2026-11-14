@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "../lib/ids";
 import { useConfirmDialog } from "../hooks/useConfirmDialog";
 import { deleteListConfirmMessage } from "../lib/confirm-copy";
-import { defaultTaskListName, formatListReminderAt, formatTaskListDate, isListReminderActive } from "../../../convex/lib/taskListNames";
+import { defaultTaskListName, formatListReminderAt, formatTaskListDate, isListReminderActive } from "../../../shared/taskListNames";
 import type { TaskListRecord } from "../hooks/useTaskLists";
 import { unifiedFilterTags } from "../lib/filter-items";
 import { taskListItemToMindtaskerItem, formatListStatusSummary, filterTodayBoardTasksByListTags, resolveListDisplayItems } from "../lib/task-list-items";

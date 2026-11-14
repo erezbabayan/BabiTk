@@ -1,4 +1,4 @@
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "./ids";
 import {
   isMissingTaskListsTableError,
   newTaskListId,
@@ -14,7 +14,7 @@ import {
   type TaskListRecordShape,
   type TaskListRow,
   type TaskListStatus,
-} from "../../../convex/lib/taskListOps";
+} from "../../../shared/taskListOps";
 import { isDemoMode, isSupabaseConfigured, requireSupabase } from "./supabase";
 import type { TaskListRecord } from "./task-list-items";
 

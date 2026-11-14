@@ -4,7 +4,7 @@ import {
   formatTaskListWhatsAppMessage,
   whatsAppShareUrl,
   type TaskListShareInput,
-} from "../../../convex/lib/taskListShare";
+} from "../../../shared/taskListShare";
 
 export { formatTaskListWhatsAppMessage, type TaskListShareInput };
 

@@ -104,9 +104,7 @@ describe("phone otp rules", () => {
   it("keeps the shared otp file identical", () => {
     const backend = readFileSync(path.join(root, "backend/src/lib/phone-otp.ts"), "utf8");
     const edge = readFileSync(path.join(root, "supabase/functions/_shared/phone-otp.ts"), "utf8");
-    const convex = readFileSync(path.join(root, "convex/lib/phone_otp.ts"), "utf8");
     assert.equal(edge, backend);
-    assert.equal(convex, backend);
   });
 
   it("grandfather existing linked phones and blocks self-verify", () => {

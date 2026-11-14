@@ -7,7 +7,7 @@ import {
   BABITK_CHIP_LABEL,
   WHATSAPP_CHIP_LABEL,
   itemSourceChip,
-} from "../../../convex/lib/itemSourceChip.ts";
+} from "../../../shared/itemSourceChip.ts";
 
 describe("item source chip", () => {
   it("maps every known source", () => {

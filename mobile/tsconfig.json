@@ -4,11 +4,11 @@
     "jsx": "react-native",
     "moduleResolution": "bundler",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": ["ES2022", "DOM"],
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["**/*", "../convex/_generated/**/*", "../convex/lib/**/*"],
+  "include": ["**/*", "../shared/**/*"],
   "extends": "expo/tsconfig.base"
 }

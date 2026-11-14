@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { defaultTaskListName } from "../../../convex/lib/taskListNames.js";
+import { defaultTaskListName } from "../../../shared/taskListNames.js";
 import {
   isMissingTaskListsTableError,
   nextTaskListSortOrder,
@@ -10,7 +10,7 @@ import {
   taskListRecordToRow,
   taskListRowToRecord,
   validateListName,
-} from "../../../convex/lib/taskListOps.js";
+} from "../../../shared/taskListOps.js";
 
 describe("task list ops", () => {
   it("normalizes tags like the old Convex create mutation", () => {

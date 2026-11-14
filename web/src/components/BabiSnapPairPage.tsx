@@ -2,7 +2,7 @@ import {
   BABISNAP_COPY,
   babisnapOpenLink,
   readBabisnapPairFragment,
-} from "../../../convex/lib/babisnap";
+} from "../../../shared/babisnap";
 import logo from "../assets/babisnap-logo.webp";
 
 /** Public pair handoff. The token stays in memory and in the address fragment only. */

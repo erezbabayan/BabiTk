@@ -1,6 +1,6 @@
 /**
  * Recurring-reminder advance logic for the cron worker.
- * Keep in sync with convex/lib/resolveItemReminder.ts
+ * Keep in sync with shared/resolveItemReminder.ts
  *
  * The backend keeps its own copy because it builds standalone (Dockerfile only
  * copies backend/src), so it cannot import from the repo-root convex/ folder.
@@ -218,7 +218,7 @@ function skipTowardActiveDueDate(
 
 /**
  * Next occurrence that is still active. Keep in sync with
- * convex/lib/resolveItemReminder.ts `nextActiveDueDate`.
+ * shared/resolveItemReminder.ts `nextActiveDueDate`.
  */
 export function nextActiveDueDate(
   item: {
@@ -258,7 +258,7 @@ export function nextActiveDueDate(
 
 /**
  * Every occurrence in `[fromYmd, toYmd]`. Keep in sync with
- * convex/lib/resolveItemReminder.ts `listReminderOccurrencesInRange`.
+ * shared/resolveItemReminder.ts `listReminderOccurrencesInRange`.
  */
 export function listReminderOccurrencesInRange(
   seedIso: string,

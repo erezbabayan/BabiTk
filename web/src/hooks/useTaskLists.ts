@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { Id } from "../../../convex/_generated/dataModel";
+import type { Id } from "../lib/ids";
 import {
   archiveTaskList,
   createTaskListsFromTags,

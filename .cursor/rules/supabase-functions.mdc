@@ -3,7 +3,7 @@ description: Supabase Edge Functions (Deno) conventions for BabiTk
 globs: supabase/functions/**
 alwaysApply: false
 ---
-- Deno runtime. Import shared code from `../_shared/*.ts` (and `../../../convex/lib/ingest/*.ts` with explicit `.ts` extensions). Check with `deno check supabase/functions/<name>/index.ts`.
+- Deno runtime. Import shared code from `../_shared/*.ts` (and `../../../shared/ingest/*.ts` with explicit `.ts` extensions). Check with `deno check supabase/functions/<name>/index.ts`.
 - Read secrets via `Deno.env.get(...)` / `_shared/runtime-env.ts`. Never log or return tokens or keys; compare secrets with `_shared/safe-compare.ts`.
 - Webhooks fail closed: missing config means 401/503, never open access.
 - `whatsapp-green-webhook` must keep answering Green-API quickly with 2xx for accepted calls. Do slow work (ASR, OCR, LLM) with bounded timeouts and retries.

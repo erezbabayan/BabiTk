@@ -17,7 +17,7 @@ import {
   isBabisnapPairLocation,
   parseBabisnapResponse,
   readBabisnapPairFragment,
-} from "../../../convex/lib/babisnap.ts";
+} from "../../../shared/babisnap.ts";
 import { hashDeviceToken } from "../../../supabase/functions/_shared/device-voice-ingest.ts";
 import {
   performBabisnapAction,

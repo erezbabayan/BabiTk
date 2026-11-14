@@ -5,15 +5,15 @@ import {
   formatStructuredNoteBody,
   preserveInboundLineStructure,
   stripMarkdownEmphasis,
-} from "../../../convex/lib/ingest/textStructure.js";
-import { sanitizeInboundText } from "../../../convex/openaiPipeline.js";
-import { parseInputLocally } from "../../../convex/lib/ingest/localParse.js";
+} from "../../../shared/ingest/textStructure.js";
+import { parseInputLocally } from "../../../shared/ingest/localParse.js";
 
 describe("text structure for long notes", () => {
-  it("preserves newlines in sanitizeInboundText", () => {
-    const result = sanitizeInboundText("כותרת\nשורה אחת\nשורה שתיים");
-    assert.equal(result.accepted, true);
-    assert.equal(result.text, "כותרת\nשורה אחת\nשורה שתיים");
+  it("preserves newlines in inbound line structure", () => {
+    assert.equal(
+      preserveInboundLineStructure("כותרת\nשורה אחת\nשורה שתיים"),
+      "כותרת\nשורה אחת\nשורה שתיים",
+    );
   });
 
   it("strips markdown bold and formats body lines", () => {

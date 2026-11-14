@@ -2,7 +2,7 @@ import { StrictMode, Suspense, lazy, useCallback, useEffect, useState } from "re
 import { createRoot } from "react-dom/client";
 import { BabiSnapPairPage } from "./components/BabiSnapPairPage";
 import { SplashScreen } from "./components/SplashScreen";
-import { isBabisnapPairLocation } from "../../convex/lib/babisnap";
+import { isBabisnapPairLocation } from "../../shared/babisnap";
 import { BoardItemViewProvider } from "./providers/BoardItemViewProvider";
 import { watchDeployVersion } from "./lib/stale-deploy";
 import "./index.css";

@@ -1,7 +1,7 @@
 /**
  * Israel calendar helpers (Jerusalem candles, Hebrew phrases).
  * No network. Fail open: a library error must not block a send or a capture.
- * Copied to supabase/functions/_shared and convex/lib — keep the three files identical.
+ * Copied to supabase/functions/_shared — keep the two files identical.
  */
 import { HebrewCalendar, Location, flags, type Event } from "@hebcal/core";
 

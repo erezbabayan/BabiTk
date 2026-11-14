@@ -1,5 +1,5 @@
-import { parseInputLocally } from "../../../convex/lib/ingest/localParse";
-import { correctEnglishKeyboardHebrew } from "../../../convex/lib/ingest/englishKeyboardHebrew";
+import { parseInputLocally } from "../../../shared/ingest/localParse";
+import { correctEnglishKeyboardHebrew } from "../../../shared/ingest/englishKeyboardHebrew";
 import type { MindtaskerItem } from "./supabase";
 
 function clientTimezone(): string {

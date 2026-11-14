@@ -4,21 +4,9 @@
   "private": true,
   "description": "BabiTk — מנהל משימות והערות חכם: קליטה מוואטסאפ, קול ומחברת, עם בינה מלאכותית בעברית",
   "scripts": {
-    "convex:dev": "convex dev",
-    "convex:once": "convex dev --once",
-    "convex:seed": "node scripts/seed-convex.mjs",
-    "convex:link-phone": "node scripts/link-user-phone.mjs",
-    "convex:test": "npm test --prefix backend -- --test-name-pattern Convex",
     "dev": "node scripts/dev-supervisor.mjs",
-    "dev:web": "convex dev --start \"npm run dev --prefix web\"",
+    "dev:web": "npm run dev --prefix web",
     "dev:expo": "node scripts/dev-supervisor.mjs --expo"
-  },
-  "dependencies": {
-    "@auth/core": "^0.41.3",
-    "@convex-dev/auth": "^0.0.94",
-    "@hebcal/core": "^6.14.6",
-    "convex": "1.41.0",
-    "openai": "^4.104.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",
@@ -26,7 +14,6 @@
     "typescript": "^5.8.3"
   },
   "overrides": {
-    "convex": "1.41.0",
     "@fastify/busboy": "3.2.5",
     "body-parser@2": "2.4.0",
     "brace-expansion@2": "2.1.7",

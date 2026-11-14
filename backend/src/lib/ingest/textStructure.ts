@@ -1,7 +1,7 @@
 /**
  * Keep long inbound text readable: headings and one fact per line,
  * without markdown emphasis soup.
- * Keep in sync with convex/lib/ingest/textStructure.ts
+ * Keep in sync with shared/ingest/textStructure.ts
  */
 
 /** Collapse spaces/tabs inside lines; keep newlines (and blank lines as paragraph breaks). */

@@ -7,13 +7,13 @@ import { requireSupabase } from "./supabase";
 import {
   transcribeHebrewAudioBlob,
   transcribeHebrewAudioUrl,
-} from "../../../convex/lib/ingest/hebrewAsrPublicClient";
+} from "../../../shared/ingest/hebrewAsrPublicClient";
 import {
   parseIncomingMessage,
   parsedItemInsertFields,
   resolveAllowedTagNames,
 } from "./parse-incoming-message";
-import { parseWhatsAppInboundQuestion } from "../../../convex/lib/whatsappSystemQuestion";
+import { parseWhatsAppInboundQuestion } from "../../../shared/whatsappSystemQuestion";
 import type { MindtaskerItem, SourceMaterial } from "../types";
 import {
   canSendAudioToEdge,

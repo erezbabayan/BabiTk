@@ -1,7 +1,6 @@
 import { useState } from "react";
 
 import babisnapLogo from "../assets/babisnap-logo.webp";
-import { AdminUsersPanel } from "./AdminUsersPanel";
 import { AppDownloadLink } from "./AppDownloadLink";
 import { BoardSettingsPanel } from "./BoardSettingsPanel";
 import { GoogleCalendarLink } from "./GoogleCalendarLink";
@@ -219,7 +218,6 @@ export function SettingsPanel({
         {section === "tags" ? <TagSettings active /> : null}
         {section === "boards" ? <BoardSettingsPanel /> : null}
         {section === "trash" ? <TrashSettings userId={userId} /> : null}
-        {section === "admin" && isAdmin ? <AdminUsersPanel /> : null}
       </div>
     </div>
   );

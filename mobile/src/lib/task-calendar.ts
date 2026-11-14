@@ -1,4 +1,4 @@
-import { applyTextClockToIso } from "../../../convex/lib/ingest/hebrewDates";
+import { applyTextClockToIso } from "../../../shared/ingest/hebrewDates";
 import type { MindtaskerItem } from "./supabase";
 
 export const TASK_CALENDAR_TZ = "Asia/Jerusalem";

@@ -11,7 +11,7 @@
  * One photo ≈ one page. Output is capped at MAX_OCR_OUTPUT_CHARS (~1,500 Hebrew words).
  */
 
-import { inboundHebrewProofreadPrompt } from "../../../convex/lib/ingest/notebookOcr.ts";
+import { inboundHebrewProofreadPrompt } from "../../../shared/ingest/notebookOcr.ts";
 import { bytesToBase64 } from "./audio-format.ts";
 import {
   imageFileName,

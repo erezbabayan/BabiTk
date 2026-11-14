@@ -11,6 +11,6 @@
     "isolatedModules": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "../convex"],
+  "include": ["src"],
   "exclude": ["src/**/*.test.ts"]
 }

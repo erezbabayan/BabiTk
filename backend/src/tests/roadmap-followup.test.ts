@@ -207,11 +207,9 @@ describe("weekly summary and calendar merge", () => {
 });
 
 describe("shared copies", () => {
-  it("keeps the jewish calendar file identical in Edge and Convex", () => {
+  it("keeps the jewish calendar file identical in backend and Edge", () => {
     const source = readFileSync(path.resolve(here, "../lib/jewish-calendar.ts"), "utf8");
     const edge = readFileSync(path.resolve(here, "../../../supabase/functions/_shared/jewish-calendar.ts"), "utf8");
-    const convex = readFileSync(path.resolve(here, "../../../convex/lib/jewish_calendar.ts"), "utf8");
     assert.equal(edge, source);
-    assert.equal(convex, source);
   });
 });

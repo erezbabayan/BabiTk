@@ -22,4 +22,4 @@ export {
   type ReminderRecurrence,
   type ResolveItemReminderInput,
   type ResolveItemReminderResult,
-} from "../../../convex/lib/resolveItemReminder";
+} from "../../../shared/resolveItemReminder";
