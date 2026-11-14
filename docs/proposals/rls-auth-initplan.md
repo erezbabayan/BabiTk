@@ -1,6 +1,6 @@
 # Proposal (not applied): RLS `auth_rls_initplan` fix
 
-**Status:** proposal only — needs Erez's explicit approval. No migration in this PR.
+**Status:** applied (auth_rls_initplan part only) in `supabase/migrations/20261114200000_rls_auth_initplan.sql`, approved by Erez 14.11.2026. Merging the two permissive SELECT policies and dropping unused indexes are NOT done.
 
 ## Finding
 Supabase performance advisor reports 40 `auth_rls_initplan` warnings (read-only check, 12.11.2026):
