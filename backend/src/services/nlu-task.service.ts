@@ -308,7 +308,7 @@ export function integrateNluTaskPayload(
     return {
       ok: false,
       code: "validation_error",
-      message: parsed.error.errors.map((e) => e.message).join("; "),
+      message: parsed.error.issues.map((e) => e.message).join("; "),
     };
   }
   return { ok: true, payload: parsed.data };
