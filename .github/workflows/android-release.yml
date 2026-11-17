@@ -1,5 +1,13 @@
 name: Android release
 
+# ANDROID_ABIS controls which native ABIs are packaged into the sideload APK
+# (BabiTk.apk). arm64-v8a only shrinks the file from ~79 MiB to ~33 MiB on
+# modern phones. To restore the previous universal APK, change the next line to:
+#   ANDROID_ABIS: armeabi-v7a,arm64-v8a,x86,x86_64
+# The Play-ready AAB is built separately with all four ABIs and is not affected.
+env:
+  ANDROID_ABIS: arm64-v8a
+
 on:
   push:
     branches: [main]
@@ -123,7 +131,9 @@ jobs:
         working-directory: mobile/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease bundleRelease --no-daemon
+          # Sideload APK follows ANDROID_ABIS (see workflow env). AAB stays universal.
+          ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures="${ANDROID_ABIS}"
+          ./gradlew bundleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
 
       - name: Upload Play-ready AAB
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

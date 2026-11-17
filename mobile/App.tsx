@@ -15,11 +15,9 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import {
-  Rubik_500Medium,
-  Rubik_600SemiBold,
-  Rubik_700Bold,
-} from "@expo-google-fonts/rubik";
+import { Rubik_500Medium } from "@expo-google-fonts/rubik/500Medium";
+import { Rubik_600SemiBold } from "@expo-google-fonts/rubik/600SemiBold";
+import { Rubik_700Bold } from "@expo-google-fonts/rubik/700Bold";
 import { SecularOne_400Regular } from "@expo-google-fonts/secular-one";
 import { Solitreo_400Regular } from "@expo-google-fonts/solitreo";
 import { useFonts } from "expo-font";
