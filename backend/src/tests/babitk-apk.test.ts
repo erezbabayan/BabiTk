@@ -96,6 +96,29 @@ describe("BabiTk Android release", () => {
     assert.match(workflow, /Require Supabase public env/);
     assert.match(workflow, /EXPO_PUBLIC_SUPABASE_URL/);
     assert.match(workflow, /mobile\/\.env/);
+    assert.match(workflow, /^env:\n  ANDROID_ABIS: arm64-v8a$/m);
+    assert.match(
+      workflow,
+      /assembleRelease --no-daemon -PreactNativeArchitectures="\$\{ANDROID_ABIS\}"/,
+    );
+    assert.match(
+      workflow,
+      /bundleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64/,
+    );
+    assert.match(workflow, /To restore the previous universal APK/);
+    assert.match(workflow, /ANDROID_ABIS: armeabi-v7a,arm64-v8a,x86,x86_64/);
+    const appTsx = readFileSync(path.join(ROOT, "mobile/App.tsx"), "utf8");
+    assert.match(appTsx, /from "@expo-google-fonts\/rubik\/500Medium"/);
+    assert.match(appTsx, /from "@expo-google-fonts\/rubik\/600SemiBold"/);
+    assert.match(appTsx, /from "@expo-google-fonts\/rubik\/700Bold"/);
+    assert.doesNotMatch(appTsx, /from "@expo-google-fonts\/rubik"/);
+    assert.match(appTsx, /from "@expo-google-fonts\/secular-one"/);
+    assert.match(appTsx, /from "@expo-google-fonts\/solitreo"/);
+    assert.match(appTsx, /Rubik_500Medium/);
+    assert.match(appTsx, /Rubik_600SemiBold/);
+    assert.match(appTsx, /Rubik_700Bold/);
+    assert.match(appTsx, /SecularOne_400Regular/);
+    assert.match(appTsx, /Solitreo: Solitreo_400Regular/);
     const googleAuth = readFileSync(path.join(ROOT, "mobile/src/lib/google-auth.ts"), "utf8");
     const authConfig = readFileSync(path.join(ROOT, "scripts/configure-supabase-auth.mjs"), "utf8");
     const mobileLogin = readFileSync(path.join(ROOT, "mobile/src/components/LoginScreen.tsx"), "utf8");
