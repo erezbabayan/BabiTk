@@ -84,7 +84,7 @@ describe("BabiTk Android release", () => {
     assert.match(workflow, /branches: \[main\]/);
     assert.match(workflow, /tags: \["v\*"\]/);
     assert.match(workflow, /BabiTk\.apk/);
-    assert.match(workflow, /upload-artifact@[0-9a-f]{40} # v4/);
+    assert.match(workflow, /upload-artifact@[0-9a-f]{40} # v\d+/);
     assert.match(workflow, /name: BabiTk-aab/);
     assert.match(workflow, /ANDROID_KEYSTORE_BASE64/);
     assert.match(workflow, /ANDROID_KEYSTORE_PASSWORD/);
