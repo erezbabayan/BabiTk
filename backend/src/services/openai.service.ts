@@ -21,6 +21,10 @@ import {
   parseInputResponseSchema,
 } from "../types/ai.js";
 import { getTimezoneOffset } from "../utils/timezone.js";
+import {
+  sanitizeParseLocale,
+  sanitizeParseTimezone,
+} from "../utils/parse-context.js";
 
 const openai = new OpenAI({
   apiKey: env.openaiApiKey,
@@ -59,8 +63,8 @@ function normalizeParsedResponse(
 export async function parseInputWithAI(
   options: ParseInputOptions,
 ): Promise<ParseInputResponse> {
-  const timezone = options.timezone ?? "Asia/Jerusalem";
-  const locale = options.locale ?? "he-IL";
+  const timezone = sanitizeParseTimezone(options.timezone);
+  const locale = sanitizeParseLocale(options.locale);
   const referenceDate = options.referenceDate ?? new Date();
 
   const referenceIso = new Intl.DateTimeFormat("sv-SE", {

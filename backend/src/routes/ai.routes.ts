@@ -10,6 +10,10 @@ import { getUserTagNames } from "../services/user-tags.service.js";
 import { assertAiParseQuota, incrementAiParseUsage, estimateTextParseUnits, incrementAudioUsage } from "../services/usage.service.js";
 import { requireAudioQuota } from "../middleware/usage.js";
 import { parseWhatsAppInboundQuestion } from "../lib/whatsapp-system-question.js";
+import {
+  sanitizeParseLocale,
+  sanitizeParseTimezone,
+} from "../utils/parse-context.js";
 
 const parseBodySchema = z.object({
   text: z.string().trim().min(3, "Text must be at least 3 characters"),
@@ -41,7 +45,14 @@ export const aiRoutes: FastifyPluginAsync = async (app) => {
       if (reply.sent) return;
 
       const allowedTags = await getUserTagNames(request.user.id);
-      const result = await parseInputWithAI({ ...body.data, allowedTags });
+      const timezone = sanitizeParseTimezone(body.data.timezone);
+      const locale = sanitizeParseLocale(body.data.locale);
+      const result = await parseInputWithAI({
+        ...body.data,
+        timezone,
+        locale,
+        allowedTags,
+      });
       await incrementAiParseUsage(request.user.id, "ai_parse", units, {
         text_length: body.data.text.length,
         estimated_tokens: units,

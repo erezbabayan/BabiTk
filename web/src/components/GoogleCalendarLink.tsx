@@ -11,7 +11,6 @@ import {
   calendarTestingDeniedUserMessage,
   calendarUnlinkedHelpText,
   googleCalendarAppCapturesAdd,
-  isGoogleOauthTestingDenied,
   readGoogleCalendarAdded,
   writeGoogleCalendarAdded,
 } from "../lib/google-calendar-connect";
@@ -23,6 +22,12 @@ import {
   CALENDAR_OAUTH_ATTEMPT_KEY,
   CALENDAR_OAUTH_ERROR_KEY,
   CALENDAR_OAUTH_INCOMPLETE_MESSAGE,
+  GOOGLE_TESTING_DENIED_MESSAGE,
+  calendarOauthErrorMessage,
+  classifyCalendarOauthError,
+  storeCalendarOauthErrorCode,
+  isCalendarOauthErrorCode,
+  messageForStoredCalendarOauthError,
 } from "../lib/google-oauth-errors";
 import { isDemoMode } from "../lib/supabase";
 import { requestOpenTaskCalendar } from "../lib/task-calendar";
@@ -109,7 +114,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
               const stored = sessionStorage.getItem(CALENDAR_OAUTH_ERROR_KEY);
               if (stored) {
                 sessionStorage.removeItem(CALENDAR_OAUTH_ERROR_KEY);
-                return stored;
+                return messageForStoredCalendarOauthError(stored);
               }
             } catch {
               // ignore
@@ -131,7 +136,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
     try {
       const stored = sessionStorage.getItem(CALENDAR_OAUTH_ERROR_KEY);
       if (stored) {
-        setError(stored);
+        setError(messageForStoredCalendarOauthError(stored));
         sessionStorage.removeItem(CALENDAR_OAUTH_ERROR_KEY);
       }
     } catch {
@@ -145,9 +150,13 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       const data = event.data as { type?: string; ok?: boolean; error?: string | null } | null;
       if (data?.type !== "babitk-calendar") return;
       if (data.ok === false && data.error) {
-        setError(data.error);
+        const code = isCalendarOauthErrorCode(data.error)
+          ? data.error
+          : classifyCalendarOauthError(data.error);
+        const message = calendarOauthErrorMessage(code);
+        setError(message);
         try {
-          sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, data.error);
+          storeCalendarOauthErrorCode(code);
         } catch {
           // ignore
         }
@@ -304,7 +313,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
       {linked && !writable && !showFromUrlHelp ? (
         <p className="text-slate-600">{calendarGoogleAppHelpText()}</p>
       ) : null}
-      {error && isGoogleOauthTestingDenied(error) && !canConfigure ? (
+      {error === GOOGLE_TESTING_DENIED_MESSAGE && !canConfigure ? (
         <p className="text-slate-600">{calendarTestingDeniedUserMessage()}</p>
       ) : null}
       {canConfigure && !configured ? (
