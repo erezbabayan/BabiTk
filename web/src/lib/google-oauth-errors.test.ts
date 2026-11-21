@@ -17,6 +17,8 @@ import {
   classifyCalendarOauthError,
   isGoogleOauthTestingDenied,
   messageForStoredCalendarOauthError,
+  storeCalendarOauthErrorCode,
+  CALENDAR_OAUTH_ERROR_KEY,
 } from "./google-oauth-errors.ts";
 
 describe("Google OAuth testing-mode 403", () => {
@@ -93,5 +95,44 @@ describe("calendar OAuth session error codes", () => {
       CALENDAR_OAUTH_GENERIC_MESSAGE,
     );
   });
-});
 
+  it("stores only fixed codes, never the raw classifier input", () => {
+    const memory = new Map<string, string>();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem(k: string) {
+          return memory.get(k) ?? null;
+        },
+        setItem(k: string, v: string) {
+          memory.set(k, String(v));
+        },
+        removeItem(k: string) {
+          memory.delete(k);
+        },
+      },
+    });
+    const key = CALENDAR_OAUTH_ERROR_KEY;
+    sessionStorage.removeItem(key);
+    storeCalendarOauthErrorCode(
+      classifyCalendarOauthError(
+        "access_denied",
+        "raw-description-must-not-be-stored",
+      ),
+    );
+    assert.equal(sessionStorage.getItem(key), "access_denied");
+    assert.equal(
+      (sessionStorage.getItem(key) ?? "").includes("raw-description-must-not-be-stored"),
+      false,
+    );
+    storeCalendarOauthErrorCode(
+      classifyCalendarOauthError(
+        "access_denied:403",
+        "הגישה חסומה: תהליך האימות של Google לאפליקציה לא הושלם.",
+      ),
+    );
+    assert.equal(sessionStorage.getItem(key), "testing_denied");
+    storeCalendarOauthErrorCode(classifyCalendarOauthError("missing_refresh_token"));
+    assert.equal(sessionStorage.getItem(key), "generic");
+  });
+});

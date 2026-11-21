@@ -25,6 +25,7 @@ import {
   GOOGLE_TESTING_DENIED_MESSAGE,
   calendarOauthErrorMessage,
   classifyCalendarOauthError,
+  storeCalendarOauthErrorCode,
   isCalendarOauthErrorCode,
   messageForStoredCalendarOauthError,
 } from "../lib/google-oauth-errors";
@@ -155,7 +156,7 @@ export function GoogleCalendarLink({ userId, onSelectItem }: GoogleCalendarLinkP
         const message = calendarOauthErrorMessage(code);
         setError(message);
         try {
-          sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, code);
+          storeCalendarOauthErrorCode(code);
         } catch {
           // ignore
         }

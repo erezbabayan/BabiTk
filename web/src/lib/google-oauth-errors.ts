@@ -100,6 +100,19 @@ export function isCalendarOauthErrorCode(
   );
 }
 
+/** Store only a fixed code literal — never a raw OAuth error string. */
+export function storeCalendarOauthErrorCode(code: CalendarOauthErrorCode): void {
+  if (code === "testing_denied") {
+    sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, "testing_denied");
+    return;
+  }
+  if (code === "access_denied") {
+    sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, "access_denied");
+    return;
+  }
+  sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, "generic");
+}
+
 export function classifyCalendarOauthError(
   error: unknown,
   description?: string | null,

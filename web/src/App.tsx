@@ -33,9 +33,9 @@ import {
 } from "./lib/google-calendar-client";
 import { calendarReturnFromQuery } from "./lib/google-calendar-connect";
 import {
-  CALENDAR_OAUTH_ERROR_KEY,
   calendarOauthErrorMessage,
   classifyCalendarOauthError,
+  storeCalendarOauthErrorCode,
   isGoogleOauthTestingDenied,
 } from "./lib/google-oauth-errors";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./lib/supabase";
@@ -257,7 +257,7 @@ function ConfiguredApp() {
       );
       const message = calendarOauthErrorMessage(code);
       try {
-        sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, code);
+        storeCalendarOauthErrorCode(code);
       } catch {
         // ignore
       }
@@ -354,8 +354,7 @@ function ConfiguredApp() {
       if (calendarPending || testingDenied) {
         try {
           sessionStorage.removeItem(CALENDAR_LINK_FLAG);
-          sessionStorage.setItem(
-            CALENDAR_OAUTH_ERROR_KEY,
+          storeCalendarOauthErrorCode(
             classifyCalendarOauthError(
               callback.error,
               callback.errorDescription,
