@@ -77,7 +77,26 @@
       "@react-native-community/datetimepicker",
       "expo-web-browser",
       "expo-secure-store",
-      "./plugins/with-ltr-root"
+      "./plugins/with-ltr-root",
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "BabiTkBoards",
+              "label": "BabiTk – בורדים",
+              "description": "המחברת, משימות לביצוע והערות במסך הבית",
+              "minWidth": "250dp",
+              "minHeight": "180dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 3,
+              "resizeMode": "horizontal|vertical",
+              "widgetCategory": "home_screen",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "icon": "./assets/icon.png",
     "splash": {

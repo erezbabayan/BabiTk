@@ -31,6 +31,8 @@ interface QuickCaptureBarProps {
   userId?: string;
   onAddItem: (item: MindtaskerItem) => Promise<void>;
   onAfterCapture?: () => void | Promise<void>;
+  /** Bump to focus the text field (home-screen widget "+" button). */
+  focusToken?: number;
 }
 
 function demoCaptureItem(title: string, content: string): MindtaskerItem {
@@ -45,8 +47,19 @@ function demoCaptureItem(title: string, content: string): MindtaskerItem {
   } as MindtaskerItem;
 }
 
-export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCaptureBarProps) {
+export function QuickCaptureBar({
+  userId,
+  onAddItem,
+  onAfterCapture,
+  focusToken,
+}: QuickCaptureBarProps) {
   const [text, setText] = useState("");
+  const inputRef = useRef<TextInput | null>(null);
+  useEffect(() => {
+    if (!focusToken) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [focusToken]);
   const [loading, setLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
@@ -301,6 +314,7 @@ export function QuickCaptureBar({ userId, onAddItem, onAfterCapture }: QuickCapt
               {isRecording ? `מקליט מהמיקרופון · ${recordLabel}` : "קליטה מהירה"}
             </Text>
             <TextInput
+              ref={inputRef}
               style={styles.input}
               placeholder="הוסף משימה, הערה או רעיון..."
               placeholderTextColor="#94a3b8"
