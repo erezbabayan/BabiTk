@@ -34,6 +34,8 @@ import {
 import { calendarReturnFromQuery } from "./lib/google-calendar-connect";
 import {
   CALENDAR_OAUTH_ERROR_KEY,
+  calendarOauthErrorMessage,
+  classifyCalendarOauthError,
   isGoogleOauthTestingDenied,
 } from "./lib/google-oauth-errors";
 import { isDemoMode, isSupabaseConfigured, requireSupabase, supabaseAuthRedirectUrl } from "./lib/supabase";
@@ -249,10 +251,13 @@ function ConfiguredApp() {
     } else if (calendarReturn.failed) {
       setSettingsOpen(true);
       setSettingsSection("calendar");
-      const message =
-        calendarReturn.error ?? "חיבור Google Calendar לא הושלם. אפשר לנסות שוב בהגדרות.";
+      const code = classifyCalendarOauthError(
+        params.get("error"),
+        params.get("error_description"),
+      );
+      const message = calendarOauthErrorMessage(code);
       try {
-        sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, message);
+        sessionStorage.setItem(CALENDAR_OAUTH_ERROR_KEY, code);
       } catch {
         // ignore
       }
@@ -351,7 +356,10 @@ function ConfiguredApp() {
           sessionStorage.removeItem(CALENDAR_LINK_FLAG);
           sessionStorage.setItem(
             CALENDAR_OAUTH_ERROR_KEY,
-            formatOAuthSignInError(callback.error, callback.errorDescription),
+            classifyCalendarOauthError(
+              callback.error,
+              callback.errorDescription,
+            ),
           );
         } catch {
           // ignore

@@ -18,11 +18,7 @@ export function isStableWhatsAppMessageId(messageId: string): boolean {
 export function ensureWhatsAppMessageId(messageId: string): string {
   const trimmed = messageId.trim();
   if (isStableWhatsAppMessageId(trimmed)) return trimmed;
-  const uuid =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
-  return `wa-${uuid}`;
+  return `wa-${crypto.randomUUID()}`;
 }
 
 export function preferLiveCapturedItem<T extends { deleted_at?: string | null }>(

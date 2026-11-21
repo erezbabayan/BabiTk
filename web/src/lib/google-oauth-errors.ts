@@ -75,3 +75,62 @@ export function isGoogleOauthTestingDenied(
     raw.includes("גישה חסומה");
   return denied && testing;
 }
+
+export const CALENDAR_OAUTH_ERROR_CODES = [
+  "access_denied",
+  "testing_denied",
+  "generic",
+] as const;
+
+export type CalendarOauthErrorCode = (typeof CALENDAR_OAUTH_ERROR_CODES)[number];
+
+export const CALENDAR_OAUTH_ACCESS_DENIED_MESSAGE =
+  "ההתחברות עם Google בוטלה.";
+
+export const CALENDAR_OAUTH_GENERIC_MESSAGE =
+  "לא ניתן לחבר את היומן כרגע.";
+
+export function isCalendarOauthErrorCode(
+  value: string | null | undefined,
+): value is CalendarOauthErrorCode {
+  return (
+    value === "access_denied" ||
+    value === "testing_denied" ||
+    value === "generic"
+  );
+}
+
+export function classifyCalendarOauthError(
+  error: unknown,
+  description?: string | null,
+): CalendarOauthErrorCode {
+  if (isGoogleOauthTestingDenied(error, description)) {
+    return "testing_denied";
+  }
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const raw = [message, description ?? ""].join(" ").toLowerCase();
+  if (raw.includes("access_denied") || raw.includes("user denied")) {
+    return "access_denied";
+  }
+  return "generic";
+}
+
+export function calendarOauthErrorMessage(
+  code: CalendarOauthErrorCode,
+): string {
+  if (code === "testing_denied") return GOOGLE_TESTING_DENIED_MESSAGE;
+  if (code === "access_denied") return CALENDAR_OAUTH_ACCESS_DENIED_MESSAGE;
+  return CALENDAR_OAUTH_GENERIC_MESSAGE;
+}
+
+/** Map a stored session value (code, or leftover text) to a safe display message. */
+export function messageForStoredCalendarOauthError(
+  stored: string | null | undefined,
+): string | null {
+  if (!stored) return null;
+  const code = isCalendarOauthErrorCode(stored)
+    ? stored
+    : classifyCalendarOauthError(stored);
+  return calendarOauthErrorMessage(code);
+}
+
