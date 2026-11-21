@@ -45,6 +45,8 @@ import { usePushRegistration } from "./src/hooks/usePushRegistration";
 import { useReminderAlerts } from "./src/hooks/useReminderAlerts";
 import { useReminderNotificationResponses } from "./src/hooks/useReminderNotificationResponses";
 import { fetchItemForOpen } from "./src/lib/reminder-open-item";
+import { parseWidgetLink } from "./src/widget/widget-model";
+import { clearWidgetBoards, syncWidgetBoards } from "./src/widget/widget-sync";
 import { useBoardSelection } from "./src/hooks/useBoardSelection";
 import { AppTopBar } from "./src/components/AppTopBar";
 import { TaskMonthCalendar } from "./src/components/TaskMonthCalendar";
@@ -226,6 +228,34 @@ function MainAppInner({
     board.inboxArchive,
     board.notesArchive,
   ]);
+  // Home-screen widget: open an item / a board / quick add from mindtasker:// links.
+  const [captureFocusToken, setCaptureFocusToken] = useState(0);
+  useEffect(() => {
+    function handleWidgetUrl(url: string | null) {
+      const link = parseWidgetLink(url);
+      if (!link) return;
+      if (link.kind === "item") {
+        setPendingOpenItemId(link.id);
+        return;
+      }
+      setSettingsVisible(false);
+      setShowTaskLists(false);
+      setListView("active");
+      setTab(link.board);
+      if (link.kind === "add") setCaptureFocusToken((n) => n + 1);
+    }
+    void Linking.getInitialURL().then(handleWidgetUrl).catch(() => undefined);
+    const sub = Linking.addEventListener("url", (event) => handleWidgetUrl(event.url));
+    return () => sub.remove();
+  }, []);
+  // Keep the widget snapshot in step with the loaded boards (debounced, best-effort).
+  useEffect(() => {
+    if (board.loading) return;
+    const timer = setTimeout(() => {
+      void syncWidgetBoards({ inbox: board.inbox, today: board.todayTasks, notes: board.notes });
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [board.loading, board.inbox, board.todayTasks, board.notes]);
   const [tagPickerItem, setTagPickerItem] = useState<MindtaskerItem | null>(null);
   const [tagDraft, setTagDraft] = useState<string[]>([]);
   const [deletedItem, setDeletedItem] = useState<MindtaskerItem | null>(null);
@@ -803,6 +833,7 @@ function MainAppInner({
           userId={userId}
           onAddItem={(item) => board.addCapturedItem(item)}
           onAfterCapture={() => void board.refresh()}
+          focusToken={captureFocusToken}
         />
 
         <OfflineBanner
@@ -1307,6 +1338,11 @@ function AppRoot() {
     Solitreo_400Regular,
   });
 
+  const signedOut = !authLoading && !session;
+  useEffect(() => {
+    if (signedOut) void clearWidgetBoards();
+  }, [signedOut]);
+
   if ((!fontsLoaded && !fontError) || authLoading) {
     return (
       <View style={styles.loader}>
@@ -1339,7 +1375,10 @@ function AppRoot() {
       <StatusBar style="dark" />
       <GestureHandlerRootView style={styles.root}>
         <MainApp
-          onSignOut={() => void signOut()}
+          onSignOut={() => {
+            void clearWidgetBoards();
+            void signOut();
+          }}
           userId={session.user.id}
           userEmail={session.user.email}
         />
