@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   buildWidgetSnapshot,
+  formatDueBadge,
   formatWidgetUpdated,
   isWidgetSnapshotStale,
   nextWidgetBoard,
@@ -116,5 +117,30 @@ describe("widget deep links", () => {
     assert.equal(parseWidgetLink("mindtasker://item/..%2F..%2Fx"), null);
     assert.equal(parseWidgetLink("mindtasker://item/a/b"), null);
     assert.equal(parseWidgetLink(null), null);
+  });
+});
+
+describe("widget due badge", () => {
+  const now = new Date(2026, 10, 22, 10, 0).getTime();
+  const at = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).getTime();
+
+  it("labels today, tomorrow and this week", () => {
+    assert.deepEqual(formatDueBadge(at(22, 18, 30), now), { text: "היום 18:30", overdue: false });
+    assert.deepEqual(formatDueBadge(at(23, 9), now), { text: "מחר 09:00", overdue: false });
+    assert.deepEqual(formatDueBadge(at(24, 12), now), { text: "שלישי 12:00", overdue: false });
+    assert.deepEqual(formatDueBadge(at(5 + 30, 12), now)?.overdue, false);
+  });
+
+  it("turns red once the time passed", () => {
+    assert.deepEqual(formatDueBadge(at(22, 9), now), { text: "היום 09:00", overdue: true });
+    assert.deepEqual(formatDueBadge(at(21, 17), now), { text: "אתמול", overdue: true });
+    assert.deepEqual(formatDueBadge(at(10, 8), now), { text: "10.11", overdue: true });
+  });
+
+  it("returns null without a due time and stores dueAt only for tasks", () => {
+    assert.equal(formatDueBadge(null, now), null);
+    const due = new Date(2026, 10, 23, 9, 0).toISOString();
+    assert.equal(toWidgetItem(item("t", { is_actionable: true, due_date: due })).dueAt, new Date(due).getTime());
+    assert.equal(toWidgetItem(item("n", { due_date: due })).dueAt, null);
   });
 });

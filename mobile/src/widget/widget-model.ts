@@ -36,6 +36,8 @@ export interface WidgetItem {
   /** Short secondary line: due date for tasks, body preview for notes. */
   subtitle: string | null;
   isTask: boolean;
+  /** Due time (epoch ms) for tasks; the badge text is computed at draw time. */
+  dueAt?: number | null;
 }
 
 export interface WidgetBoardSnapshot {
@@ -92,11 +94,13 @@ export function toWidgetItem(item: WidgetSourceItem): WidgetItem {
   const isTask = Boolean(item.is_actionable);
   const due = isTask ? formatWidgetDue(item.due_date) : null;
   const preview = body && body !== title ? clip(body, SUBTITLE_MAX_CHARS) : null;
+  const dueMs = isTask && item.due_date ? new Date(item.due_date).getTime() : NaN;
   return {
     id: item.id,
     title: clip(title, TITLE_MAX_CHARS),
     subtitle: due ?? preview,
     isTask,
+    dueAt: Number.isNaN(dueMs) ? null : dueMs,
   };
 }
 
@@ -198,6 +202,33 @@ export function formatWidgetUpdated(updatedAt: number, now: number = Date.now())
   if (hours < 24) return hours === 1 ? "עודכן לפני שעה" : `עודכן לפני ${hours} שעות`;
   const days = Math.floor(hours / 24);
   return days === 1 ? "עודכן אתמול" : `עודכן לפני ${days} ימים`;
+}
+
+const HE_WEEKDAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+
+function startOfDay(ms: number): number {
+  const d = new Date(ms);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** Due-time badge: "היום 09:00", "מחר 08:30", "שלישי 12:00"; red ("overdue") once it passed. */
+export function formatDueBadge(
+  dueAt: number | null | undefined,
+  now: number = Date.now(),
+): { text: string; overdue: boolean } | null {
+  if (dueAt == null || Number.isNaN(dueAt)) return null;
+  const d = new Date(dueAt);
+  const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const dayDiff = Math.round((startOfDay(dueAt) - startOfDay(now)) / 86_400_000);
+  const overdue = dueAt < now;
+  let text: string;
+  if (dayDiff === 0) text = `היום ${time}`;
+  else if (dayDiff === 1) text = `מחר ${time}`;
+  else if (dayDiff === -1) text = "אתמול";
+  else if (dayDiff > 1 && dayDiff < 7) text = `${HE_WEEKDAYS[d.getDay()]} ${time}`;
+  else text = `${d.getDate()}.${d.getMonth() + 1}`;
+  return { text, overdue };
 }
 
 // ---- Deep links (handled in App.tsx) ----

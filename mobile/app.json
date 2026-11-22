@@ -92,7 +92,8 @@
               "targetCellHeight": 3,
               "resizeMode": "horizontal|vertical",
               "widgetCategory": "home_screen",
-              "updatePeriodMillis": 1800000
+              "updatePeriodMillis": 1800000,
+              "previewImage": "./assets/widget-preview.png"
             }
           ]
         }
