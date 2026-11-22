@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRef, useState } from "react";
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { rtlDropdownPlacement } from "../lib/dropdown-position";
 import { colorForTag, formatTagLabel, type UserTag } from "../lib/tags";
 import { TagChip } from "./TagChip";
 import { NotebookIcon } from "./NotebookIcons";
@@ -18,18 +19,32 @@ export function TagFilterBar({
   userTags = [],
 }: TagFilterBarProps) {
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<{ left: number; width: number } | null>(null);
+  const wrapRef = useRef<View>(null);
 
   if (tags.length === 0) return null;
+
+  function toggleOpen() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    // The trigger can be ~100px wide on a phone; size the panel from the screen instead.
+    wrapRef.current?.measureInWindow((x, _y, width) => {
+      setPlacement(rtlDropdownPlacement(x, width, Dimensions.get("window").width));
+    });
+  }
 
   function handleTagPress(tag: string) {
     onSelect(selected === tag ? null : tag);
   }
 
   return (
-    <View style={styles.wrap}>
+    <View ref={wrapRef} style={styles.wrap}>
       <Pressable
         style={[styles.toggle, selected ? styles.toggleOn : null]}
-        onPress={() => setOpen((v) => !v)}
+        onPress={toggleOpen}
         hitSlop={10}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -44,7 +59,12 @@ export function TagFilterBar({
       </Pressable>
 
       {open ? (
-        <View style={styles.dropdown}>
+        <View
+          style={[
+            styles.dropdown,
+            placement ? { left: placement.left, right: undefined, width: placement.width } : null,
+          ]}
+        >
           <ScrollView
             nestedScrollEnabled
             showsVerticalScrollIndicator
@@ -56,19 +76,23 @@ export function TagFilterBar({
               onPress={() => onSelect(null)}
               hitSlop={6}
             >
-              <Text style={[styles.chipText, selected === null && styles.chipTextActive]}>
+              <Text
+                style={[styles.chipText, selected === null && styles.chipTextActive]}
+                numberOfLines={1}
+              >
                 הכל
               </Text>
             </Pressable>
             {tags.map((tag) => (
-              <TagChip
-                key={tag}
-                name={tag}
-                color={colorForTag(tag, userTags)}
-                size="sm"
-                selected={selected === tag}
-                onPress={() => handleTagPress(tag)}
-              />
+              <View key={tag} style={styles.chipCell}>
+                <TagChip
+                  name={tag}
+                  color={colorForTag(tag, userTags)}
+                  size="sm"
+                  selected={selected === tag}
+                  onPress={() => handleTagPress(tag)}
+                />
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -146,7 +170,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingBottom: 2,
   },
+  chipCell: {
+    flexShrink: 0,
+  },
   chip: {
+    flexShrink: 0,
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 3,
@@ -155,6 +183,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#475569",
   },
   chipText: {
+    flexShrink: 0,
     fontSize: 11,
     fontWeight: "600",
     color: "#475569",
