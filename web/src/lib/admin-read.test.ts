@@ -158,6 +158,7 @@ test("admin-read: deploy wiring keeps verify_jwt off and no service role leaks",
   const endpoint = readFileSync(path.join(root, "supabase/functions/admin-read/index.ts"), "utf8");
   assert.match(config, /\[functions\.admin-read\]\s+verify_jwt = false/);
   assert.match(workflow, /functions deploy admin-read --project-ref "\$PROJECT_REF" --import-map "\$IMPORT_MAP" --no-verify-jwt --yes\n/);
+  assert.match(workflow, /sync_secret BABI_ADMIN_READ_KEY "\$\{BABI_ADMIN_READ_KEY:-\}"/);
   assert.match(endpoint, /BABI_ADMIN_READ_KEY/);
   assert.doesNotMatch(endpoint, /token_hash|request_timestamps/);
 });
