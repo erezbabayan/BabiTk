@@ -78,3 +78,9 @@ verify_jwt = false
 # Admin actions use a separate SNAP_REGISTRY_ADMIN_KEY that is not in the APK.
 [functions.snap-users]
 verify_jwt = false
+
+# Babi Admin (external admin site) calls this server-to-server with the
+# `x-babi-admin-key` header, not a Supabase user JWT. verify_jwt must stay false
+# so the handler can check BABI_ADMIN_READ_KEY. Read-only, whitelisted fields.
+[functions.admin-read]
+verify_jwt = false
