@@ -5,7 +5,9 @@ import { forgetWidget, readWidgetBoard, readWidgetSnapshot, writeWidgetBoard } f
 
 /**
  * Headless task run by Android for widget add/update/resize/click.
- * Reads the local snapshot only: no network, no auth refresh, no secrets.
+ * Always draws the local snapshot first. On the periodic update (~30 min) and on
+ * add, it then tries a best-effort background fetch with the app's stored session
+ * (widget-refresh.ts); on any failure the last snapshot stays on screen.
  */
 export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<void> {
   const { widgetInfo, widgetAction, clickAction, clickActionData } = props;
@@ -29,4 +31,13 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
   props.renderWidget(
     <BabiTkWidget snapshot={snapshot} board={board} size={widgetSizeForHeight(widgetInfo.height)} />,
   );
+
+  if (widgetAction === "WIDGET_UPDATE" || widgetAction === "WIDGET_ADDED") {
+    try {
+      const { refreshWidgetInBackground } = require("./widget-refresh") as typeof import("./widget-refresh");
+      await refreshWidgetInBackground();
+    } catch {
+      // Best-effort: keep the snapshot already drawn.
+    }
+  }
 }

@@ -289,3 +289,19 @@ export function parseWidgetLink(url: string | null | undefined): WidgetLink | nu
   if (host === "add") return { kind: "add", board };
   return null;
 }
+
+// ---- Background refresh (widget-refresh.ts) ----
+
+/** Background refresh at most this often (the widget update period is 30 min). */
+export const WIDGET_BACKGROUND_MIN_MS = 15 * 60 * 1000;
+
+/** True when the snapshot is missing or old enough for a background fetch. */
+export function shouldBackgroundRefresh(
+  snapshot: Pick<WidgetSnapshot, "updatedAt" | "signedIn"> | null,
+  now: number = Date.now(),
+): boolean {
+  if (!snapshot) return true;
+  if (!snapshot.signedIn) return false;
+  if (!Number.isFinite(snapshot.updatedAt)) return true;
+  return now - snapshot.updatedAt >= WIDGET_BACKGROUND_MIN_MS;
+}
