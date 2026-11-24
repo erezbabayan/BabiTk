@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { decodeAudioBase64, audioFileName, normalizeAsrUpload } from "../_shared/hebrew-voice-asr.ts";
 import { ingestRecordedAudio } from "../_shared/voice-ingest.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -168,6 +169,8 @@ Deno.serve(async (req) => {
       promptHint: payload.promptHint || undefined,
       itemId: payload.itemId || undefined,
     });
+    // Silent usage log (fire-and-forget, never throws, response unchanged).
+    noteTkActivity(userId, "voice_record");
     return json({
       ok: true,
       answered: result.answered === true,

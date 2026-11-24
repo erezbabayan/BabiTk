@@ -24,6 +24,7 @@ import { isSystemWhatsAppReply } from "../_shared/green-api.ts";
 import { catchUpCaptureVoice } from "../_shared/whatsapp-history-catchup.ts";
 import { fetchGreenApiGroups } from "../_shared/green-api-chats.ts";
 import { runWhatsAppGroupInboxCatchup } from "../_shared/whatsapp-group-inbox-catchup.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -599,6 +600,9 @@ Deno.serve(async (req) => {
     return json({ error: "not_authenticated" }, 401);
   }
   const userId = userData.user.id;
+  // Silent usage log for a signed-in settings request (fire-and-forget,
+  // never throws, response unchanged).
+  noteTkActivity(userId, "whatsapp_setup");
 
   let action = "status";
   let itemId = "";

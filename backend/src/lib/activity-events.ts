@@ -25,6 +25,18 @@ export const ACTIVITY_EVENT_TYPES = [
   "snap_signin",
   "snap_heartbeat",
   "snap_disconnect",
+  // Written by DB triggers (migration 20261124180000_activity_usage_coverage.sql).
+  "login", // auth.sessions INSERT (any sign-in method)
+  "session_refresh", // auth.refresh_tokens rotation / auth.sessions refreshed_at
+  "board_write", // signed-in user wrote mindtasker_items / source_materials / user_tags
+  // Edge Functions, after the signed-in request succeeded.
+  "notebook_scan", // ingest-notebook
+  "voice_record", // ingest-voice
+  "voice_transcribe", // transcribe-voice-item
+  "whatsapp_setup", // whatsapp-green-connect
+  "whatsapp_phone_otp", // whatsapp-phone-otp
+  "babisnap_pairing", // babisnap (connect / status / disconnect from the Tk app)
+  "account_action", // account (export / delete)
 ] as const;
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
 

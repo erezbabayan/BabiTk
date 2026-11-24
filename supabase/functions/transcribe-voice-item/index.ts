@@ -8,6 +8,7 @@ import {
   type VoiceGatewayCredentials,
 } from "../_shared/voice-ingest.ts";
 import { needsVoiceTranscription } from "../_shared/voice-text.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -76,6 +77,8 @@ Deno.serve(async (req) => {
   }
 
   if (!needsVoiceTranscription(row.title, row.content)) {
+    // Silent usage log (fire-and-forget, never throws, response unchanged).
+    noteTkActivity(userId, "voice_transcribe");
     return json({
       ok: true,
       itemId: row.id,
@@ -96,6 +99,7 @@ Deno.serve(async (req) => {
     const transcribed = await transcribeStoredVoiceItem(supabase, row, gateway, {
       manual: true,
     });
+    noteTkActivity(userId, "voice_transcribe");
     return json({
       ok: true,
       itemId: row.id,
