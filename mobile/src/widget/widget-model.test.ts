@@ -16,6 +16,7 @@ import {
   widgetAddUri,
   widgetBoardUri,
   widgetItemUri,
+  widgetOrder,
   widgetSizeForHeight,
   WIDGET_MAX_ITEMS,
   WIDGET_STALE_MS,
@@ -142,5 +143,25 @@ describe("widget due badge", () => {
     const due = new Date(2026, 10, 23, 9, 0).toISOString();
     assert.equal(toWidgetItem(item("t", { is_actionable: true, due_date: due })).dueAt, new Date(due).getTime());
     assert.equal(toWidgetItem(item("n", { due_date: due })).dueAt, null);
+  });
+});
+
+describe("widget order", () => {
+  it("shows the newest items first even when the app order puts them last", () => {
+    const boards = {
+      inbox: [],
+      today: [
+        item("old", { is_actionable: true, created_at: "2026-06-18T13:46:56Z" }),
+        item("mid", { is_actionable: true, created_at: "2026-11-22T10:17:14Z" }),
+        item("new", { is_actionable: true, created_at: "2026-11-24T18:36:04Z" }),
+      ],
+      notes: [],
+    };
+    const snap = buildWidgetSnapshot(boards, 0);
+    assert.deepEqual(snap.boards.today.items.map((i) => i.id), ["new", "mid", "old"]);
+    assert.equal(snap.boards.today.count, 3);
+  });
+  it("keeps the incoming order for items without created_at", () => {
+    assert.deepEqual(widgetOrder([item("a"), item("b")]).map((i) => i.id), ["a", "b"]);
   });
 });

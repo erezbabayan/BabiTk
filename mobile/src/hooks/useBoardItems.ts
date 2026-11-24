@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 import { buildColumnMovePatch, buildPlaceColumnPatch, buildToggleStayMetadata, getItemColumn, itemsInColumn, sortColumnItems, withEditedItemType, type DashboardColumn } from "../lib/item-columns";
 import {
   buildArchivePatch,
@@ -188,6 +189,19 @@ function useBoardItemsLegacy(enabled: boolean, userId?: string) {
     }
     if (isOnline) void syncQueue();
   }, [enabled, isOnline, refresh, syncQueue]);
+
+  // Realtime does not replay changes missed while the app was in the background
+  // (voice / WhatsApp / BabiSnap captures), so reload once when the app comes back.
+  useEffect(() => {
+    if (!enabled || isDemoMode) return;
+    let lastRefresh = Date.now();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active" || Date.now() - lastRefresh < 15_000) return;
+      lastRefresh = Date.now();
+      void refresh();
+    });
+    return () => sub.remove();
+  }, [enabled, refresh]);
 
   useEffect(() => {
     if (!enabled || !isOnline || isDemoMode || !userId) return;

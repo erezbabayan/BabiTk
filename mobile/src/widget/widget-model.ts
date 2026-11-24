@@ -59,6 +59,7 @@ export interface WidgetSourceItem {
   content?: string | null;
   is_actionable?: boolean;
   due_date?: string | null;
+  created_at?: string | null;
 }
 
 const TITLE_MAX_CHARS = 80;
@@ -104,10 +105,25 @@ export function toWidgetItem(item: WidgetSourceItem): WidgetItem {
   };
 }
 
+/**
+ * Widget order: newest first. The app columns sort by sort_order ascending and new
+ * captures get sort_order = Date.now(), so they sit at the bottom; the widget only
+ * shows the first few rows, so it must not reuse the app order.
+ */
+export function widgetOrder(items: readonly WidgetSourceItem[]): WidgetSourceItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const diff = (b.item.created_at ?? "").localeCompare(a.item.created_at ?? "");
+      return diff !== 0 ? diff : a.index - b.index;
+    })
+    .map((entry) => entry.item);
+}
+
 function boardSnapshot(items: readonly WidgetSourceItem[]): WidgetBoardSnapshot {
   return {
     count: items.length,
-    items: items.slice(0, WIDGET_MAX_ITEMS).map(toWidgetItem),
+    items: widgetOrder(items).slice(0, WIDGET_MAX_ITEMS).map(toWidgetItem),
   };
 }
 
