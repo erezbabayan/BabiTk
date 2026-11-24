@@ -103,7 +103,7 @@ describe("activity usage coverage (silent, server side)", () => {
       "activity_events_board_write on public.source_materials",
       "activity_events_board_write on public.user_tags",
     ]) {
-      assert.match(sql, new RegExp(`drop trigger if exists ${t.replace(/\./g, "\\.")};`), t);
+      assert.ok(sql.includes(`drop trigger if exists ${t};`), t);
     }
     for (const fn of ["activity_on_board_write", "activity_on_auth_refresh_token", "activity_on_auth_session", "activity_note_tk"]) {
       assert.match(sql, new RegExp(`drop function if exists public\\.${fn}\\(`), fn);
