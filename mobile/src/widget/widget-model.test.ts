@@ -9,6 +9,7 @@ import {
   nextWidgetBoard,
   parseWidgetLink,
   parseWidgetSnapshot,
+  shouldBackgroundRefresh,
   signedOutSnapshot,
   snapshotsEqualIgnoringTime,
   toWidgetItem,
@@ -19,6 +20,7 @@ import {
   widgetOrder,
   widgetSizeForHeight,
   WIDGET_MAX_ITEMS,
+  WIDGET_BACKGROUND_MIN_MS,
   WIDGET_STALE_MS,
 } from "./widget-model.ts";
 
@@ -163,5 +165,19 @@ describe("widget order", () => {
   });
   it("keeps the incoming order for items without created_at", () => {
     assert.deepEqual(widgetOrder([item("a"), item("b")]).map((i) => i.id), ["a", "b"]);
+  });
+});
+
+describe("widget background refresh throttle", () => {
+  it("refreshes when there is no snapshot yet", () => {
+    assert.equal(shouldBackgroundRefresh(null, 1_000), true);
+  });
+  it("skips a fresh snapshot and refreshes an old one", () => {
+    const now = 10 * WIDGET_BACKGROUND_MIN_MS;
+    assert.equal(shouldBackgroundRefresh({ signedIn: true, updatedAt: now - 60_000 }, now), false);
+    assert.equal(shouldBackgroundRefresh({ signedIn: true, updatedAt: now - WIDGET_BACKGROUND_MIN_MS }, now), true);
+  });
+  it("never refreshes after sign-out", () => {
+    assert.equal(shouldBackgroundRefresh({ signedIn: false, updatedAt: 0 }, 10 * WIDGET_BACKGROUND_MIN_MS), false);
   });
 });
