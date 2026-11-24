@@ -134,7 +134,15 @@ for (const [label, impl] of [["edge", edge], ["backend copy", node]] as const) {
           new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("aborted")))),
       });
       h.recorder.record("tk", U1, "api_request");
-      await h.flush();
+      // The recorder's abort timer is unref'd on purpose (telemetry must never keep
+      // a Node process alive). Hold a ref'd handle so the test runner's event loop
+      // stays up until the abort fires; without it Node 22 cancels the test.
+      const keepAlive = setTimeout(() => {}, 5_000);
+      try {
+        await h.flush();
+      } finally {
+        clearTimeout(keepAlive);
+      }
       assert.equal(h.errors.length, 1);
     });
 
