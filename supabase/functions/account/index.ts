@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { noteTkActivity } from "../_shared/tk-activity.ts";
+
 /**
  * Account data export / deletion (same behavior as backend /api/profile/export and
  * DELETE /api/profile, which are not reachable from the GitHub Pages web or the APK).
@@ -62,6 +64,8 @@ Deno.serve(async (req) => {
       admin.from("user_ingest_lessons").select("*").eq("user_id", userId),
       admin.from("task_lists").select("*").eq("user_id", userId),
     ]);
+    // Silent usage log (fire-and-forget, never throws, response unchanged).
+    noteTkActivity(userId, "account_action");
     return json({
       exported_at: new Date().toISOString(),
       profile: profile.data
@@ -81,6 +85,7 @@ Deno.serve(async (req) => {
   if (body.action === "delete") {
     const { error } = await admin.auth.admin.deleteUser(userId);
     if (error) return json({ ok: false, error: "delete_failed" }, 500);
+    noteTkActivity(userId, "account_action");
     return json({ ok: true });
   }
 

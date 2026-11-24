@@ -11,6 +11,7 @@ import {
   planOtpSend,
   randomSixDigitCode,
 } from "../_shared/phone-otp.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -94,6 +95,9 @@ Deno.serve(async (req) => {
     return json({ ok: false, message: "יש להתחבר מחדש" }, 401);
   }
   const userId = userData.user.id;
+  // Silent usage log for a signed-in settings request (fire-and-forget,
+  // never throws, response unchanged).
+  noteTkActivity(userId, "whatsapp_phone_otp");
 
   let action = "";
   let phone = "";

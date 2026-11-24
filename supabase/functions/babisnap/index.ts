@@ -8,6 +8,7 @@ import {
   type BabisnapStore,
   type DeviceTokenRow,
 } from "../_shared/babisnap.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -89,6 +90,8 @@ Deno.serve(async (req) => {
 
   try {
     const result = await performBabisnapAction(action, userData.user.id, userStore(userClient, userData.user.id));
+    // Silent usage log (fire-and-forget, never throws, response unchanged).
+    if (result.status < 400) noteTkActivity(userData.user.id, "babisnap_pairing");
     return json(result.body, result.status);
   } catch {
     return json({ ok: false, error: "server" }, 500);

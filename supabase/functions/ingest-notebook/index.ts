@@ -9,6 +9,7 @@ import {
   sniffImageContainer,
 } from "../_shared/image-bytes.ts";
 import { MAX_NOTEBOOK_IMAGE_BYTES } from "../_shared/notebook-ocr.ts";
+import { noteTkActivity } from "../_shared/tk-activity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -158,6 +159,8 @@ Deno.serve(async (req) => {
       mimeType,
       fileName: payload.fileName,
     });
+    // Silent usage log (fire-and-forget, never throws, response unchanged).
+    noteTkActivity(userId, "notebook_scan");
     return json({
       ok: true,
       itemId: result.itemId,
