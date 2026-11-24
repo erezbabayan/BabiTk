@@ -58,6 +58,18 @@ const ROWS: Record<AdminReadResource, Array<Record<string, unknown>>> = {
       request_timestamps: ["2026-01-01T00:00:00Z"],
     },
   ],
+  activity_events: [
+    {
+      id: 7,
+      system: "tk",
+      user_id: "11111111-1111-4111-8111-111111111111",
+      event_type: "whatsapp_message",
+      day: "2026-11-24",
+      occurred_at: "2026-11-24T09:00:00Z",
+      email: "leak@example.com",
+      phone: "+972500000000",
+    },
+  ],
 };
 
 function store(calls: Array<{ resource: string; limit: number; offset: number }> = []): AdminReadStore {
@@ -110,7 +122,7 @@ test("admin-read: non-GET methods (incl. OPTIONS) -> 405, no CORS", async () => 
 });
 
 test("admin-read: each resource returns exactly the whitelisted keys", async () => {
-  for (const resource of ["tk_users", "snap_users", "device_tokens"] as const) {
+  for (const resource of ["tk_users", "snap_users", "device_tokens", "activity_events"] as const) {
     const res = await handleAdminRead(req(`?resource=${resource}`), { key: KEY, store: store(), limiter: allowAll() });
     assert.equal(res.status, 200);
     const body = (await res.json()) as { resource: string; items: Array<Record<string, unknown>>; limit: number; offset: number; total: number };
@@ -161,4 +173,52 @@ test("admin-read: deploy wiring keeps verify_jwt off and no service role leaks",
   assert.match(workflow, /sync_secret BABI_ADMIN_READ_KEY "\$\{BABI_ADMIN_READ_KEY:-\}"/);
   assert.match(endpoint, /BABI_ADMIN_READ_KEY/);
   assert.doesNotMatch(endpoint, /token_hash|request_timestamps/);
+});
+
+test("admin-read: activity_events returns only whitelisted keys (no email/phone)", async () => {
+  const res = await handleAdminRead(req("?resource=activity_events"), { key: KEY, store: store(), limiter: allowAll() });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { items: Array<Record<string, unknown>> };
+  assert.deepEqual(Object.keys(body.items[0]).sort(), ["day", "event_type", "id", "occurred_at", "system", "user_id"]);
+  assert.doesNotMatch(JSON.stringify(body), /leak@example\.com|phone|\+972/);
+});
+
+test("admin-read: activity_events requires the key like every resource", async () => {
+  const calls: Array<{ resource: string; limit: number; offset: number }> = [];
+  for (const key of [null, "nope"]) {
+    const res = await handleAdminRead(req("?resource=activity_events", {}, key), { key: KEY, store: store(calls), limiter: allowAll() });
+    assert.equal(res.status, 401);
+  }
+  assert.equal(calls.length, 0);
+});
+
+test("admin-read: activity_events since/system filters are validated and passed through", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const deps = {
+    key: KEY,
+    limiter: allowAll(),
+    store: {
+      async list(resource: AdminReadResource, opts: Record<string, unknown>) {
+        calls.push({ resource, ...opts });
+        return { items: [] };
+      },
+    } as AdminReadStore,
+  };
+  assert.equal((await handleAdminRead(req("?resource=activity_events&since=2026-11-01&system=snap&limit=50&offset=10"), deps)).status, 200);
+  assert.deepEqual(calls.at(-1), {
+    resource: "activity_events",
+    limit: 50,
+    offset: 10,
+    filters: { since: "2026-11-01", system: "snap" },
+  });
+  assert.equal((await handleAdminRead(req("?resource=activity_events"), deps)).status, 200);
+  assert.deepEqual(calls.at(-1), { resource: "activity_events", limit: 100, offset: 0, filters: {} });
+  for (const bad of ["since=2026-13-01", "since=yesterday", "since=2026-02-30", "system=web", "since=2026-11-01'--"]) {
+    assert.equal((await handleAdminRead(req(`?resource=activity_events&${bad}`), deps)).status, 400, bad);
+  }
+  const n = calls.length;
+  // Other resources ignore these params and keep the exact old store call.
+  assert.equal((await handleAdminRead(req("?resource=device_tokens&since=bad&system=web"), deps)).status, 200);
+  assert.deepEqual(calls.at(-1), { resource: "device_tokens", limit: 100, offset: 0 });
+  assert.equal(calls.length, n + 1);
 });

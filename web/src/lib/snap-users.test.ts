@@ -352,3 +352,56 @@ test("client ip header preference", () => {
   assert.equal(snapClientIp(forwarded), "198.51.100.9");
   assert.equal(snapClientIp(new Request("https://x/")), "unknown");
 });
+
+test("activity hook: responses are byte-identical with and without onActivity", async () => {
+  const calls: Array<[string, string, string]> = [];
+  const hooks: Array<Partial<SnapUsersDeps>> = [
+    {},
+    { onActivity: (event, email, installId) => void calls.push([event, email, installId]) },
+    {
+      onActivity: () => {
+        throw new Error("telemetry down");
+      },
+    },
+  ];
+  const seen: string[][] = [];
+  for (const extra of hooks) {
+    const { store } = mem();
+    const out: string[] = [];
+    for (const event of ["signin", "heartbeat", "disconnect"]) {
+      const res = await handleSnapUsers(post({ email: "Z@x.com", install_id: "i9", event }), deps(store, extra));
+      out.push(`${res.status} ${res.headers.get("content-type")} ${await res.text()}`);
+    }
+    seen.push(out);
+  }
+  assert.deepEqual(seen[1], seen[0]);
+  assert.deepEqual(seen[2], seen[0]);
+  assert.deepEqual(seen[0], [
+    '200 application/json; charset=utf-8 {"ok":true,"status":"active"}',
+    '200 application/json; charset=utf-8 {"ok":true,"status":"active"}',
+    '200 application/json; charset=utf-8 {"ok":true,"status":"disconnected"}',
+  ]);
+  assert.deepEqual(calls, [
+    ["signin", "z@x.com", "i9"],
+    ["heartbeat", "z@x.com", "i9"],
+    ["disconnect", "z@x.com", "i9"],
+  ]);
+});
+
+test("activity hook: only after a successful client write", async () => {
+  const calls: string[] = [];
+  const onActivity = (event: string) => void calls.push(event);
+  const { store } = mem();
+  // Wrong key, admin events, GET status, validation errors: no activity.
+  await handleSnapUsers(post({ email: "a@b.com", install_id: "i1", event: "signin" }, "nope"), deps(store, { onActivity }));
+  await handleSnapUsers(post({ email: "a@b.com", event: "signin" }), deps(store, { onActivity }));
+  await handleSnapUsers(post({ email: "a@b.com", event: "block" }, ADMIN), deps(store, { onActivity }));
+  await handleSnapUsers(get("email=a@b.com&install_id=i1"), deps(store, { onActivity }));
+  // Store failure: the hook never runs and the error still surfaces as before.
+  const failing: SnapUsersStore = { ...store, upsert: async () => { throw new Error("db down"); } };
+  await assert.rejects(
+    handleSnapUsers(post({ email: "a@b.com", install_id: "i1", event: "heartbeat" }), deps(failing, { onActivity })),
+    /db down/,
+  );
+  assert.deepEqual(calls, []);
+});

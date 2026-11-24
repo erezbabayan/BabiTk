@@ -12,6 +12,7 @@ import {
   verifyGreenApiWebhookAuth,
   type ParsedGreenApiMessage,
 } from "../_shared/green-api.ts";
+import { createSupabaseActivityRecorder, type ActivityRecorder } from "../_shared/activity-events.ts";
 import { captureAllowedForPhone } from "../_shared/phone-otp.ts";
 import {
   titleFromInboundText,
@@ -125,6 +126,22 @@ function adminClient() {
   return createClient(SUPABASE_URL, SERVICE_ROLE, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+// Babi Admin activity log: one background write per user per Israel day.
+// Module-level so the in-memory dedup survives across requests in this isolate.
+let activityRecorder: ActivityRecorder | null = null;
+function noteWhatsAppActivity(userId: string): void {
+  try {
+    if (!activityRecorder) {
+      if (!SUPABASE_URL || !SERVICE_ROLE) return;
+      activityRecorder = createSupabaseActivityRecorder(adminClient());
+    }
+    // Fire-and-forget, never throws, never awaited (see _shared/activity-events.ts).
+    activityRecorder.record("tk", userId, "whatsapp_message");
+  } catch {
+    // Telemetry must never affect the webhook.
+  }
 }
 
 interface UserRow {
@@ -1271,6 +1288,7 @@ Deno.serve(async (req) => {
       });
       continue;
     }
+    noteWhatsAppActivity(user.id);
     try {
       if (message.type === "text" && message.text) {
         const handled = await handleGroupTextIntent({

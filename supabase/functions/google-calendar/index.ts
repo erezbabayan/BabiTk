@@ -38,6 +38,8 @@ import {
   hydrateGoogleConfig,
 } from "../_shared/google-oauth-admin.ts";
 
+import { createSupabaseActivityRecorder, type ActivityRecorder } from "../_shared/activity-events.ts";
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
@@ -64,6 +66,19 @@ function html(body: string, status = 200): Response {
 
 function adminClient(): CalendarDb {
   return fullAdminClient() as unknown as CalendarDb;
+}
+
+// Babi Admin activity log: one background write per user per Israel day.
+// Module-level so the in-memory dedup survives across requests in this isolate.
+let activityRecorder: ActivityRecorder | null = null;
+function noteCalendarActivity(userId: string): void {
+  try {
+    activityRecorder ??= createSupabaseActivityRecorder(fullAdminClient());
+    // Fire-and-forget, never throws, never awaited (see _shared/activity-events.ts).
+    activityRecorder.record("tk", userId, "calendar_api");
+  } catch {
+    // Telemetry must never affect calendar requests.
+  }
 }
 
 function readAccessToken(body: { accessToken?: unknown }): string | undefined {
@@ -353,6 +368,7 @@ Deno.serve(async (req) => {
   try {
     const user = await requireUser(req);
     const userId = user.id;
+    noteCalendarActivity(userId);
     const config = googleCalendarConfig();
     const canConfigure = isGoogleOAuthOwner({
       email: user.email,
