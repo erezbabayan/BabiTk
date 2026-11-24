@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const store: AdminReadStore = {
-    async list(resource, { limit, offset }) {
+    async list(resource, { limit, offset, filters }) {
       if (resource === "tk_users") {
         const items: Array<Record<string, unknown>> = [];
         let page = Math.floor(offset / AUTH_PAGE) + 1;
@@ -56,10 +56,19 @@ Deno.serve(async (req) => {
         }
         return { items, total };
       }
-      const orderBy = resource === "snap_users" ? "last_seen" : "created_at";
-      const { data, error, count } = await supabase
+      const orderBy = resource === "snap_users"
+        ? "last_seen"
+        : resource === "activity_events"
+        ? "occurred_at"
+        : "created_at";
+      let query = supabase
         .from(resource)
-        .select(ADMIN_READ_FIELDS[resource].join(", "), { count: "exact" })
+        .select(ADMIN_READ_FIELDS[resource].join(", "), { count: "exact" });
+      if (resource === "activity_events") {
+        if (filters?.since) query = query.gte("day", filters.since);
+        if (filters?.system) query = query.eq("system", filters.system);
+      }
+      const { data, error, count } = await query
         .order(orderBy, { ascending: false })
         .order("id", { ascending: true })
         .range(offset, offset + limit - 1);

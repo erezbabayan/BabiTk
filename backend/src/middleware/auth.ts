@@ -3,6 +3,7 @@ import { env } from "../config/env.js";
 import { getSupabaseAuthClient } from "../lib/supabase.js";
 import { SYNC_USER_ID } from "../services/sync-store.service.js";
 import { safeEqual } from "../lib/safe-compare.js";
+import { noteBackendActivity } from "../lib/activity-log.js";
 
 export interface AuthenticatedUser {
   id: string;
@@ -54,4 +55,6 @@ export async function requireAuth(
     id: data.user.id,
     email: data.user.email,
   };
+  // Babi Admin activity log: background, deduped per day, never throws.
+  noteBackendActivity(data.user.id, "api_request");
 }

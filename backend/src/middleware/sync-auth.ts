@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { env } from "../config/env.js";
 import { acceptsDemoSyncToken } from "../lib/demo-sync-token.js";
 import { SYNC_USER_ID } from "../services/sync-store.service.js";
+import { noteBackendActivity } from "../lib/activity-log.js";
 
 export async function requireSyncAuth(
   request: FastifyRequest,
@@ -25,4 +26,6 @@ export async function requireSyncAuth(
   }
 
   request.user = { id: SYNC_USER_ID, email: "demo@mindtasker.local" };
+  // Babi Admin activity log: background, deduped per day, never throws.
+  noteBackendActivity(SYNC_USER_ID, "sync_request");
 }

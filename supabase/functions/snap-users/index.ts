@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { createSupabaseActivityRecorder, type ActivityEventType } from "../_shared/activity-events.ts";
 import {
   createMemorySnapRateLimiter,
   handleSnapUsers,
@@ -24,6 +25,18 @@ const SNAP_REGISTRY_ADMIN_KEY = Deno.env.get("SNAP_REGISTRY_ADMIN_KEY") ?? "";
 const SNAP_REGISTRY_LEGACY_KEY = Deno.env.get("SNAP_REGISTRY_KEY") ?? "";
 
 const limiter = createMemorySnapRateLimiter();
+
+// Babi Admin activity log: at most one background write per install per event
+// per Israel day. Stores snap_users.id only, never the email.
+const activityDb = SUPABASE_URL && SERVICE_ROLE
+  ? createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+const activity = activityDb ? createSupabaseActivityRecorder(activityDb) : null;
+const SNAP_ACTIVITY: Record<string, ActivityEventType> = {
+  signin: "snap_signin",
+  heartbeat: "snap_heartbeat",
+  disconnect: "snap_disconnect",
+};
 
 function asStatus(value: unknown): SnapStatus {
   if (value === "active" || value === "blocked" || value === "disconnected") return value;
@@ -137,6 +150,22 @@ Deno.serve(async (req) => {
       legacyKey: SNAP_REGISTRY_LEGACY_KEY,
       store,
       limiter,
+      onActivity(event, email, installId) {
+        const eventType = SNAP_ACTIVITY[event];
+        if (!activity || !activityDb || !eventType) return;
+        // Fire-and-forget; the id lookup runs in the background (waitUntil).
+        activity.recordLazy("snap", `${email}\u0000${installId}`, eventType, async (signal) => {
+          const { data, error } = await activityDb
+            .from("snap_users")
+            .select("id")
+            .eq("email", email)
+            .eq("install_id", installId)
+            .abortSignal(signal)
+            .maybeSingle();
+          if (error) throw new Error(error.message);
+          return data?.id ? String(data.id) : null;
+        });
+      },
     });
   } catch (err) {
     console.error("snap-users error", err instanceof Error ? err.message : err);

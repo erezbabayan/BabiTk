@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { createSupabaseActivityRecorder } from "../_shared/activity-events.ts";
 import { queueCalendarSync } from "../_shared/google-calendar.ts";
 import { DEFAULT_TAG_NAMES } from "../_shared/default-tags.ts";
 import {
@@ -22,6 +23,10 @@ function adminClient() {
   });
 }
 
+// Babi Admin activity log: one background write per user per Israel day.
+// Module-level so the in-memory dedup survives across requests in this isolate.
+const activity = SUPABASE_URL && SERVICE_ROLE ? createSupabaseActivityRecorder(adminClient()) : null;
+
 function asTimestamps(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string");
@@ -32,6 +37,12 @@ Deno.serve(async (req) => {
     return jsonResponse(voiceErrorBody("server", "missing server configuration"), 500);
   }
   const supabase = adminClient();
+  // Set by findToken; read only after the handler accepted the token.
+  let tokenUserId: string | null = null;
+  const noteTokenUse = () => {
+    // Fire-and-forget, never throws, never awaited (see _shared/activity-events.ts).
+    if (tokenUserId) activity?.record("tk", tokenUserId, "device_token_use");
+  };
   const store: VoiceIngestStore = {
     async findToken(tokenHash): Promise<DeviceTokenRecord | null> {
       const { data, error } = await supabase
@@ -41,6 +52,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (error) throw new Error(error.message);
       if (!data) return null;
+      tokenUserId = data.revoked_at ? null : String(data.user_id);
       return {
         id: String(data.id),
         userId: String(data.user_id),
@@ -70,6 +82,7 @@ Deno.serve(async (req) => {
         .update({ request_timestamps: timestamps, last_used_at: lastUsedAt })
         .eq("id", tokenId);
       if (error) throw new Error(error.message);
+      noteTokenUse();
     },
     async touchToken(tokenId, lastUsedAt) {
       const { error } = await supabase
@@ -77,6 +90,7 @@ Deno.serve(async (req) => {
         .update({ last_used_at: lastUsedAt })
         .eq("id", tokenId);
       if (error) throw new Error(error.message);
+      noteTokenUse();
     },
     // Same rules as _shared/parse-incoming-message.ts loadAllowedTagNames.
     async loadAllowedTagNames(userId) {

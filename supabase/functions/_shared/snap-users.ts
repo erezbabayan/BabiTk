@@ -108,6 +108,12 @@ export interface SnapUsersDeps {
   rate?: SnapRatePolicy;
   /** Overrides IP parsing. Tests use this. */
   clientIp?: string;
+  /**
+   * Called after a client signin / heartbeat / disconnect was stored.
+   * Best-effort telemetry for Babi Admin: must not block; errors are swallowed
+   * and never change the response.
+   */
+  onActivity?: (event: SnapEvent, email: string, installId: string) => void;
 }
 
 export const SNAP_CORS_HEADERS: Record<string, string> = {
@@ -371,5 +377,12 @@ export async function handleSnapUsers(req: Request, deps: SnapUsersDeps): Promis
   if (appVersion !== undefined) row.app_version = appVersion;
   if (deviceLabel !== undefined) row.device_label = deviceLabel;
   await deps.store.upsert(row);
+  if (deps.onActivity) {
+    try {
+      deps.onActivity(event, email, installId);
+    } catch {
+      // Telemetry must never affect the BabiSnap response.
+    }
+  }
   return snapJson({ ok: true, status }, 200);
 }

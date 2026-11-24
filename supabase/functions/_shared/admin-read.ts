@@ -8,7 +8,7 @@
 import { timingSafeEqualString } from "./safe-compare.ts";
 import { createMemorySnapRateLimiter, snapClientIp, type SnapRateLimiter } from "./snap-users.ts";
 
-export const ADMIN_READ_RESOURCES = ["tk_users", "snap_users", "device_tokens"] as const;
+export const ADMIN_READ_RESOURCES = ["tk_users", "snap_users", "device_tokens", "activity_events"] as const;
 export type AdminReadResource = (typeof ADMIN_READ_RESOURCES)[number];
 
 export const ADMIN_READ_FIELDS: Record<AdminReadResource, readonly string[]> = {
@@ -26,7 +26,16 @@ export const ADMIN_READ_FIELDS: Record<AdminReadResource, readonly string[]> = {
     "created_at",
   ],
   device_tokens: ["id", "user_id", "name", "created_at", "last_used_at", "revoked_at"],
+  // system 'tk' -> auth.users.id, 'snap' -> snap_users.id. day is Asia/Jerusalem.
+  activity_events: ["id", "system", "user_id", "event_type", "day", "occurred_at"],
 };
+
+/** Optional filters. Only `activity_events` reads them. */
+export interface AdminReadFilters {
+  /** YYYY-MM-DD (Israel day), inclusive. */
+  since?: string;
+  system?: "tk" | "snap";
+}
 
 export const ADMIN_READ_DEFAULT_LIMIT = 100;
 export const ADMIN_READ_MAX_LIMIT = 1000;
@@ -44,7 +53,10 @@ export interface AdminReadPage {
 }
 
 export interface AdminReadStore {
-  list(resource: AdminReadResource, opts: { limit: number; offset: number }): Promise<AdminReadPage>;
+  list(
+    resource: AdminReadResource,
+    opts: { limit: number; offset: number; filters?: AdminReadFilters },
+  ): Promise<AdminReadPage>;
 }
 
 export interface AdminReadDeps {
@@ -81,6 +93,14 @@ function parseIntParam(raw: string | null, fallback: number): number | null {
   if (raw === null || raw === "") return fallback;
   if (!/^\d{1,7}$/.test(raw)) return null;
   return Number(raw);
+}
+
+function parseDay(raw: string | null): string | null | undefined {
+  if (raw === null || raw === "") return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const d = new Date(`${raw}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== raw) return null;
+  return raw;
 }
 
 function isResource(v: string | null): v is AdminReadResource {
@@ -125,7 +145,22 @@ export async function handleAdminRead(req: Request, deps: AdminReadDeps): Promis
   }
   const clamped = Math.min(limit, ADMIN_READ_MAX_LIMIT);
 
-  const page = await deps.store.list(resource, { limit: clamped, offset });
+  let filters: AdminReadFilters | undefined;
+  if (resource === "activity_events") {
+    const since = parseDay(url.searchParams.get("since"));
+    const systemRaw = url.searchParams.get("system");
+    if (since === null) {
+      return adminReadJson({ ok: false, error: "invalid since (YYYY-MM-DD)" }, 400);
+    }
+    if (systemRaw !== null && systemRaw !== "" && systemRaw !== "tk" && systemRaw !== "snap") {
+      return adminReadJson({ ok: false, error: "invalid system (tk|snap)" }, 400);
+    }
+    filters = {};
+    if (since) filters.since = since;
+    if (systemRaw === "tk" || systemRaw === "snap") filters.system = systemRaw;
+  }
+
+  const page = await deps.store.list(resource, filters ? { limit: clamped, offset, filters } : { limit: clamped, offset });
   const items = page.items.slice(0, clamped).map((row) => pickFields(resource, row));
   const body: Record<string, unknown> = { resource, items, limit: clamped, offset };
   if (typeof page.total === "number") body.total = page.total;
