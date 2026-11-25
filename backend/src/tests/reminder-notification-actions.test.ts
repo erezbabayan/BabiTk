@@ -11,6 +11,7 @@ import {
   REMINDER_CATEGORY_BUTTONS,
   REMINDER_CATEGORY_NOTE,
   REMINDER_CATEGORY_TASK,
+  reminderItemIdFromContent,
   reminderItemIdFromData,
   reminderSnoozeDueAt,
   type ReminderActionItem,
@@ -71,6 +72,37 @@ describe("reminder notification categories", () => {
     assert.equal(reminderItemIdFromData({ taskId: "t1" }), "t1");
     assert.equal(reminderItemIdFromData({}), null);
     assert.equal(reminderItemIdFromData(null), null);
+  });
+});
+
+describe("reminder item id in background task payloads", () => {
+  it("reads parsed content.data (JS listener)", () => {
+    assert.equal(reminderItemIdFromContent({ data: { itemId: "a1" } }), "a1");
+  });
+
+  it("reads content.dataString (raw bundle the killed-app task gets)", () => {
+    // Shape of NotificationSerializer.toBundle(response) for a locally presented reminder.
+    const payload = {
+      actionIdentifier: REMINDER_ACTION_DONE,
+      notification: {
+        request: {
+          identifier: "server_reminder_a1_20261125T090000",
+          content: {
+            title: "לקנות חלב",
+            categoryIdentifier: REMINDER_CATEGORY_TASK,
+            dataString: JSON.stringify({ source: "server_push", itemId: "a1", fireAt: "2026-11-25T11:00:00+02:00" }),
+          },
+        },
+      },
+    };
+    assert.equal(reminderItemIdFromContent(payload.notification.request.content), "a1");
+  });
+
+  it("returns null for missing or bad data", () => {
+    assert.equal(reminderItemIdFromContent({ dataString: "not json" }), null);
+    assert.equal(reminderItemIdFromContent({ dataString: "{}" }), null);
+    assert.equal(reminderItemIdFromContent({}), null);
+    assert.equal(reminderItemIdFromContent(null), null);
   });
 });
 

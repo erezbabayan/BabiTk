@@ -75,6 +75,27 @@ export function reminderItemIdFromData(data: unknown): string | null {
   return null;
 }
 
+/**
+ * Item id from a notification's content. The JS listener gets content.data
+ * already parsed, but the background/killed-app task (expo-task-manager) gets
+ * the raw native bundle, where a locally presented reminder carries its data
+ * only as a JSON string in content.dataString (expo-notifications Android
+ * NotificationSerializer). Read both so the buttons work in every app state.
+ */
+export function reminderItemIdFromContent(content: unknown): string | null {
+  if (!content || typeof content !== "object") return null;
+  const record = content as Record<string, unknown>;
+  const fromData = reminderItemIdFromData(record.data);
+  if (fromData) return fromData;
+  const dataString = record.dataString;
+  if (typeof dataString !== "string" || !dataString.trim()) return null;
+  try {
+    return reminderItemIdFromData(JSON.parse(dataString));
+  } catch {
+    return null;
+  }
+}
+
 export type ReminderActionItem = {
   id: string;
   title: string;
