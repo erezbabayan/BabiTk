@@ -19,7 +19,7 @@ import {
   headlessReminderFromTaskPayload,
   parseReminderAction,
   REMINDER_CATEGORY_BUTTONS,
-  reminderItemIdFromData,
+  reminderItemIdFromContent,
   type ReminderActionItem,
 } from "./reminder-notification-actions";
 
@@ -81,7 +81,8 @@ export async function handleReminderActionResponse(
 ): Promise<boolean> {
   const action = parseReminderAction(response.actionIdentifier);
   if (!action || action === "open") return false;
-  const itemId = reminderItemIdFromData(response.notification.request.content.data);
+  // Background/killed task payloads are raw bundles: data may only be in content.dataString.
+  const itemId = reminderItemIdFromContent(response.notification?.request?.content);
   if (!itemId) return false;
   const key = responseKey(response);
   // The listener and the background task can both see one tap while the app is alive.

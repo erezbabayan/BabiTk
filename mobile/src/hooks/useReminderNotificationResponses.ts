@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as Notifications from "expo-notifications";
 
 import { handleReminderActionResponse } from "../lib/reminder-notification-handler";
-import { parseReminderAction, reminderItemIdFromData } from "../lib/reminder-notification-actions";
+import { parseReminderAction, reminderItemIdFromContent } from "../lib/reminder-notification-actions";
 
 /**
  * Reminder notification taps while the app runs, plus the cold-start tap.
@@ -26,7 +26,7 @@ export function useReminderNotificationResponses(
       if (!response || cancelled) return;
       const action = parseReminderAction(response.actionIdentifier);
       if (action === "open") {
-        const itemId = reminderItemIdFromData(response.notification.request.content.data);
+        const itemId = reminderItemIdFromContent(response.notification.request.content);
         if (!itemId) return;
         const key = `${response.notification.request.identifier}|open`;
         if (openedKeys.current.has(key)) return;
