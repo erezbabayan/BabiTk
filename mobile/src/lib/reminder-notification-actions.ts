@@ -31,16 +31,30 @@ export type ReminderNotificationAction = "done" | "hour" | "tomorrow" | "open";
 export type ReminderActionButton = {
   identifier: string;
   buttonTitle: string;
+  /**
+   * true: the tap brings BabiTk to the foreground and the write runs in the
+   * live app. With false, Android delivers the tap to a short-lived broadcast;
+   * once it returns the backgrounded app is frozen / loses network, so the
+   * Supabase write was cut off mid-way (seen in prod: the read reached the
+   * server, the update never did, the notification stayed).
+   */
+  opensAppToForeground: boolean;
 };
 
-const DONE_BUTTON: ReminderActionButton = { identifier: REMINDER_ACTION_DONE, buttonTitle: "בוצע" };
+const DONE_BUTTON: ReminderActionButton = {
+  identifier: REMINDER_ACTION_DONE,
+  buttonTitle: "בוצע",
+  opensAppToForeground: true,
+};
 const HOUR_BUTTON: ReminderActionButton = {
   identifier: REMINDER_ACTION_SNOOZE_HOUR,
   buttonTitle: "עוד שעה",
+  opensAppToForeground: true,
 };
 const TOMORROW_BUTTON: ReminderActionButton = {
   identifier: REMINDER_ACTION_SNOOZE_TOMORROW,
   buttonTitle: "מחר 09:00",
+  opensAppToForeground: true,
 };
 
 /** Android shows at most three buttons. Notes cannot be "done", so they get the two snoozes. */
@@ -115,6 +129,19 @@ export type ReminderActionPatch = {
   last_interacted_at: string;
 };
 
+/** Statuses a reminder button may still act on (open inbox / board tasks). */
+export const REMINDER_ACTIONABLE_STATUSES = ["inbox", "pending"] as const;
+
+/**
+ * "Done" as one conditional update (no read first): the caller filters by
+ * id + open status + is_actionable + not deleted, so a stale or repeated tap
+ * is a harmless no-op. One round trip keeps the tap fast.
+ */
+export function buildReminderDonePatch(now: Date): ReminderActionPatch {
+  const nowIso = now.toISOString();
+  return { status: "completed", completed_at: nowIso, last_interacted_at: nowIso };
+}
+
 /** Snooze target: +1h from now, or tomorrow 09:00 Asia/Jerusalem (same as the in-app popup). */
 export function reminderSnoozeDueAt(
   kind: Extract<AlertSnoozeKind, "hour" | "tomorrow">,
@@ -137,11 +164,11 @@ export function buildReminderActionPatch(
   now: Date,
 ): ReminderActionPatch | null {
   if (item.deleted_at) return null;
-  if (item.status !== "inbox" && item.status !== "pending") return null;
+  if (!(REMINDER_ACTIONABLE_STATUSES as readonly string[]).includes(item.status)) return null;
   const nowIso = now.toISOString();
   if (action === "done") {
     if (!item.is_actionable) return null;
-    return { status: "completed", completed_at: nowIso, last_interacted_at: nowIso };
+    return buildReminderDonePatch(now);
   }
   const dueAt = reminderSnoozeDueAt(action, now);
   const reminder = buildManualReminderPatch(

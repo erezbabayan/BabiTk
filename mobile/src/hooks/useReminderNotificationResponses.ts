@@ -35,7 +35,12 @@ export function useReminderNotificationResponses(
         void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
         return;
       }
-      if (action) void handleReminderActionResponse(response);
+      if (action) {
+        // Buttons now open the app; drop the stored response so a remount does not replay it.
+        void handleReminderActionResponse(response).finally(() => {
+          void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+        });
+      }
     };
 
     void Notifications.getLastNotificationResponseAsync()

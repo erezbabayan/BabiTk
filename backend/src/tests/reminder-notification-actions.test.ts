@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   buildReminderActionPatch,
+  buildReminderDonePatch,
   DEFAULT_NOTIFICATION_ACTION,
+  REMINDER_ACTIONABLE_STATUSES,
   parseReminderAction,
   REMINDER_ACTION_DONE,
   REMINDER_ACTION_SNOOZE_HOUR,
@@ -60,6 +62,25 @@ describe("reminder notification categories", () => {
     for (const id of [REMINDER_CATEGORY_TASK, REMINDER_CATEGORY_NOTE]) {
       assert.doesNotMatch(id, /[:-]/);
     }
+  });
+
+  it("every button brings the app to the foreground so the write is not cut off", () => {
+    // With opensAppToForeground false the tap runs in a short-lived broadcast; the
+    // backgrounded app was frozen after the read and the update never reached Supabase.
+    for (const buttons of Object.values(REMINDER_CATEGORY_BUTTONS)) {
+      for (const button of buttons) assert.equal(button.opensAppToForeground, true, button.identifier);
+    }
+  });
+
+  it("done is a single conditional update with the board's complete patch", () => {
+    const now = new Date("2026-11-25T10:23:17.000Z");
+    assert.deepEqual(buildReminderDonePatch(now), {
+      status: "completed",
+      completed_at: now.toISOString(),
+      last_interacted_at: now.toISOString(),
+    });
+    assert.deepEqual([...REMINDER_ACTIONABLE_STATUSES], ["inbox", "pending"]);
+    assert.deepEqual(buildReminderActionPatch(task({ status: "inbox" }), "done", now), buildReminderDonePatch(now));
   });
 
   it("parses action ids and item ids", () => {

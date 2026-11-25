@@ -1,10 +1,12 @@
 /**
  * Action buttons on item reminder notifications (Android).
  *
- * The buttons run without opening the app (opensAppToForeground: false):
- * - app running (foreground/background): addNotificationResponseReceivedListener
- * - app backgrounded or killed: the expo-task-manager task below (Android runs it
- *   for action taps). Defined at module scope so the headless JS run registers it.
+ * The buttons bring the app to the foreground (opensAppToForeground: true, see
+ * ReminderActionButton) so the Supabase write runs in a live process:
+ * - addNotificationResponseReceivedListener / last response (cold start) in App
+ * - the expo-task-manager task below also runs for taps while not foreground.
+ *   Both paths share `handled`, and "done" is a conditional update, so a double
+ *   delivery is harmless. Defined at module scope so a headless run registers it.
  * Writes go through the signed-in Supabase client (RLS: own rows only), same as
  * the board's completeTask/snoozeTask.
  */
@@ -16,7 +18,9 @@ import { requireSupabase, isSupabaseConfigured } from "./supabase";
 import { ANDROID_REMINDER_CHANNEL_ID, ensureAndroidReminderChannel } from "./local-notifications";
 import {
   buildReminderActionPatch,
+  buildReminderDonePatch,
   headlessReminderFromTaskPayload,
+  REMINDER_ACTIONABLE_STATUSES,
   parseReminderAction,
   REMINDER_CATEGORY_BUTTONS,
   reminderItemIdFromContent,
@@ -40,7 +44,7 @@ export async function registerReminderNotificationCategories(): Promise<void> {
         buttons.map((button) => ({
           identifier: button.identifier,
           buttonTitle: button.buttonTitle,
-          options: { opensAppToForeground: false },
+          options: { opensAppToForeground: button.opensAppToForeground },
         })),
       ),
     ),
@@ -55,6 +59,18 @@ async function applyReminderAction(
   const supabase = requireSupabase();
   const { data: session } = await supabase.auth.getSession();
   if (!session.session) return false;
+  if (action === "done") {
+    const { data: updated, error: doneError } = await supabase
+      .from("mindtasker_items")
+      .update(buildReminderDonePatch(new Date()))
+      .eq("id", itemId)
+      .eq("is_actionable", true)
+      .in("status", [...REMINDER_ACTIONABLE_STATUSES])
+      .is("deleted_at", null)
+      .select("id");
+    if (doneError) throw doneError;
+    return Array.isArray(updated) && updated.length > 0;
+  }
   const { data, error } = await supabase
     .from("mindtasker_items")
     .select("id, title, content, is_actionable, status, due_date, metadata, deleted_at")
@@ -88,17 +104,18 @@ export async function handleReminderActionResponse(
   // The listener and the background task can both see one tap while the app is alive.
   if (handled.has(key)) return true;
   handled.add(key);
+  // Dismiss first: immediate feedback for the tap, even if the network is slow.
+  await Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(
+    () => undefined,
+  );
   try {
-    await applyReminderAction(itemId, action);
+    const applied = await applyReminderAction(itemId, action);
+    if (!applied) console.warn("[reminder-action] no change:", action);
   } catch (error) {
     handled.delete(key);
     console.warn(
       "[reminder-action] failed:",
       error instanceof Error ? error.message : "unknown",
-    );
-  } finally {
-    await Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(
-      () => undefined,
     );
   }
   return true;
